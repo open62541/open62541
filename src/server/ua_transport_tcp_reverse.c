@@ -155,9 +155,13 @@ serverReverseConnectionCallbackLocked(UA_ConnectionManager *cm, uintptr_t connec
         UA_BinaryConnectionConfig_set(&connectionConfig, config->tcpBufSize,
                                       config->tcpMaxMsgSize,
                                       config->tcpMaxChunks);
+        /* The channel uses the Endpoint announced in the RHE message */
+        const UA_String *endpointUrl = NULL;
+        if(config->applicationDescription.discoveryUrlsSize > 0)
+            endpointUrl = &config->applicationDescription.discoveryUrls[0];
         res = createServerSecureChannel(rpm->drv.server, &connectionConfig,
-                                        cm, connectionId,
-                                        params, &context->channel);
+                                        cm, connectionId, params,
+                                        endpointUrl, &context->channel);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(rpm->logging, UA_LOGCATEGORY_SERVER,
                            "TCP %lu\t| Could not accept the reverse "

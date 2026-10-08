@@ -244,6 +244,20 @@ newHttpChannel(UA_HttpListener *listener, UA_SecurityPolicy *policy,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(remoteAddress)
         res = UA_String_copy(remoteAddress, &channel->remoteAddress);
+
+    /* Record the URL of the Binary or JSON endpoint of the listener */
+    if(res == UA_STATUSCODE_GOOD) {
+#ifdef UA_ENABLE_JSON_ENCODING
+        if(encoding == UA_SECURECHANNEL_ENCODING_JSON)
+            res = httpProfileEndpointUrl(
+                &listener->endpointUrl, isSecureHttpListener(listener) ?
+                &UA_HTTP_PROFILE_HTTPS_JSON : &UA_HTTP_PROFILE_HTTP_JSON,
+                &channel->listenerUrl);
+        else
+#endif
+            res = UA_String_copy(&listener->endpointUrl, &channel->listenerUrl);
+    }
+
     UA_MessageSecurityMode mode = UA_SecureChannel_httpSecurityMode(
         isSecureHttpListener(listener));
     if(res == UA_STATUSCODE_GOOD) {

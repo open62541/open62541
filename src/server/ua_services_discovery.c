@@ -729,7 +729,7 @@ isHttpJsonTransportProfile(const UA_String *profileUri) {
 
 /* Binary and JSON HTTP transports use distinct endpoint URLs. The configured
  * URL is the Binary endpoint. JSON is pinned to its /json child endpoint. */
-static UA_StatusCode
+UA_StatusCode
 httpProfileEndpointUrl(const UA_String *url, const UA_String *profileUri,
                        UA_String *profileUrl) {
     static const UA_String suffix = UA_STRING_STATIC("/json");
@@ -769,6 +769,45 @@ isInsecureWebSocketEndpointUrl(const UA_String *url) {
     const UA_String prefix = UA_STRING_STATIC("opc.ws://");
     return url->length >= prefix.length &&
         memcmp(url->data, prefix.data, prefix.length) == 0;
+}
+
+const UA_String *
+getChannelTransportProfileUri(const UA_SecureChannel *channel) {
+    static const UA_String unknownTransportProfile = UA_STRING_STATIC("");
+    static const UA_String tcpBinaryTransportProfile = UA_STRING_STATIC(
+        "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+    const UA_String *url = &channel->listenerUrl;
+
+    /* HTTP carries the encoding of the endpoint on the logical channel */
+    if(channel->transport == UA_SECURECHANNEL_TRANSPORT_HTTP) {
+        UA_Boolean secure = false;
+        if(!getHttpUrlSecurity(url, &secure))
+            return &unknownTransportProfile;
+#ifdef UA_ENABLE_JSON_ENCODING
+        if(channel->encoding == UA_SECURECHANNEL_ENCODING_JSON)
+            return secure ? &UA_HTTP_PROFILE_HTTPS_JSON :
+                &UA_HTTP_PROFILE_HTTP_JSON;
+#endif
+        return secure ? &UA_HTTP_PROFILE_HTTPS_BINARY :
+            &UA_HTTP_PROFILE_HTTP_BINARY;
+    }
+
+    /* UACP over TCP (also reverse connect) or WebSocket. The scheme of the
+     * WebSocket listener distinguishes TLS. */
+    if(!channel->connectionManager)
+        return &unknownTransportProfile;
+    const UA_String tcp = UA_STRING_STATIC("tcp");
+    const UA_String websocket = UA_STRING_STATIC("websocket");
+    const UA_String *protocol = &channel->connectionManager->protocol;
+    if(UA_String_equal(protocol, &tcp))
+        return &tcpBinaryTransportProfile;
+    if(UA_String_equal(protocol, &websocket)) {
+        if(isSecureWebSocketEndpointUrl(url))
+            return &wssBinaryTransportProfile;
+        if(isInsecureWebSocketEndpointUrl(url))
+            return &wsBinaryTransportProfile;
+    }
+    return &unknownTransportProfile;
 }
 
 static UA_StatusCode

@@ -122,6 +122,8 @@ auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
         ed.eventType = UA_NS0ID(AUDITHISTORYUPDATEEVENTTYPE); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD:
         ed.eventType = UA_NS0ID(AUDITUPDATEMETHODEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD_ROLEMAPPINGRULECHANGED:
+        ed.eventType = UA_NS0ID(ROLEMAPPINGRULECHANGEDAUDITEVENTTYPE); break;
     default:
         /* TODO:
          * UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT                            = 0x1800,
@@ -353,12 +355,32 @@ auditActivateSessionEvent(UA_Server *server,
                         req->clientSoftwareCertificatesSize,
                         &UA_TYPES[UA_TYPES_SIGNEDSOFTWARECERTIFICATE]);
 
-    /* /UserIdentityToken */
+    /* /UserIdentityToken
+     *
+     * Part 5 §6.4.10: "For Username/Password tokens the password shall not be
+     * included". ActivateSession has already decrypted the secret in place.
+     * Publish a shallow copy of the token without the password (or the issued
+     * token data) and without the EncryptionAlgorithm that applied to it. The
+     * copies stay alive until the event has been emitted. */
+    UA_UserNameIdentityToken userNameToken;
+    UA_IssuedIdentityToken issuedToken;
     if(req->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED ||
        req->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         const UA_ExtensionObject *uit = &req->userIdentityToken;
-        UA_Variant_setScalar(&sessionActivateAuditPayload[9].value, uit->content.decoded.data,
-                             uit->content.decoded.type);
+        const UA_DataType *tokenType = uit->content.decoded.type;
+        void *token = uit->content.decoded.data;
+        if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+            userNameToken = *(UA_UserNameIdentityToken*)token;
+            UA_ByteString_init(&userNameToken.password);
+            UA_String_init(&userNameToken.encryptionAlgorithm);
+            token = &userNameToken;
+        } else if(tokenType == &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]) {
+            issuedToken = *(UA_IssuedIdentityToken*)token;
+            UA_ByteString_init(&issuedToken.tokenData);
+            UA_String_init(&issuedToken.encryptionAlgorithm);
+            token = &issuedToken;
+        }
+        UA_Variant_setScalar(&sessionActivateAuditPayload[9].value, token, tokenType);
     } else {
         UA_Variant_init(&sessionActivateAuditPayload[9].value);
     }
@@ -664,6 +686,85 @@ auditWriteUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *
                      channel, session, sourceNode, "Write", status, payload);
 }
 
+/* Arguments that carry secrets and are not published in the
+ * AuditUpdateMethodEvent. Both the NS0 instance and the ObjectType declaration
+ * are listed, since instances of the ObjectType reference the declaration by
+ * default (see copyMethodsOnInstances). Bit i of a mask stands for argument
+ * i. */
+typedef struct {
+    UA_UInt32 methodId; /* in NS0 */
+    UA_UInt32 secretInputs;
+    UA_UInt32 secretOutputs;
+} SecretMethodArguments;
+
+static const SecretMethodArguments secretMethodArguments[] = {
+    /* UpdateCertificate: PrivateKey */
+    {UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE, 1u << 5, 0},
+    {UA_NS0ID_SERVERCONFIGURATIONTYPE_UPDATECERTIFICATE, 1u << 5, 0},
+#ifdef UA_NS0ID_USERMANAGEMENT_ADDUSER
+    /* AddUser: Password */
+    {UA_NS0ID_USERMANAGEMENT_ADDUSER, 1u << 1, 0},
+    {UA_NS0ID_USERMANAGEMENTTYPE_ADDUSER, 1u << 1, 0},
+    /* ModifyUser: Password */
+    {UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 1u << 2, 0},
+    {UA_NS0ID_USERMANAGEMENTTYPE_MODIFYUSER, 1u << 2, 0},
+    /* ChangePassword: OldPassword and NewPassword */
+    {UA_NS0ID_USERMANAGEMENT_CHANGEPASSWORD, (1u << 0) | (1u << 1), 0},
+    {UA_NS0ID_USERMANAGEMENTTYPE_CHANGEPASSWORD, (1u << 0) | (1u << 1), 0},
+#endif
+#ifdef UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS
+    /* PubSub security keys (Part 14 §8.3.2 and §9.1.3.3). Listed independent
+     * of UA_ENABLE_PUBSUB_SKS, since the keys of a call are secret even if the
+     * Server does not implement the Method. */
+    /* GetSecurityKeys: Keys (output) */
+    {UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS, 0, 1u << 2},
+    {UA_NS0ID_PUBSUBKEYSERVICETYPE_GETSECURITYKEYS, 0, 1u << 2},
+    /* SetSecurityKeys: CurrentKey and FutureKeys */
+    {UA_NS0ID_PUBLISHSUBSCRIBE_SETSECURITYKEYS, (1u << 3) | (1u << 4), 0},
+    {UA_NS0ID_PUBLISHSUBSCRIBETYPE_SETSECURITYKEYS, (1u << 3) | (1u << 4), 0},
+#endif
+};
+
+/* The redacted copy of the arguments is kept on the stack. None of the Methods
+ * above has more arguments. */
+#define UA_AUDIT_MAXREDACTEDARGUMENTS 8
+
+static const SecretMethodArguments *
+getSecretMethodArguments(const UA_NodeId *methodNode) {
+    if(methodNode->namespaceIndex != 0 ||
+       methodNode->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return NULL;
+    size_t count = sizeof(secretMethodArguments) / sizeof(SecretMethodArguments);
+    for(size_t i = 0; i < count; i++) {
+        if(secretMethodArguments[i].methodId == methodNode->identifier.numeric)
+            return &secretMethodArguments[i];
+    }
+    return NULL;
+}
+
+/* Replace the secret arguments by empty Variants in a shallow copy that stays
+ * alive until the event has been emitted. An unexpectedly long argument list
+ * is not published at all. */
+static void
+redactMethodArguments(UA_UInt32 secretArguments,
+                      UA_Variant redacted[UA_AUDIT_MAXREDACTEDARGUMENTS],
+                      size_t *argumentsSize, UA_Variant **arguments) {
+    if(secretArguments == 0)
+        return;
+    if(*argumentsSize > UA_AUDIT_MAXREDACTEDARGUMENTS) {
+        *arguments = NULL;
+        *argumentsSize = 0;
+        return;
+    }
+    for(size_t i = 0; i < *argumentsSize; i++) {
+        if(secretArguments & (1u << i))
+            UA_Variant_init(&redacted[i]);
+        else
+            redacted[i] = (*arguments)[i];
+    }
+    *arguments = redacted;
+}
+
 void
 auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                        UA_Boolean status, const UA_NodeId *sourceNode,
@@ -691,6 +792,17 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     UA_Variant_setScalar(&methodUpdatePayload[7].value, &statusCodeId,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
 
+    /* Passwords, private keys and security keys are not published */
+    UA_Variant redactedInputs[UA_AUDIT_MAXREDACTEDARGUMENTS];
+    UA_Variant redactedOutputs[UA_AUDIT_MAXREDACTEDARGUMENTS];
+    const SecretMethodArguments *secrets = getSecretMethodArguments(methodNode);
+    if(secrets) {
+        redactMethodArguments(secrets->secretInputs, redactedInputs,
+                              &inputsSize, &inputs);
+        redactMethodArguments(secrets->secretOutputs, redactedOutputs,
+                              &outputsSize, &outputs);
+    }
+
     /* /InputArguments */
     UA_Variant_setArray(&methodUpdatePayload[8].value, inputs, inputsSize,
                          &UA_TYPES[UA_TYPES_VARIANT]);
@@ -701,6 +813,39 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 
     UA_KeyValueMap payload = {10, methodUpdatePayload};
     auditUpdateEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD,
+                     channel, session, sourceNode, "Call", status, payload);
+}
+
+void
+auditRoleMappingRuleChangedEvent(UA_Server *server, UA_SecureChannel *channel,
+                                 UA_Session *session, UA_Boolean status,
+                                 const UA_NodeId *sourceNode, const UA_NodeId *methodNode,
+                                 UA_StatusCode statusCodeId,
+                                 size_t inputsSize, UA_Variant *inputs) {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair rmrcPayload[10] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 5 */
+        {{0, UA_STRING_STATIC("/MethodId")}, {0}},                    /* 6 */
+        {{0, UA_STRING_STATIC("/StatusCodeId")}, {0}},                /* 7 */
+        {{0, UA_STRING_STATIC("/InputArguments")}, {0}},              /* 8 */
+        {{0, UA_STRING_STATIC("/OutputArguments")}, {0}}              /* 9 */
+    };
+
+    UA_Variant_setScalar(&rmrcPayload[6].value, (void*)(uintptr_t)methodNode,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&rmrcPayload[7].value, &statusCodeId,
+                         &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_Variant_setArray(&rmrcPayload[8].value, inputs, inputsSize,
+                        &UA_TYPES[UA_TYPES_VARIANT]);
+    UA_Variant_setArray(&rmrcPayload[9].value, NULL, 0, &UA_TYPES[UA_TYPES_VARIANT]);
+
+    UA_KeyValueMap payload = {10, rmrcPayload};
+    auditUpdateEvent(server,
+                     UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD_ROLEMAPPINGRULECHANGED,
                      channel, session, sourceNode, "Call", status, payload);
 }
 

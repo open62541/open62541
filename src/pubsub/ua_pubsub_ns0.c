@@ -13,6 +13,7 @@
  */
 
 #include "ua_pubsub_internal.h"
+#include "../server/ua_server_rbac.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
@@ -2812,6 +2813,25 @@ initPubSubNS0(UA_Server *server) {
     return retVal;
 }
 
+/* Remove a single node from the Nodestore. Like a regular node deletion, the
+ * node releases its reference on its shared RolePermission entry (RBAC). An
+ * instance child can hold one for the AccessRestrictions of its
+ * InstanceDeclaration. */
+static void
+removeNodeFromNodestore(UA_Server *server, const UA_NodeId *nodeId) {
+#ifdef UA_ENABLE_RBAC
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return;
+    UA_PermissionIndex permissionIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+    if(UA_NODESTORE_REMOVE(server, nodeId) == UA_STATUSCODE_GOOD)
+        UA_Server_decrementRolePermissionsRefCount(server, permissionIndex);
+#else
+    UA_NODESTORE_REMOVE(server, nodeId);
+#endif
+}
+
 /* Remove the Metadata nodes of the DSR and reference the Metadata nodes of the
  * SDS instead */
 UA_StatusCode
@@ -2836,8 +2856,8 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsI
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
                             UA_NS0ID(HASCOMPONENT), dsrId);
 
-    UA_NODESTORE_REMOVE(server, &dataSetMetaDataOnDsrId);
-    UA_NODESTORE_REMOVE(server, &subscribedDataSetOnDsrId);
+    removeNodeFromNodestore(server, &dataSetMetaDataOnDsrId);
+    removeNodeFromNodestore(server, &subscribedDataSetOnDsrId);
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),

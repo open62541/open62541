@@ -8,50 +8,99 @@
 #include "ua_server_internal.h"
 #include "ua_server_rbac.h"
 
+#include "utf8.h"
+
 #ifdef UA_ENABLE_RBAC
 
-/* RBAC implementation. Permission configurations are deduplicated internally;
- * nodes sharing the same role permissions reference a shared entry via a
- * compact permission index in the node head.
+/* RBAC implementation. The per-node RBAC state (the RolePermissions and the
+ * AccessRestrictions) lives in shared, reference-counted entries; nodes with
+ * the same state reference the same entry via a compact permission index in
+ * the node head. Entries are changed copy-on-write.
+ *
+ * - Identity criteria are evaluated for Anonymous, AuthenticatedUser,
+ *   UserName, TrustedApplication (signed or encrypted SecureChannel with a
+ *   validated application certificate, per Part 18 §4.4.3), Thumbprint and
+ *   X509Subject (of the X509 user certificate), Application (client
+ *   ApplicationUri) and Role (a claim from an accepted access token). GroupId
+ *   is evaluated when the AccessControl getUserGroups hook is configured.
+ *
+ * - The Application and Endpoint role filters (including the Exclude variants)
+ *   are evaluated during role resolution. An empty exclude list is
+ *   unrestricted; an empty include list matches no Session (Part 18 §4.4.1).
+ *
+ * - Active Sessions are re-evaluated and their Roles reassigned when the
+ *   RoleSet changes through addRole/removeRole/updateRole (and the RoleType
+ *   AddIdentity/RemoveIdentity/... Methods that route through updateRole),
+ *   per Part 18 §4.4.1.
+ *
+ * - AccessRestrictions (Part 3 §5.2.11: Signing/Encryption/Session required,
+ *   ApplyRestrictionsToBrowse) are set per node (held in the node's shared
+ *   entry next to its RolePermissions) with a namespace default and
+ *   enforced on Read, Write, HistoryRead, HistoryUpdate, Call, Browse and
+ *   TranslateBrowsePathsToNodeIds. The local admin session is exempt.
  *
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
  *
- * - Identity criteria are evaluated for Anonymous, AuthenticatedUser,
- *   UserName and TrustedApplication (the latter matches sessions on a signed
- *   or encrypted SecureChannel, i.e. with a validated application certificate,
- *   per Part 18 §4.4.3). Thumbprint, GroupId, Application and X509Subject are
- *   stored but not evaluated; assign such roles explicitly via the session
- *   "roles" attribute.
+ * - GroupId criteria require an AccessControl getUserGroups hook; without it
+ *   they never match (no native group source).
  *
- * - Application and Endpoint role filters (including the Exclude variants)
- *   are not evaluated during role resolution. An empty filter list with the
- *   default Exclude=true means "no restriction" (Part 18 §4.4.1).
- *
- * - Changes to a Role's identity mapping rules (updateRole, AddIdentity,
- *   RemoveIdentity) are not re-evaluated for already-active Sessions; they
- *   take effect on the next ActivateSession (Part 18 §4.4.1 says active
- *   Sessions shall be re-evaluated).
+ * - The role registry is capped at UA_RBAC_MAX_ROLES entries. AddRole reports
+ *   Bad_NotSupported beyond that (Part 18 §4.2.2).
  *
  * - RolePermissions and the role Identities cannot be written through the
- *   attribute service (Part 3 §5.2.9). Use the C API, or the AddIdentity /
- *   RemoveIdentity methods for identities.
+ *   attribute service (Part 3 §5.2.9). Use the C API (UA_Server_updateRole).
  *
- * - AccessRestrictions (Part 3 §5.2.11) and the NamespaceMetadata
- *   DefaultAccessRestrictions are not implemented.
+ * - The RoleType instance Methods (AddIdentity/RemoveIdentity/AddApplication/
+ *   RemoveApplication/AddEndpoint/RemoveEndpoint) are materialized on Role
+ *   Objects in NS0 and route through UA_Server_updateRole. The
+ *   ApplicationsExclude and EndpointsExclude Properties are backed by the role
+ *   registry and writable through the Write service, per Part 18 §4.4.1.
  *
- * - Part 18 §5 User Management (UserManagementType, AddUser / ModifyUser /
- *   RemoveUser / ChangePassword) is not implemented.
+ * - The AccessRestrictions attribute is read-only through the attribute
+ *   service; set it via the C API (UA_Server_setNodeAccessRestrictions).
+ *
+ * - Part 18 §5 User Management (UserManagementType: AddUser / ModifyUser /
+ *   RemoveUser / ChangePassword and the password-policy Properties) is wired up
+ *   by initUserManagement in ua_server_ns0_rbac.c when the AccessControl plugin
+ *   provides a UserManagement provider. Without one the Object is removed.
  *
  * - Roles added or removed at runtime - through the C API
  *   (UA_Server_addRole / UA_Server_removeRole) or the RoleSet AddRole /
  *   RemoveRole Methods - are mirrored as Role Objects under
  *   Server/ServerCapabilities/RoleSet, so they are visible to browsing
- *   clients (Part 18 §4.2.2, §4.2.3, §4.3). The well-known roles created
- *   during NS0 setup are left untouched.
+ *   clients (Part 18 §4.2.2, §4.2.3, §4.3). An existing Node with the
+ *   requested roleId is adopted as the Role Object only if it is an Object of
+ *   RoleType (or a subtype), such as the well-known Roles created during NS0
+ *   setup or a Role Object from a custom nodeset; its Properties and Methods
+ *   are then backed by the registry. For any other Node addRole fails with
+ *   Bad_NodeIdExists, since removeRole deletes the Role Object.
  *
- * - RBAC-related audit events (e.g. RoleMappingRuleChangedAuditEventType)
- *   are not emitted.
+ * - A RoleMappingRuleChangedAuditEventType is emitted from UA_Server_addRole,
+ *   UA_Server_removeRole and UA_Server_updateRole (the choke points for
+ *   identity/application/endpoint mapping changes, reached by the C API and the
+ *   RoleSet/RoleType Methods) when a role's mapping rules change (requires
+ *   UA_ENABLE_AUDITING and UA_ENABLE_SUBSCRIPTIONS_EVENTS).
+ *
+ * - The CustomConfiguration Property (Part 18 §4.4.1) is stored on UA_Role,
+ *   exposed as a read-only NS0 Property backed by the role registry, and
+ *   enforced: a Role with an empty Identities array and CustomConfiguration ==
+ *   FALSE cannot be granted to any Session. For CustomConfiguration == TRUE the
+ *   spec leaves the assignment vendor-specific. Roles without standard identity
+ *   rules are therefore assigned only through the session "roles" attribute.
+ *   Writing that attribute pins the Roles of the Session: it is not
+ *   re-evaluated when the RoleSet changes (removed Roles are still dropped)
+ *   until the attribute is deleted or the Session is activated again.
+ *
+ * - The role registry, the RolePermission presets and allPermissionsForAnonymous
+ *   can be set from a JSON server configuration under the "rbac" key (see
+ *   tools/server_config_schema.json). Roles from the configuration are
+ *   protected and cannot be removed at runtime.
+ *
+ * - removeRole returns Bad_RequestNotAllowed for protected (well-known or
+ *   config) roles per Part 18 §4.2.3 Table 3; the missing-Permissions case
+ *   (Bad_UserAccessDenied) is handled by checkRBACMethodAccess on the Method
+ *   entry point.
  */
 
 /*********************************/
@@ -128,6 +177,7 @@ UA_Role_init(UA_Role *role) {
     role->endpointsExclude = true;
     role->endpointsSize = 0;
     role->endpoints = NULL;
+    role->customConfiguration = false;
 }
 
 void UA_EXPORT
@@ -137,23 +187,14 @@ UA_Role_clear(UA_Role *role) {
     UA_NodeId_clear(&role->roleId);
     UA_QualifiedName_clear(&role->roleName);
 
-    if(role->identityMappingRules) {
-        for(size_t i = 0; i < role->identityMappingRulesSize; i++)
-            UA_IdentityMappingRuleType_clear(&role->identityMappingRules[i]);
-        UA_free(role->identityMappingRules);
-    }
-
-    if(role->applications) {
-        for(size_t i = 0; i < role->applicationsSize; i++)
-            UA_String_clear(&role->applications[i]);
-        UA_free(role->applications);
-    }
-
-    if(role->endpoints) {
-        for(size_t i = 0; i < role->endpointsSize; i++)
-            UA_EndpointType_clear(&role->endpoints[i]);
-        UA_free(role->endpoints);
-    }
+    /* UA_Array_delete instead of a plain free: the arrays may have been filled
+     * with UA_Array_copy, which returns the empty-array sentinel for size 0 */
+    UA_Array_delete(role->identityMappingRules, role->identityMappingRulesSize,
+                    &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]);
+    UA_Array_delete(role->applications, role->applicationsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    UA_Array_delete(role->endpoints, role->endpointsSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTTYPE]);
     UA_Role_init(role);
 }
 
@@ -227,6 +268,8 @@ UA_Role_copy(const UA_Role *src, UA_Role *dst) {
         }
     }
 
+    dst->customConfiguration = src->customConfiguration;
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -261,6 +304,8 @@ UA_Role_equal(const UA_Role *r1, const UA_Role *r2) {
         if(!UA_EndpointType_equal(&r1->endpoints[i], &r2->endpoints[i]))
             return false;
     }
+    if(r1->customConfiguration != r2->customConfiguration)
+        return false;
     return true;
 }
 
@@ -268,21 +313,41 @@ UA_Role_equal(const UA_Role *r1, const UA_Role *r2) {
 /* Internal UA_RolePermissionEntry Helpers */
 /*****************************************/
 
+/* An empty entry carries neither RolePermissions nor AccessRestrictions */
 static void
 rolePermissionEntry_init(UA_RolePermissionEntry *rp) {
     rp->rolePermissionsSize = 0;
     rp->rolePermissions = NULL;
     rp->refCount = 0;
+    rp->accessRestrictions = UA_ACCESSRESTRICTIONTYPE_NONE;
+    rp->hasRolePermissions = false;
+    rp->hasAccessRestrictions = false;
 }
 
+/* Free the RolePermission array, keep the other fields */
 static void
-rolePermissionEntry_clear(UA_RolePermissionEntry *rp) {
+rolePermissionEntry_clearRolePermissions(UA_RolePermissionEntry *rp) {
     if(rp->rolePermissions) {
         for(size_t i = 0; i < rp->rolePermissionsSize; i++)
             UA_NodeId_clear(&rp->rolePermissions[i].roleId);
         UA_free(rp->rolePermissions);
     }
+    rp->rolePermissionsSize = 0;
+    rp->rolePermissions = NULL;
+}
+
+static void
+rolePermissionEntry_clear(UA_RolePermissionEntry *rp) {
+    rolePermissionEntry_clearRolePermissions(rp);
     rolePermissionEntry_init(rp);
+}
+
+const UA_RolePermissionEntry *
+getRolePermissionsEntry(const UA_Server *server, UA_PermissionIndex index) {
+    if(index == UA_PERMISSION_INDEX_INVALID || index >= server->rolePermissionsSize)
+        return NULL;
+    const UA_RolePermissionEntry *rp = &server->rolePermissions[index];
+    return rp->hasRolePermissions ? rp : NULL;
 }
 
 /* Copy an array of UA_RolePermission into a new allocation */
@@ -330,28 +395,115 @@ compareRolePermissions(size_t size1, const UA_RolePermission *rp1,
     return true;
 }
 
-/* Find or create a role-permission entry in the server's internal array.
- * Returns the index of the matching or new entry.
+/* The content of an entry (the deduplication key). The RolePermission array is
+ * borrowed. An absent part is normalized: no RolePermissions means an empty
+ * array, no AccessRestrictions means UA_ACCESSRESTRICTIONTYPE_NONE. */
+typedef struct {
+    UA_Boolean hasRolePermissions;
+    size_t rolePermissionsSize;
+    const UA_RolePermission *rolePermissions;
+    UA_Boolean hasAccessRestrictions;
+    UA_AccessRestrictionType accessRestrictions;
+} EntryContent;
+
+static void
+EntryContent_setRolePermissions(EntryContent *c, UA_Boolean hasRolePermissions,
+                                size_t rpSize, const UA_RolePermission *rp) {
+    c->hasRolePermissions = hasRolePermissions;
+    c->rolePermissionsSize = hasRolePermissions ? rpSize : 0;
+    c->rolePermissions = hasRolePermissions ? rp : NULL;
+}
+
+static void
+EntryContent_setAccessRestrictions(EntryContent *c, UA_Boolean hasAccessRestrictions,
+                                   UA_AccessRestrictionType accessRestrictions) {
+    c->hasAccessRestrictions = hasAccessRestrictions;
+    c->accessRestrictions = hasAccessRestrictions ?
+        accessRestrictions : UA_ACCESSRESTRICTIONTYPE_NONE;
+}
+
+/* The content of the entry a node references, as the base for a copy-on-write
+ * change of one part. UA_PERMISSION_INDEX_INVALID yields the empty content.
+ * The RolePermission array is borrowed from the entry; it stays valid when the
+ * entry array is reallocated.
+ *
+ * An out-of-range index is a problem in the Nodestore. A change that needs the
+ * current content (adding or removing the Permissions of one Role) fails then.
+ * A change that replaces a whole part (repair == true) starts from the empty
+ * content instead, so that the node gets a valid index again; the other part
+ * of the node is lost (it is unknown).
  * Must be called with the server lock held. */
 static UA_StatusCode
-findOrCreateRolePermissions(UA_Server *server,
-                            size_t rpSize, const UA_RolePermission *rp,
-                            UA_PermissionIndex *outIndex) {
+getEntryContent(UA_Server *server, const UA_NodeId *nodeId,
+                UA_PermissionIndex index, UA_Boolean repair, EntryContent *c) {
+    EntryContent_setRolePermissions(c, false, 0, NULL);
+    EntryContent_setAccessRestrictions(c, false, UA_ACCESSRESTRICTIONTYPE_NONE);
+    if(index == UA_PERMISSION_INDEX_INVALID)
+        return UA_STATUSCODE_GOOD;
+
+    /* Detect problems in the Nodestore. The index should always be valid. */
+    if(index >= server->rolePermissionsSize) {
+        if(repair) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "RBAC: Node %N has an invalid permission index. "
+                           "Its RolePermissions and AccessRestrictions are reset.",
+                           *nodeId);
+            return UA_STATUSCODE_GOOD;
+        }
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "RBAC: Node %N returned an invalid permission index", *nodeId);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    const UA_RolePermissionEntry *e = &server->rolePermissions[index];
+    EntryContent_setRolePermissions(c, e->hasRolePermissions,
+                                    e->rolePermissionsSize, e->rolePermissions);
+    EntryContent_setAccessRestrictions(c, e->hasAccessRestrictions,
+                                       e->accessRestrictions);
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Deduplication: compare all fields of an entry except the refCount */
+static UA_Boolean
+entryHasContent(const UA_RolePermissionEntry *e, const EntryContent *c) {
+    if(e->hasRolePermissions != c->hasRolePermissions ||
+       e->hasAccessRestrictions != c->hasAccessRestrictions)
+        return false;
+    if(c->hasAccessRestrictions && e->accessRestrictions != c->accessRestrictions)
+        return false;
+    if(!c->hasRolePermissions)
+        return true;
+    return compareRolePermissions(c->rolePermissionsSize, c->rolePermissions,
+                                  e->rolePermissionsSize, e->rolePermissions);
+}
+
+/* Find or create the role-permission entry with the given content in the
+ * server's internal array. Returns the index of the matching or new entry.
+ * Content without RolePermissions and without AccessRestrictions needs no
+ * entry and yields UA_PERMISSION_INDEX_INVALID. The refCount of the entry is
+ * not changed. Must be called with the server lock held. */
+static UA_StatusCode
+findOrCreateEntry(UA_Server *server, const EntryContent *c,
+                  UA_PermissionIndex *outIndex) {
+    if(!c->hasRolePermissions && !c->hasAccessRestrictions) {
+        *outIndex = UA_PERMISSION_INDEX_INVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Check for an existing identical entry */
     for(size_t i = 0; i < server->rolePermissionsSize; i++) {
-        const UA_RolePermissionEntry *existing = &server->rolePermissions[i];
-        if(compareRolePermissions(rpSize, rp,
-                                  existing->rolePermissionsSize,
-                                  existing->rolePermissions)) {
+        if(entryHasContent(&server->rolePermissions[i], c)) {
             *outIndex = (UA_PermissionIndex)i;
             return UA_STATUSCODE_GOOD;
         }
     }
 
-    /* Never recycle a zero-refCount slot: copied nodes can carry a
-     * permissionIndex without being counted, so refCount == 0 does not prove
-     * the slot is unreferenced. The array only grows with the number of
-     * distinct permission sets. */
+    /* Never recycle a zero-refCount slot: indices are handed out through the
+     * API (UA_Server_addRolePermissionConfig, UA_Server_getNodePermissionIndex)
+     * and may be assigned later, and the refCount only covers the references
+     * the server itself takes. So refCount == 0 does not prove the slot is
+     * unused. The array grows with the number of distinct entry contents;
+     * copy-on-write changes leave the entries no longer referenced in place. */
 
     /* Bounds check */
     if(server->rolePermissionsSize >= UA_PERMISSION_INDEX_INVALID)
@@ -370,11 +522,15 @@ findOrCreateRolePermissions(UA_Server *server,
     UA_RolePermissionEntry *entry = &server->rolePermissions[newIndex];
     rolePermissionEntry_init(entry);
 
-    UA_StatusCode res = copyRolePermissionArray(rpSize, rp,
+    UA_StatusCode res = copyRolePermissionArray(c->rolePermissionsSize,
+                                                c->rolePermissions,
                                                 &entry->rolePermissionsSize,
                                                 &entry->rolePermissions);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    entry->hasRolePermissions = c->hasRolePermissions;
+    entry->hasAccessRestrictions = c->hasAccessRestrictions;
+    entry->accessRestrictions = c->accessRestrictions;
 
     server->rolePermissionsSize++;
     *outIndex = newIndex;
@@ -407,6 +563,13 @@ incrementRefCount(UA_Server *server, UA_PermissionIndex index) {
 /**********************/
 /* RBAC Init/Cleanup  */
 /**********************/
+
+static UA_StatusCode
+addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
+        UA_Boolean wellKnown);
+static UA_Role *findRoleByName(UA_Server *server,
+                               const UA_QualifiedName *roleName);
+static UA_Role *findRoleById(UA_Server *server, const UA_NodeId *roleId);
 
 /* Initialize well-known roles per specification */
 static UA_StatusCode
@@ -472,7 +635,7 @@ initializeStandardRoles(UA_Server *server) {
         }
 
         UA_NodeId outId;
-        UA_StatusCode res = UA_Server_addRole(server, &role, &outId);
+        UA_StatusCode res = addRole(server, &role, &outId, true);
         /* Clean up allocated identity array since addRole copies */
         UA_free(role.identityMappingRules);
         if(res != UA_STATUSCODE_GOOD)
@@ -488,7 +651,10 @@ initializeStandardRoles(UA_Server *server) {
 
 /* Apply config roles into server's internal role registry via UA_Server_addRole.
  * Config roles are marked as protected (cannot be removed at runtime).
- * Duplicate names or NodeIds are skipped with a warning. */
+ * A role that cannot be registered - a duplicate of a well-known or earlier
+ * config role, or one that fails validation - aborts startup rather than
+ * silently dropping a security configuration. Use wellKnownRoleMappings to
+ * configure a well-known Role instead of redefining it here. */
 static UA_StatusCode
 initializeRolesFromConfig(UA_Server *server) {
     UA_ServerConfig *config = &server->config;
@@ -498,22 +664,65 @@ initializeRolesFromConfig(UA_Server *server) {
     for(size_t i = 0; i < config->rolesSize; i++) {
         UA_NodeId outId;
         UA_StatusCode res = UA_Server_addRole(server, &config->roles[i], &outId);
-        if(res == UA_STATUSCODE_BADALREADYEXISTS) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "RBAC: Config role '%.*s' (ns=%u) skipped - "
-                           "a role with the same name or NodeId already exists",
-                           (int)config->roles[i].roleName.name.length,
-                           config->roles[i].roleName.name.data,
-                           config->roles[i].roleName.namespaceIndex);
-            continue;
-        }
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "RBAC: Config role '%.*s' (ns=%u) rejected with %s",
+                         (int)config->roles[i].roleName.name.length,
+                         config->roles[i].roleName.name.data,
+                         config->roles[i].roleName.namespaceIndex,
+                         UA_StatusCode_name(res));
             return res;
+        }
 
         /* Mark as protected (cannot be removed at runtime) */
         if(server->rolesSize > 0)
             server->rolesProtected[server->rolesSize - 1] = true;
         UA_NodeId_clear(&outId);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+initializeWellKnownRoleMappings(UA_Server *server) {
+    UA_ServerConfig *config = &server->config;
+    for(size_t i = 0; i < config->wellKnownRoleMappingsSize; i++) {
+        const UA_Role *mapping = &config->wellKnownRoleMappings[i];
+        UA_Role *target = NULL;
+        if(!UA_NodeId_isNull(&mapping->roleId))
+            target = findRoleById(server, &mapping->roleId);
+        if(mapping->roleName.name.length > 0) {
+            UA_Role *byName = findRoleByName(server, &mapping->roleName);
+            if(target && target != byName)
+                return UA_STATUSCODE_BADNOTFOUND;
+            target = byName;
+        }
+        if(!target)
+            return UA_STATUSCODE_BADNOTFOUND;
+
+        const UA_NodeId mandatory[] = {
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_TRUSTEDAPPLICATION)
+        };
+        for(size_t m = 0; m < sizeof(mandatory) / sizeof(mandatory[0]); m++) {
+            if(UA_NodeId_equal(&target->roleId, &mandatory[m]))
+                return UA_STATUSCODE_BADREQUESTNOTALLOWED;
+        }
+
+        UA_Role update;
+        UA_StatusCode res = UA_Role_copy(mapping, &update);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        UA_NodeId_clear(&update.roleId);
+        UA_QualifiedName_clear(&update.roleName);
+        res = UA_NodeId_copy(&target->roleId, &update.roleId);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_QualifiedName_copy(&target->roleName, &update.roleName);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_Server_updateRole(server, &update);
+        UA_Role_clear(&update);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -556,6 +765,7 @@ UA_Server_initRBAC(UA_Server *server) {
                 server->rolePermissions = NULL;
                 return res;
             }
+            entry->hasRolePermissions = true;
             entry->refCount = UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED;
         }
         server->rolePermissionsSize = config->rolePermissionPresetsSize;
@@ -569,24 +779,32 @@ UA_Server_initRBAC(UA_Server *server) {
     if(server->config.allPermissionsForAnonymous) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "RBAC: allPermissionsForAnonymous is enabled. "
-                       "All permissions are granted regardless of roles. "
-                       "Disable for production use.");
+                       "Nodes without RolePermissions grant all permissions "
+                       "regardless of roles. Disable for production use.");
     }
 
-    /* Register the OPC UA well-known roles in the internal registry */
+    /* Register the OPC UA well-known roles in the internal registry. Their
+     * number depends on whether the generated Namespace Zero declares the
+     * SecurityKeyServer Roles, so count what was actually registered. */
     UA_StatusCode stdRes = initializeStandardRoles(server);
     if(stdRes != UA_STATUSCODE_GOOD)
         return stdRes;
+    size_t standardRoles = server->rolesSize;
+
+    UA_StatusCode mappingRes = initializeWellKnownRoleMappings(server);
+    if(mappingRes != UA_STATUSCODE_GOOD)
+        return mappingRes;
 
     /* Copy config roles into the internal role registry */
     UA_StatusCode initRes = initializeRolesFromConfig(server);
     if(initRes != UA_STATUSCODE_GOOD)
         return initRes;
 
-    if(server->rolesSize > 0)
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "RBAC: %zu role(s) loaded from config (protected).",
-                    server->rolesSize);
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "RBAC: %zu standard role(s), %zu well-known mapping update(s), "
+                "%zu custom config role(s) loaded.",
+                standardRoles, config->wellKnownRoleMappingsSize,
+                config->rolesSize);
 
     /* Restrict the RoleSet Object and its Methods to SecurityAdmin. Requires
      * the well-known Roles registered above and the NS0 RBAC nodes. */
@@ -655,15 +873,205 @@ findRoleById(UA_Server *server, const UA_NodeId *roleId) {
     return NULL;
 }
 
+static UA_Boolean
+isUpperHexString(const UA_String *value) {
+    if(value->length != 40)
+        return false;
+    for(size_t i = 0; i < value->length; i++) {
+        UA_Byte c = value->data[i];
+        if(!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+            return false;
+    }
+    return true;
+}
+
+/* The names of Part 18 §4.4.3 Table 10 in the order of the table */
+static const UA_String x509CriteriaNames[] = {
+    UA_STRING_STATIC("CN"), UA_STRING_STATIC("O"), UA_STRING_STATIC("OU"),
+    UA_STRING_STATIC("DC"), UA_STRING_STATIC("L"), UA_STRING_STATIC("S"),
+    UA_STRING_STATIC("C"), UA_STRING_STATIC("dnQualifier"),
+    UA_STRING_STATIC("serialNumber")
+};
+#define UA_X509CRITERIANAMESSIZE \
+    (sizeof(x509CriteriaNames) / sizeof(x509CriteriaNames[0]))
+
+/* An X509Subject criteria is a sequence of NAME="value" pairs separated by
+ * '/'. "The name shall be one of entries in Table 10" and "The order shall be
+ * by the order shown in Table 10" (Part 18 §4.4.3). A name occurs more than
+ * once if it is repeated in the certificate. The criteria of a certificate
+ * never take another form, so a rule in another form could never match. */
+static UA_Boolean
+isCanonicalX509Criteria(const UA_String *value) {
+    if(value->length < 5)
+        return false;
+    size_t pos = 0;
+    size_t lastNameIndex = 0;
+    while(pos < value->length) {
+        size_t nameStart = pos;
+        while(pos < value->length && value->data[pos] != '=')
+            pos++;
+        if(pos == nameStart || pos + 2 >= value->length ||
+           value->data[pos + 1] != '"')
+            return false;
+        UA_String name = {pos - nameStart, &value->data[nameStart]};
+        size_t nameIndex = 0;
+        while(nameIndex < UA_X509CRITERIANAMESSIZE &&
+              !UA_String_equal(&name, &x509CriteriaNames[nameIndex]))
+            nameIndex++;
+        if(nameIndex == UA_X509CRITERIANAMESSIZE || nameIndex < lastNameIndex)
+            return false;
+        lastNameIndex = nameIndex;
+        pos += 2;
+        size_t contentStart = pos;
+        while(pos < value->length && value->data[pos] != '"') {
+            /* The value is UTF-8 and may contain any character except the
+             * delimiting quote (Part 18 4.4.3). Control characters are still
+             * rejected: they cannot appear in a certificate subject. */
+            unsigned codepoint = 0;
+            unsigned len = utf8_to_codepoint(&value->data[pos],
+                                             value->length - pos, &codepoint);
+            if(len == 0 || codepoint < 0x20 || codepoint == 0x7f)
+                return false;
+            pos += len;
+        }
+        if(pos == contentStart || pos >= value->length)
+            return false;
+        pos++;
+        if(pos == value->length)
+            return true;
+        if(value->data[pos++] != '/')
+            return false;
+    }
+    return false;
+}
+
+static const char *
+identityCriteriaTypeName(UA_IdentityCriteriaType criteriaType) {
+    switch(criteriaType) {
+    case UA_IDENTITYCRITERIATYPE_USERNAME:           return "UserName";
+    case UA_IDENTITYCRITERIATYPE_THUMBPRINT:         return "Thumbprint";
+    case UA_IDENTITYCRITERIATYPE_ROLE:               return "Role";
+    case UA_IDENTITYCRITERIATYPE_GROUPID:            return "GroupId";
+    case UA_IDENTITYCRITERIATYPE_ANONYMOUS:          return "Anonymous";
+    case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:  return "AuthenticatedUser";
+    case UA_IDENTITYCRITERIATYPE_APPLICATION:        return "Application";
+    case UA_IDENTITYCRITERIATYPE_X509SUBJECT:        return "X509Subject";
+    case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION: return "TrustedApplication";
+    default:                                         return "unknown";
+    }
+}
+
+/* Validate the content of a Role. The roleName is not checked here: addRole
+ * requires one, but updateRole accepts a Role identified by roleId alone.
+ * An invalid identity mapping rule is logged: the criteria formats are
+ * unforgiving (Part 18 4.4.3) and the StatusCode alone does not say which rule
+ * of which Role the Server refused. */
+static UA_StatusCode
+validateRole(UA_Server *server, const UA_Role *role) {
+    for(size_t i = 0; i < role->identityMappingRulesSize; i++) {
+        const UA_IdentityMappingRuleType *rule = &role->identityMappingRules[i];
+        UA_Boolean valid = true;
+        switch(rule->criteriaType) {
+        case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
+        case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
+        case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
+            valid = (rule->criteria.length == 0);
+            break;
+        case UA_IDENTITYCRITERIATYPE_USERNAME:
+        case UA_IDENTITYCRITERIATYPE_ROLE:
+        case UA_IDENTITYCRITERIATYPE_GROUPID:
+        case UA_IDENTITYCRITERIATYPE_APPLICATION:
+            valid = (rule->criteria.length > 0);
+            break;
+        case UA_IDENTITYCRITERIATYPE_THUMBPRINT:
+            valid = isUpperHexString(&rule->criteria);
+            break;
+        case UA_IDENTITYCRITERIATYPE_X509SUBJECT:
+            valid = isCanonicalX509Criteria(&rule->criteria);
+            break;
+        default:
+            valid = false;
+            break;
+        }
+        if(!valid) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "RBAC: Role '%S': identity mapping rule %u of type %s "
+                           "has the invalid criteria \"%S\"",
+                           role->roleName.name, (unsigned)i,
+                           identityCriteriaTypeName(rule->criteriaType),
+                           rule->criteria);
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
+    for(size_t i = 0; i < role->applicationsSize; i++) {
+        if(role->applications[i].length == 0)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        for(size_t j = 0; j < i; j++) {
+            if(UA_String_equal(&role->applications[i], &role->applications[j]))
+                return UA_STATUSCODE_BADALREADYEXISTS;
+        }
+    }
+    for(size_t i = 0; i < role->endpointsSize; i++) {
+        const UA_EndpointType *ep = &role->endpoints[i];
+        if(ep->securityMode < UA_MESSAGESECURITYMODE_INVALID ||
+           ep->securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        for(size_t j = 0; j < i; j++) {
+            const UA_EndpointType *other = &role->endpoints[j];
+            if(UA_String_equal(&ep->endpointUrl, &other->endpointUrl) &&
+               ep->securityMode == other->securityMode &&
+               UA_String_equal(&ep->securityPolicyUri,
+                               &other->securityPolicyUri) &&
+               UA_String_equal(&ep->transportProfileUri,
+                               &other->transportProfileUri))
+                return UA_STATUSCODE_BADALREADYEXISTS;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Log warnings for role features that are configured but cannot be evaluated in
+ * the current configuration: GroupId criteria without a getUserGroups hook. */
+static void
+warnUnsupportedRoleFeatures(UA_Server *server, const UA_Role *role) {
+    /* Part 18 §4.4.1: a non-custom Role with empty Identities cannot be granted
+     * to any Session. Warn so misconfiguration is visible. */
+    if(role->identityMappingRulesSize == 0 && !role->customConfiguration) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has no identity mapping rules and "
+                       "CustomConfiguration is false - it cannot be granted to "
+                       "any Session (Part 18 §4.4.1)",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    }
+
+    if(server->config.accessControl.getUserGroups != NULL)
+        return; /* GroupId criteria are resolved via the hook */
+    for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
+        if(role->identityMappingRules[k].criteriaType !=
+           UA_IDENTITYCRITERIATYPE_GROUPID)
+            continue;
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has a GroupId identity mapping rule "
+                       "but no AccessControl.getUserGroups hook is configured",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    }
+}
+
 /************************************/
 /* Public API: Role Management      */
 /************************************/
 
-UA_StatusCode
-UA_Server_addRole(UA_Server *server, const UA_Role *role,
-                  UA_NodeId *outRoleNodeId) {
-    if(!server || !role)
+/* wellKnown marks the Roles registered by initializeStandardRoles during server
+ * startup. Those are defined by the spec, so they neither warrant a
+ * configuration warning nor a RoleMappingRuleChanged audit event. */
+static UA_StatusCode
+addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
+        UA_Boolean wellKnown) {
+    if(!server || !role || role->roleName.name.length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_StatusCode validation = validateRole(server, role);
+    if(validation != UA_STATUSCODE_GOOD)
+        return validation;
 
     lockServer(server);
 
@@ -680,10 +1088,12 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         return UA_STATUSCODE_BADALREADYEXISTS;
     }
 
-    /* Enforce the registry quota to bound memory use (DoS mitigation) */
+    /* Enforce the registry quota to bound memory use (DoS mitigation).
+     * Part 18 §4.2.2 AddRole: "Bad_NotSupported - The Server does not allow
+     * more Roles to be added." */
     if(server->rolesSize >= UA_RBAC_MAX_ROLES) {
         unlockServer(server);
-        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     /* Grow the arrays */
@@ -713,59 +1123,53 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         return res;
     }
 
-    /* Auto-assign a numeric roleId if the caller passed a null NodeId */
-    if(UA_NodeId_isNull(&newRole->roleId))
-        newRole->roleId = UA_NODEID_NUMERIC(0, UA_UInt32_random());
+    /* Auto-assign a numeric roleId if the caller passed a null NodeId. Skip
+     * identifiers that are already taken, in the registry or in the
+     * AddressSpace, so that the generated Role Object never collides. */
+    if(UA_NodeId_isNull(&newRole->roleId)) {
+        for(size_t attempt = 0; attempt < 32; attempt++) {
+            newRole->roleId = UA_NODEID_NUMERIC(0, UA_UInt32_random());
+            if(findRoleById(server, &newRole->roleId))
+                continue;
+            if(checkRoleRepresentation(server, &newRole->roleId) ==
+               UA_STATUSCODE_BADNODEIDUNKNOWN)
+                break;
+        }
+    }
 
     server->rolesProtected[server->rolesSize] = false;
     server->rolesSize++;
 
-    /* Warn about features that are stored but not yet evaluated */
-    if(role->applicationsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has application filters configured, "
-                       "but application-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    if(role->endpointsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has endpoint filters configured, "
-                       "but endpoint-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
-        UA_IdentityCriteriaType ct = role->identityMappingRules[k].criteriaType;
-        if(ct != UA_IDENTITYCRITERIATYPE_ANONYMOUS &&
-           ct != UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
-           ct != UA_IDENTITYCRITERIATYPE_USERNAME &&
-           ct != UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "RBAC: Role '%.*s' has an identity mapping rule with "
-                           "criteriaType %d which is not yet evaluated during "
-                           "session role assignment",
-                           (int)role->roleName.name.length, role->roleName.name.data,
-                           (int)ct);
-        }
-    }
+    if(!wellKnown)
+        warnUnsupportedRoleFeatures(server, role);
 
     /* Mirror the role under Server/ServerCapabilities/RoleSet so it is
-     * browseable. Skipped when the NS0 RBAC information model is unavailable
-     * or the Role Object already exists (well-known roles). On failure the
-     * appended registry entry is rolled back. */
+     * browseable. An existing Role Object is adopted instead - that is the case
+     * for the well-known roles of Namespace Zero and for a Role Object that a
+     * custom nodeset brought along. A Node that is not a Role Object is never
+     * adopted: removeRole would delete it with all its references. The RoleSet
+     * itself is created by initNS0RBAC before any role is registered. On
+     * failure the appended registry entry is rolled back. */
     UA_NodeId roleSetId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
     UA_QualifiedName probe;
     if(UA_Server_readBrowseName(server, roleSetId, &probe) == UA_STATUSCODE_GOOD) {
         UA_QualifiedName_clear(&probe);
-        if(UA_Server_readBrowseName(server, newRole->roleId, &probe) ==
-           UA_STATUSCODE_GOOD) {
-            UA_QualifiedName_clear(&probe); /* node already exists -> keep it */
-        } else {
+        UA_StatusCode existing = checkRoleRepresentation(server, &newRole->roleId);
+        if(existing == UA_STATUSCODE_BADNODEIDUNKNOWN) {
             res = addRoleRepresentation(server, newRole);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_Role_clear(newRole);
-                server->rolesSize--;
-                unlockServer(server);
-                return res;
-            }
+        } else if(existing == UA_STATUSCODE_GOOD) {
+            /* initNS0RBAC has already bound the well-known Role Objects */
+            res = (wellKnown) ? UA_STATUSCODE_GOOD :
+                bindRoleRepresentation(server, &newRole->roleId, true);
+        } else {
+            res = existing; /* BADNODEIDEXISTS */
+        }
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Role_clear(newRole);
+            server->rolesSize--;
+            unlockServer(server);
+            return res;
         }
     }
 
@@ -782,8 +1186,27 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         }
     }
 
+    /* A new role may match active sessions (Part 18 §4.4.1) */
+    UA_Server_reevaluateSessionRoles(server);
+
+#ifdef UA_ENABLE_AUDITING
+    if(!wellKnown) {
+        const UA_NodeId method = UA_NODEID_NUMERIC(
+            0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
+        auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
+                                         &newRole->roleId, &method,
+                                         UA_STATUSCODE_GOOD, 0, NULL);
+    }
+#endif
+
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addRole(UA_Server *server, const UA_Role *role,
+                  UA_NodeId *outRoleNodeId) {
+    return addRole(server, role, outRoleNodeId, false);
 }
 
 /* Remove every UA_RolePermission entry that references roleId from a
@@ -814,12 +1237,16 @@ purgeRoleFromArray(size_t *size, UA_RolePermission **arr, const UA_NodeId *roleI
 }
 
 /* Drop all RolePermission references to a removed Role (Part 18: all
- * Permissions associated with the Role shall be deleted).
+ * Permissions associated with the Role shall be deleted). The AccessRestrictions
+ * of the entries are not affected; an entry keeps its RolePermissions part even
+ * if it becomes empty (explicit deny-all).
  * Must be called with the server lock held. */
 static void
 purgeRoleFromPermissions(UA_Server *server, const UA_NodeId *roleId) {
     for(size_t i = 0; i < server->rolePermissionsSize; i++) {
         UA_RolePermissionEntry *rp = &server->rolePermissions[i];
+        if(!rp->hasRolePermissions)
+            continue; /* Only AccessRestrictions, nothing to purge */
         purgeRoleFromArray(&rp->rolePermissionsSize, &rp->rolePermissions, roleId);
     }
     for(size_t i = 0; i < server->namespaceMetadataSize; i++) {
@@ -844,10 +1271,13 @@ UA_Server_removeRole(UA_Server *server,
 
     size_t roleIndex = (size_t)(role - server->roles);
 
-    /* Protected roles (from config) cannot be removed */
+    /* Protected roles (well-known or from config) cannot be removed. Per Part 18
+     * §4.2.3 Table 3 this yields Bad_RequestNotAllowed ("the specified Role Object
+     * cannot be removed"); the missing-Permissions case (Bad_UserAccessDenied) is
+     * handled separately by checkRBACMethodAccess at the Method entry point. */
     if(server->rolesProtected[roleIndex]) {
         unlockServer(server);
-        return UA_STATUSCODE_BADUSERACCESSDENIED;
+        return UA_STATUSCODE_BADREQUESTNOTALLOWED;
     }
 
     /* Remove the published Role Object from the AddressSpace before dropping the
@@ -855,7 +1285,11 @@ UA_Server_removeRole(UA_Server *server,
      * information model has no node; a missing node is ignored, any other
      * deletion failure aborts the removal. */
     UA_NodeId removedRoleId = UA_NODEID_NULL;
-    UA_NodeId_copy(&role->roleId, &removedRoleId);
+    UA_StatusCode copyRes = UA_NodeId_copy(&role->roleId, &removedRoleId);
+    if(copyRes != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return copyRes;
+    }
     UA_StatusCode repRes = removeRoleRepresentation(server, &removedRoleId);
     if(repRes != UA_STATUSCODE_GOOD && repRes != UA_STATUSCODE_BADNODEIDUNKNOWN) {
         UA_NodeId_clear(&removedRoleId);
@@ -865,7 +1299,6 @@ UA_Server_removeRole(UA_Server *server,
 
     /* Drop any RolePermission entries that still reference the removed role */
     purgeRoleFromPermissions(server, &removedRoleId);
-    UA_NodeId_clear(&removedRoleId);
 
     UA_Role_clear(&server->roles[roleIndex]);
 
@@ -898,6 +1331,19 @@ UA_Server_removeRole(UA_Server *server,
         UA_free(server->rolesProtected);
         server->rolesProtected = NULL;
     }
+
+    /* Sessions that were granted the removed role must lose it */
+    UA_Server_reevaluateSessionRoles(server);
+
+#ifdef UA_ENABLE_AUDITING
+    const UA_NodeId method = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE);
+    auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
+                                     &removedRoleId, &method,
+                                     UA_STATUSCODE_GOOD, 0, NULL);
+#endif
+
+    UA_NodeId_clear(&removedRoleId);
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
@@ -969,7 +1415,8 @@ UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
 /* Public API: Node Role Permissions     */
 /*****************************************/
 
-/* Internal helper: set permissionIndex on a single node.
+/* Internal helper: point a node at the entry with the given index, releasing
+ * its current entry and retaining the new one.
  * Must be called with the server lock held. */
 static UA_StatusCode
 setNodePermissionIndexLocked(UA_Server *server, const UA_NodeId *nodeId,
@@ -998,16 +1445,62 @@ setNodePermissionIndexLocked(UA_Server *server, const UA_NodeId *nodeId,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Internal helper: recursively set permissionIndex on a node and its children.
- * The server lock is released for the browse call and re-acquired for
- * each node edit. */
+/* Internal helper: copy-on-write change of a node's entry. Entries are shared
+ * between nodes and never modified on behalf of a single node. Instead, the
+ * node is pointed at the (found or created) entry with the new content.
+ * Must be called with the server lock held. */
 static UA_StatusCode
-setPermissionIndexRecursive(UA_Server *server, const UA_NodeId *nodeId,
-                            UA_PermissionIndex index) {
-    /* Set on this node (already locked by caller) */
-    UA_StatusCode res = setNodePermissionIndexLocked(server, nodeId, index);
+setNodeEntryContent(UA_Server *server, const UA_NodeId *nodeId,
+                    const EntryContent *c) {
+    UA_PermissionIndex index;
+    UA_StatusCode res = findOrCreateEntry(server, c, &index);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    return setNodePermissionIndexLocked(server, nodeId, index);
+}
+
+/* Internal helper: replace the RolePermissions of a node and keep its
+ * AccessRestrictions. With hasRolePermissions == false the node no longer has
+ * RolePermissions of its own (the namespace default applies).
+ * Must be called with the server lock held. */
+static UA_StatusCode
+setNodeRolePermissionsLocked(UA_Server *server, const UA_NodeId *nodeId,
+                             UA_Boolean hasRolePermissions, size_t rpSize,
+                             const UA_RolePermission *rp) {
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    UA_PermissionIndex currentIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+
+    EntryContent c;
+    UA_StatusCode res = getEntryContent(server, nodeId, currentIndex, true, &c);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    EntryContent_setRolePermissions(&c, hasRolePermissions, rpSize, rp);
+    return setNodeEntryContent(server, nodeId, &c);
+}
+
+/* Internal helper: recursively set the RolePermissions of a node and its
+ * children. Each node keeps its own AccessRestrictions. The server lock is
+ * released for the browse call and re-acquired for each node edit. A failure
+ * on the root node is returned. Failures on children are logged and ignored;
+ * the descent continues below a failing child. */
+static UA_StatusCode
+setRolePermissionsRecursive(UA_Server *server, const UA_NodeId *nodeId,
+                            UA_Boolean hasRolePermissions, size_t rpSize,
+                            const UA_RolePermission *rp, UA_Boolean isRoot) {
+    /* Set on this node (already locked by caller) */
+    UA_StatusCode res = setNodeRolePermissionsLocked(server, nodeId,
+                                                     hasRolePermissions,
+                                                     rpSize, rp);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(isRoot)
+            return res;
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Could not set the RolePermissions of Node %N (%s)",
+                       *nodeId, UA_StatusCode_name(res));
+    }
 
     /* Browse for hierarchical children - need to release lock since
      * UA_Server_browse does its own locking */
@@ -1036,7 +1529,8 @@ setPermissionIndexRecursive(UA_Server *server, const UA_NodeId *nodeId,
         if(!UA_ExpandedNodeId_isLocal(&ref->nodeId))
             continue;
         /* Recurse - ignore errors on individual children */
-        setPermissionIndexRecursive(server, &ref->nodeId.nodeId, index);
+        setRolePermissionsRecursive(server, &ref->nodeId.nodeId,
+                                    hasRolePermissions, rpSize, rp, false);
     }
 
     UA_BrowseResult_clear(&br);
@@ -1056,21 +1550,16 @@ UA_Server_setNodeRolePermissions(UA_Server *server,
 
     lockServer(server);
 
-    /* Find or create the internal entry (deduplication) */
-    UA_PermissionIndex index;
-    UA_StatusCode res =
-        findOrCreateRolePermissions(server, rolePermissionsSize,
-                                    rolePermissions, &index);
-    if(res != UA_STATUSCODE_GOOD) {
-        unlockServer(server);
-        return res;
-    }
-
-    /* Set the index on the node (and optionally its children) */
+    /* Point the node (and optionally its children) at the deduplicated entry
+     * with these RolePermissions and the node's own AccessRestrictions */
+    UA_StatusCode res;
     if(recursive)
-        res = setPermissionIndexRecursive(server, &nodeId, index);
+        res = setRolePermissionsRecursive(server, &nodeId, true,
+                                          rolePermissionsSize, rolePermissions,
+                                          true);
     else
-        res = setNodePermissionIndexLocked(server, &nodeId, index);
+        res = setNodeRolePermissionsLocked(server, &nodeId, true,
+                                           rolePermissionsSize, rolePermissions);
 
     unlockServer(server);
     return res;
@@ -1095,16 +1584,15 @@ UA_Server_getNodeRolePermissions(UA_Server *server,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    UA_PermissionIndex index = node->head.permissionIndex;
+    const UA_RolePermissionEntry *rp =
+        getRolePermissionsEntry(server, node->head.permissionIndex);
     UA_NODESTORE_RELEASE(server, node);
 
-    if(index == UA_PERMISSION_INDEX_INVALID ||
-       index >= server->rolePermissionsSize) {
+    if(!rp) {
         unlockServer(server);
         return UA_STATUSCODE_GOOD; /* No role permissions set */
     }
 
-    const UA_RolePermissionEntry *rp = &server->rolePermissions[index];
     UA_StatusCode res = copyRolePermissionArray(rp->rolePermissionsSize,
                                                 rp->rolePermissions,
                                                 rolePermissionsSize,
@@ -1122,13 +1610,12 @@ UA_Server_removeNodeRolePermissions(UA_Server *server,
 
     lockServer(server);
 
+    /* The AccessRestrictions of the nodes are kept */
     UA_StatusCode res;
     if(recursive)
-        res = setPermissionIndexRecursive(server, &nodeId,
-                                          UA_PERMISSION_INDEX_INVALID);
+        res = setRolePermissionsRecursive(server, &nodeId, false, 0, NULL, true);
     else
-        res = setNodePermissionIndexLocked(server, &nodeId,
-                                           UA_PERMISSION_INDEX_INVALID);
+        res = setNodeRolePermissionsLocked(server, &nodeId, false, 0, NULL);
 
     unlockServer(server);
     return res;
@@ -1173,10 +1660,24 @@ UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
 /* Public API: Role Update          */
 /************************************/
 
+#ifdef UA_ENABLE_AUDITING
+typedef struct {
+    const UA_NodeId *sessionId;
+    const UA_NodeId *methodId;
+    size_t inputSize;
+    const UA_Variant *input;
+} RoleMethodAuditContext;
+
+UA_STATIC_THREAD_LOCAL RoleMethodAuditContext roleMethodAuditContext;
+#endif
+
 UA_StatusCode UA_EXPORT
 UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     if(!server || !role)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_StatusCode validation = validateRole(server, role);
+    if(validation != UA_STATUSCODE_GOOD)
+        return validation;
 
     UA_Boolean hasId = !UA_NodeId_isNull(&role->roleId);
     UA_Boolean hasName = (role->roleName.name.length > 0);
@@ -1238,6 +1739,7 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     existing->endpointsExclude = copy.endpointsExclude;
     existing->endpointsSize = copy.endpointsSize;
     existing->endpoints = copy.endpoints;
+    existing->customConfiguration = copy.customConfiguration;
 
     /* Null out moved fields before clearing the rest */
     copy.identityMappingRulesSize = 0;
@@ -1248,34 +1750,57 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     copy.endpoints = NULL;
     UA_Role_clear(&copy);
 
-    /* Warn about features that are stored but not yet evaluated */
-    if(role->applicationsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has application filters configured, "
-                       "but application-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    if(role->endpointsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has endpoint filters configured, "
-                       "but endpoint-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
-        UA_IdentityCriteriaType ct = role->identityMappingRules[k].criteriaType;
-        if(ct != UA_IDENTITYCRITERIATYPE_ANONYMOUS &&
-           ct != UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
-           ct != UA_IDENTITYCRITERIATYPE_USERNAME &&
-           ct != UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "RBAC: Role '%.*s' has an identity mapping rule with "
-                           "criteriaType %d which is not yet evaluated during "
-                           "session role assignment",
-                           (int)role->roleName.name.length, role->roleName.name.data,
-                           (int)ct);
+    warnUnsupportedRoleFeatures(server, role);
+
+    /* The changed identity mapping rules / filters may change which sessions
+     * hold this role (Part 18 §4.4.1) */
+    UA_Server_reevaluateSessionRoles(server);
+
+#ifdef UA_ENABLE_AUDITING
+    UA_Session *auditSession = NULL;
+    UA_SecureChannel *auditChannel = NULL;
+    UA_NodeId localOperation = UA_NODEID_NULL;
+    const UA_NodeId *method = &localOperation;
+    size_t auditInputSize = 0;
+    UA_Variant *auditInput = NULL;
+    if(roleMethodAuditContext.methodId) {
+        method = roleMethodAuditContext.methodId;
+        auditInputSize = roleMethodAuditContext.inputSize;
+        auditInput = (UA_Variant*)(uintptr_t)roleMethodAuditContext.input;
+        if(roleMethodAuditContext.sessionId) {
+            auditSession = getSessionById(server,
+                                          roleMethodAuditContext.sessionId);
+            if(auditSession)
+                auditChannel = auditSession->channel;
         }
     }
+    auditRoleMappingRuleChangedEvent(server, auditChannel, auditSession, true,
+                                     &existing->roleId, method,
+                                     UA_STATUSCODE_GOOD, auditInputSize,
+                                     auditInput);
+#endif
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_updateRoleFromMethod(UA_Server *server, const UA_Role *role,
+                               const UA_NodeId *sessionId,
+                               const UA_NodeId *methodId,
+                               size_t inputSize, const UA_Variant *input) {
+#ifdef UA_ENABLE_AUDITING
+    RoleMethodAuditContext previous = roleMethodAuditContext;
+    roleMethodAuditContext.sessionId = sessionId;
+    roleMethodAuditContext.methodId = methodId;
+    roleMethodAuditContext.inputSize = inputSize;
+    roleMethodAuditContext.input = input;
+#endif
+    UA_StatusCode res = UA_Server_updateRole(server, role);
+#ifdef UA_ENABLE_AUDITING
+    roleMethodAuditContext = previous;
+#endif
+    return res;
 }
 
 /************************************/
@@ -1315,7 +1840,8 @@ checkRBACMethodAccess(UA_Server *server, const UA_NodeId *sessionId) {
 }
 
 /* Set roles on a session. Validates all role IDs against the server registry.
- * Must be called with the server lock held. */
+ * Must be called with the server lock held. The new set is prepared before the
+ * old one is released, so a failure leaves the Session with the Roles it had. */
 UA_StatusCode
 UA_Session_setRoles(UA_Server *server, UA_Session *session,
                     const UA_NodeId *roleIds, size_t rolesSize) {
@@ -1324,18 +1850,17 @@ UA_Session_setRoles(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
-    session->roles = NULL;
-    session->rolesSize = 0;
-
+    UA_NodeId *copy = NULL;
     if(rolesSize > 0) {
-        UA_StatusCode res = UA_Array_copy(roleIds, rolesSize,
-                                          (void**)&session->roles,
+        UA_StatusCode res = UA_Array_copy(roleIds, rolesSize, (void**)&copy,
                                           &UA_TYPES[UA_TYPES_NODEID]);
         if(res != UA_STATUSCODE_GOOD)
             return res;
-        session->rolesSize = rolesSize;
     }
+
+    UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    session->roles = copy;
+    session->rolesSize = rolesSize;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1390,10 +1915,289 @@ UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Release all owned fields of a session identity context. */
+void
+UA_SessionIdentityContext_clear(UA_SessionIdentityContext *ctx) {
+    if(!ctx)
+        return;
+    UA_String_clear(&ctx->userName);
+    UA_String_clear(&ctx->userThumbprint);
+    UA_String_clear(&ctx->userSubject);
+    UA_String_clear(&ctx->userIssuer);
+    UA_String_clear(&ctx->applicationUri);
+    UA_String_clear(&ctx->endpointUrl);
+    UA_String_clear(&ctx->securityPolicyUri);
+    UA_String_clear(&ctx->transportProfileUri);
+    UA_Array_delete(ctx->groups, ctx->groupsSize, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Array_delete(ctx->tokenRoles, ctx->tokenRolesSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    memset(ctx, 0, sizeof(UA_SessionIdentityContext));
+}
+
+/* Case-insensitive comparison of two strings (used for hex thumbprints). */
+static UA_Boolean
+stringEqualIgnoreCase(const UA_String *a, const UA_String *b) {
+    if(a->length != b->length)
+        return false;
+    for(size_t i = 0; i < a->length; i++) {
+        UA_Byte ca = a->data[i], cb = b->data[i];
+        if(ca >= 'a' && ca <= 'z') ca = (UA_Byte)(ca - 32);
+        if(cb >= 'a' && cb <= 'z') cb = (UA_Byte)(cb - 32);
+        if(ca != cb)
+            return false;
+    }
+    return true;
+}
+
+/* Match a single identity mapping rule against a session identity context.
+ * GroupId and Role have no native identity source and are matched only against
+ * values returned by the corresponding AccessControl hooks. */
+static UA_Boolean
+identityRuleMatches(const UA_IdentityMappingRuleType *rule,
+                    const UA_SessionIdentityContext *ctx) {
+    switch(rule->criteriaType) {
+    case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
+        return ctx->isAnonymous;
+    case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
+        return !ctx->isAnonymous;
+    case UA_IDENTITYCRITERIATYPE_USERNAME:
+        return (ctx->userName.length > 0 &&
+                UA_String_equal(&ctx->userName, &rule->criteria));
+    case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
+        return ctx->trustedApplication;
+    case UA_IDENTITYCRITERIATYPE_THUMBPRINT:
+        return (ctx->userThumbprint.length > 0 &&
+                stringEqualIgnoreCase(&ctx->userThumbprint, &rule->criteria));
+    case UA_IDENTITYCRITERIATYPE_X509SUBJECT:
+        return ((ctx->userSubject.length > 0 &&
+                 UA_String_equal(&ctx->userSubject, &rule->criteria)) ||
+                (ctx->userIssuer.length > 0 &&
+                 UA_String_equal(&ctx->userIssuer, &rule->criteria)));
+    case UA_IDENTITYCRITERIATYPE_APPLICATION:
+        return (ctx->trustedApplication && ctx->applicationUri.length > 0 &&
+                UA_String_equal(&ctx->applicationUri, &rule->criteria));
+    case UA_IDENTITYCRITERIATYPE_GROUPID:
+        for(size_t g = 0; g < ctx->groupsSize; g++) {
+            if(UA_String_equal(&ctx->groups[g], &rule->criteria))
+                return true;
+        }
+        return false;
+    case UA_IDENTITYCRITERIATYPE_ROLE:
+        for(size_t r = 0; r < ctx->tokenRolesSize; r++) {
+            if(UA_String_equal(&ctx->tokenRoles[r], &rule->criteria))
+                return true;
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+/* Result of comparing an Endpoint filter with the Endpoint of a Session. It is
+ * UNKNOWN if a compared value of the Session is not known. */
+typedef enum {
+    ENDPOINTMATCH_NOMATCH = 0,
+    ENDPOINTMATCH_MATCH,
+    ENDPOINTMATCH_UNKNOWN
+} EndpointMatch;
+
+/* The default ports are those the server transports listen on */
+static const struct {
+    UA_String scheme;
+    UA_UInt16 defaultPort;
+} endpointUrlSchemes[] = {
+    {UA_STRING_STATIC("opc.tcp"), 4840},
+    {UA_STRING_STATIC("opc.ws"), 4840},
+    {UA_STRING_STATIC("opc.wss"), 443},
+    {UA_STRING_STATIC("opc.http"), 80},
+    {UA_STRING_STATIC("opc.https"), 443}
+};
+
+#define ENDPOINTURLSCHEMES_SIZE \
+    (sizeof(endpointUrlSchemes) / sizeof(endpointUrlSchemes[0]))
+
+/* An EndpointUrl split up for the comparison. The strings point into the
+ * parsed URL or into the buffer. */
+typedef struct {
+    size_t scheme;      /* Index in endpointUrlSchemes */
+    UA_String hostname; /* Without the IPv6 brackets. Empty for a wildcard. */
+    UA_UInt16 port;     /* The default port of the scheme if not given */
+    UA_String path;     /* Without leading and trailing '/' */
+    UA_String buffer;   /* Copy with a lower-case scheme (if required) */
+} EndpointUrlParts;
+
+static UA_StatusCode
+parseEndpointUrlParts(const UA_String *url, EndpointUrlParts *parts) {
+    memset(parts, 0, sizeof(EndpointUrlParts));
+
+    /* The scheme is case-insensitive (RFC 3986 §3.1) */
+    size_t schemeLen = 0;
+    while(schemeLen < url->length && url->data[schemeLen] != ':')
+        schemeLen++;
+    UA_String scheme = {schemeLen, url->data};
+    for(; parts->scheme < ENDPOINTURLSCHEMES_SIZE; parts->scheme++) {
+        if(stringEqualIgnoreCase(&scheme,
+                                 &endpointUrlSchemes[parts->scheme].scheme))
+            break;
+    }
+    if(parts->scheme == ENDPOINTURLSCHEMES_SIZE)
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+
+    /* UA_parseEndpointUrl expects the scheme in lower case */
+    const UA_String *lowerUrl = url;
+    const UA_String *lowerScheme = &endpointUrlSchemes[parts->scheme].scheme;
+    if(memcmp(url->data, lowerScheme->data, schemeLen) != 0) {
+        UA_StatusCode res = UA_String_copy(url, &parts->buffer);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        memcpy(parts->buffer.data, lowerScheme->data, schemeLen);
+        lowerUrl = &parts->buffer;
+    }
+
+    parts->port = endpointUrlSchemes[parts->scheme].defaultPort;
+    UA_StatusCode res = UA_parseEndpointUrl(lowerUrl, &parts->hostname,
+                                            &parts->port, &parts->path);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&parts->buffer);
+        return res;
+    }
+
+    /* Normalize the path */
+    while(parts->path.length > 0 && parts->path.data[0] == '/') {
+        parts->path.data++;
+        parts->path.length--;
+    }
+    while(parts->path.length > 0 &&
+          parts->path.data[parts->path.length - 1] == '/')
+        parts->path.length--;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Compare the EndpointUrl of a filter with the configured ServerUrl of the
+ * listener that accepted the SecureChannel (Part 18 §4.4.1). The scheme and
+ * the hostname are case-insensitive. An absent port is the default port of the
+ * scheme. A listener (or filter) without a hostname listens on all interfaces.
+ * Then only the scheme, port and path are compared. */
+static EndpointMatch
+endpointUrlMatches(const UA_String *filterUrl, const UA_String *listenerUrl) {
+    EndpointUrlParts listener;
+    if(listenerUrl->length == 0 ||
+       parseEndpointUrlParts(listenerUrl, &listener) != UA_STATUSCODE_GOOD)
+        return ENDPOINTMATCH_UNKNOWN;
+
+    /* A filter URL that cannot be parsed designates no Endpoint */
+    EndpointUrlParts filter;
+    UA_StatusCode res = parseEndpointUrlParts(filterUrl, &filter);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&listener.buffer);
+        return (res == UA_STATUSCODE_BADOUTOFMEMORY) ?
+            ENDPOINTMATCH_UNKNOWN : ENDPOINTMATCH_NOMATCH;
+    }
+
+    EndpointMatch match = ENDPOINTMATCH_MATCH;
+    if(listener.scheme != filter.scheme ||
+       !UA_String_equal(&listener.path, &filter.path) ||
+       (listener.hostname.length > 0 && filter.hostname.length > 0 &&
+        !stringEqualIgnoreCase(&listener.hostname, &filter.hostname)))
+        match = ENDPOINTMATCH_NOMATCH;
+    else if(listener.port == 0)
+        match = ENDPOINTMATCH_UNKNOWN; /* Dynamically assigned port */
+    else if(listener.port != filter.port)
+        match = ENDPOINTMATCH_NOMATCH;
+
+    UA_String_clear(&listener.buffer);
+    UA_String_clear(&filter.buffer);
+    return match;
+}
+
+/* Whether a single Endpoint filter entry matches the session's endpoint. Fields
+ * left at their default/empty value are ignored (Part 18 §4.4.1). */
+static EndpointMatch
+endpointFilterMatches(const UA_EndpointType *ep,
+                      const UA_SessionIdentityContext *ctx) {
+    UA_Boolean unknown = false;
+    if(ep->endpointUrl.length > 0) {
+        EndpointMatch match =
+            endpointUrlMatches(&ep->endpointUrl, &ctx->endpointUrl);
+        if(match == ENDPOINTMATCH_NOMATCH)
+            return ENDPOINTMATCH_NOMATCH;
+        unknown |= (match == ENDPOINTMATCH_UNKNOWN);
+    }
+    if(ep->securityMode != UA_MESSAGESECURITYMODE_INVALID) {
+        if(ctx->endpointSecurityMode == UA_MESSAGESECURITYMODE_INVALID)
+            unknown = true;
+        else if(ep->securityMode != ctx->endpointSecurityMode)
+            return ENDPOINTMATCH_NOMATCH;
+    }
+    if(ep->securityPolicyUri.length > 0) {
+        if(ctx->securityPolicyUri.length == 0)
+            unknown = true;
+        else if(!UA_String_equal(&ep->securityPolicyUri,
+                                 &ctx->securityPolicyUri))
+            return ENDPOINTMATCH_NOMATCH;
+    }
+    if(ep->transportProfileUri.length > 0) {
+        if(ctx->transportProfileUri.length == 0)
+            unknown = true;
+        else if(!UA_String_equal(&ep->transportProfileUri,
+                                 &ctx->transportProfileUri))
+            return ENDPOINTMATCH_NOMATCH;
+    }
+    return unknown ? ENDPOINTMATCH_UNKNOWN : ENDPOINTMATCH_MATCH;
+}
+
+/* Apply a role's Application and Endpoint filters to the session context
+ * (Part 18 §4.4.1). An empty list means "no restriction"; otherwise the
+ * session's application/endpoint must be in (Exclude=false) or out of
+ * (Exclude=true) the list. */
+static UA_Boolean
+roleFiltersMatch(const UA_Role *role, const UA_SessionIdentityContext *ctx) {
+    /* An explicitly empty include list includes no application. The default
+     * Exclude value for an unconfigured/empty list is TRUE (Part 18 §4.4.1). */
+    if(role->applicationsSize == 0 && !role->applicationsExclude)
+        return false;
+    if(role->applicationsSize > 0) {
+        /* Part 18 §4.4.1: a configured Applications list is evaluated against
+         * the ApplicationUri from a trusted Client ApplicationInstance
+         * Certificate and requires at least a signed SecureChannel. Never use
+         * the unauthenticated ApplicationDescription URI for authorization. */
+        if(!ctx->trustedApplication || ctx->applicationUri.length == 0)
+            return false;
+        UA_Boolean inList = false;
+        for(size_t i = 0; i < role->applicationsSize; i++) {
+            if(UA_String_equal(&ctx->applicationUri, &role->applications[i])) {
+                inList = true;
+                break;
+            }
+        }
+        if(inList == role->applicationsExclude)
+            return false;
+    }
+    /* The same include/exclude semantics apply to Endpoint filters. An
+     * include list grants only on a definite match. An exclude list also
+     * applies if the match cannot be decided (fail closed). */
+    if(role->endpointsSize == 0 && !role->endpointsExclude)
+        return false;
+    if(role->endpointsSize > 0) {
+        UA_Boolean inList = false;
+        for(size_t i = 0; i < role->endpointsSize; i++) {
+            EndpointMatch match =
+                endpointFilterMatches(&role->endpoints[i], ctx);
+            if(match == ENDPOINTMATCH_MATCH ||
+               (match == ENDPOINTMATCH_UNKNOWN && role->endpointsExclude)) {
+                inList = true;
+                break;
+            }
+        }
+        if(inList == role->endpointsExclude)
+            return false;
+    }
+    return true;
+}
+
 UA_StatusCode
 UA_Server_evaluateSessionRoles(UA_Server *server,
-                               const UA_ExtensionObject *userIdentityToken,
-                               UA_Boolean trustedApplication,
+                               const UA_SessionIdentityContext *ctx,
                                size_t *outRolesSize, UA_NodeId **outRoleIds) {
     *outRolesSize = 0;
     *outRoleIds = NULL;
@@ -1401,112 +2205,186 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
     if(server->rolesSize == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Determine session identity characteristics from the token */
-    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
-    UA_Boolean isAnonymous =
-        (tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
-    UA_String userName = UA_STRING_NULL;
-    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        const UA_UserNameIdentityToken *ut =
-            (const UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
-        userName = ut->userName;
-    }
+    UA_Boolean *matchedRoles = (UA_Boolean*)
+        UA_calloc(server->rolesSize, sizeof(UA_Boolean));
+    if(!matchedRoles)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Spec Part 18 §4.3: the Anonymous Role is always assigned to every
-     * Session, regardless of the identity mapping rules. Reserve it explicitly
-     * so the assignment does not depend on the Anonymous Role still carrying
-     * its default rules. */
-    const UA_NodeId anonymousRoleId =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
-    UA_Boolean anonymousExists = (findRoleById(server, &anonymousRoleId) != NULL);
-    UA_Boolean anonymousMatched = false;
-
-    /* First pass: count matching roles */
+    /* Match every role's identity mapping rules against the context, then apply
+     * the role's Application/Endpoint filters.
+     *
+     * Part 18 §4.4.1: a Role with an empty Identities array and
+     * CustomConfiguration == FALSE cannot be granted to any Session. Skip
+     * such roles entirely; they can only be assigned via the session "roles"
+     * attribute override. CustomConfiguration makes assignment vendor-specific;
+     * it must not turn an empty Identities array into a match for every Session. */
     size_t matchCount = 0;
     for(size_t i = 0; i < server->rolesSize; i++) {
         UA_Role *role = &server->roles[i];
+        if(role->identityMappingRulesSize == 0)
+            continue;
         for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
-            UA_Boolean match = false;
-            switch(role->identityMappingRules[j].criteriaType) {
-            case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
-                match = isAnonymous;
-                break;
-            case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
-                match = !isAnonymous;
-                break;
-            case UA_IDENTITYCRITERIATYPE_USERNAME:
-                if(userName.length > 0)
-                    match = UA_String_equal(&userName,
-                                            &role->identityMappingRules[j].criteria);
-                break;
-            case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
-                match = trustedApplication;
-                break;
-            default:
-                break;
-            }
-            if(match) {
-                matchCount++;
-                if(UA_NodeId_equal(&role->roleId, &anonymousRoleId))
-                    anonymousMatched = true;
+            if(identityRuleMatches(&role->identityMappingRules[j], ctx)) {
+                if(roleFiltersMatch(role, ctx)) {
+                    matchedRoles[i] = true;
+                    matchCount++;
+                }
                 break;
             }
         }
     }
 
-    /* Always assign the Anonymous Role if it is registered but no rule
-     * matched it. */
-    UA_Boolean addAnonymous = (anonymousExists && !anonymousMatched);
-    size_t total = matchCount + (addAnonymous ? 1 : 0);
-    if(total == 0)
-        return UA_STATUSCODE_GOOD;
+    /* Spec Part 18 §4.3: the Anonymous Role is always assigned to every
+     * Session, regardless of the identity mapping rules. */
+    const UA_NodeId anonymousRoleId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    for(size_t i = 0; i < server->rolesSize; i++) {
+        if(!matchedRoles[i] &&
+           UA_NodeId_equal(&server->roles[i].roleId, &anonymousRoleId)) {
+            matchedRoles[i] = true;
+            matchCount++;
+            break;
+        }
+    }
 
-    /* Second pass: allocate exact size and collect role IDs */
-    UA_NodeId *matched = (UA_NodeId*)
-        UA_calloc(total, sizeof(UA_NodeId));
-    if(!matched)
+    if(matchCount == 0) {
+        UA_free(matchedRoles);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Collect the matching role IDs */
+    UA_NodeId *matched = (UA_NodeId*)UA_calloc(matchCount, sizeof(UA_NodeId));
+    if(!matched) {
+        UA_free(matchedRoles);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     size_t idx = 0;
     for(size_t i = 0; i < server->rolesSize && idx < matchCount; i++) {
-        UA_Role *role = &server->roles[i];
-        for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
-            UA_Boolean match = false;
-            switch(role->identityMappingRules[j].criteriaType) {
-            case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
-                match = isAnonymous;
-                break;
-            case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
-                match = !isAnonymous;
-                break;
-            case UA_IDENTITYCRITERIATYPE_USERNAME:
-                if(userName.length > 0)
-                    match = UA_String_equal(&userName,
-                                            &role->identityMappingRules[j].criteria);
-                break;
-            case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
-                match = trustedApplication;
-                break;
-            default:
-                break;
-            }
-            if(match) {
-                UA_NodeId_copy(&role->roleId, &matched[idx]);
-                idx++;
+        if(!matchedRoles[i])
+            continue;
+        UA_StatusCode res =
+            UA_NodeId_copy(&server->roles[i].roleId, &matched[idx]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(matched, matchCount, &UA_TYPES[UA_TYPES_NODEID]);
+            UA_free(matchedRoles);
+            return res;
+        }
+        idx++;
+    }
+    UA_free(matchedRoles);
+
+    *outRoleIds = matched;
+    *outRolesSize = matchCount;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_Boolean
+sessionRolesEqual(const UA_Session *session,
+                  size_t rolesSize, const UA_NodeId *roleIds) {
+    if(session->rolesSize != rolesSize)
+        return false;
+    for(size_t i = 0; i < session->rolesSize; i++) {
+        UA_Boolean found = false;
+        for(size_t j = 0; j < rolesSize; j++) {
+            if(UA_NodeId_equal(&session->roles[i], &roleIds[j])) {
+                found = true;
                 break;
             }
         }
+        if(!found)
+            return false;
     }
+    return true;
+}
 
-    /* Append the Anonymous Role if no rule matched it */
-    if(addAnonymous) {
-        UA_NodeId_copy(&anonymousRoleId, &matched[idx]);
-        idx++;
+/* Drop the Roles of a Session that are no longer in the registry. Used for
+ * Sessions whose Roles were assigned by the application: they are not
+ * re-evaluated, but a removed Role must not survive on them either.
+ * Returns whether the Role set of the Session changed. */
+static UA_Boolean
+pruneUnknownRoles(UA_Server *server, UA_Session *session) {
+    size_t kept = 0;
+    for(size_t i = 0; i < session->rolesSize; i++) {
+        if(!findRoleById(server, &session->roles[i])) {
+            UA_NodeId_clear(&session->roles[i]);
+            continue;
+        }
+        if(kept != i)
+            session->roles[kept] = session->roles[i];
+        kept++;
     }
+    UA_Boolean changed = (kept != session->rolesSize);
+    session->rolesSize = kept;
+    if(kept == 0) {
+        UA_free(session->roles);
+        session->roles = NULL;
+    }
+    return changed;
+}
 
-    *outRoleIds = matched;
-    *outRolesSize = total;
-    return UA_STATUSCODE_GOOD;
+void
+UA_Server_reevaluateSessionRoles(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    session_list_entry *entry;
+    LIST_FOREACH(entry, &server->sessions, pointers) {
+        UA_Session *session = &entry->session;
+        /* The application assigned these Roles. Keep them, but drop the ones
+         * that were just removed from the registry. */
+        if(session->rolesAssignedManually) {
+            UA_Boolean pruned = pruneUnknownRoles(server, session);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            if(pruned)
+                UA_Session_invalidateRoleNotifications(server, session);
+#else
+            (void)pruned;
+#endif
+            continue;
+        }
+        if(!session->hasIdentityContext)
+            continue;
+        if(session->passwordChangeRequired)
+            continue;
+        size_t rolesSize = 0;
+        UA_NodeId *roleIds = NULL;
+        UA_StatusCode res = UA_Server_evaluateSessionRoles(
+            server, &session->identityContext, &rolesSize, &roleIds);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Boolean changed = (session->rolesSize > 0);
+            /* A changed RoleSet must never leave the former privileges active
+             * merely because the replacement set could not be allocated. */
+            (void)UA_Session_setRoles(server, session, NULL, 0);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            if(changed)
+                UA_Session_invalidateRoleNotifications(server, session);
+#else
+            (void)changed;
+#endif
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "RBAC: Could not re-evaluate roles; cleared "
+                                 "the Session roles with StatusCode %s",
+                                 UA_StatusCode_name(res));
+            continue;
+        }
+        UA_Boolean changed = !sessionRolesEqual(session, rolesSize, roleIds);
+        UA_Boolean hadRoles = (session->rolesSize > 0);
+        res = UA_Session_setRoles(server, session, roleIds, rolesSize);
+        if(res != UA_STATUSCODE_GOOD) {
+            changed = hadRoles;
+            (void)UA_Session_setRoles(server, session, NULL, 0);
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "RBAC: Could not install re-evaluated roles; "
+                                 "cleared the Session roles with StatusCode %s",
+                                 UA_StatusCode_name(res));
+        }
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        if(changed)
+            UA_Session_invalidateRoleNotifications(server, session);
+#else
+        (void)changed;
+#endif
+        UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    }
 }
 
 /*****************************************/
@@ -1520,22 +2398,42 @@ struct ApplyToHierarchicalChildrenContext {
     void *callbackContext;
     UA_StatusCode (*applyCallback)(UA_Server *server, const UA_NodeId *nodeId,
                                    void *context);
-    UA_StatusCode status;
+    UA_Boolean continueOnError;
+    UA_StatusCode status; /* The first error */
 };
+
+/* Stop the traversal at the first error unless continueOnError is set */
+static UA_Boolean
+applyAborted(const struct ApplyToHierarchicalChildrenContext *ctx) {
+    return !ctx->continueOnError && ctx->status != UA_STATUSCODE_GOOD;
+}
 
 static void *
 applyToHierarchicalChildrenIterator(void *context, UA_ReferenceTarget *t) {
     struct ApplyToHierarchicalChildrenContext *ctx =
         (struct ApplyToHierarchicalChildrenContext*)context;
 
+    /* A non-NULL return value stops the iteration of the parent's references */
+    if(applyAborted(ctx))
+        return ctx;
+
     if(!UA_NodePointer_isLocal(t->targetId))
         return NULL;
 
     UA_NodeId childId = UA_NodePointer_toNodeId(t->targetId);
 
-    ctx->status = ctx->applyCallback(ctx->server, &childId, ctx->callbackContext);
-    if(ctx->status != UA_STATUSCODE_GOOD)
-        return NULL;
+    UA_StatusCode res = ctx->applyCallback(ctx->server, &childId,
+                                           ctx->callbackContext);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(ctx->status == UA_STATUSCODE_GOOD)
+            ctx->status = res;
+        if(!ctx->continueOnError)
+            return ctx;
+        /* A failing child does not stop the descent into its children */
+        UA_LOG_WARNING(ctx->server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Could not apply the change to Node %N (%s)",
+                       childId, UA_StatusCode_name(res));
+    }
 
     const UA_Node *childNode = UA_NODESTORE_GET(ctx->server, &childId);
     if(!childNode)
@@ -1549,15 +2447,11 @@ applyToHierarchicalChildrenIterator(void *context, UA_ReferenceTarget *t) {
         if(!UA_ReferenceTypeSet_contains(ctx->hierarchRefsSet, rk->referenceTypeIndex))
             continue;
 
-        void *res = UA_NodeReferenceKind_iterate(rk, applyToHierarchicalChildrenIterator, ctx);
-        if(res != NULL) {
+        void *stop =
+            UA_NodeReferenceKind_iterate(rk, applyToHierarchicalChildrenIterator, ctx);
+        if(stop != NULL) {
             UA_NODESTORE_RELEASE(ctx->server, childNode);
-            return res;
-        }
-
-        if(ctx->status != UA_STATUSCODE_GOOD) {
-            UA_NODESTORE_RELEASE(ctx->server, childNode);
-            return NULL;
+            return stop;
         }
     }
 
@@ -1565,14 +2459,17 @@ applyToHierarchicalChildrenIterator(void *context, UA_ReferenceTarget *t) {
     return NULL;
 }
 
-/* Apply a callback to all hierarchical children of a node.
+/* Apply a callback to all hierarchical children of a node. Without
+ * continueOnError the traversal stops at the first error. With continueOnError
+ * all nodes are visited (a failing node does not cut off its subtree). Returns
+ * the first error.
  * Must be called with the server lock held. */
 static UA_StatusCode
 applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
                             UA_StatusCode (*callback)(UA_Server *server,
                                                       const UA_NodeId *nodeId,
                                                       void *context),
-                            void *callbackContext) {
+                            void *callbackContext, UA_Boolean continueOnError) {
     UA_ReferenceTypeSet hierarchRefsSet;
     UA_ReferenceTypeSet_init(&hierarchRefsSet);
     UA_NodeId hierarchRefTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
@@ -1590,6 +2487,7 @@ applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
     ctx.hierarchRefsSet = &hierarchRefsSet;
     ctx.callbackContext = callbackContext;
     ctx.applyCallback = callback;
+    ctx.continueOnError = continueOnError;
     ctx.status = UA_STATUSCODE_GOOD;
 
     for(size_t i = 0; i < node->head.referencesSize; i++) {
@@ -1601,7 +2499,7 @@ applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
             continue;
 
         UA_NodeReferenceKind_iterate(rk, applyToHierarchicalChildrenIterator, &ctx);
-        if(ctx.status != UA_STATUSCODE_GOOD)
+        if(applyAborted(&ctx))
             break;
     }
 
@@ -1616,10 +2514,11 @@ applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
 /* Internal helper for adding role permissions to a single node.
  * Must be called with the server lock held.
  *
- * IMPORTANT: RolePermission entries are IMMUTABLE once created with refCount > 0.
- * When modifying permissions for a node, we:
- * 1. Get the node's current permissionIndex
- * 2. Build the new desired permission set
+ * IMPORTANT: RolePermission entries are shared between nodes and never modified
+ * on behalf of a single node (copy-on-write). When modifying permissions for a
+ * node, we:
+ * 1. Get the content of the node's current entry
+ * 2. Build the new desired permission set (the AccessRestrictions are kept)
  * 3. Find or create a matching entry
  * 4. Update refcounts and the node's permissionIndex */
 static UA_StatusCode
@@ -1633,127 +2532,47 @@ addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
     UA_PermissionIndex currentIndex = node->head.permissionIndex;
     UA_NODESTORE_RELEASE(server, node);
 
-    /* Build the new desired permission entries array */
-    size_t newEntriesSize = 0;
-    UA_RolePermission *newEntries = NULL;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-
-    if(currentIndex == UA_PERMISSION_INDEX_INVALID) {
-        /* No existing permissions - create new with just this role */
-        newEntriesSize = 1;
-        newEntries = (UA_RolePermission*)UA_malloc(sizeof(UA_RolePermission));
-        if(!newEntries)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        res = UA_NodeId_copy(roleId, &newEntries[0].roleId);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_free(newEntries);
-            return res;
-        }
-        newEntries[0].permissions = permissions;
-    } else {
-        /* Detect problems in the Nodestore. The index should always be valid. */
-        if(currentIndex >= server->rolePermissionsSize) {
-            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "RBAC: Node %N returned an invalid permission index", &nodeId);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-
-        /* Copy existing entries and modify/add the role entry */
-        UA_RolePermissionEntry *oldRp = &server->rolePermissions[currentIndex];
-
-        /* Find if this role already exists in current permissions */
-        size_t existingRoleIdx = SIZE_MAX;
-        for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-            if(UA_NodeId_equal(&oldRp->rolePermissions[i].roleId, roleId)) {
-                existingRoleIdx = i;
-                break;
-            }
-        }
-
-        if(existingRoleIdx != SIZE_MAX) {
-            /* Role exists - copy all and modify the role's permissions */
-            newEntriesSize = oldRp->rolePermissionsSize;
-            newEntries = (UA_RolePermission*)
-                UA_malloc(newEntriesSize * sizeof(UA_RolePermission));
-            if(!newEntries)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-
-            for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-                res = UA_NodeId_copy(&oldRp->rolePermissions[i].roleId, &newEntries[i].roleId);
-                if(res != UA_STATUSCODE_GOOD) {
-                    for(size_t j = 0; j < i; j++)
-                        UA_NodeId_clear(&newEntries[j].roleId);
-                    UA_free(newEntries);
-                    return res;
-                }
-                if(i == existingRoleIdx) {
-                    if(overwriteExisting)
-                        newEntries[i].permissions = permissions;
-                    else
-                        newEntries[i].permissions = oldRp->rolePermissions[i].permissions | permissions;
-                } else {
-                    newEntries[i].permissions = oldRp->rolePermissions[i].permissions;
-                }
-            }
-        } else {
-            /* Role doesn't exist - copy all and add new entry */
-            newEntriesSize = oldRp->rolePermissionsSize + 1;
-            newEntries = (UA_RolePermission*)
-                UA_malloc(newEntriesSize * sizeof(UA_RolePermission));
-            if(!newEntries)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-
-            for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-                res = UA_NodeId_copy(&oldRp->rolePermissions[i].roleId, &newEntries[i].roleId);
-                if(res != UA_STATUSCODE_GOOD) {
-                    for(size_t j = 0; j < i; j++)
-                        UA_NodeId_clear(&newEntries[j].roleId);
-                    UA_free(newEntries);
-                    return res;
-                }
-                newEntries[i].permissions = oldRp->rolePermissions[i].permissions;
-            }
-            res = UA_NodeId_copy(roleId, &newEntries[oldRp->rolePermissionsSize].roleId);
-            if(res != UA_STATUSCODE_GOOD) {
-                for(size_t j = 0; j < oldRp->rolePermissionsSize; j++)
-                    UA_NodeId_clear(&newEntries[j].roleId);
-                UA_free(newEntries);
-                return res;
-            }
-            newEntries[oldRp->rolePermissionsSize].permissions = permissions;
-        }
-    }
-
-    /* Find or create a slot for the new permissions */
-    UA_PermissionIndex targetIndex;
-    res = findOrCreateRolePermissions(server, newEntriesSize, newEntries, &targetIndex);
-
-    /* Clean up temporary entries */
-    for(size_t i = 0; i < newEntriesSize; i++)
-        UA_NodeId_clear(&newEntries[i].roleId);
-    UA_free(newEntries);
-
+    EntryContent c;
+    UA_StatusCode res = getEntryContent(server, nodeId, currentIndex, false, &c);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Update refcounts and node's permissionIndex if changed */
-    if(targetIndex != currentIndex) {
-        decrementRefCount(server, currentIndex);
-        incrementRefCount(server, targetIndex);
-
-        /* Update node's permission index */
-        UA_Node *editNode = UA_NODESTORE_GET_EDIT(server, nodeId);
-        if(!editNode) {
-            /* Rollback refcount changes */
-            decrementRefCount(server, targetIndex);
-            incrementRefCount(server, currentIndex);
-            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Find if this role already exists in the current permissions. A node
+     * without RolePermissions of its own starts from the empty set. */
+    size_t oldSize = c.rolePermissionsSize;
+    size_t existingRoleIdx = SIZE_MAX;
+    for(size_t i = 0; i < oldSize; i++) {
+        if(UA_NodeId_equal(&c.rolePermissions[i].roleId, roleId)) {
+            existingRoleIdx = i;
+            break;
         }
-        editNode->head.permissionIndex = targetIndex;
-        UA_NODESTORE_RELEASE(server, (const UA_Node*)editNode);
     }
 
-    return UA_STATUSCODE_GOOD;
+    /* Build the new desired permission entries array. The NodeIds are
+     * borrowed, the array is copied when a new entry is created. */
+    size_t newEntriesSize = (existingRoleIdx != SIZE_MAX) ? oldSize : oldSize + 1;
+    UA_RolePermission *newEntries = (UA_RolePermission*)
+        UA_malloc(newEntriesSize * sizeof(UA_RolePermission));
+    if(!newEntries)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(oldSize > 0)
+        memcpy(newEntries, c.rolePermissions, oldSize * sizeof(UA_RolePermission));
+    if(existingRoleIdx != SIZE_MAX) {
+        if(overwriteExisting)
+            newEntries[existingRoleIdx].permissions = permissions;
+        else
+            newEntries[existingRoleIdx].permissions |= permissions;
+    } else {
+        newEntries[oldSize].roleId = *roleId;
+        newEntries[oldSize].permissions = permissions;
+    }
+
+    /* Find or create a slot for the new permissions, update the refcounts and
+     * the node's permissionIndex */
+    EntryContent_setRolePermissions(&c, true, newEntriesSize, newEntries);
+    res = setNodeEntryContent(server, nodeId, &c);
+    UA_free(newEntries);
+    return res;
 }
 
 /* Callback context for recursive addRolePermissions */
@@ -1797,7 +2616,8 @@ UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
         ctx.roleId = &roleId;
         ctx.permissions = permissions;
         ctx.overwriteExisting = overwriteExisting;
-        res = applyToHierarchicalChildren(server, &nodeId, addRolePermissionsCallback, &ctx);
+        res = applyToHierarchicalChildren(server, &nodeId, addRolePermissionsCallback,
+                                          &ctx, false);
     }
 
     unlockServer(server);
@@ -1816,22 +2636,17 @@ removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
     UA_PermissionIndex currentIndex = node->head.permissionIndex;
     UA_NODESTORE_RELEASE(server, node);
 
-    if(currentIndex == UA_PERMISSION_INDEX_INVALID)
-        return UA_STATUSCODE_GOOD;
-
-    /* Detect problems in the Nodestore. The index should always be valid. */
-    if(currentIndex >= server->rolePermissionsSize) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "RBAC: Node %N returned an invalid permission index", &nodeId);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_RolePermissionEntry *oldRp = &server->rolePermissions[currentIndex];
+    EntryContent c;
+    UA_StatusCode res = getEntryContent(server, nodeId, currentIndex, false, &c);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!c.hasRolePermissions)
+        return UA_STATUSCODE_GOOD; /* No RolePermissions of its own */
 
     /* Find the role in current permissions */
     size_t roleEntryIdx = SIZE_MAX;
-    for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-        if(UA_NodeId_equal(&oldRp->rolePermissions[i].roleId, roleId)) {
+    for(size_t i = 0; i < c.rolePermissionsSize; i++) {
+        if(UA_NodeId_equal(&c.rolePermissions[i].roleId, roleId)) {
             roleEntryIdx = i;
             break;
         }
@@ -1841,76 +2656,37 @@ removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
         return UA_STATUSCODE_GOOD; /* Role not found, nothing to remove */
 
     /* Calculate new permissions for this role */
-    UA_PermissionType newPerms = oldRp->rolePermissions[roleEntryIdx].permissions & ~permissions;
+    UA_PermissionType newPerms =
+        c.rolePermissions[roleEntryIdx].permissions & ~permissions;
 
-    /* Build new entries array */
+    /* Build new entries array. The NodeIds are borrowed, the array is copied
+     * when a new entry is created. */
     size_t newEntriesSize = (newPerms == 0) ?
-        oldRp->rolePermissionsSize - 1 : oldRp->rolePermissionsSize;
-
-    UA_PermissionIndex targetIndex = UA_PERMISSION_INDEX_INVALID;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-
+        c.rolePermissionsSize - 1 : c.rolePermissionsSize;
+    UA_RolePermission *newEntries = NULL;
     if(newEntriesSize > 0) {
-        UA_RolePermission *newEntries = (UA_RolePermission*)
+        newEntries = (UA_RolePermission*)
             UA_malloc(newEntriesSize * sizeof(UA_RolePermission));
         if(!newEntries)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-
         size_t j = 0;
-        for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-            if(i == roleEntryIdx) {
-                if(newPerms != 0) {
-                    res = UA_NodeId_copy(&oldRp->rolePermissions[i].roleId, &newEntries[j].roleId);
-                    if(res != UA_STATUSCODE_GOOD) {
-                        for(size_t k = 0; k < j; k++)
-                            UA_NodeId_clear(&newEntries[k].roleId);
-                        UA_free(newEntries);
-                        return res;
-                    }
-                    newEntries[j].permissions = newPerms;
-                    j++;
-                }
-            } else {
-                res = UA_NodeId_copy(&oldRp->rolePermissions[i].roleId, &newEntries[j].roleId);
-                if(res != UA_STATUSCODE_GOOD) {
-                    for(size_t k = 0; k < j; k++)
-                        UA_NodeId_clear(&newEntries[k].roleId);
-                    UA_free(newEntries);
-                    return res;
-                }
-                newEntries[j].permissions = oldRp->rolePermissions[i].permissions;
-                j++;
-            }
+        for(size_t i = 0; i < c.rolePermissionsSize; i++) {
+            if(i == roleEntryIdx && newPerms == 0)
+                continue;
+            newEntries[j] = c.rolePermissions[i];
+            if(i == roleEntryIdx)
+                newEntries[j].permissions = newPerms;
+            j++;
         }
-
-        res = findOrCreateRolePermissions(server, newEntriesSize, newEntries, &targetIndex);
-
-        for(size_t i = 0; i < newEntriesSize; i++)
-            UA_NodeId_clear(&newEntries[i].roleId);
-        UA_free(newEntries);
-
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
     }
 
-    /* Update refcounts and node's permissionIndex if changed */
-    if(targetIndex != currentIndex) {
-        decrementRefCount(server, currentIndex);
-        if(targetIndex != UA_PERMISSION_INDEX_INVALID)
-            incrementRefCount(server, targetIndex);
-
-        UA_Node *editNode = UA_NODESTORE_GET_EDIT(server, nodeId);
-        if(!editNode) {
-            if(targetIndex != UA_PERMISSION_INDEX_INVALID)
-                decrementRefCount(server, targetIndex);
-            incrementRefCount(server, currentIndex);
-            return UA_STATUSCODE_BADNODEIDUNKNOWN;
-        }
-        editNode->head.permissionIndex = targetIndex;
-        UA_NODESTORE_RELEASE(server, (const UA_Node*)editNode);
-    }
-
-    return UA_STATUSCODE_GOOD;
+    /* Removing the last entry drops the node's own RolePermissions (the
+     * namespace default applies again). The AccessRestrictions are kept. */
+    EntryContent_setRolePermissions(&c, newEntriesSize > 0,
+                                    newEntriesSize, newEntries);
+    res = setNodeEntryContent(server, nodeId, &c);
+    UA_free(newEntries);
+    return res;
 }
 
 struct RemoveRolePermissionsContext {
@@ -1949,7 +2725,9 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
         struct RemoveRolePermissionsContext ctx;
         ctx.roleId = &roleId;
         ctx.permissions = permissions;
-        res = applyToHierarchicalChildren(server, &nodeId, removeRolePermissionsCallback, &ctx);
+        res = applyToHierarchicalChildren(server, &nodeId,
+                                          removeRolePermissionsCallback, &ctx,
+                                          false);
     }
 
     unlockServer(server);
@@ -1960,7 +2738,11 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
 /* Permission Index Management      */
 /************************************/
 
-/* Internal helper for setting a node's permission index directly.
+/* Internal helper for setting a node's permission index directly. The index
+ * selects the RolePermissions; the node keeps its own AccessRestrictions. If
+ * the entry at the index carries other AccessRestrictions than the node, the
+ * node is pointed at the entry with the RolePermissions of the index and its
+ * own AccessRestrictions instead (copy-on-write).
  * Must be called with the server lock held. */
 static UA_StatusCode
 setNodePermissionIndexDirect(UA_Server *server, const UA_NodeId *nodeId,
@@ -1980,22 +2762,26 @@ setNodePermissionIndexDirect(UA_Server *server, const UA_NodeId *nodeId,
     if(currentIndex == permissionIndex)
         return UA_STATUSCODE_GOOD;
 
-    decrementRefCount(server, currentIndex);
-    if(permissionIndex != UA_PERMISSION_INDEX_INVALID)
-        incrementRefCount(server, permissionIndex);
+    /* A node with an invalid index gets a valid one (repair) */
+    EntryContent current, target;
+    UA_StatusCode res =
+        getEntryContent(server, nodeId, currentIndex, true, &current);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = getEntryContent(server, nodeId, permissionIndex, false, &target);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    UA_Node *editNode = UA_NODESTORE_GET_EDIT(server, nodeId);
-    if(!editNode) {
-        if(permissionIndex != UA_PERMISSION_INDEX_INVALID)
-            decrementRefCount(server, permissionIndex);
-        incrementRefCount(server, currentIndex);
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    if(target.hasAccessRestrictions != current.hasAccessRestrictions ||
+       target.accessRestrictions != current.accessRestrictions) {
+        EntryContent_setAccessRestrictions(&target, current.hasAccessRestrictions,
+                                           current.accessRestrictions);
+        res = findOrCreateEntry(server, &target, &permissionIndex);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
-    editNode->head.permissionIndex = permissionIndex;
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)editNode);
-
-    return UA_STATUSCODE_GOOD;
+    return setNodePermissionIndexLocked(server, nodeId, permissionIndex);
 }
 
 struct SetNodePermissionIndexContext {
@@ -2026,7 +2812,10 @@ UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
     if(recursive) {
         struct SetNodePermissionIndexContext ctx;
         ctx.permissionIndex = permissionIndex;
-        res = applyToHierarchicalChildren(server, &nodeId, setNodePermissionIndexCallback, &ctx);
+        /* Replaces the RolePermissions: visit the whole tree */
+        res = applyToHierarchicalChildren(server, &nodeId,
+                                          setNodePermissionIndexCallback, &ctx,
+                                          true);
     }
 
     unlockServer(server);
@@ -2096,6 +2885,7 @@ UA_Server_addRolePermissionConfig(UA_Server *server,
 
     UA_RolePermissionEntry *entry = &server->rolePermissions[newIndex];
     rolePermissionEntry_init(entry);
+    entry->hasRolePermissions = true;
 
     if(entriesSize > 0) {
         UA_StatusCode res = copyRolePermissionArray(entriesSize, entries,
@@ -2121,9 +2911,31 @@ UA_Server_getRolePermissionConfig(UA_Server *server, UA_PermissionIndex index) {
     if(!server || index >= server->rolePermissionsSize)
         return NULL;
 
+    /* An entry with only AccessRestrictions has no RolePermission set. Its
+     * empty array must not be mistaken for an explicit deny-all. */
+    const UA_RolePermissionEntry *e = &server->rolePermissions[index];
+    if(!e->hasRolePermissions)
+        return NULL;
+
     /* Cast UA_RolePermissionEntry to UA_RolePermissionSet — they have the same
      * layout for the first two fields (rolePermissionsSize, rolePermissions) */
-    return (const UA_RolePermissionSet*)&server->rolePermissions[index];
+    return (const UA_RolePermissionSet*)e;
+}
+
+/* An entry that a node reaches with the RolePermissions of the configuration
+ * and its own AccessRestrictions (copy-on-write). The configuration is shared
+ * by content: every entry with the same RolePermissions and with
+ * AccessRestrictions counts, regardless of how the node reached it. */
+static UA_Boolean
+isDerivedEntry(const UA_RolePermissionEntry *config,
+               const UA_RolePermissionEntry *e) {
+    if(!config->hasRolePermissions || config->hasAccessRestrictions)
+        return false; /* Not a RolePermission configuration */
+    if(e == config || !e->hasRolePermissions || !e->hasAccessRestrictions)
+        return false;
+    return compareRolePermissions(config->rolePermissionsSize,
+                                  config->rolePermissions,
+                                  e->rolePermissionsSize, e->rolePermissions);
 }
 
 UA_StatusCode
@@ -2133,18 +2945,32 @@ UA_Server_updateRolePermissionConfig(UA_Server *server, UA_PermissionIndex index
     if(!server || (entriesSize > 0 && !entries))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    if(index >= server->rolePermissionsSize)
-        return UA_STATUSCODE_BADOUTOFRANGE;
-
     lockServer(server);
+
+    if(index >= server->rolePermissionsSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    }
 
     UA_RolePermissionEntry *config = &server->rolePermissions[index];
 
-    /* Cannot modify entries that are still referenced by nodes */
-    if(config->refCount > 0 &&
-       config->refCount != UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADINVALIDSTATE;
+    /* The entries to update: the configuration and the entries derived from
+     * it, which keep their AccessRestrictions. Unless the configuration is a
+     * protected preset, the update is refused while any of them is still
+     * referenced by nodes. */
+    UA_Boolean isProtected =
+        (config->refCount == UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED);
+    size_t targetsSize = 0;
+    for(size_t i = 0; i < server->rolePermissionsSize; i++) {
+        const UA_RolePermissionEntry *e = &server->rolePermissions[i];
+        if(i != index && !isDerivedEntry(config, e))
+            continue;
+        if(!isProtected && e->refCount > 0 &&
+           e->refCount != UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        }
+        targetsSize++;
     }
 
     /* Validate that all role IDs exist */
@@ -2156,21 +2982,51 @@ UA_Server_updateRolePermissionConfig(UA_Server *server, UA_PermissionIndex index
         }
     }
 
-    /* Clear old entries */
-    size_t savedRefCount = config->refCount;
-    rolePermissionEntry_clear(config);
-
-    /* Copy new entries */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(entriesSize > 0) {
-        res = copyRolePermissionArray(entriesSize, entries,
-                                      &config->rolePermissionsSize,
-                                      &config->rolePermissions);
+    /* Prepare a copy of the new RolePermissions for every entry first, so that
+     * the update is all-or-nothing */
+    UA_RolePermission **copies = (UA_RolePermission**)
+        UA_calloc(targetsSize, sizeof(UA_RolePermission*));
+    if(!copies) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    config->refCount = savedRefCount;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t k = 0; k < targetsSize; k++) {
+        size_t copySize = 0;
+        res = copyRolePermissionArray(entriesSize, entries, &copySize, &copies[k]);
+        if(res != UA_STATUSCODE_GOOD) {
+            for(size_t j = 0; j < k; j++) {
+                for(size_t r = 0; r < entriesSize; r++)
+                    UA_NodeId_clear(&copies[j][r].roleId);
+                UA_free(copies[j]);
+            }
+            UA_free(copies);
+            unlockServer(server);
+            return res;
+        }
+    }
 
+    /* Replace the RolePermissions. The refCount and the AccessRestrictions of
+     * the entries are kept. The derived entries are updated before the
+     * configuration, as they are identified by its current RolePermissions. */
+    size_t k = 0;
+    for(size_t i = 0; i < server->rolePermissionsSize; i++) {
+        UA_RolePermissionEntry *e = &server->rolePermissions[i];
+        if(i == index || !isDerivedEntry(config, e))
+            continue;
+        rolePermissionEntry_clearRolePermissions(e);
+        e->rolePermissions = copies[k++];
+        e->rolePermissionsSize = entriesSize;
+    }
+    rolePermissionEntry_clearRolePermissions(config);
+    config->rolePermissions = copies[k++];
+    config->rolePermissionsSize = entriesSize;
+    config->hasRolePermissions = true;
+    UA_assert(k == targetsSize);
+
+    UA_free(copies);
     unlockServer(server);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 /************************************/
@@ -2185,31 +3041,46 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
     UA_PermissionIndex permIdx = node->head.permissionIndex;
     const UA_RolePermission *entries = NULL;
     size_t entriesSize = 0;
+    UA_Boolean permissionsConfigured = false;
 
-    /* If node has explicit permission configuration, use it */
-    if(permIdx != UA_PERMISSION_INDEX_INVALID) {
-        if(permIdx >= server->rolePermissionsSize)
-            return 0;
-        const UA_RolePermissionEntry *rp = &server->rolePermissions[permIdx];
+    /* Fail closed on an index that is out of range (Nodestore problem) */
+    if(permIdx != UA_PERMISSION_INDEX_INVALID &&
+       permIdx >= server->rolePermissionsSize)
+        return 0;
+
+    /* If node has explicit permission configuration, use it. An entry with
+     * only AccessRestrictions does not configure RolePermissions. */
+    const UA_RolePermissionEntry *rp = getRolePermissionsEntry(server, permIdx);
+    if(rp) {
+        permissionsConfigured = true;
         entries = rp->rolePermissions;
         entriesSize = rp->rolePermissionsSize;
     } else {
         /* No explicit permissions, check namespace defaults */
         UA_UInt16 nsIdx = node->head.nodeId.namespaceIndex;
-        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata) {
-            entries = server->namespaceMetadata[nsIdx].entries;
-            entriesSize = server->namespaceMetadata[nsIdx].entriesSize;
+        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata &&
+           server->namespaceMetadata[nsIdx].hasDefaultRolePermissions) {
+            const UA_NamespaceMetadata *metadata =
+                &server->namespaceMetadata[nsIdx];
+            permissionsConfigured = true;
+            entries = metadata->entries;
+            entriesSize = metadata->entriesSize;
         }
     }
 
     /* If no permissions configured, check allPermissionsForAnonymous.
      * When true (the default), un-configured nodes are fully permissive.
      * When false, only explicitly configured nodes grant access. */
-    if(!entries || entriesSize == 0) {
+    if(!permissionsConfigured) {
         if(server->config.allPermissionsForAnonymous)
             return UA_PERMISSIONTYPE_ALL; /* All permissions granted */
         return 0; /* Strict: deny unless explicitly configured */
     }
+
+    /* An explicitly configured empty array is an explicit deny-all. This is
+     * security-relevant when the last entry is removed together with a Role. */
+    if(entriesSize == 0)
+        return 0;
 
     /* Compute logical OR of permissions for all session roles */
     UA_PermissionType effectivePerms = 0;
@@ -2257,6 +3128,57 @@ UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NODESTORE_RELEASE(server, node);
 
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_getEffectiveNamespacePermissions(UA_Server *server,
+                                           const UA_NodeId *sessionId,
+                                           UA_UInt16 namespaceIndex,
+                                           UA_PermissionType *effectivePermissions) {
+    if(!server || !effectivePermissions)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    if(namespaceIndex >= server->namespacesSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    }
+
+    const UA_NamespaceMetadata *metadata = NULL;
+    if(server->namespaceMetadata &&
+       namespaceIndex < server->namespaceMetadataSize &&
+       server->namespaceMetadata[namespaceIndex].hasDefaultRolePermissions)
+        metadata = &server->namespaceMetadata[namespaceIndex];
+
+    if(!metadata) {
+        *effectivePermissions = server->config.allPermissionsForAnonymous ?
+            UA_PERMISSIONTYPE_ALL : 0;
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    size_t rolesSize = 0;
+    const UA_NodeId *roles = NULL;
+    if(sessionId) {
+        UA_Session *session = getSessionById(server, sessionId);
+        if(session && session->rolesSize > 0) {
+            rolesSize = session->rolesSize;
+            roles = session->roles;
+        }
+    }
+
+    UA_PermissionType permissions = 0;
+    for(size_t i = 0; i < rolesSize; i++) {
+        for(size_t j = 0; j < metadata->entriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &metadata->entries[j].roleId)) {
+                permissions |= metadata->entries[j].permissions;
+                break;
+            }
+        }
+    }
+    *effectivePermissions = permissions;
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
@@ -2309,16 +3231,23 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    /* If node has no permission configuration, return empty array */
-    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID ||
-       node->head.permissionIndex >= server->rolePermissionsSize) {
-        UA_NODESTORE_RELEASE(server, node);
-        unlockServer(server);
-        return UA_STATUSCODE_GOOD;
+    const UA_RolePermission *permissionEntries = NULL;
+    size_t permissionEntriesSize = 0;
+    const UA_RolePermissionEntry *rp =
+        getRolePermissionsEntry(server, node->head.permissionIndex);
+    if(rp) {
+        permissionEntries = rp->rolePermissions;
+        permissionEntriesSize = rp->rolePermissionsSize;
+    } else {
+        UA_UInt16 ns = node->head.nodeId.namespaceIndex;
+        if(server->namespaceMetadata && ns < server->namespaceMetadataSize &&
+           server->namespaceMetadata[ns].hasDefaultRolePermissions) {
+            permissionEntries = server->namespaceMetadata[ns].entries;
+            permissionEntriesSize = server->namespaceMetadata[ns].entriesSize;
+        }
     }
 
-    const UA_RolePermissionEntry *rp = &server->rolePermissions[node->head.permissionIndex];
-    if(!rp->rolePermissions || rp->rolePermissionsSize == 0) {
+    if(!permissionEntries || permissionEntriesSize == 0) {
         UA_NODESTORE_RELEASE(server, node);
         unlockServer(server);
         return UA_STATUSCODE_GOOD;
@@ -2339,8 +3268,8 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
     /* Count how many roles the session has that also have permissions on this node */
     size_t matchCount = 0;
     for(size_t i = 0; i < rolesSize; i++) {
-        for(size_t j = 0; j < rp->rolePermissionsSize; j++) {
-            if(UA_NodeId_equal(&roles[i], &rp->rolePermissions[j].roleId)) {
+        for(size_t j = 0; j < permissionEntriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &permissionEntries[j].roleId)) {
                 matchCount++;
                 break;
             }
@@ -2366,8 +3295,8 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
     size_t resultIdx = 0;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rolesSize && resultIdx < matchCount; i++) {
-        for(size_t j = 0; j < rp->rolePermissionsSize; j++) {
-            if(UA_NodeId_equal(&roles[i], &rp->rolePermissions[j].roleId)) {
+        for(size_t j = 0; j < permissionEntriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &permissionEntries[j].roleId)) {
                 res = UA_NodeId_copy(&roles[i], &result[resultIdx].roleId);
                 if(res != UA_STATUSCODE_GOOD) {
                     UA_Array_delete(result, resultIdx, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
@@ -2375,7 +3304,7 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
                     unlockServer(server);
                     return res;
                 }
-                result[resultIdx].permissions = rp->rolePermissions[j].permissions;
+                result[resultIdx].permissions = permissionEntries[j].permissions;
                 resultIdx++;
                 break;
             }
@@ -2451,6 +3380,8 @@ UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server,
                                       &server->namespaceMetadata[namespaceIndex].entriesSize,
                                       &server->namespaceMetadata[namespaceIndex].entries);
     }
+    if(res == UA_STATUSCODE_GOOD)
+        server->namespaceMetadata[namespaceIndex].hasDefaultRolePermissions = true;
 
     unlockServer(server);
     return res;
@@ -2498,6 +3429,168 @@ UA_Server_decrementRolePermissionsRefCount(UA_Server *server,
     lockServer(server);
     decrementRefCount(server, index);
     unlockServer(server);
+}
+
+UA_StatusCode
+retainInstanceAccessRestrictions(UA_Server *server, UA_PermissionIndex declIndex,
+                                 UA_PermissionIndex *outIndex) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    *outIndex = UA_PERMISSION_INDEX_INVALID;
+    if(declIndex == UA_PERMISSION_INDEX_INVALID ||
+       declIndex >= server->rolePermissionsSize ||
+       !server->rolePermissions[declIndex].hasAccessRestrictions)
+        return UA_STATUSCODE_GOOD;
+
+    EntryContent c;
+    EntryContent_setRolePermissions(&c, false, 0, NULL);
+    EntryContent_setAccessRestrictions(&c, true,
+        server->rolePermissions[declIndex].accessRestrictions);
+    UA_StatusCode res = findOrCreateEntry(server, &c, outIndex);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    incrementRefCount(server, *outIndex);
+    return UA_STATUSCODE_GOOD;
+}
+
+/************************************/
+/* AccessRestrictions (Part 3)      */
+/************************************/
+
+/* Effective AccessRestrictions of a node: its own value if set, otherwise the
+ * namespace default (Part 3 §5.2.11). The node's own value is stored in its
+ * shared role-permission entry. Requires the server lock. */
+UA_AccessRestrictionType
+getNodeAccessRestrictions(UA_Server *server, const UA_Node *node) {
+    UA_PermissionIndex idx = node->head.permissionIndex;
+    if(idx != UA_PERMISSION_INDEX_INVALID && idx < server->rolePermissionsSize &&
+       server->rolePermissions[idx].hasAccessRestrictions)
+        return server->rolePermissions[idx].accessRestrictions;
+    UA_UInt16 ns = node->head.nodeId.namespaceIndex;
+    if(ns < server->namespaceMetadataSize && server->namespaceMetadata &&
+       server->namespaceMetadata[ns].hasDefaultAccessRestrictions)
+        return server->namespaceMetadata[ns].defaultAccessRestrictions;
+    return UA_ACCESSRESTRICTIONTYPE_NONE;
+}
+
+/* Enforce a node's AccessRestrictions against the session's SecureChannel.
+ * The local admin session is exempt. For Browse the restrictions apply only if
+ * the ApplyRestrictionsToBrowse bit is set. Requires the server lock. */
+UA_StatusCode
+checkNodeAccessRestrictions(UA_Server *server, const UA_Session *session,
+                            const UA_Node *node, UA_Boolean forBrowse) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    if(session == &server->adminSession)
+        return UA_STATUSCODE_GOOD;
+
+    UA_AccessRestrictionType ar = getNodeAccessRestrictions(server, node);
+    if(ar == UA_ACCESSRESTRICTIONTYPE_NONE)
+        return UA_STATUSCODE_GOOD;
+
+    if(forBrowse && !(ar & UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE))
+        return UA_STATUSCODE_GOOD;
+
+    UA_MessageSecurityMode mode = (session && session->channel) ?
+        session->channel->securityMode : UA_MESSAGESECURITYMODE_INVALID;
+
+    if((ar & UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED) &&
+       mode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+
+    if((ar & UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED) &&
+       mode != UA_MESSAGESECURITYMODE_SIGN &&
+       mode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+
+    if((ar & UA_ACCESSRESTRICTIONTYPE_SESSIONREQUIRED) && !session)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setNodeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                    UA_AccessRestrictionType restrictions) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    UA_PermissionIndex currentIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+
+    /* Copy-on-write: keep the RolePermissions of the node and point it at the
+     * (shared) entry with the new AccessRestrictions */
+    EntryContent c;
+    UA_StatusCode res = getEntryContent(server, &nodeId, currentIndex, true, &c);
+    if(res == UA_STATUSCODE_GOOD) {
+        EntryContent_setAccessRestrictions(&c, true, restrictions);
+        res = setNodeEntryContent(server, &nodeId, &c);
+    }
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getNodeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                    UA_AccessRestrictionType *outRestrictions) {
+    if(!server || !outRestrictions)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    *outRestrictions = getNodeAccessRestrictions(server, node);
+    UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setNamespaceDefaultAccessRestrictions(UA_Server *server, UA_UInt16 namespaceIndex,
+                                                UA_AccessRestrictionType restrictions) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+
+    if(namespaceIndex >= server->namespacesSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    }
+
+    /* Allocate/grow the namespace metadata array on demand */
+    if(!server->namespaceMetadata) {
+        server->namespaceMetadata = (UA_NamespaceMetadata*)
+            UA_calloc(server->namespacesSize, sizeof(UA_NamespaceMetadata));
+        if(!server->namespaceMetadata) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        server->namespaceMetadataSize = server->namespacesSize;
+    } else if(server->namespaceMetadataSize < server->namespacesSize) {
+        UA_NamespaceMetadata *newMetadata = (UA_NamespaceMetadata*)
+            UA_realloc(server->namespaceMetadata,
+                       server->namespacesSize * sizeof(UA_NamespaceMetadata));
+        if(!newMetadata) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        server->namespaceMetadata = newMetadata;
+        memset(&server->namespaceMetadata[server->namespaceMetadataSize], 0,
+               (server->namespacesSize - server->namespaceMetadataSize) *
+               sizeof(UA_NamespaceMetadata));
+        server->namespaceMetadataSize = server->namespacesSize;
+    }
+
+    server->namespaceMetadata[namespaceIndex].defaultAccessRestrictions = restrictions;
+    server->namespaceMetadata[namespaceIndex].hasDefaultAccessRestrictions = true;
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_RBAC */

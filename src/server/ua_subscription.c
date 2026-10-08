@@ -277,6 +277,123 @@ UA_Notification_dequeueSub(UA_Notification *n) {
 /* Subscription */
 /****************/
 
+#ifdef UA_ENABLE_RBAC
+/* Non-owning view of the RBAC context of the Session. Not to be cleared. */
+static void
+rbacContextView(UA_SubscriptionRbacContext *ctx, const UA_Session *session) {
+    memset(ctx, 0, sizeof(UA_SubscriptionRbacContext));
+    ctx->known = true;
+    ctx->rolesSize = session->rolesSize;
+    ctx->roles = session->roles;
+    ctx->hasIdentityContext = session->hasIdentityContext;
+    ctx->hasChannel = (session->channel != NULL);
+    if(session->channel)
+        ctx->channelSecurityMode = session->channel->securityMode;
+    if(!session->hasIdentityContext)
+        return;
+    const UA_SessionIdentityContext *ic = &session->identityContext;
+    ctx->trustedApplication = ic->trustedApplication;
+    ctx->endpointSecurityMode = ic->endpointSecurityMode;
+    ctx->applicationUri = ic->applicationUri;
+    ctx->endpointUrl = ic->endpointUrl;
+    ctx->securityPolicyUri = ic->securityPolicyUri;
+    ctx->transportProfileUri = ic->transportProfileUri;
+}
+
+void
+UA_SubscriptionRbacContext_clear(UA_SubscriptionRbacContext *ctx) {
+    UA_Array_delete(ctx->roles, ctx->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_String_clear(&ctx->applicationUri);
+    UA_String_clear(&ctx->endpointUrl);
+    UA_String_clear(&ctx->securityPolicyUri);
+    UA_String_clear(&ctx->transportProfileUri);
+    memset(ctx, 0, sizeof(UA_SubscriptionRbacContext));
+}
+
+void
+UA_SubscriptionRbacContext_copyFromSession(UA_SubscriptionRbacContext *ctx,
+                                           const UA_Session *session) {
+    UA_SubscriptionRbacContext_clear(ctx);
+    UA_SubscriptionRbacContext view;
+    rbacContextView(&view, session);
+    ctx->hasIdentityContext = view.hasIdentityContext;
+    ctx->hasChannel = view.hasChannel;
+    ctx->channelSecurityMode = view.channelSecurityMode;
+    ctx->trustedApplication = view.trustedApplication;
+    ctx->endpointSecurityMode = view.endpointSecurityMode;
+
+    /* A Session that times out has usually lost its SecureChannel already. Its
+     * data was authorized with the SecurityMode of the last activation. */
+    if(!ctx->hasChannel && ctx->hasIdentityContext) {
+        ctx->hasChannel = true;
+        ctx->channelSecurityMode = ctx->endpointSecurityMode;
+    }
+
+    UA_StatusCode res =
+        UA_Array_copy(view.roles, view.rolesSize, (void**)&ctx->roles,
+                      &UA_TYPES[UA_TYPES_NODEID]);
+    if(res == UA_STATUSCODE_GOOD)
+        ctx->rolesSize = view.rolesSize;
+    res |= UA_String_copy(&view.applicationUri, &ctx->applicationUri);
+    res |= UA_String_copy(&view.endpointUrl, &ctx->endpointUrl);
+    res |= UA_String_copy(&view.securityPolicyUri, &ctx->securityPolicyUri);
+    res |= UA_String_copy(&view.transportProfileUri, &ctx->transportProfileUri);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_SubscriptionRbacContext_clear(ctx); /* known = false */
+        return;
+    }
+    ctx->known = true;
+}
+
+static UA_Boolean
+sameRoleSet(const UA_SubscriptionRbacContext *a,
+            const UA_SubscriptionRbacContext *b) {
+    if(a->rolesSize != b->rolesSize)
+        return false;
+    for(size_t i = 0; i < a->rolesSize; i++) {
+        UA_Boolean found = false;
+        for(size_t j = 0; j < b->rolesSize; j++) {
+            if(UA_NodeId_equal(&a->roles[i], &b->roles[j])) {
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+            return false;
+    }
+    return true;
+}
+
+UA_Boolean
+UA_SubscriptionRbacContext_matchesSession(const UA_SubscriptionRbacContext *ctx,
+                                          const UA_Session *session) {
+    if(!ctx || !ctx->known || !session)
+        return false;
+    UA_SubscriptionRbacContext b;
+    rbacContextView(&b, session);
+    if(!sameRoleSet(ctx, &b) || ctx->hasIdentityContext != b.hasIdentityContext)
+        return false;
+
+    /* Sessions created internally by an embedding application may not use the
+     * Part 18 identity snapshot. Their equal explicit Role sets are the full
+     * RBAC context available to compare. */
+    if(!ctx->hasIdentityContext)
+        return true;
+
+    /* AccessRestrictions depend on the current SecureChannel. */
+    if(!ctx->hasChannel || !b.hasChannel ||
+       ctx->channelSecurityMode != b.channelSecurityMode)
+        return false;
+
+    return ctx->trustedApplication == b.trustedApplication &&
+        ctx->endpointSecurityMode == b.endpointSecurityMode &&
+        UA_String_equal(&ctx->applicationUri, &b.applicationUri) &&
+        UA_String_equal(&ctx->endpointUrl, &b.endpointUrl) &&
+        UA_String_equal(&ctx->securityPolicyUri, &b.securityPolicyUri) &&
+        UA_String_equal(&ctx->transportProfileUri, &b.transportProfileUri);
+}
+#endif
+
 UA_Subscription *
 UA_Subscription_new(void) {
     /* Allocate the memory */
@@ -354,6 +471,9 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notif
     UA_String_clear(&sub->ownerUserId);
     UA_String_clear(&sub->ownerApplicationUri);
     sub->ownerKnown = false;
+#ifdef UA_ENABLE_RBAC
+    UA_SubscriptionRbacContext_clear(&sub->ownerRbacContext);
+#endif
 
     /* Remove from the server if not previously registered */
     if(sub->serverListEntry.le_prev) {
@@ -1025,6 +1145,40 @@ UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
      * last value sent is repeated in the Publish response. */
     ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
              resendDataMonitoredItemVisitor, server);
+}
+
+static void *
+invalidateRoleNotificationVisitor(void *context, UA_MonitoredItem *mon) {
+    UA_Server *server = (UA_Server*)context;
+
+    /* An async sample started with the former Roles must not complete into the
+     * fresh queue after it has been cleared. */
+    if(mon->outstandingAsyncReads > 0)
+        async_cancel(server, mon, UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST,
+                     true);
+
+    UA_Notification *n, *nTmp;
+    TAILQ_FOREACH_SAFE(n, &mon->queue, monEntry, nTmp)
+        UA_Notification_delete(n);
+
+    /* Remove the filter baseline as well. Otherwise the first value sampled
+     * with the new Roles could be suppressed as unchanged. */
+    UA_DataValue_clear(&mon->lastValue);
+
+    if(mon->monitoringMode != UA_MONITORINGMODE_DISABLED &&
+       mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+        UA_MonitoredItem_sample(server, mon);
+    return NULL;
+}
+
+void
+UA_Session_invalidateRoleNotifications(UA_Server *server, UA_Session *session) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_Subscription *sub;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+                 invalidateRoleNotificationVisitor, server);
+    }
 }
 
 void

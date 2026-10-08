@@ -306,10 +306,11 @@ UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %" PRIi32
                               " | Sample callback called", mon->monitoredItemId);
 
-    /* Sample the current value.
-     * sub->session can be NULL when the subscription is detached. Then
-     * readWithSession returns the error-code BADUSERACCESSDENIED. */
-    UA_Session *session = (sub) ? sub->session : &server->adminSession;
+    /* Sample the current value with the rights of the subscriber.
+     * The session is NULL when the subscription is detached. The read path
+     * then asks the AccessControl without a session, and the attributes gated
+     * by RBAC are denied with BADUSERACCESSDENIED. */
+    UA_Session *session = UA_MonitoredItem_getSamplingSession(mon);
 
     /* Read the value possibly asynchronous */
     UA_StatusCode res = UA_STATUSCODE_BADTOOMANYOPERATIONS;

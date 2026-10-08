@@ -10,6 +10,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/nodeids.h>
 
+#include "ua_server_internal.h"
 #include "ua_server_rbac.h"
 
 #include <stdlib.h>
@@ -53,6 +54,44 @@ removeTestRole(const char *name, UA_UInt16 nsIdx)
 {
     return UA_Server_removeRole(server,
                                 UA_QUALIFIEDNAME(nsIdx, (char*)(uintptr_t)name));
+}
+
+/* Create a role carrying a single identity mapping rule */
+static UA_NodeId
+addRoleWithRule(const char *name, UA_IdentityCriteriaType ct, const char *criteria)
+{
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleName = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    UA_IdentityMappingRuleType rule;
+    UA_IdentityMappingRuleType_init(&rule);
+    rule.criteriaType = ct;
+    rule.criteria = UA_STRING((char*)(uintptr_t)criteria);
+    role.identityMappingRules = &rule;
+    role.identityMappingRulesSize = 1;
+    UA_NodeId id = UA_NODEID_NULL;
+    UA_StatusCode res = UA_Server_addRole(server, &role, &id);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    return id;
+}
+
+/* Evaluate the roles for a context and report whether roleId is among them */
+static UA_Boolean
+roleGrantedForContext(const UA_SessionIdentityContext *ctx, const UA_NodeId *roleId)
+{
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, ctx, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], roleId)) {
+            found = true;
+            break;
+        }
+    }
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+    return found;
 }
 
 START_TEST(Role_initClearCopy) {
@@ -140,19 +179,17 @@ START_TEST(addRole_nullRoleIdAllowed) {
 }
 END_TEST
 
-/* Verify that adding a role with unsupported identity criteria types
- * succeeds (the role is stored) but the criteria will not be evaluated.
- * This exercises the warning log path added for unsupported criteria. */
+/* Verify that a canonical Thumbprint criterion is accepted and retained. */
 START_TEST(addRole_unsupportedCriteriaStored) {
     UA_Role role;
     UA_Role_init(&role);
     role.roleName = UA_QUALIFIEDNAME(0, "ThumbprintRole");
 
-    /* Add a Thumbprint identity rule — currently not evaluated */
+    /* SHA-1 thumbprints are 40 uppercase hexadecimal characters. */
     UA_IdentityMappingRuleType rule;
     UA_IdentityMappingRuleType_init(&rule);
     rule.criteriaType = UA_IDENTITYCRITERIATYPE_THUMBPRINT;
-    rule.criteria = UA_STRING("AB:CD:EF");
+    rule.criteria = UA_STRING("00112233445566778899AABBCCDDEEFF00112233");
     role.identityMappingRules = &rule;
     role.identityMappingRulesSize = 1;
 
@@ -335,12 +372,15 @@ static void setupWithConfigRoles(void) {
     sc.roles = (UA_Role*)UA_calloc(2, sizeof(UA_Role));
     ck_assert_ptr_nonnull(sc.roles);
 
+    /* Custom Roles get their own NodeIds. ns=0;i=15001 and i=15002 are the
+     * standard Properties Deprecated and MaxCharacters - a Role must not be
+     * mirrored onto them. */
     UA_Role_init(&sc.roles[0]);
-    sc.roles[0].roleId = UA_NODEID_NUMERIC(0, 15001);
+    sc.roles[0].roleId = UA_NODEID_NUMERIC(1, 15001);
     sc.roles[0].roleName = UA_QUALIFIEDNAME_ALLOC(0, "ConfigOperator");
 
     UA_Role_init(&sc.roles[1]);
-    sc.roles[1].roleId = UA_NODEID_NUMERIC(0, 15002);
+    sc.roles[1].roleId = UA_NODEID_NUMERIC(1, 15002);
     sc.roles[1].roleName = UA_QUALIFIEDNAME_ALLOC(0, "ConfigEngineer");
 
     serverWithConfigRoles = UA_Server_newWithConfig(&sc);
@@ -377,7 +417,8 @@ START_TEST(configRoles_cannotBeRemoved) {
     UA_QualifiedName configRoleName = UA_QUALIFIEDNAME(0, "ConfigOperator");
     UA_StatusCode res = UA_Server_removeRole(serverWithConfigRoles,
                                              configRoleName);
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    /* Protected (config) roles yield Bad_RequestNotAllowed per Part 18 §4.2.3 */
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 
     /* Still accessible */
     UA_Role out;
@@ -566,6 +607,56 @@ START_TEST(applicationManagement_basic) {
 }
 END_TEST
 
+/* UA_Server_updateRole identifies the Role by roleId, by roleName, or by both.
+ * Content validation must not reintroduce a roleName requirement, which would
+ * make the roleId-only form unreachable. */
+START_TEST(updateRole_identifiedByEitherKey) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62500);
+    role.roleName = UA_QUALIFIEDNAME(1, "UpdateKeyRole");
+    role.applicationsExclude = true;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    /* roleId only */
+    UA_Role byId;
+    UA_Role_init(&byId);
+    byId.roleId = role.roleId;
+    byId.applicationsExclude = false;
+    ck_assert_uint_eq(UA_Server_updateRole(server, &byId), UA_STATUSCODE_GOOD);
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, role.roleId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(!fetched.applicationsExclude);
+    /* The stored roleName is untouched by an update that does not carry one */
+    ck_assert(UA_QualifiedName_equal(&fetched.roleName, &role.roleName));
+    UA_Role_clear(&fetched);
+
+    /* roleName only */
+    UA_Role byName;
+    UA_Role_init(&byName);
+    byName.roleName = role.roleName;
+    byName.applicationsExclude = true;
+    ck_assert_uint_eq(UA_Server_updateRole(server, &byName), UA_STATUSCODE_GOOD);
+
+    /* Neither key is still rejected */
+    UA_Role neither;
+    UA_Role_init(&neither);
+    ck_assert_uint_eq(UA_Server_updateRole(server, &neither),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* addRole still requires a roleName */
+    UA_Role unnamed;
+    UA_Role_init(&unnamed);
+    unnamed.roleId = UA_NODEID_NUMERIC(1, 62501);
+    ck_assert_uint_eq(UA_Server_addRole(server, &unnamed, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+
 START_TEST(protectMandatoryRoles) {
     UA_NodeId anonymousRoleId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
@@ -579,9 +670,11 @@ START_TEST(protectMandatoryRoles) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
     UA_Role_clear(&role);
 
-    /* Cannot remove Anonymous role */
+    /* Cannot remove Anonymous role - Part 18 §4.2.3 returns Bad_RequestNotAllowed
+     * for a Role that cannot be removed (the missing-Permissions case
+     * Bad_UserAccessDenied is handled by checkRBACMethodAccess on the Method). */
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "Anonymous"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 
     /* Cannot update AuthenticatedUser */
     UA_NodeId authUserRoleId =
@@ -593,7 +686,7 @@ START_TEST(protectMandatoryRoles) {
     UA_Role_clear(&role);
 
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "AuthenticatedUser"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 }
 END_TEST
 
@@ -612,6 +705,7 @@ START_TEST(allowModifyingOptionalRoles) {
         UA_calloc(1, sizeof(UA_IdentityMappingRuleType));
     ck_assert_ptr_nonnull(role.identityMappingRules);
     role.identityMappingRules[0].criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
+    role.identityMappingRules[0].criteria = UA_STRING_ALLOC("observer");
     role.identityMappingRulesSize = 1;
 
     res = UA_Server_updateRole(server, &role);
@@ -670,6 +764,45 @@ roleSetHasComponent(UA_NodeId targetId) {
     }
     UA_BrowseResult_clear(&br);
     return found;
+}
+
+static UA_StatusCode
+findRoleChild(UA_NodeId parentId, const char *name, UA_NodeClass nodeClass,
+              UA_UInt32 referenceTypeId, UA_NodeId *childId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parentId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, referenceTypeId);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = nodeClass;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        res = UA_STATUSCODE_BADNOTFOUND;
+        UA_String want = UA_STRING((char*)(uintptr_t)name);
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            if(UA_String_equal(&br.references[i].browseName.name, &want)) {
+                res = UA_NodeId_copy(&br.references[i].nodeId.nodeId, childId);
+                break;
+            }
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
+
+static UA_StatusCode
+findRoleProperty(UA_NodeId parentId, const char *name, UA_NodeId *childId) {
+    return findRoleChild(parentId, name, UA_NODECLASS_VARIABLE,
+                         UA_NS0ID_HASPROPERTY, childId);
+}
+
+static UA_StatusCode
+findRoleMethod(UA_NodeId parentId, const char *name, UA_NodeId *childId) {
+    return findRoleChild(parentId, name, UA_NODECLASS_METHOD,
+                         UA_NS0ID_HASCOMPONENT, childId);
 }
 
 /* A role added/removed through the C API is mirrored under the RoleSet, the
@@ -867,31 +1000,30 @@ START_TEST(trustedApplication_roleRegistered) {
     ck_assert(hasTA);
     UA_Role_clear(&role);
 
-    /* Per spec the role must not be removable */
+    /* Per spec the role must not be removable - Bad_RequestNotAllowed per
+     * Part 18 §4.2.3 Table 3 (the missing-Permissions case is handled by
+     * checkRBACMethodAccess on the Method entry point). */
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "TrustedApplication"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 }
 END_TEST
 
 /* An anonymous session is granted the TrustedApplication role only when the
  * client application is trusted (encrypted SecureChannel). */
 START_TEST(trustedApplication_assignedWhenTrusted) {
-    UA_AnonymousIdentityToken anon;
-    UA_AnonymousIdentityToken_init(&anon);
-    UA_ExtensionObject token;
-    UA_ExtensionObject_init(&token);
-    token.encoding = UA_EXTENSIONOBJECT_DECODED;
-    token.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
-    token.content.decoded.data = &anon;
-
     UA_NodeId taId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_TRUSTEDAPPLICATION);
 
     /* Trusted application -> role is assigned */
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.isAnonymous = true;
+    ctx.trustedApplication = true;
+
     size_t size = 0;
     UA_NodeId *ids = NULL;
     UA_StatusCode res =
-        UA_Server_evaluateSessionRoles(server, &token, true, &size, &ids);
+        UA_Server_evaluateSessionRoles(server, &ctx, &size, &ids);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_Boolean found = false;
     for(size_t i = 0; i < size; i++)
@@ -901,9 +1033,10 @@ START_TEST(trustedApplication_assignedWhenTrusted) {
     UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
 
     /* Untrusted application -> role is not assigned */
+    ctx.trustedApplication = false;
     size = 0;
     ids = NULL;
-    res = UA_Server_evaluateSessionRoles(server, &token, false, &size, &ids);
+    res = UA_Server_evaluateSessionRoles(server, &ctx, &size, &ids);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     found = false;
     for(size_t i = 0; i < size; i++)
@@ -920,17 +1053,13 @@ START_TEST(anonymousRole_alwaysAssigned) {
     UA_NodeId anonId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
 
     /* Anonymous identity token */
-    UA_AnonymousIdentityToken anon;
-    UA_AnonymousIdentityToken_init(&anon);
-    UA_ExtensionObject tok;
-    UA_ExtensionObject_init(&tok);
-    tok.encoding = UA_EXTENSIONOBJECT_DECODED;
-    tok.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
-    tok.content.decoded.data = &anon;
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.isAnonymous = true;
 
     size_t size = 0;
     UA_NodeId *ids = NULL;
-    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &ctx,
                                                      &size, &ids),
                       UA_STATUSCODE_GOOD);
     UA_Boolean found = false;
@@ -941,15 +1070,13 @@ START_TEST(anonymousRole_alwaysAssigned) {
     UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
 
     /* Authenticated (username) session still receives the Anonymous Role */
-    UA_UserNameIdentityToken un;
-    UA_UserNameIdentityToken_init(&un);
-    un.userName = UA_STRING("nobody");
-    tok.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
-    tok.content.decoded.data = &un;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.isAnonymous = false;
+    ctx.userName = UA_STRING("nobody");
 
     size = 0;
     ids = NULL;
-    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &ctx,
                                                      &size, &ids),
                       UA_STATUSCODE_GOOD);
     found = false;
@@ -1132,6 +1259,20 @@ START_TEST(sessionRoleManagement) {
     ck_assert(foundObserver);
     ck_assert(foundOperator);
     UA_Variant_clear(&out);
+
+    /* A change of the RoleSet does not re-evaluate an application-assigned
+     * Session (Part 18 §4.4.1 leaves that assignment vendor-specific) */
+    UA_NodeId reevalRoleId = UA_NODEID_NULL;
+    ck_assert_uint_eq(addTestRole("ReevalProbeRole", 1, 50310, &reevalRoleId),
+                      UA_STATUSCODE_GOOD);
+    res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                            UA_QUALIFIEDNAME(0, "roles"), &out);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    UA_Variant_clear(&out);
+    ck_assert_uint_eq(UA_Server_removeRole(server,
+        UA_QUALIFIEDNAME(1, "ReevalProbeRole")), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&reevalRoleId);
 
     /* Update to a different set */
     UA_NodeId newRoles[1];
@@ -2226,6 +2367,109 @@ START_TEST(namespaceDefault_invalidNamespaceIndex) {
 }
 END_TEST
 
+START_TEST(namespaceDefault_explicitEmptyDenies) {
+    ck_assert(UA_Server_getConfig(server)->allPermissionsForAnonymous);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 51099);
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "ExplicitEmptyNamespaceDefault"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 1, 0, NULL), UA_STATUSCODE_GOOD);
+    UA_PermissionType effective = UA_PERMISSIONTYPE_ALL;
+    ck_assert_uint_eq(UA_Server_getEffectivePermissions(
+        server, NULL, &nodeId, &effective), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(effective, 0);
+    UA_Server_deleteNode(server, nodeId, true);
+}
+END_TEST
+
+START_TEST(namespaceDefault_reportedByAttributesAndMetadata) {
+    UA_NodeId roleId;
+    ck_assert_uint_eq(addTestRole("NsReportedRole", 1, 51100, &roleId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_RolePermission entry;
+    entry.roleId = roleId;
+    entry.permissions = UA_PERMISSIONTYPE_BROWSE |
+                        UA_PERMISSIONTYPE_READROLEPERMISSIONS;
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 1, 1, &entry), UA_STATUSCODE_GOOD);
+
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 51101);
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "InheritedPermissions"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    UA_NodeId adminSessionId = UA_NODEID_GUID(
+        0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    UA_Variant roles;
+    UA_Variant_setArray(&roles, &roleId, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(
+        server, &adminSessionId, UA_QUALIFIEDNAME(0, "roles"), &roles),
+        UA_STATUSCODE_GOOD);
+
+    UA_Variant reported;
+    UA_Variant_init(&reported);
+    ck_assert_uint_eq(UA_Server_readRolePermissions(server, nodeId, &reported),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(
+        &reported, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]));
+    ck_assert_uint_eq(reported.arrayLength, 1);
+    UA_RolePermissionType *rp = (UA_RolePermissionType*)reported.data;
+    ck_assert(UA_NodeId_equal(&rp[0].roleId, &roleId));
+    ck_assert_uint_eq(rp[0].permissions, entry.permissions);
+    UA_Variant_clear(&reported);
+
+    UA_Variant_init(&reported);
+    ck_assert_uint_eq(UA_Server_readUserRolePermissions(server, nodeId,
+                                                        &reported),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reported.arrayLength, 1);
+    rp = (UA_RolePermissionType*)reported.data;
+    ck_assert(UA_NodeId_equal(&rp[0].roleId, &roleId));
+    UA_Variant_clear(&reported);
+
+    /* The Namespace Zero metadata Properties use the same live policy. */
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 0, 1, &entry), UA_STATUSCODE_GOOD);
+    UA_Variant_init(&reported);
+    ck_assert_uint_eq(UA_Server_readValue(
+        server,
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_OPCUANAMESPACEMETADATA_DEFAULTROLEPERMISSIONS),
+        &reported), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reported.arrayLength, 1);
+    UA_Variant_clear(&reported);
+
+    UA_Variant_init(&reported);
+    ck_assert_uint_eq(UA_Server_readValue(
+        server,
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_OPCUANAMESPACEMETADATA_DEFAULTUSERROLEPERMISSIONS),
+        &reported), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reported.arrayLength, 1);
+    UA_Variant_clear(&reported);
+
+    (void)UA_Server_deleteSessionAttribute(
+        server, &adminSessionId, UA_QUALIFIEDNAME(0, "roles"));
+    UA_Server_deleteNode(server, nodeId, true);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 0, 0, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 1, 0, NULL), UA_STATUSCODE_GOOD);
+    removeTestRole("NsReportedRole", 1);
+    UA_NodeId_clear(&roleId);
+}
+END_TEST
+
 START_TEST(allPermissionsForAnonymous_config) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config->allPermissionsForAnonymous == true);
@@ -2311,9 +2555,9 @@ START_TEST(sessionRoleNames) {
 END_TEST
 
 /* Adding permissions, removing them (refCount→0), then adding a different
- * permission set must NOT recycle the freed slot: copied nodes (e.g. type
- * children instantiated into objects) can still reference the slot without
- * being counted, so rewriting it would corrupt their permissions.
+ * permission set must NOT recycle the freed slot: indices are handed out
+ * through the API and can be assigned later, so refCount == 0 does not prove
+ * that the slot is unused and rewriting it could corrupt permissions.
  * The freed slot is left untouched and the new set gets a fresh entry. */
 START_TEST(permissionEntry_slotNoUnsafeReuse) {
     UA_NodeId roleId;
@@ -2413,6 +2657,27 @@ START_TEST(removeRole_purgesRolePermissions) {
     ck_assert_uint_eq(UA_Server_addRolePermissions(server, nodeId, observerId,
         UA_PERMISSIONTYPE_BROWSE, false, false), UA_STATUSCODE_GOOD);
 
+    /* A second Node has only the Role that will be removed. Its resulting
+     * empty permission set must stay deny-all even with the permissive
+     * unconfigured-node compatibility option enabled. */
+    UA_NodeId denyNodeId = UA_NODEID_NUMERIC(1, 60002);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, denyNodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "PurgeDenyVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, denyNodeId, purgeRoleId,
+        UA_PERMISSIONTYPE_READ, false, false), UA_STATUSCODE_GOOD);
+
+    UA_NodeId sessionId = UA_NODEID_GUID(0,
+        (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    UA_Variant rolesValue;
+    UA_Variant_setArray(&rolesValue, &purgeRoleId, 1,
+                        &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(server, &sessionId,
+        UA_QUALIFIEDNAME(0, "roles"), &rolesValue), UA_STATUSCODE_GOOD);
+
     UA_PermissionIndex idx;
     ck_assert_uint_eq(UA_Server_getNodePermissionIndex(server, nodeId, &idx),
                       UA_STATUSCODE_GOOD);
@@ -2430,7 +2695,15 @@ START_TEST(removeRole_purgesRolePermissions) {
     ck_assert_uint_eq(set->rolePermissionsSize, 1);
     ck_assert(UA_NodeId_equal(&set->rolePermissions[0].roleId, &observerId));
 
+    UA_PermissionType effective = UA_PERMISSIONTYPE_ALL;
+    ck_assert_uint_eq(UA_Server_getEffectivePermissions(server, &sessionId,
+        &denyNodeId, &effective), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(effective, 0);
+
     UA_Server_deleteNode(server, nodeId, true);
+    UA_Server_deleteNode(server, denyNodeId, true);
+    (void)UA_Server_deleteSessionAttribute(server, &sessionId,
+                                           UA_QUALIFIEDNAME(0, "roles"));
     UA_NodeId_clear(&purgeRoleId);
 }
 END_TEST
@@ -2448,7 +2721,8 @@ START_TEST(addRole_quotaEnforced) {
         if(res != UA_STATUSCODE_GOOD)
             break;
     }
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    /* Part 18 §4.2.2: the Server does not allow more Roles to be added */
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTSUPPORTED);
 
     size_t rolesSize = 0;
     UA_QualifiedName *names = NULL;
@@ -2490,11 +2764,1937 @@ START_TEST(roleSetMethods_restrictedToAdmin) {
 END_TEST
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
 
+/* The Thumbprint, X509Subject, Application and access-token Role criteria are
+ * evaluated during role resolution (Part 18 §4.4.2). */
+START_TEST(identityCriteria_extended) {
+    UA_NodeId thumb = addRoleWithRule(
+        "ThumbRole", UA_IDENTITYCRITERIATYPE_THUMBPRINT,
+        "00112233445566778899AABBCCDDEEFF00112233");
+    UA_NodeId subj = addRoleWithRule("SubjRole",
+                                     UA_IDENTITYCRITERIATYPE_X509SUBJECT,
+                                     "CN=\"alice\"");
+    UA_NodeId app = addRoleWithRule("AppRole",
+                                    UA_IDENTITYCRITERIATYPE_APPLICATION, "urn:app:x");
+    UA_NodeId tokenRole = addRoleWithRule("TokenRole",
+                                          UA_IDENTITYCRITERIATYPE_ROLE,
+                                          "issuer.example/operator");
+    /* This must not match merely because AppRole is assigned. */
+    UA_NodeId notAChain = addRoleWithRule("NotAChain",
+                                          UA_IDENTITYCRITERIATYPE_ROLE,
+                                          "AppRole");
+
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userThumbprint =
+        UA_STRING("00112233445566778899aabbccddeeff00112233");
+    ctx.userSubject = UA_STRING("CN=\"alice\"");
+    ctx.applicationUri = UA_STRING("urn:app:x");
+    ctx.trustedApplication = true;
+    UA_String claims[] = {UA_STRING("issuer.example/operator")};
+    ctx.tokenRoles = claims;
+    ctx.tokenRolesSize = 1;
+
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &ctx, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean fThumb = false, fSubj = false, fApp = false;
+    UA_Boolean fToken = false, fNotAChain = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], &thumb)) fThumb = true;
+        if(UA_NodeId_equal(&ids[i], &subj)) fSubj = true;
+        if(UA_NodeId_equal(&ids[i], &app)) fApp = true;
+        if(UA_NodeId_equal(&ids[i], &tokenRole)) fToken = true;
+        if(UA_NodeId_equal(&ids[i], &notAChain)) fNotAChain = true;
+    }
+    ck_assert(fThumb);
+    ck_assert(fSubj);
+    ck_assert(fApp);
+    ck_assert(fToken);
+    ck_assert(!fNotAChain);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* A client-declared ApplicationUri without an authenticated application
+     * certificate must not satisfy the Application criterion. */
+    ctx.trustedApplication = false;
+    ck_assert(!roleGrantedForContext(&ctx, &app));
+    ctx.trustedApplication = true;
+
+    /* A context with none of the values matches none of the four roles */
+    UA_SessionIdentityContext empty;
+    memset(&empty, 0, sizeof(empty));
+    size = 0;
+    ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &empty, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < size; i++) {
+        ck_assert(!UA_NodeId_equal(&ids[i], &thumb));
+        ck_assert(!UA_NodeId_equal(&ids[i], &subj));
+        ck_assert(!UA_NodeId_equal(&ids[i], &app));
+        ck_assert(!UA_NodeId_equal(&ids[i], &tokenRole));
+        ck_assert(!UA_NodeId_equal(&ids[i], &notAChain));
+    }
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    UA_NodeId_clear(&thumb);
+    UA_NodeId_clear(&subj);
+    UA_NodeId_clear(&app);
+    UA_NodeId_clear(&tokenRole);
+    UA_NodeId_clear(&notAChain);
+}
+END_TEST
+
+/* A certificate subject is not restricted to ASCII. The criteria value is
+ * UTF-8 and may contain any character except the quote (Part 18 §4.4.3). */
+START_TEST(identityCriteria_x509SubjectUtf8) {
+    UA_NodeId umlaut = addRoleWithRule("UmlautSubjRole",
+                                       UA_IDENTITYCRITERIATYPE_X509SUBJECT,
+                                       "CN=\"M\xC3\xBCller\"/O=\"M\xC3\xBCller GmbH\"");
+
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userSubject = UA_STRING("CN=\"M\xC3\xBCller\"/O=\"M\xC3\xBCller GmbH\"");
+    ck_assert(roleGrantedForContext(&ctx, &umlaut));
+
+    /* The criteria are also matched against the issuer of the certificate */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userIssuer = UA_STRING("CN=\"M\xC3\xBCller\"/O=\"M\xC3\xBCller GmbH\"");
+    ck_assert(roleGrantedForContext(&ctx, &umlaut));
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userSubject = UA_STRING("CN=\"Mueller\"");
+    ck_assert(!roleGrantedForContext(&ctx, &umlaut));
+
+    /* The names are those of Table 10 in the order of the table. A name is
+     * repeated if it occurs more than once in the certificate. */
+    UA_NodeId repeated = addRoleWithRule("RepeatedSubjRole",
+                                         UA_IDENTITYCRITERIATYPE_X509SUBJECT,
+                                         "OU=\"a\"/OU=\"b\"");
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userSubject = UA_STRING("OU=\"a\"/OU=\"b\"");
+    ck_assert(roleGrantedForContext(&ctx, &repeated));
+    UA_NodeId allNames = addRoleWithRule(
+        "AllNamesSubjRole", UA_IDENTITYCRITERIATYPE_X509SUBJECT,
+        "CN=\"a\"/O=\"b\"/OU=\"c\"/DC=\"d\"/L=\"e\"/S=\"f\"/C=\"DE\"/"
+        "dnQualifier=\"g\"/serialNumber=\"h\"");
+
+    /* Control characters, malformed UTF-8 and empty values are rejected, and
+     * so are names that are not in Table 10 or out of the table order */
+    const char *invalid[] = {"CN=\"a\tb\"", "CN=\"\xC3\"", "CN=\"\"",
+                             "CN=\"a\"/", "alice", "E=\"x\"",
+                             "CN=\"a\"/E=\"x\"", "cn=\"a\"",
+                             "O=\"a\"/CN=\"b\"", "C=\"DE\"/OU=\"a\""};
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        UA_IdentityMappingRuleType rule;
+        UA_IdentityMappingRuleType_init(&rule);
+        rule.criteriaType = UA_IDENTITYCRITERIATYPE_X509SUBJECT;
+        rule.criteria = UA_STRING((char*)(uintptr_t)invalid[i]);
+        UA_Role role;
+        UA_Role_init(&role);
+        role.roleName = UA_QUALIFIEDNAME(1, "InvalidSubjRole");
+        role.identityMappingRules = &rule;
+        role.identityMappingRulesSize = 1;
+        ck_assert_msg(UA_Server_addRole(server, &role, NULL) ==
+                      UA_STATUSCODE_BADINVALIDARGUMENT,
+                      "accepted the invalid criteria '%s'", invalid[i]);
+    }
+
+    UA_NodeId_clear(&umlaut);
+    UA_NodeId_clear(&repeated);
+    UA_NodeId_clear(&allNames);
+}
+END_TEST
+
+/* Add a Role for authenticated users with a single Endpoint filter entry */
+static UA_NodeId
+addEndpointFilterRole(const char *name, const char *endpointUrl,
+                      const char *transportProfileUri, UA_Boolean exclude) {
+    UA_IdentityMappingRuleType authRule;
+    UA_IdentityMappingRuleType_init(&authRule);
+    authRule.criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+    UA_EndpointType filter;
+    UA_EndpointType_init(&filter);
+    if(endpointUrl)
+        filter.endpointUrl = UA_STRING((char*)(uintptr_t)endpointUrl);
+    if(transportProfileUri)
+        filter.transportProfileUri =
+            UA_STRING((char*)(uintptr_t)transportProfileUri);
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleName = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    role.identityMappingRules = &authRule;
+    role.identityMappingRulesSize = 1;
+    role.endpoints = &filter;
+    role.endpointsSize = 1;
+    role.endpointsExclude = exclude;
+    UA_NodeId id = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, &id), UA_STATUSCODE_GOOD);
+    return id;
+}
+
+/* The Application and Endpoint role filters gate role assignment (Part 18
+ * §4.4.1), including the Exclude variants. */
+START_TEST(roleFilters_evaluated) {
+    UA_IdentityMappingRuleType authRule;
+    UA_IdentityMappingRuleType_init(&authRule);
+    authRule.criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+
+    /* Application include filter */
+    UA_Role incl;
+    UA_Role_init(&incl);
+    incl.roleName = UA_QUALIFIEDNAME(1, "AppInclude");
+    incl.identityMappingRules = &authRule;
+    incl.identityMappingRulesSize = 1;
+    UA_String allowed = UA_STRING("urn:allowed");
+    incl.applications = &allowed;
+    incl.applicationsSize = 1;
+    incl.applicationsExclude = false;
+    UA_NodeId inclId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &incl, &inclId), UA_STATUSCODE_GOOD);
+
+    /* Application exclude filter */
+    UA_Role excl;
+    UA_Role_init(&excl);
+    excl.roleName = UA_QUALIFIEDNAME(1, "AppExclude");
+    excl.identityMappingRules = &authRule;
+    excl.identityMappingRulesSize = 1;
+    UA_String blocked = UA_STRING("urn:blocked");
+    excl.applications = &blocked;
+    excl.applicationsSize = 1;
+    excl.applicationsExclude = true;
+    UA_NodeId exclId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &excl, &exclId), UA_STATUSCODE_GOOD);
+
+    /* Endpoint include filter */
+    UA_Role ep;
+    UA_Role_init(&ep);
+    ep.roleName = UA_QUALIFIEDNAME(1, "EpInclude");
+    ep.identityMappingRules = &authRule;
+    ep.identityMappingRulesSize = 1;
+    UA_EndpointType epFilter;
+    UA_EndpointType_init(&epFilter);
+    epFilter.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ep.endpoints = &epFilter;
+    ep.endpointsSize = 1;
+    ep.endpointsExclude = false;
+    UA_NodeId epId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &ep, &epId), UA_STATUSCODE_GOOD);
+
+    /* Empty include lists match no application or endpoint. */
+    UA_Role emptyApp;
+    UA_Role_init(&emptyApp);
+    emptyApp.roleName = UA_QUALIFIEDNAME(1, "EmptyAppInclude");
+    emptyApp.identityMappingRules = &authRule;
+    emptyApp.identityMappingRulesSize = 1;
+    emptyApp.applicationsExclude = false;
+    UA_NodeId emptyAppId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &emptyApp, &emptyAppId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Role emptyEp;
+    UA_Role_init(&emptyEp);
+    emptyEp.roleName = UA_QUALIFIEDNAME(1, "EmptyEpInclude");
+    emptyEp.identityMappingRules = &authRule;
+    emptyEp.identityMappingRulesSize = 1;
+    emptyEp.endpointsExclude = false;
+    UA_NodeId emptyEpId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &emptyEp, &emptyEpId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_SessionIdentityContext ctx;
+
+    /* Include: matching application granted, others denied */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.applicationUri = UA_STRING("urn:allowed");
+    ctx.trustedApplication = true;
+    ck_assert(roleGrantedForContext(&ctx, &inclId));
+    ctx.applicationUri = UA_STRING("urn:other");
+    ck_assert(!roleGrantedForContext(&ctx, &inclId));
+
+    /* Exclude: listed application denied, others granted */
+    ctx.applicationUri = UA_STRING("urn:blocked");
+    ck_assert(!roleGrantedForContext(&ctx, &exclId));
+    ctx.applicationUri = UA_STRING("urn:other");
+    ck_assert(roleGrantedForContext(&ctx, &exclId));
+
+    /* A matching self-declared URI is insufficient without a trusted client
+     * certificate and signed SecureChannel. */
+    ctx.applicationUri = UA_STRING("urn:allowed");
+    ctx.trustedApplication = false;
+    ck_assert(!roleGrantedForContext(&ctx, &inclId));
+
+    /* Endpoint include: matching endpoint granted, others denied */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://other:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+
+    /* Empty include lists must not become an unrestricted Role. */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.applicationUri = UA_STRING("urn:any");
+    ctx.trustedApplication = true;
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &emptyAppId));
+    ck_assert(!roleGrantedForContext(&ctx, &emptyEpId));
+
+    /* The Endpoint URL is compared with the configured ServerUrl of the
+     * listener. A listener without a hostname accepts connections for every
+     * hostname, so only the scheme, port and path are compared. */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.endpointUrl = UA_STRING("opc.tcp://:4840");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://:4841");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+
+    /* Port and scheme mismatches. An absent port is the default port. */
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4841");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.wss://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+
+    /* The scheme and hostname are case-insensitive. Leading and trailing '/'
+     * of the path are ignored. The path itself is case-sensitive. */
+    ctx.endpointUrl = UA_STRING("OPC.TCP://HOST:4840/");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+    UA_NodeId pathId =
+        addEndpointFilterRole("EpPath", "opc.tcp://Host:4840/ua/server/",
+                              NULL, false);
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840/ua/server");
+    ck_assert(roleGrantedForContext(&ctx, &pathId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840//ua/server//");
+    ck_assert(roleGrantedForContext(&ctx, &pathId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840/UA/server");
+    ck_assert(!roleGrantedForContext(&ctx, &pathId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &pathId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://:4840/ua/server");
+    ck_assert(roleGrantedForContext(&ctx, &pathId));
+
+    /* IPv6 hostnames are compared without brackets and case-insensitively */
+    UA_NodeId ipv6Id =
+        addEndpointFilterRole("EpIPv6", "opc.tcp://[FE80::1]:4840", NULL, false);
+    ctx.endpointUrl = UA_STRING("opc.tcp://[fe80::1]:4840");
+    ck_assert(roleGrantedForContext(&ctx, &ipv6Id));
+    ctx.endpointUrl = UA_STRING("opc.tcp://[fe80::2]:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &ipv6Id));
+
+    /* An include list grants only on a definite match. An unknown listener URL
+     * (empty, unparseable or with a dynamically assigned port) never matches. */
+    ctx.endpointUrl = UA_STRING_NULL;
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("not-a-url");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:0");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+
+    /* An exclude list fails closed when the listener URL is unknown */
+    UA_NodeId epExclId =
+        addEndpointFilterRole("EpExclude", "opc.tcp://host:4840", NULL, true);
+    ctx.endpointUrl = UA_STRING("opc.tcp://other:4840");
+    ck_assert(roleGrantedForContext(&ctx, &epExclId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epExclId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epExclId));
+    ctx.endpointUrl = UA_STRING_NULL;
+    ck_assert(!roleGrantedForContext(&ctx, &epExclId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:0");
+    ck_assert(!roleGrantedForContext(&ctx, &epExclId));
+
+    /* The same applies to the TransportProfileUri */
+    const char *uatcp =
+        "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary";
+    UA_NodeId profileId = addEndpointFilterRole("EpProfile", NULL, uatcp, false);
+    UA_NodeId profileExclId =
+        addEndpointFilterRole("EpProfileExclude", NULL, uatcp, true);
+    memset(&ctx, 0, sizeof(ctx));
+    ck_assert(!roleGrantedForContext(&ctx, &profileId));
+    ck_assert(!roleGrantedForContext(&ctx, &profileExclId));
+    ctx.transportProfileUri = UA_STRING((char*)(uintptr_t)uatcp);
+    ck_assert(roleGrantedForContext(&ctx, &profileId));
+    ck_assert(!roleGrantedForContext(&ctx, &profileExclId));
+    ctx.transportProfileUri = UA_STRING(
+        "http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary");
+    ck_assert(!roleGrantedForContext(&ctx, &profileId));
+    ck_assert(roleGrantedForContext(&ctx, &profileExclId));
+
+    UA_NodeId_clear(&pathId);
+    UA_NodeId_clear(&ipv6Id);
+    UA_NodeId_clear(&epExclId);
+    UA_NodeId_clear(&profileId);
+    UA_NodeId_clear(&profileExclId);
+    UA_NodeId_clear(&inclId);
+    UA_NodeId_clear(&exclId);
+    UA_NodeId_clear(&epId);
+    UA_NodeId_clear(&emptyAppId);
+    UA_NodeId_clear(&emptyEpId);
+}
+END_TEST
+
+/* The GroupId criterion matches the GroupIds captured for the session
+ * (Part 18 §4.4.2). */
+START_TEST(identityCriteria_groupId) {
+    UA_NodeId grp = addRoleWithRule("GroupRole",
+                                    UA_IDENTITYCRITERIATYPE_GROUPID, "admins");
+
+    UA_String inGroup[1] = { UA_STRING("admins") };
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.groups = inGroup;
+    ctx.groupsSize = 1;
+    ck_assert(roleGrantedForContext(&ctx, &grp));
+
+    UA_String otherGroup[1] = { UA_STRING("users") };
+    ctx.groups = otherGroup;
+    ck_assert(!roleGrantedForContext(&ctx, &grp));
+
+    UA_NodeId_clear(&grp);
+}
+END_TEST
+
+/* AccessRestrictions can be set/read via the C API and the attribute service,
+ * and fall back to the namespace default (Part 3 §5.2.11). */
+START_TEST(accessRestrictions_setGetRead) {
+    UA_NodeId x = UA_NODEID_NUMERIC(1, 61000);
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_UInt32 val = 1;
+    UA_Variant_setScalar(&vattr.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, x,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "ArVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+
+    /* Default is NONE */
+    UA_AccessRestrictionType ar = 0xFFFF;
+    ck_assert_uint_eq(UA_Server_getNodeAccessRestrictions(server, x, &ar),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ar, UA_ACCESSRESTRICTIONTYPE_NONE);
+
+    /* Set and read back */
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, x,
+                          UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_getNodeAccessRestrictions(server, x, &ar),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ar, UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+
+    /* The attribute service returns the value (admin session is exempt from
+     * enforcement) */
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = x;
+    rvid.attributeId = UA_ATTRIBUTEID_ACCESSRESTRICTIONS;
+    UA_DataValue dv = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(dv.value.type, &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
+    ck_assert_uint_eq(*(UA_AccessRestrictionType*)dv.value.data,
+                      UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+    UA_DataValue_clear(&dv);
+
+    /* Namespace default fallback for a node without explicit restrictions */
+    UA_NodeId y = UA_NODEID_NUMERIC(1, 61001);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, y,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "ArVar2"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultAccessRestrictions(server, 1,
+                          UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_getNodeAccessRestrictions(server, y, &ar),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ar, UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED);
+
+    UA_Server_deleteNode(server, x, true);
+    UA_Server_deleteNode(server, y, true);
+}
+END_TEST
+
+/* AccessRestrictions are stored in the shared, deduplicated role-permission
+ * entry the node references with its permissionIndex -- not in the node head.
+ * Every node pays only for the index. */
+
+/* UA_NodeHead as it must look: no AccessRestrictions fields of its own. A
+ * per-node field would grow every node in the AddressSpace.
+ *
+ * Only meaningful with a permission index of at least 4 bytes: with a 2-byte
+ * index, the former fields (UA_AccessRestrictionType and a UA_Boolean) fit
+ * into the padding after the index, so the size does not change and the test
+ * could not detect them. */
+#if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE >= 4
+struct NodeHeadWithoutAccessRestrictions {
+    UA_NodeId nodeId;
+    UA_NodeClass nodeClass;
+    UA_QualifiedName browseName;
+    UA_LocalizedTextListEntry *displayName;
+    UA_LocalizedTextListEntry *description;
+    UA_UInt32 writeMask;
+    size_t referencesSize;
+    UA_NodeReferenceKind *references;
+    void *context;
+    UA_Boolean constructed;
+    UA_PermissionIndex permissionIndex;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_MonitoredItem *monitoredItems;
+#endif
+};
+
+START_TEST(accessRestrictions_notStoredPerNode) {
+    ck_assert_uint_eq(sizeof(UA_NodeHead),
+                      sizeof(struct NodeHeadWithoutAccessRestrictions));
+}
+END_TEST
+#endif /* UA_ROLEPERMISSIONS_NODE_SIZE_BYTE >= 4 */
+
+static UA_NodeId
+addArStorageVariable(const char *name) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 v = 1;
+    UA_Variant_setScalar(&attr.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+    UA_NodeId id = UA_NODEID_STRING(1, (char*)(uintptr_t)name);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, id,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, NULL), UA_STATUSCODE_GOOD);
+    return id;
+}
+
+static UA_AccessRestrictionType
+nodeAr(const UA_NodeId id) {
+    UA_AccessRestrictionType ar = 0xFFFF;
+    ck_assert_uint_eq(UA_Server_getNodeAccessRestrictions(server, id, &ar),
+                      UA_STATUSCODE_GOOD);
+    return ar;
+}
+
+static UA_PermissionIndex
+nodePermIdx(const UA_NodeId id) {
+    UA_PermissionIndex idx = 0;
+    ck_assert_uint_eq(UA_Server_getNodePermissionIndex(server, id, &idx),
+                      UA_STATUSCODE_GOOD);
+    return idx;
+}
+
+/* Number of the node's own RolePermissions; the single entry (if any) must
+ * grant `perms` to `role` */
+static size_t
+ownRolePermissions(const UA_NodeId id, const UA_NodeId *role,
+                   UA_PermissionType perms) {
+    size_t size = 0;
+    UA_RolePermission *rp = NULL;
+    ck_assert_uint_eq(UA_Server_getNodeRolePermissions(server, id, &size, &rp),
+                      UA_STATUSCODE_GOOD);
+    if(size == 1) {
+        ck_assert(UA_NodeId_equal(&rp[0].roleId, role));
+        ck_assert_uint_eq(rp[0].permissions, perms);
+    }
+    for(size_t i = 0; i < size; i++)
+        UA_NodeId_clear(&rp[i].roleId);
+    UA_free(rp);
+    return size;
+}
+
+static UA_PermissionType
+effectivePerms(const UA_NodeId id, const UA_NodeId *role) {
+    UA_NodeId adminSessionId = UA_NODEID_GUID(0,
+        (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    UA_Variant rv;
+    UA_Variant_setArray(&rv, (void*)(uintptr_t)role, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(server, &adminSessionId,
+                          UA_QUALIFIEDNAME(0, "roles"), &rv), UA_STATUSCODE_GOOD);
+    UA_PermissionType eff = 0;
+    ck_assert_uint_eq(UA_Server_getEffectivePermissions(server, &adminSessionId,
+                                                        &id, &eff),
+                      UA_STATUSCODE_GOOD);
+    (void)UA_Server_deleteSessionAttribute(server, &adminSessionId,
+                                           UA_QUALIFIEDNAME(0, "roles"));
+    return eff;
+}
+
+/* A node with only AccessRestrictions has no RolePermissions of its own: the
+ * namespace default applies exactly as for a node without an entry */
+START_TEST(accessRestrictions_withoutRolePermissions) {
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArNsRole", 1, 51101, &role), UA_STATUSCODE_GOOD);
+    UA_PermissionType nsPerms = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+        UA_PERMISSIONTYPE_READROLEPERMISSIONS;
+    UA_RolePermission def = {role, nsPerms};
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(server, 1, 1, &def),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId x = addArStorageVariable("ArOnly");
+    UA_NodeId y = addArStorageVariable("ArNone");
+    ck_assert_uint_eq(nodePermIdx(y), UA_PERMISSION_INDEX_INVALID);
+
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, x,
+                          UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeAr(x), UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+    ck_assert_uint_eq(nodeAr(y), UA_ACCESSRESTRICTIONTYPE_NONE);
+
+    /* The entry carries no RolePermissions. The configuration getter reports
+     * no RolePermission set (not an empty set, which would be a deny-all). */
+    UA_PermissionIndex idx = nodePermIdx(x);
+    ck_assert_uint_ne(idx, UA_PERMISSION_INDEX_INVALID);
+    ck_assert_ptr_null(UA_Server_getRolePermissionConfig(server, idx));
+    ck_assert_uint_eq(ownRolePermissions(x, &role, 0), 0);
+
+    /* Effective permissions, the RolePermissions and UserRolePermissions
+     * Attributes report the namespace default -- not a deny-all */
+    ck_assert_uint_eq(effectivePerms(x, &role), nsPerms);
+    ck_assert_uint_eq(effectivePerms(x, &role), effectivePerms(y, &role));
+
+    UA_NodeId adminSessionId = UA_NODEID_GUID(0,
+        (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    UA_Variant rv;
+    UA_Variant_setArray(&rv, &role, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(server, &adminSessionId,
+                          UA_QUALIFIEDNAME(0, "roles"), &rv), UA_STATUSCODE_GOOD);
+    UA_Variant out;
+    ck_assert_uint_eq(UA_Server_readRolePermissions(server, x, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.arrayLength, 1);
+    UA_RolePermissionType *rpt = (UA_RolePermissionType*)out.data;
+    ck_assert(UA_NodeId_equal(&rpt[0].roleId, &role));
+    ck_assert_uint_eq(rpt[0].permissions, nsPerms);
+    UA_Variant_clear(&out);
+    size_t userSize = 0;
+    UA_RolePermissionType *userRp = NULL;
+    ck_assert_uint_eq(UA_Server_getUserRolePermissions(server, &adminSessionId, &x,
+                                                       &userSize, &userRp),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(userSize, 1);
+    ck_assert_uint_eq(userRp[0].permissions, nsPerms);
+    UA_Array_delete(userRp, userSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    (void)UA_Server_deleteSessionAttribute(server, &adminSessionId,
+                                           UA_QUALIFIEDNAME(0, "roles"));
+
+    /* Removing the (absent) RolePermissions keeps the AccessRestrictions */
+    ck_assert_uint_eq(UA_Server_removeNodeRolePermissions(server, x, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(x), idx);
+    ck_assert_uint_eq(nodeAr(x), UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+/* RolePermissions and AccessRestrictions of a node are independent: either
+ * order of setting them gives the same result and removing the
+ * RolePermissions keeps the AccessRestrictions */
+START_TEST(accessRestrictions_independentOfRolePermissions) {
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArIndepRole", 1, 51102, &role), UA_STATUSCODE_GOOD);
+    UA_PermissionType perms = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    UA_RolePermission rp = {role, perms};
+    const UA_AccessRestrictionType sign = UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED;
+
+    /* RolePermissions first */
+    UA_NodeId x = addArStorageVariable("ArIndepX");
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, x, 1, &rp, false, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_PermissionIndex rpOnly = nodePermIdx(x);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, x, sign),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ownRolePermissions(x, &role, perms), 1);
+    ck_assert_uint_eq(nodeAr(x), sign);
+    ck_assert_uint_ne(nodePermIdx(x), rpOnly);
+
+    /* AccessRestrictions first */
+    UA_NodeId y = addArStorageVariable("ArIndepY");
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, y, sign),
+                      UA_STATUSCODE_GOOD);
+    UA_PermissionIndex arOnly = nodePermIdx(y);
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, y, 1, &rp, false, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ownRolePermissions(y, &role, perms), 1);
+    ck_assert_uint_eq(nodeAr(y), sign);
+
+    /* Same content, same deduplicated entry */
+    ck_assert_uint_eq(nodePermIdx(x), nodePermIdx(y));
+    UA_PermissionIndex both = nodePermIdx(x);
+
+    /* Changing the AccessRestrictions keeps the RolePermissions */
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, y,
+                          UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ownRolePermissions(y, &role, perms), 1);
+    ck_assert_uint_eq(nodeAr(y), UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+    ck_assert_uint_eq(nodePermIdx(x), both);
+    ck_assert_uint_eq(nodeAr(x), sign);
+
+    /* Removing the RolePermissions leaves the AccessRestrictions-only entry */
+    ck_assert_uint_eq(UA_Server_removeNodeRolePermissions(server, x, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ownRolePermissions(x, &role, 0), 0);
+    ck_assert_uint_eq(nodeAr(x), sign);
+    ck_assert_uint_eq(nodePermIdx(x), arOnly);
+
+    /* Per-Role add and remove keep the AccessRestrictions as well */
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, x, role,
+                          UA_PERMISSIONTYPE_WRITE, false, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ownRolePermissions(x, &role, UA_PERMISSIONTYPE_WRITE), 1);
+    ck_assert_uint_eq(nodeAr(x), sign);
+    ck_assert_uint_eq(UA_Server_removeRolePermissions(server, x, role,
+                          UA_PERMISSIONTYPE_WRITE, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ownRolePermissions(x, &role, 0), 0);
+    ck_assert_uint_eq(nodeAr(x), sign);
+    ck_assert_uint_eq(nodePermIdx(x), arOnly);
+
+    /* The low-level index setter replaces only the RolePermissions */
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, x, rpOnly, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ownRolePermissions(x, &role, perms), 1);
+    ck_assert_uint_eq(nodeAr(x), sign);
+    ck_assert_uint_eq(nodePermIdx(x), both);
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, x,
+                          UA_PERMISSION_INDEX_INVALID, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(x), arOnly);
+
+    /* Without AccessRestrictions, removing the RolePermissions leaves no entry */
+    UA_NodeId z = addArStorageVariable("ArIndepZ");
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, z, 1, &rp, false, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(z), rpOnly);
+    ck_assert_uint_eq(UA_Server_removeRolePermissions(server, z, role, perms, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(z), UA_PERMISSION_INDEX_INVALID);
+    ck_assert_uint_eq(nodeAr(z), UA_ACCESSRESTRICTIONTYPE_NONE);
+
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+/* Nodes with equal AccessRestrictions share one entry (no memory per node).
+ * Entries are copy-on-write: changing one node does not affect the other. */
+START_TEST(accessRestrictions_sharedEntry) {
+    const UA_AccessRestrictionType enc = UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED;
+    UA_NodeId x = addArStorageVariable("ArSharedX");
+    UA_NodeId y = addArStorageVariable("ArSharedY");
+    UA_NodeId z = addArStorageVariable("ArSharedZ");
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, x, enc),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, y, enc),
+                      UA_STATUSCODE_GOOD);
+    UA_PermissionIndex shared = nodePermIdx(x);
+    ck_assert_uint_ne(shared, UA_PERMISSION_INDEX_INVALID);
+    ck_assert_uint_eq(nodePermIdx(y), shared);
+
+    /* Changing one node selects another entry */
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, y,
+                          UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(nodePermIdx(y), shared);
+    ck_assert_uint_eq(nodePermIdx(x), shared);
+    ck_assert_uint_eq(nodeAr(x), enc);
+    ck_assert_uint_eq(nodeAr(y), UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED);
+
+    /* Adding RolePermissions to one node does not change the shared entry */
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArSharedRole", 1, 51103, &role), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, x, role,
+                          UA_PERMISSIONTYPE_READ, false, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(nodePermIdx(x), shared);
+    ck_assert_ptr_null(UA_Server_getRolePermissionConfig(server, shared));
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, z, enc),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(z), shared);
+
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+/* Removing a Role purges it from the RolePermissions but leaves the
+ * AccessRestrictions of the entries intact */
+START_TEST(accessRestrictions_survivePurgeOfRemovedRole) {
+    UA_NodeId role, other;
+    ck_assert_uint_eq(addTestRole("ArPurgeRole", 1, 51104, &role), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(addTestRole("ArPurgeOther", 1, 51105, &other), UA_STATUSCODE_GOOD);
+    UA_RolePermission rp = {role, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ};
+    const UA_AccessRestrictionType enc = UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED;
+
+    UA_NodeId x = addArStorageVariable("ArPurgeX");
+    UA_NodeId y = addArStorageVariable("ArPurgeY");
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, x, 1, &rp, false, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, x, enc),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, y, enc),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(removeTestRole("ArPurgeRole", 1), UA_STATUSCODE_GOOD);
+
+    /* x keeps an explicit (now empty) RolePermission list: deny-all */
+    ck_assert_uint_eq(nodeAr(x), enc);
+    ck_assert_uint_eq(ownRolePermissions(x, &other, 0), 0);
+    ck_assert_uint_eq(effectivePerms(x, &other), 0);
+
+    /* y has no RolePermissions: unconfigured, allPermissionsForAnonymous */
+    ck_assert_uint_eq(nodeAr(y), enc);
+    ck_assert(UA_Server_getConfig(server)->allPermissionsForAnonymous);
+    ck_assert_uint_eq(effectivePerms(y, &other), UA_PERMISSIONTYPE_ALL);
+
+    UA_NodeId_clear(&role);
+    UA_NodeId_clear(&other);
+}
+END_TEST
+
+static UA_NodeId
+instanceChild(const UA_NodeId parent, const char *name) {
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(server, parent, 1, &qn);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    UA_NodeId id;
+    ck_assert_uint_eq(UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &id),
+                      UA_STATUSCODE_GOOD);
+    UA_BrowsePathResult_clear(&bpr);
+    return id;
+}
+
+/* An instance child gets the AccessRestrictions of the InstanceDeclaration,
+ * but not its RolePermissions */
+START_TEST(accessRestrictions_inheritedByInstanceChild) {
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArInstRole", 1, 51106, &role), UA_STATUSCODE_GOOD);
+    UA_RolePermission rp = {role, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ};
+    const UA_AccessRestrictionType enc = UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED;
+
+    UA_NodeId typeId = UA_NODEID_STRING(1, "ArInstType");
+    UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server, typeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "ArInstType"), otAttr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    /* "Restricted" has RolePermissions and AccessRestrictions, "Open" only
+     * RolePermissions */
+    const char *names[2] = {"Restricted", "Open"};
+    UA_NodeId decl[2] = {UA_NODEID_STRING(1, "ArInstType.Restricted"),
+                         UA_NODEID_STRING(1, "ArInstType.Open")};
+    for(size_t i = 0; i < 2; i++) {
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        UA_Int32 v = 1;
+        UA_Variant_setScalar(&vAttr.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_uint_eq(UA_Server_addVariableNode(server, decl[i], typeId,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+            UA_QUALIFIEDNAME(1, (char*)(uintptr_t)names[i]),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+            vAttr, NULL, NULL), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_Server_addReference(server, decl[i],
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true),
+            UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, decl[i], 1, &rp,
+                                                           false, NULL),
+                          UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, decl[0], enc),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId inst[2] = {UA_NODEID_STRING(1, "ArInst1"),
+                         UA_NODEID_STRING(1, "ArInst2")};
+    UA_PermissionIndex restrictedIdx[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+        ck_assert_uint_eq(UA_Server_addObjectNode(server, inst[i],
+            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+            UA_QUALIFIEDNAME(1, i == 0 ? "ArInst1" : "ArInst2"),
+            typeId, oAttr, NULL, NULL), UA_STATUSCODE_GOOD);
+
+        UA_NodeId restricted = instanceChild(inst[i], "Restricted");
+        ck_assert_uint_eq(nodeAr(restricted), enc);
+        ck_assert_uint_eq(ownRolePermissions(restricted, &role, 0), 0);
+        restrictedIdx[i] = nodePermIdx(restricted);
+        ck_assert_uint_ne(restrictedIdx[i], UA_PERMISSION_INDEX_INVALID);
+        ck_assert_uint_ne(restrictedIdx[i], nodePermIdx(decl[0]));
+        ck_assert_ptr_null(UA_Server_getRolePermissionConfig(server,
+                                                             restrictedIdx[i]));
+
+        UA_NodeId open = instanceChild(inst[i], "Open");
+        ck_assert_uint_eq(nodePermIdx(open), UA_PERMISSION_INDEX_INVALID);
+        ck_assert_uint_eq(nodeAr(open), UA_ACCESSRESTRICTIONTYPE_NONE);
+
+        UA_NodeId_clear(&restricted);
+        UA_NodeId_clear(&open);
+    }
+    /* Both instances share the AccessRestrictions-only entry */
+    ck_assert_uint_eq(restrictedIdx[0], restrictedIdx[1]);
+
+    /* The InstanceDeclaration is unchanged */
+    ck_assert_uint_eq(nodeAr(decl[0]), enc);
+    ck_assert_uint_eq(ownRolePermissions(decl[0], &role, rp.permissions), 1);
+
+    UA_Server_deleteNode(server, inst[0], true);
+    UA_Server_deleteNode(server, inst[1], true);
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+/* The number of references the server holds on the entry at idx */
+static size_t
+entryRefCount(UA_PermissionIndex idx) {
+    ck_assert_uint_lt(idx, server->rolePermissionsSize);
+    return server->rolePermissions[idx].refCount;
+}
+
+/* Deleting a node releases its reference on the shared entry */
+START_TEST(accessRestrictions_deleteNodeReleasesEntry) {
+    const UA_AccessRestrictionType enc = UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED;
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArDelRole", 1, 51107, &role), UA_STATUSCODE_GOOD);
+    UA_RolePermission rp = {role, UA_PERMISSIONTYPE_BROWSE};
+
+    UA_NodeId x = addArStorageVariable("ArDelX");
+    UA_NodeId y = addArStorageVariable("ArDelY");
+    UA_NodeId z = addArStorageVariable("ArDelZ");
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, x, enc),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, y, enc),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, z, 1, &rp, false, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, z, enc),
+                      UA_STATUSCODE_GOOD);
+    UA_PermissionIndex arOnly = nodePermIdx(x);
+    UA_PermissionIndex both = nodePermIdx(z);
+    ck_assert_uint_eq(entryRefCount(arOnly), 2);
+    ck_assert_uint_eq(entryRefCount(both), 1);
+
+    ck_assert_uint_eq(UA_Server_deleteNode(server, x, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(arOnly), 1);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, z, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(both), 0);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, y, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(arOnly), 0);
+
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+static UA_StatusCode
+failingTypeConstructor(UA_Server *s, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *typeNodeId,
+                       void *typeNodeContext, const UA_NodeId *nodeId,
+                       void **nodeContext) {
+    (void)s; (void)sessionId; (void)sessionContext; (void)typeNodeId;
+    (void)typeNodeContext; (void)nodeId; (void)nodeContext;
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+static void
+addArObjectType(const char *name) {
+    UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server,
+        UA_NODEID_STRING(1, (char*)(uintptr_t)name),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+}
+
+/* A mandatory InstanceDeclaration with the given AccessRestrictions. An Object
+ * of objectType if given, otherwise a Variable. */
+static void
+addArDeclaration(const char *typeName, const char *name, const char *objectType,
+                 UA_AccessRestrictionType ar) {
+    char id[64];
+    snprintf(id, sizeof(id), "%s.%s", typeName, name);
+    UA_NodeId declId = UA_NODEID_STRING(1, id);
+    UA_NodeId typeId = UA_NODEID_STRING(1, (char*)(uintptr_t)typeName);
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    if(objectType) {
+        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+        ck_assert_uint_eq(UA_Server_addObjectNode(server, declId, typeId,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), qn,
+            UA_NODEID_STRING(1, (char*)(uintptr_t)objectType), oAttr, NULL, NULL),
+            UA_STATUSCODE_GOOD);
+    } else {
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        UA_Int32 v = 1;
+        UA_Variant_setScalar(&vAttr.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_uint_eq(UA_Server_addVariableNode(server, declId, typeId,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), qn,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL),
+            UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(UA_Server_addReference(server, declId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, declId, ar),
+                      UA_STATUSCODE_GOOD);
+}
+
+static UA_StatusCode
+addArInstance(const char *name, const char *typeName) {
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    return UA_Server_addObjectNode(server, UA_NODEID_STRING(1, (char*)(uintptr_t)name),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+        UA_NODEID_STRING(1, (char*)(uintptr_t)typeName), oAttr, NULL, NULL);
+}
+
+/* The instance children with AccessRestrictions take a reference on the shared
+ * entry. A failing constructor rolls the instantiation back and releases them:
+ * the refCount is unchanged. */
+START_TEST(accessRestrictions_instantiationRollbackReleases) {
+    const UA_AccessRestrictionType enc = UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED;
+
+    /* Reference the AccessRestrictions-only entry from an unrelated node */
+    UA_NodeId keep = addArStorageVariable("ArRbKeep");
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, keep, enc),
+                      UA_STATUSCODE_GOOD);
+    UA_PermissionIndex arOnly = nodePermIdx(keep);
+    ck_assert_uint_eq(entryRefCount(arOnly), 1);
+
+    /* The InstanceDeclaration has no RolePermissions and references the same
+     * entry. A successful instantiation references it once per child. */
+    addArObjectType("ArRbType");
+    addArDeclaration("ArRbType", "Restricted", NULL, enc);
+    size_t base = entryRefCount(arOnly);
+    ck_assert_uint_eq(base, 2);
+    ck_assert_uint_eq(addArInstance("ArRbOk", "ArRbType"), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(arOnly), base + 1);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, UA_NODEID_STRING(1, "ArRbOk"), true),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(arOnly), base);
+
+    /* The constructor of the instance fails after its children were added */
+    UA_NodeTypeLifecycle failing;
+    memset(&failing, 0, sizeof(failing));
+    failing.constructor = failingTypeConstructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server,
+                          UA_NODEID_STRING(1, "ArRbType"), failing),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(addArInstance("ArRbFail1", "ArRbType"), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(arOnly), base);
+
+    /* The constructor of a child with AccessRestrictions fails. The child
+     * declaration is added before its type gets the failing constructor. */
+    addArObjectType("ArRbChildType");
+    addArObjectType("ArRbType2");
+    addArDeclaration("ArRbType2", "Restricted", NULL, enc);
+    addArDeclaration("ArRbType2", "Failing", "ArRbChildType", enc);
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server,
+                          UA_NODEID_STRING(1, "ArRbChildType"), failing),
+                      UA_STATUSCODE_GOOD);
+    base = entryRefCount(arOnly);
+    ck_assert_uint_eq(base, 4);
+    ck_assert_uint_ne(addArInstance("ArRbFail2", "ArRbType2"), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(arOnly), base);
+
+    /* Nothing of the failed instances is left */
+    UA_NodeClass nc;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NODEID_STRING(1, "ArRbFail1"),
+                                              &nc), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NODEID_STRING(1, "ArRbFail2"),
+                                              &nc), UA_STATUSCODE_BADNODEIDUNKNOWN);
+}
+END_TEST
+
+/* A small hierarchy: root -> c1 (enc) -> g (enc), root -> c2 (sign),
+ * root -> c3 (no AccessRestrictions) */
+enum {AR_ROOT, AR_C1, AR_C2, AR_C3, AR_G, AR_TREESIZE};
+
+static UA_NodeId
+addArObject(const UA_NodeId parent, const char *name) {
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    UA_NodeId id = UA_NODEID_STRING(1, (char*)(uintptr_t)name);
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, id, parent,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    return id;
+}
+
+static void
+buildArTree(UA_NodeId *t) {
+    t[AR_ROOT] = addArObject(UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), "ArTree");
+    t[AR_C1] = addArObject(t[AR_ROOT], "ArTree.C1");
+    t[AR_C2] = addArObject(t[AR_ROOT], "ArTree.C2");
+    t[AR_C3] = addArObject(t[AR_ROOT], "ArTree.C3");
+    t[AR_G] = addArObject(t[AR_C1], "ArTree.C1.G");
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, t[AR_C1],
+                          UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, t[AR_G],
+                          UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, t[AR_C2],
+                          UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED),
+                      UA_STATUSCODE_GOOD);
+}
+
+static void
+checkArTree(const UA_NodeId *t) {
+    ck_assert_uint_eq(nodeAr(t[AR_ROOT]), UA_ACCESSRESTRICTIONTYPE_NONE);
+    ck_assert_uint_eq(nodeAr(t[AR_C1]), UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+    ck_assert_uint_eq(nodeAr(t[AR_G]), UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+    ck_assert_uint_eq(nodeAr(t[AR_C2]), UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED);
+    ck_assert_uint_eq(nodeAr(t[AR_C3]), UA_ACCESSRESTRICTIONTYPE_NONE);
+}
+
+/* Recursive set/remove of RolePermissions (whole list and per Role) keeps the
+ * own AccessRestrictions of every node in the hierarchy */
+START_TEST(accessRestrictions_recursiveKeepsChildAr) {
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArRecRole", 1, 51108, &role), UA_STATUSCODE_GOOD);
+    UA_PermissionType perms = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    UA_RolePermission rp = {role, perms};
+
+    UA_NodeId t[AR_TREESIZE];
+    buildArTree(t);
+    UA_PermissionIndex arEnc = nodePermIdx(t[AR_C1]);
+    UA_PermissionIndex arSign = nodePermIdx(t[AR_C2]);
+    ck_assert_uint_eq(entryRefCount(arEnc), 2);
+    ck_assert_uint_eq(entryRefCount(arSign), 1);
+
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, t[AR_ROOT], 1, &rp,
+                                                       true, NULL),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++)
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role, perms), 1);
+    checkArTree(t);
+    UA_PermissionIndex rpEnc = nodePermIdx(t[AR_C1]);
+    ck_assert_uint_eq(nodePermIdx(t[AR_G]), rpEnc);
+    ck_assert_uint_eq(entryRefCount(rpEnc), 2);
+    ck_assert_uint_eq(entryRefCount(arEnc), 0);
+    ck_assert_uint_eq(entryRefCount(arSign), 0);
+
+    /* Per-Role add and remove */
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, t[AR_ROOT], role,
+                          UA_PERMISSIONTYPE_WRITE, false, true),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++)
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role,
+                                             perms | UA_PERMISSIONTYPE_WRITE), 1);
+    checkArTree(t);
+    ck_assert_uint_eq(UA_Server_removeRolePermissions(server, t[AR_ROOT], role,
+                          UA_PERMISSIONTYPE_WRITE, true),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++)
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role, perms), 1);
+    checkArTree(t);
+    ck_assert_uint_eq(nodePermIdx(t[AR_C1]), rpEnc);
+    ck_assert_uint_eq(entryRefCount(rpEnc), 2);
+
+    /* Removing the RolePermissions returns to the AccessRestrictions-only
+     * entries */
+    ck_assert_uint_eq(UA_Server_removeNodeRolePermissions(server, t[AR_ROOT], true),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++)
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role, 0), 0);
+    checkArTree(t);
+    ck_assert_uint_eq(nodePermIdx(t[AR_ROOT]), UA_PERMISSION_INDEX_INVALID);
+    ck_assert_uint_eq(nodePermIdx(t[AR_C3]), UA_PERMISSION_INDEX_INVALID);
+    ck_assert_uint_eq(nodePermIdx(t[AR_C1]), arEnc);
+    ck_assert_uint_eq(nodePermIdx(t[AR_G]), arEnc);
+    ck_assert_uint_eq(nodePermIdx(t[AR_C2]), arSign);
+    ck_assert_uint_eq(entryRefCount(rpEnc), 0);
+    ck_assert_uint_eq(entryRefCount(arEnc), 2);
+    ck_assert_uint_eq(entryRefCount(arSign), 1);
+
+    ck_assert_uint_eq(UA_Server_deleteNode(server, t[AR_ROOT], true),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(arEnc), 0);
+    ck_assert_uint_eq(entryRefCount(arSign), 0);
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+/* The recursive index setter gives every node the RolePermissions of the
+ * configuration and keeps the own AccessRestrictions */
+START_TEST(accessRestrictions_setPermissionIndexRecursive) {
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArIdxRole", 1, 51109, &role), UA_STATUSCODE_GOOD);
+    UA_PermissionType perms = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    UA_RolePermission rp = {role, perms};
+    UA_PermissionIndex config;
+    ck_assert_uint_eq(UA_Server_addRolePermissionConfig(server, 1, &rp, &config),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId t[AR_TREESIZE];
+    buildArTree(t);
+    UA_PermissionIndex arEnc = nodePermIdx(t[AR_C1]);
+    UA_PermissionIndex arSign = nodePermIdx(t[AR_C2]);
+
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, t[AR_ROOT], config,
+                                                       true),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++)
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role, perms), 1);
+    checkArTree(t);
+    ck_assert_uint_eq(nodePermIdx(t[AR_ROOT]), config);
+    ck_assert_uint_eq(nodePermIdx(t[AR_C3]), config);
+    UA_PermissionIndex rpEnc = nodePermIdx(t[AR_C1]);
+    ck_assert_uint_ne(rpEnc, config);
+    ck_assert_uint_eq(nodePermIdx(t[AR_G]), rpEnc);
+    ck_assert_uint_eq(entryRefCount(config), 2);
+    ck_assert_uint_eq(entryRefCount(rpEnc), 2);
+    ck_assert_uint_eq(entryRefCount(nodePermIdx(t[AR_C2])), 1);
+    ck_assert_uint_eq(entryRefCount(arEnc), 0);
+    ck_assert_uint_eq(entryRefCount(arSign), 0);
+
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, t[AR_ROOT],
+                          UA_PERMISSION_INDEX_INVALID, true),
+                      UA_STATUSCODE_GOOD);
+    checkArTree(t);
+    ck_assert_uint_eq(nodePermIdx(t[AR_ROOT]), UA_PERMISSION_INDEX_INVALID);
+    ck_assert_uint_eq(nodePermIdx(t[AR_C3]), UA_PERMISSION_INDEX_INVALID);
+    ck_assert_uint_eq(nodePermIdx(t[AR_C1]), arEnc);
+    ck_assert_uint_eq(nodePermIdx(t[AR_G]), arEnc);
+    ck_assert_uint_eq(nodePermIdx(t[AR_C2]), arSign);
+    ck_assert_uint_eq(entryRefCount(config), 0);
+    ck_assert_uint_eq(entryRefCount(rpEnc), 0);
+    ck_assert_uint_eq(entryRefCount(arEnc), 2);
+    ck_assert_uint_eq(entryRefCount(arSign), 1);
+
+    UA_Server_deleteNode(server, t[AR_ROOT], true);
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+static UA_Boolean
+entryHasRolePermission(UA_PermissionIndex idx, const UA_NodeId *role,
+                       UA_PermissionType perms) {
+    const UA_RolePermissionSet *set = UA_Server_getRolePermissionConfig(server, idx);
+    ck_assert_ptr_nonnull(set);
+    return set->rolePermissionsSize == 1 &&
+        UA_NodeId_equal(&set->rolePermissions[0].roleId, role) &&
+        set->rolePermissions[0].permissions == perms;
+}
+
+/* Updating a runtime configuration also updates the entries that combine its
+ * RolePermissions with AccessRestrictions. It is refused while the
+ * configuration or such an entry is in use. */
+START_TEST(accessRestrictions_updateConfigReachesDerivedEntries) {
+    const UA_AccessRestrictionType enc = UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED;
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArUpdRole", 1, 51110, &role), UA_STATUSCODE_GOOD);
+    UA_PermissionType permsA = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    UA_RolePermission rpA = {role, permsA};
+    UA_RolePermission rpB = {role, UA_PERMISSIONTYPE_BROWSE};
+    UA_PermissionIndex config;
+    ck_assert_uint_eq(UA_Server_addRolePermissionConfig(server, 1, &rpA, &config),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId x = addArStorageVariable("ArUpdX");
+    UA_NodeId y = addArStorageVariable("ArUpdY");
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, y, enc),
+                      UA_STATUSCODE_GOOD);
+    UA_PermissionIndex arOnly = nodePermIdx(y);
+
+    /* In use by a node without AccessRestrictions */
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, x, config, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_updateRolePermissionConfig(server, config, 1, &rpB),
+                      UA_STATUSCODE_BADINVALIDSTATE);
+
+    /* In use only through the derived entry of a node with AccessRestrictions */
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, y, config, false),
+                      UA_STATUSCODE_GOOD);
+    UA_PermissionIndex derived = nodePermIdx(y);
+    ck_assert_uint_ne(derived, config);
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, x,
+                          UA_PERMISSION_INDEX_INVALID, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(config), 0);
+    ck_assert_uint_eq(entryRefCount(derived), 1);
+    ck_assert_uint_eq(UA_Server_updateRolePermissionConfig(server, config, 1, &rpB),
+                      UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert(entryHasRolePermission(config, &role, permsA));
+    ck_assert(entryHasRolePermission(derived, &role, permsA));
+
+    /* Unused: the configuration and the derived entry are updated. The derived
+     * entry keeps its AccessRestrictions. */
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, y,
+                          UA_PERMISSION_INDEX_INVALID, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(y), arOnly);
+    ck_assert_uint_eq(entryRefCount(derived), 0);
+    ck_assert_uint_eq(UA_Server_updateRolePermissionConfig(server, config, 1, &rpB),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(entryHasRolePermission(config, &role, UA_PERMISSIONTYPE_BROWSE));
+    ck_assert(entryHasRolePermission(derived, &role, UA_PERMISSIONTYPE_BROWSE));
+    ck_assert(server->rolePermissions[derived].hasAccessRestrictions);
+    ck_assert_uint_eq(server->rolePermissions[derived].accessRestrictions, enc);
+    ck_assert(!server->rolePermissions[config].hasAccessRestrictions);
+    ck_assert_uint_eq(entryRefCount(config), 0);
+    ck_assert_uint_eq(entryRefCount(derived), 0);
+
+    /* The AccessRestrictions-only entry is not a RolePermission configuration */
+    ck_assert_ptr_null(UA_Server_getRolePermissionConfig(server, arOnly));
+    ck_assert(server->rolePermissions[arOnly].hasAccessRestrictions);
+
+    /* A node with AccessRestrictions selects the updated derived entry again */
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, y, config, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(y), derived);
+    ck_assert_uint_eq(ownRolePermissions(y, &role, UA_PERMISSIONTYPE_BROWSE), 1);
+    ck_assert_uint_eq(nodeAr(y), enc);
+
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+/* Out-of-range permissionIndex (a Nodestore problem) */
+static void
+corruptPermissionIndex(const UA_NodeId id) {
+    UA_Node *node = UA_NODESTORE_GET_EDIT(server, &id);
+    ck_assert_ptr_nonnull(node);
+    node->head.permissionIndex = (UA_PermissionIndex)(server->rolePermissionsSize + 7);
+    UA_NODESTORE_RELEASE(server, node);
+}
+
+static UA_Boolean
+permIdxValid(const UA_NodeId id) {
+    UA_PermissionIndex idx = nodePermIdx(id);
+    return idx == UA_PERMISSION_INDEX_INVALID || idx < server->rolePermissionsSize;
+}
+
+/* Operations that replace a whole part repair a node with an invalid index.
+ * The per-Role add/remove need the current list and fail. */
+START_TEST(accessRestrictions_repairInvalidIndex) {
+    const UA_AccessRestrictionType enc = UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED;
+    UA_NodeId role;
+    ck_assert_uint_eq(addTestRole("ArRepRole", 1, 51111, &role), UA_STATUSCODE_GOOD);
+    UA_PermissionType perms = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    UA_RolePermission rp = {role, perms};
+    UA_PermissionIndex config;
+    ck_assert_uint_eq(UA_Server_addRolePermissionConfig(server, 1, &rp, &config),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId x = addArStorageVariable("ArRepX");
+
+    /* Per-Role add/remove fail and leave the index as is */
+    corruptPermissionIndex(x);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, x, role,
+                          UA_PERMISSIONTYPE_WRITE, false, false),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(UA_Server_removeRolePermissions(server, x, role,
+                          UA_PERMISSIONTYPE_READ, false),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert(!permIdxValid(x));
+
+    /* setNodeRolePermissions */
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, x, 1, &rp, false, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(permIdxValid(x));
+    ck_assert_uint_eq(ownRolePermissions(x, &role, perms), 1);
+    ck_assert_uint_eq(nodeAr(x), UA_ACCESSRESTRICTIONTYPE_NONE);
+
+    /* removeNodeRolePermissions */
+    corruptPermissionIndex(x);
+    ck_assert_uint_eq(UA_Server_removeNodeRolePermissions(server, x, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(x), UA_PERMISSION_INDEX_INVALID);
+
+    /* setNodeAccessRestrictions */
+    corruptPermissionIndex(x);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, x, enc),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(permIdxValid(x));
+    ck_assert_uint_eq(nodeAr(x), enc);
+    ck_assert_uint_eq(ownRolePermissions(x, &role, 0), 0);
+
+    /* setNodePermissionIndex (to a configuration and to INVALID) */
+    corruptPermissionIndex(x);
+    size_t before = entryRefCount(config);
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, x, config, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(x), config);
+    ck_assert_uint_eq(entryRefCount(config), before + 1);
+    corruptPermissionIndex(x);
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, x,
+                          UA_PERMISSION_INDEX_INVALID, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx(x), UA_PERMISSION_INDEX_INVALID);
+
+    /* Recursive: an invalid index on a node does not cut off its subtree */
+    UA_NodeId t[AR_TREESIZE];
+    buildArTree(t);
+    corruptPermissionIndex(t[AR_C1]);
+    corruptPermissionIndex(t[AR_G]);
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, t[AR_ROOT], 1, &rp,
+                                                       true, NULL),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++) {
+        ck_assert(permIdxValid(t[i]));
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role, perms), 1);
+    }
+    ck_assert_uint_eq(nodeAr(t[AR_C2]), UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED);
+
+    corruptPermissionIndex(t[AR_C1]);
+    corruptPermissionIndex(t[AR_G]);
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, t[AR_ROOT],
+                          UA_PERMISSION_INDEX_INVALID, true),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++) {
+        ck_assert(permIdxValid(t[i]));
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role, 0), 0);
+    }
+    ck_assert_uint_eq(nodeAr(t[AR_C2]), UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED);
+
+    corruptPermissionIndex(t[AR_C1]);
+    corruptPermissionIndex(t[AR_G]);
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, t[AR_ROOT], config,
+                                                       true),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++) {
+        ck_assert(permIdxValid(t[i]));
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role, perms), 1);
+    }
+
+    corruptPermissionIndex(t[AR_C1]);
+    corruptPermissionIndex(t[AR_G]);
+    ck_assert_uint_eq(UA_Server_removeNodeRolePermissions(server, t[AR_ROOT], true),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < AR_TREESIZE; i++) {
+        ck_assert(permIdxValid(t[i]));
+        ck_assert_uint_eq(ownRolePermissions(t[i], &role, 0), 0);
+    }
+
+    UA_Server_deleteNode(server, t[AR_ROOT], true);
+    UA_NodeId_clear(&role);
+}
+END_TEST
+
+/* A server with a RolePermission preset (protected entry at index 0). It is
+ * not started: the test only uses the local API. */
+static void setupWithPreset(void) {
+    UA_ServerConfig sc;
+    memset(&sc, 0, sizeof(UA_ServerConfig));
+    sc.logging = UA_Log_Stdout_new(UA_LOGLEVEL_WARNING);
+    UA_ServerConfig_setMinimal(&sc, 0, NULL);
+    sc.rolePermissionPresets = (UA_RolePermissionSet*)
+        UA_calloc(1, sizeof(UA_RolePermissionSet));
+    ck_assert_ptr_nonnull(sc.rolePermissionPresets);
+    sc.rolePermissionPresetsSize = 1;
+    UA_RolePermissionSet *preset = &sc.rolePermissionPresets[0];
+    preset->rolePermissions = (UA_RolePermission*)UA_calloc(1, sizeof(UA_RolePermission));
+    ck_assert_ptr_nonnull(preset->rolePermissions);
+    preset->rolePermissionsSize = 1;
+    preset->rolePermissions[0].roleId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+    preset->rolePermissions[0].permissions =
+        UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    server = UA_Server_newWithConfig(&sc);
+    ck_assert_ptr_nonnull(server);
+}
+
+static void teardownWithPreset(void) {
+    UA_Server_delete(server);
+}
+
+/* Updating a preset reaches the nodes that use it with AccessRestrictions of
+ * their own, whether set before or after the preset was assigned */
+START_TEST(accessRestrictions_presetUpdateReachesNodesWithAr) {
+    const UA_PermissionIndex preset = 0;
+    const UA_NodeId observer = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+    UA_PermissionType perms = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    ck_assert_uint_eq(entryRefCount(preset), UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED);
+    ck_assert(entryHasRolePermission(preset, &observer, perms));
+
+    UA_NodeId x = addArStorageVariable("ArPresetX");
+    UA_NodeId y = addArStorageVariable("ArPresetY");
+    UA_NodeId z = addArStorageVariable("ArPresetZ");
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, x, preset, false),
+                      UA_STATUSCODE_GOOD);
+
+    /* AccessRestrictions set before the preset is assigned */
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, y,
+                          UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, y, preset, false),
+                      UA_STATUSCODE_GOOD);
+
+    /* AccessRestrictions set after the preset is assigned */
+    ck_assert_uint_eq(UA_Server_setNodePermissionIndex(server, z, preset, false),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, z,
+                          UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(nodePermIdx(y), preset);
+    ck_assert_uint_ne(nodePermIdx(z), preset);
+    UA_PermissionIndex derivedY = nodePermIdx(y);
+    ck_assert_uint_eq(entryRefCount(derivedY), 1);
+
+    /* The preset is protected: the update is allowed although it is in use */
+    UA_RolePermission newRp = {observer, UA_PERMISSIONTYPE_BROWSE};
+    ck_assert_uint_eq(UA_Server_updateRolePermissionConfig(server, preset, 1, &newRp),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(entryRefCount(preset), UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED);
+    ck_assert_uint_eq(entryRefCount(derivedY), 1);
+    ck_assert_uint_eq(ownRolePermissions(x, &observer, UA_PERMISSIONTYPE_BROWSE), 1);
+    ck_assert_uint_eq(ownRolePermissions(y, &observer, UA_PERMISSIONTYPE_BROWSE), 1);
+    ck_assert_uint_eq(ownRolePermissions(z, &observer, UA_PERMISSIONTYPE_BROWSE), 1);
+    ck_assert_uint_eq(nodeAr(x), UA_ACCESSRESTRICTIONTYPE_NONE);
+    ck_assert_uint_eq(nodeAr(y), UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+    ck_assert_uint_eq(nodeAr(z), UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED);
+    ck_assert_uint_eq(nodePermIdx(x), preset);
+    ck_assert_uint_eq(nodePermIdx(y), derivedY);
+}
+END_TEST
+
+#ifdef UA_ENABLE_AUDITING
+static UA_Boolean roleMappingAuditSeen = false;
+static void
+rbacAuditNotificationCallback(UA_Server *s, UA_ApplicationNotificationType type,
+                              const UA_KeyValueMap payload) {
+    (void)s; (void)payload;
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD_ROLEMAPPINGRULECHANGED)
+        roleMappingAuditSeen = true;
+}
+
+/* Changing a role's identity mapping rules emits a
+ * RoleMappingRuleChangedAuditEventType (Part 18). */
+START_TEST(auditRoleMappingRuleChanged_emitted) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62000);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    /* Change the identity mapping rules through updateRole */
+    UA_Role upd;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, role.roleId, &upd),
+                      UA_STATUSCODE_GOOD);
+    UA_IdentityMappingRuleType *rules = (UA_IdentityMappingRuleType*)
+        UA_realloc(upd.identityMappingRules,
+                   (upd.identityMappingRulesSize + 1) * sizeof(*rules));
+    ck_assert_ptr_nonnull(rules);
+    upd.identityMappingRules = rules;
+    UA_IdentityMappingRuleType_init(&rules[upd.identityMappingRulesSize]);
+    rules[upd.identityMappingRulesSize].criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
+    rules[upd.identityMappingRulesSize].criteria = UA_STRING_ALLOC("bob");
+    upd.identityMappingRulesSize++;
+    ck_assert_uint_eq(UA_Server_updateRole(server, &upd), UA_STATUSCODE_GOOD);
+    UA_Role_clear(&upd);
+
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+
+/* Adding a role emits a RoleMappingRuleChangedAuditEvent (Part 18 §4.5). */
+START_TEST(auditRoleMapping_addRoleEmits) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62101);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditAddRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+
+/* Removing a role emits a RoleMappingRuleChangedAuditEvent (Part 18 §4.5). */
+START_TEST(auditRoleMapping_removeRoleEmits) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62102);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditRemoveRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    ck_assert_uint_eq(UA_Server_removeRole(server, role.roleName),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+}
+END_TEST
+#endif /* UA_ENABLE_AUDITING */
+
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+/* The RoleType methods are reachable over the wire on concrete Role objects.
+ * A client may pass the RoleType method NodeId; the Call service resolves the
+ * same-BrowseName Method child on the Role instance before dispatch. */
+START_TEST(roleTypeInstanceMethods_addIdentity) {
+    UA_NodeId roleId;
+    ck_assert_uint_eq(addTestRole("DupIdentityRole", 1, 62200, &roleId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId instanceMethodId = UA_NODEID_NULL;
+    ck_assert_uint_eq(findRoleMethod(roleId, "AddIdentity", &instanceMethodId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&instanceMethodId);
+
+    UA_IdentityMappingRuleType rule;
+    UA_IdentityMappingRuleType_init(&rule);
+    rule.criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
+    rule.criteria = UA_STRING("alice");
+    UA_ExtensionObject ext;
+    UA_ExtensionObject_init(&ext);
+    UA_ExtensionObject_setValue(&ext, &rule, &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]);
+
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &ext, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = roleId;
+    req.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDIDENTITY);
+    req.inputArguments = &input;
+    req.inputArgumentsSize = 1;
+
+    UA_CallMethodResult res = UA_Server_call(server, &req);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, roleId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(fetched.identityMappingRulesSize, 1);
+    ck_assert(UA_IdentityMappingRuleType_equal(&fetched.identityMappingRules[0],
+                                               &rule));
+    UA_Role_clear(&fetched);
+
+    res = UA_Server_call(server, &req);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADALREADYEXISTS);
+    UA_CallMethodResult_clear(&res);
+
+    /* rule.criteria is a static literal - do not UA_String_clear it */
+    UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "DupIdentityRole"));
+    UA_NodeId_clear(&roleId);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
+
+/* CustomConfiguration is stored, copied and compared (Part 18 §4.4.1). */
+START_TEST(customConfiguration_storedAndCopied) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62300);
+    role.roleName = UA_QUALIFIEDNAME(1, "CustomRole");
+    role.customConfiguration = true;
+    UA_NodeId outId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, &outId), UA_STATUSCODE_GOOD);
+    /* role.roleName.name is a string literal - do not UA_Role_clear it */
+
+    /* Round-trip through the registry preserves the flag */
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, outId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(fetched.customConfiguration);
+    UA_Role_clear(&fetched);
+
+    /* UA_Role_copy preserves the flag */
+    UA_Role copy;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, outId, &copy), UA_STATUSCODE_GOOD);
+    UA_Role dup;
+    ck_assert_uint_eq(UA_Role_copy(&copy, &dup), UA_STATUSCODE_GOOD);
+    ck_assert(dup.customConfiguration);
+    UA_Role_clear(&copy);
+    UA_Role_clear(&dup);
+
+    /* UA_Role_equal distinguishes the flag. 'other' uses a static
+     * roleName literal, so it is compared but never UA_Role_clear'd. */
+    UA_Role other;
+    UA_Role_init(&other);
+    other.roleId = outId;
+    other.roleName = UA_QUALIFIEDNAME(1, "CustomRole");
+    other.customConfiguration = false;
+    UA_Role refTrue;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, outId, &refTrue), UA_STATUSCODE_GOOD);
+    ck_assert(!UA_Role_equal(&refTrue, &other));
+    other.customConfiguration = true;
+    ck_assert(UA_Role_equal(&refTrue, &other));
+    UA_Role_clear(&refTrue);
+    /* other holds only static literals - no clear needed */
+
+    UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "CustomRole"));
+    UA_NodeId_clear(&outId);
+}
+END_TEST
+
+/* An empty Identities array is never an automatic match. CustomConfiguration
+ * leaves assignment vendor-specific; it must not grant the Role to everyone. */
+START_TEST(customConfiguration_grantEnforcement) {
+    /* Non-custom role with no identity rules */
+    UA_Role nc;
+    UA_Role_init(&nc);
+    nc.roleName = UA_QUALIFIEDNAME(1, "EmptyNonCustom");
+    nc.customConfiguration = false;
+    UA_NodeId ncId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &nc, &ncId), UA_STATUSCODE_GOOD);
+
+    /* Custom role with no identity rules */
+    UA_Role cr;
+    UA_Role_init(&cr);
+    cr.roleName = UA_QUALIFIEDNAME(1, "EmptyCustom");
+    cr.customConfiguration = true;
+    UA_NodeId crId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &cr, &crId), UA_STATUSCODE_GOOD);
+
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.isAnonymous = true;
+
+    /* The non-custom empty role is NOT granted */
+    ck_assert(!roleGrantedForContext(&ctx, &ncId));
+    /* The custom empty role is assigned only through the session roles API. */
+    ck_assert(!roleGrantedForContext(&ctx, &crId));
+
+    UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "EmptyNonCustom"));
+    UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "EmptyCustom"));
+    UA_NodeId_clear(&ncId);
+    UA_NodeId_clear(&crId);
+}
+END_TEST
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+/* The CustomConfiguration Property of a runtime-added role is readable from
+ * the AddressSpace and reflects the registry value (Part 18 §4.4.1). */
+START_TEST(customConfiguration_propertyReadable) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62400);
+    role.roleName = UA_QUALIFIEDNAME(1, "CustomPropRole");
+    role.customConfiguration = true;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    /* Browse the role's HasProperty children to find CustomConfiguration */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = role.roleId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    UA_NodeId propId = UA_NODEID_NULL;
+    UA_String want = UA_STRING("CustomConfiguration");
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(UA_String_equal(&br.references[i].browseName.name, &want)) {
+            UA_NodeId_copy(&br.references[i].nodeId.nodeId, &propId);
+            break;
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    ck_assert(!UA_NodeId_isNull(&propId));
+
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, propId, &v),
+                     UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(*(UA_Boolean*)v.data);
+    UA_Variant_clear(&v);
+    UA_NodeId_clear(&propId);
+
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+/* ApplicationsExclude and EndpointsExclude are the two RoleType Properties
+ * configured through the Write service (Part 18 §4.4.1). */
+START_TEST(excludeProperties_readWriteRegistry) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62410);
+    role.roleName = UA_QUALIFIEDNAME(1, "ExcludePropRole");
+    role.applicationsExclude = true;
+    role.endpointsExclude = true;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    UA_NodeId appExcludeId = UA_NODEID_NULL;
+    UA_NodeId epExcludeId = UA_NODEID_NULL;
+    ck_assert_uint_eq(findRoleProperty(role.roleId, "ApplicationsExclude",
+                                       &appExcludeId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(findRoleProperty(role.roleId, "EndpointsExclude",
+                                       &epExcludeId), UA_STATUSCODE_GOOD);
+
+    UA_Boolean falseValue = false;
+    UA_Variant writeValue;
+    UA_Variant_setScalar(&writeValue, &falseValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, appExcludeId, writeValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_writeValue(server, epExcludeId, writeValue),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, role.roleId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(!fetched.applicationsExclude);
+    ck_assert(!fetched.endpointsExclude);
+    UA_Role_clear(&fetched);
+
+    UA_Variant readValue;
+    ck_assert_uint_eq(UA_Server_readValue(server, appExcludeId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(!*(UA_Boolean*)readValue.data);
+    UA_Variant_clear(&readValue);
+
+    ck_assert_uint_eq(UA_Server_readValue(server, epExcludeId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(!*(UA_Boolean*)readValue.data);
+    UA_Variant_clear(&readValue);
+
+    UA_NodeId_clear(&appExcludeId);
+    UA_NodeId_clear(&epExcludeId);
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+/* A NodeId that belongs to some other Node must not be taken over as the Role
+ * Object: removeRole would delete that Node with all its references. */
+START_TEST(addRole_rejectsForeignNodeId) {
+    UA_NodeId foreignId = UA_NODEID_NUMERIC(1, 60000);
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&vAttr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "NotARole");
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, foreignId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "NotARole"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    UA_NodeId outId = UA_NODEID_NULL;
+    ck_assert_uint_eq(addTestRole("NotARole", 1, 60000, &outId),
+                      UA_STATUSCODE_BADNODEIDEXISTS);
+
+    /* Neither the registry nor the Node was touched */
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, foreignId, &fetched),
+                      UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(UA_Server_getRole(server, UA_QUALIFIEDNAME(1, "NotARole"),
+                                        &fetched), UA_STATUSCODE_BADNOTFOUND);
+    UA_Variant readValue;
+    ck_assert_uint_eq(UA_Server_readValue(server, foreignId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_clear(&readValue);
+
+    UA_Server_deleteNode(server, foreignId, true);
+}
+END_TEST
+
+/* A Role Object that is already in the AddressSpace, for instance from a
+ * custom nodeset, is adopted and backed by the role registry. */
+START_TEST(addRole_adoptsRoleTypeInstance) {
+    UA_NodeId roleObjectId = UA_NODEID_NUMERIC(1, 60001);
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("", "AdoptedRole");
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, roleObjectId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "AdoptedRole"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE), oAttr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    UA_NodeId outId = UA_NODEID_NULL;
+    ck_assert_uint_eq(addTestRole("AdoptedRole", 1, 60001, &outId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&outId, &roleObjectId));
+    ck_assert(roleSetHasComponent(roleObjectId));
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, roleObjectId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    UA_Role_clear(&fetched);
+
+    /* The adopted Object is the Role Object, so it goes with the Role */
+    ck_assert_uint_eq(removeTestRole("AdoptedRole", 1), UA_STATUSCODE_GOOD);
+    UA_QualifiedName bn;
+    ck_assert_uint_eq(UA_Server_readBrowseName(server, roleObjectId, &bn),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+    UA_NodeId_clear(&outId);
+}
+END_TEST
+
+/* If some other Node took over the NodeId of a Role Object in the meantime,
+ * removing the Role must not delete it. */
+START_TEST(removeRole_keepsForeignNode) {
+    UA_NodeId roleId = UA_NODEID_NUMERIC(1, 60002);
+    ck_assert_uint_eq(addTestRole("ShadowedRole", 1, 60002, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, roleId, true),
+                      UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_Int32 value = 7;
+    UA_Variant_setScalar(&vAttr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "Squatter");
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, roleId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Squatter"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(removeTestRole("ShadowedRole", 1), UA_STATUSCODE_GOOD);
+
+    UA_Variant readValue;
+    ck_assert_uint_eq(UA_Server_readValue(server, roleId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_clear(&readValue);
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRole(server, UA_QUALIFIEDNAME(1, "ShadowedRole"),
+                                        &fetched), UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Server_deleteNode(server, roleId, true);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
     tcase_add_test(tc, Role_initClearCopy);
     suite_add_tcase(s, tc);
+
+    TCase *tc_cc = tcase_create("CustomConfiguration");
+    tcase_add_checked_fixture(tc_cc, setup, teardown);
+    tcase_add_test(tc_cc, customConfiguration_storedAndCopied);
+    tcase_add_test(tc_cc, customConfiguration_grantEnforcement);
+    suite_add_tcase(s, tc_cc);
     return s;
 }
 
@@ -2509,6 +4709,10 @@ static Suite *testSuite_RoleManagement(void) {
     tcase_add_test(tc_add, addRole_unsupportedCriteriaStored);
     tcase_add_test(tc_add, addRole_applicationFiltersStored);
     tcase_add_test(tc_add, addRole_quotaEnforced);
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    tcase_add_test(tc_add, addRole_rejectsForeignNodeId);
+    tcase_add_test(tc_add, addRole_adoptsRoleTypeInstance);
+#endif
     suite_add_tcase(s, tc_add);
 
     TCase *tc_get = tcase_create("GetRoles");
@@ -2524,6 +4728,9 @@ static Suite *testSuite_RoleManagement(void) {
     tcase_add_test(tc_rm, removeRole_notFound);
     tcase_add_test(tc_rm, removeRole_andVerifyGetRoles);
     tcase_add_test(tc_rm, removeRole_purgesRolePermissions);
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    tcase_add_test(tc_rm, removeRole_keepsForeignNode);
+#endif
     suite_add_tcase(s, tc_rm);
 
     return s;
@@ -2547,6 +4754,13 @@ static Suite *testSuite_IdentityAppMgmt(void) {
     tcase_add_test(tc, identityManagement_basic);
     tcase_add_test(tc, identityManagement_usernameRule);
     tcase_add_test(tc, applicationManagement_basic);
+    tcase_add_test(tc, identityCriteria_extended);
+    tcase_add_test(tc, identityCriteria_x509SubjectUtf8);
+    tcase_add_test(tc, identityCriteria_groupId);
+    tcase_add_test(tc, roleFilters_evaluated);
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+    tcase_add_test(tc, roleTypeInstanceMethods_addIdentity);
+#endif
     suite_add_tcase(s, tc);
     return s;
 }
@@ -2560,7 +4774,40 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, permissionConfig_addAndGet);
     tcase_add_test(tc, permissionEntry_slotNoUnsafeReuse);
     tcase_add_test(tc, allPermissionsForAnonymous_config);
+    tcase_add_test(tc, accessRestrictions_setGetRead);
+#ifdef UA_ENABLE_AUDITING
+    tcase_add_test(tc, auditRoleMappingRuleChanged_emitted);
+    tcase_add_test(tc, auditRoleMapping_addRoleEmits);
+    tcase_add_test(tc, auditRoleMapping_removeRoleEmits);
+#endif
     suite_add_tcase(s, tc);
+    return s;
+}
+
+static Suite *testSuite_AccessRestrictionStorage(void) {
+    Suite *s = suite_create("RBAC AccessRestrictions Storage");
+    TCase *tc = tcase_create("ArEntries");
+    tcase_add_checked_fixture(tc, setup, teardown);
+#if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE >= 4
+    tcase_add_test(tc, accessRestrictions_notStoredPerNode);
+#endif
+    tcase_add_test(tc, accessRestrictions_withoutRolePermissions);
+    tcase_add_test(tc, accessRestrictions_independentOfRolePermissions);
+    tcase_add_test(tc, accessRestrictions_sharedEntry);
+    tcase_add_test(tc, accessRestrictions_survivePurgeOfRemovedRole);
+    tcase_add_test(tc, accessRestrictions_inheritedByInstanceChild);
+    tcase_add_test(tc, accessRestrictions_deleteNodeReleasesEntry);
+    tcase_add_test(tc, accessRestrictions_instantiationRollbackReleases);
+    tcase_add_test(tc, accessRestrictions_recursiveKeepsChildAr);
+    tcase_add_test(tc, accessRestrictions_setPermissionIndexRecursive);
+    tcase_add_test(tc, accessRestrictions_updateConfigReachesDerivedEntries);
+    tcase_add_test(tc, accessRestrictions_repairInvalidIndex);
+    suite_add_tcase(s, tc);
+
+    TCase *tc_preset = tcase_create("ArPreset");
+    tcase_add_checked_fixture(tc_preset, setupWithPreset, teardownWithPreset);
+    tcase_add_test(tc_preset, accessRestrictions_presetUpdateReachesNodesWithAr);
+    suite_add_tcase(s, tc_preset);
     return s;
 }
 
@@ -2574,9 +4821,648 @@ static Suite *testSuite_NamespaceDefaults(void) {
     tcase_add_test(tc, namespaceDefault_noRoleMatchDenied);
     tcase_add_test(tc, namespaceDefault_perNamespaceIsolation);
     tcase_add_test(tc, namespaceDefault_invalidNamespaceIndex);
+    tcase_add_test(tc, namespaceDefault_explicitEmptyDenies);
+    tcase_add_test(tc, namespaceDefault_reportedByAttributesAndMetadata);
     suite_add_tcase(s, tc);
     return s;
 }
+
+/**********************************/
+/* Part 18 §5.2 UserManagement    */
+/**********************************/
+
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+
+/* A minimal in-memory UserManagement provider. Real implementations own
+ * password hashing, persistence and rate limiting; this one only has to be
+ * observable so the core's argument checking, policy validation and
+ * self-reference guards can be tested. */
+#define UM_MAX_USERS 8
+typedef struct {
+    UA_String userName;
+    UA_String password;
+    UA_UserConfigurationMask configuration;
+    UA_String description;
+} UMUser;
+
+static UMUser umUsers[UM_MAX_USERS];
+static size_t umUsersSize;
+static UA_PasswordOptionsMask umOptions;
+static UA_StatusCode umForcedStatus;
+/* Records the arguments the core forwarded, so the tests can assert that the
+ * Method arguments reach the provider unchanged and in the right order. */
+static UA_String umLastPassword;
+static UA_String umLastOldPassword;
+static UA_Boolean umChangePasswordCalled;
+
+static void umReset(void) {
+    for(size_t i = 0; i < umUsersSize; i++) {
+        UA_String_clear(&umUsers[i].userName);
+        UA_String_clear(&umUsers[i].password);
+        UA_String_clear(&umUsers[i].description);
+    }
+    umUsersSize = 0;
+    UA_String_clear(&umLastPassword);
+    UA_String_clear(&umLastOldPassword);
+    umChangePasswordCalled = false;
+    umForcedStatus = UA_STATUSCODE_GOOD;
+    umOptions = UA_PASSWORDOPTIONSMASK_SUPPORTINITIALPASSWORDCHANGE |
+                UA_PASSWORDOPTIONSMASK_SUPPORTDISABLEUSER |
+                UA_PASSWORDOPTIONSMASK_SUPPORTDISABLEDELETEFORUSER |
+                UA_PASSWORDOPTIONSMASK_SUPPORTNOCHANGEFORUSER;
+}
+
+static UMUser *umFind(const UA_String *userName) {
+    for(size_t i = 0; i < umUsersSize; i++) {
+        if(UA_String_equal(&umUsers[i].userName, userName))
+            return &umUsers[i];
+    }
+    return NULL;
+}
+
+static UA_StatusCode
+umGetUsers(UA_Server *s, UA_AccessControl *ac,
+           UA_UserManagementDataType **users, size_t *usersSize) {
+    if(umForcedStatus != UA_STATUSCODE_GOOD)
+        return umForcedStatus;
+    *users = NULL;
+    *usersSize = 0;
+    if(umUsersSize == 0)
+        return UA_STATUSCODE_GOOD;
+    UA_UserManagementDataType *out = (UA_UserManagementDataType*)
+        UA_Array_new(umUsersSize, &UA_TYPES[UA_TYPES_USERMANAGEMENTDATATYPE]);
+    if(!out)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    for(size_t i = 0; i < umUsersSize; i++) {
+        UA_String_copy(&umUsers[i].userName, &out[i].userName);
+        UA_String_copy(&umUsers[i].description, &out[i].description);
+        out[i].userConfiguration = umUsers[i].configuration;
+    }
+    *users = out;
+    *usersSize = umUsersSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umGetPasswordPolicy(UA_Server *s, UA_AccessControl *ac, UA_Range *length,
+                    UA_PasswordOptionsMask *options,
+                    UA_LocalizedText *restrictions) {
+    length->low = 8.0;
+    length->high = 64.0;
+    *options = umOptions;
+    *restrictions = UA_LOCALIZEDTEXT_ALLOC("en-US", "at least eight characters");
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umGetUserConfiguration(UA_Server *s, UA_AccessControl *ac,
+                       const UA_String *userName,
+                       UA_UserConfigurationMask *configuration) {
+    UMUser *u = umFind(userName);
+    if(!u)
+        return UA_STATUSCODE_BADNOTFOUND;
+    *configuration = u->configuration;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umAddUser(UA_Server *s, UA_AccessControl *ac, const UA_String *userName,
+          const UA_String *password, UA_UserConfigurationMask configuration,
+          const UA_String *description) {
+    if(umForcedStatus != UA_STATUSCODE_GOOD)
+        return umForcedStatus;
+    if(umFind(userName))
+        return UA_STATUSCODE_BADALREADYEXISTS;
+    if(umUsersSize >= UM_MAX_USERS)
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    UMUser *u = &umUsers[umUsersSize++];
+    UA_String_copy(userName, &u->userName);
+    UA_String_copy(password, &u->password);
+    UA_String_copy(description, &u->description);
+    u->configuration = configuration;
+    UA_String_clear(&umLastPassword);
+    UA_String_copy(password, &umLastPassword);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umModifyUser(UA_Server *s, UA_AccessControl *ac, const UA_String *userName,
+             UA_Boolean modifyPassword, const UA_String *password,
+             UA_Boolean modifyConfiguration,
+             UA_UserConfigurationMask configuration,
+             UA_Boolean modifyDescription, const UA_String *description) {
+    UMUser *u = umFind(userName);
+    if(!u)
+        return UA_STATUSCODE_BADNOTFOUND;
+    if(modifyPassword) {
+        UA_String_clear(&u->password);
+        UA_String_copy(password, &u->password);
+    }
+    if(modifyConfiguration)
+        u->configuration = configuration;
+    if(modifyDescription) {
+        UA_String_clear(&u->description);
+        UA_String_copy(description, &u->description);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umRemoveUser(UA_Server *s, UA_AccessControl *ac, const UA_String *userName) {
+    UMUser *u = umFind(userName);
+    if(!u)
+        return UA_STATUSCODE_BADNOTFOUND;
+    UA_String_clear(&u->userName);
+    UA_String_clear(&u->password);
+    UA_String_clear(&u->description);
+    size_t idx = (size_t)(u - umUsers);
+    for(size_t i = idx; i + 1 < umUsersSize; i++)
+        umUsers[i] = umUsers[i + 1];
+    umUsersSize--;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umChangePassword(UA_Server *s, UA_AccessControl *ac, const UA_String *userName,
+                 const UA_String *oldPassword, const UA_String *newPassword) {
+    umChangePasswordCalled = true;
+    UA_String_clear(&umLastOldPassword);
+    UA_String_copy(oldPassword, &umLastOldPassword);
+    UMUser *u = umFind(userName);
+    if(!u)
+        return UA_STATUSCODE_BADNOTFOUND;
+    if(!UA_String_equal(&u->password, oldPassword))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    UA_String_clear(&u->password);
+    return UA_String_copy(newPassword, &u->password);
+}
+
+/* initNS0RBAC runs from UA_Server_init, so the provider has to be part of the
+ * configuration handed to UA_Server_newWithConfig. Installing the callbacks on
+ * UA_Server_getConfig() after the Server exists is too late to wire the
+ * Object - the tests below would then silently exercise nothing. */
+static void setupUserManagement(void) {
+    umReset();
+    UA_ServerConfig sc;
+    memset(&sc, 0, sizeof(UA_ServerConfig));
+    sc.logging = UA_Log_Stdout_new(UA_LOGLEVEL_ERROR);
+    ck_assert_uint_eq(UA_ServerConfig_setMinimal(&sc, 0, NULL), UA_STATUSCODE_GOOD);
+    /* The Methods are called in-process, no listener is needed */
+    sc.tcpEnabled = false;
+    sc.accessControl.getUsers = umGetUsers;
+    sc.accessControl.getPasswordPolicy = umGetPasswordPolicy;
+    sc.accessControl.getUserConfiguration = umGetUserConfiguration;
+    sc.accessControl.addUser = umAddUser;
+    sc.accessControl.modifyUser = umModifyUser;
+    sc.accessControl.removeUser = umRemoveUser;
+    sc.accessControl.changePassword = umChangePassword;
+    server = UA_Server_newWithConfig(&sc);
+    ck_assert(server != NULL);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+}
+
+static void teardownUserManagement(void) {
+    teardown();
+    umReset();
+}
+
+/* A server without a provider must leave the UserManagement Object inert. */
+static void setupNoUserManagement(void) {
+    umReset();
+    setup();
+}
+
+static UA_CallMethodResult
+callUserMethod(UA_UInt32 methodId, size_t inputSize, UA_Variant *input) {
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT);
+    req.methodId = UA_NODEID_NUMERIC(0, methodId);
+    req.inputArguments = input;
+    req.inputArgumentsSize = inputSize;
+    return UA_Server_call(server, &req);
+}
+
+static void
+setUserArgs(UA_Variant *v, UA_String *name, UA_String *password,
+            UA_UserConfigurationMask *cfg, UA_String *description) {
+    UA_Variant_setScalar(&v[0], name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&v[1], password, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&v[2], cfg, &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&v[3], description, &UA_TYPES[UA_TYPES_STRING]);
+}
+
+/* AddUser reaches the provider with its arguments intact, and the Users
+ * Property reports what the provider holds. */
+START_TEST(userManagement_addUserReachesProvider) {
+    UA_String name = UA_STRING("alice");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("plant operator");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &cfg, &description);
+
+    UA_CallMethodResult res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER,
+                                             4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    ck_assert_uint_eq(umUsersSize, 1);
+    ck_assert(UA_String_equal(&umUsers[0].userName, &name));
+    ck_assert(UA_String_equal(&umLastPassword, &password));
+    ck_assert(UA_String_equal(&umUsers[0].description, &description));
+
+    /* The Users Property is backed by getUsers */
+    UA_Variant users;
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_USERS),
+                          &users), UA_STATUSCODE_GOOD);
+    ck_assert(users.type == &UA_TYPES[UA_TYPES_USERMANAGEMENTDATATYPE]);
+    ck_assert_uint_eq(users.arrayLength, 1);
+    UA_UserManagementDataType *list = (UA_UserManagementDataType*)users.data;
+    ck_assert(UA_String_equal(&list[0].userName, &name));
+    UA_Variant_clear(&users);
+
+    /* A provider failure is reported rather than swallowed */
+    umForcedStatus = UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
+    UA_Variant unused;
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_USERS),
+                          &unused), UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    umForcedStatus = UA_STATUSCODE_GOOD;
+}
+END_TEST
+
+/* The password policy Properties are served from getPasswordPolicy. */
+START_TEST(userManagement_passwordPolicyReadable) {
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDLENGTH),
+                &v), UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_RANGE]);
+    ck_assert(((UA_Range*)v.data)->low == 8.0);
+    ck_assert(((UA_Range*)v.data)->high == 64.0);
+    UA_Variant_clear(&v);
+
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDOPTIONS),
+                &v), UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_PASSWORDOPTIONSMASK]);
+    ck_assert_uint_eq(*(UA_PasswordOptionsMask*)v.data, umOptions);
+    UA_Variant_clear(&v);
+
+    ck_assert_uint_eq(UA_Server_readValue(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDRESTRICTIONS),
+            &v), UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_Variant_clear(&v);
+}
+END_TEST
+
+/* Malformed arguments are rejected without reaching the provider. The Call
+ * service validates arity and types against the declared InputArguments, so it
+ * usually answers first (Bad_ArgumentsMissing, Bad_InvalidArgument or
+ * Bad_TypeMismatch); the callback's own userMethodInputs check backs that up
+ * for callers that reach it directly. What matters here is that no combination
+ * reaches the provider. */
+START_TEST(userManagement_rejectsMalformedArguments) {
+    UA_String name = UA_STRING("bob");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+
+    /* Too few arguments */
+    UA_Variant one;
+    UA_Variant_setScalar(&one, &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 1, &one);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    /* Right arity, wrong type in the middle */
+    UA_Variant bad[4];
+    UA_Variant_setScalar(&bad[0], &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&bad[1], &cfg,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&bad[2], &cfg,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&bad[3], &name, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, bad);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    /* An array where a scalar is required */
+    UA_String names[2] = {UA_STRING("a"), UA_STRING("b")};
+    UA_Variant arr;
+    UA_Variant_setArray(&arr, names, 2, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_REMOVEUSER, 1, &arr);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    /* ModifyUser takes seven arguments, not four */
+    UA_String password = UA_STRING("pw");
+    UA_String description = UA_STRING("d");
+    UA_Variant four[4];
+    setUserArgs(four, &name, &password, &cfg, &description);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 4, four);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    ck_assert_uint_eq(umUsersSize, 0);
+    ck_assert(!umChangePasswordCalled);
+}
+END_TEST
+
+/* The requested UserConfiguration is validated against the provider's
+ * PasswordOptions before the provider is asked to apply it. */
+START_TEST(userManagement_configurationValidatedAgainstPolicy) {
+    UA_String name = UA_STRING("carol");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("");
+    UA_Variant in[4];
+
+    /* NoChangeByUser and MustChangePassword contradict each other */
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NOCHANGEBYUSER |
+                                   UA_USERCONFIGURATIONMASK_MUSTCHANGEPASSWORD;
+    setUserArgs(in, &name, &password, &cfg, &description);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADCONFIGURATIONERROR);
+    UA_CallMethodResult_clear(&res);
+
+    /* A flag the provider does not advertise is refused */
+    umOptions = UA_PASSWORDOPTIONSMASK_NONE;
+    cfg = UA_USERCONFIGURATIONMASK_DISABLED;
+    setUserArgs(in, &name, &password, &cfg, &description);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_CallMethodResult_clear(&res);
+
+    /* Once advertised, the same request succeeds */
+    umOptions = UA_PASSWORDOPTIONSMASK_SUPPORTDISABLEUSER;
+    setUserArgs(in, &name, &password, &cfg, &description);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umUsersSize, 1);
+    ck_assert_uint_eq(umUsers[0].configuration,
+                      UA_USERCONFIGURATIONMASK_DISABLED);
+}
+END_TEST
+
+/* ModifyUser forwards each modify flag and its value separately. */
+START_TEST(userManagement_modifyUserAppliesSelectedFields) {
+    UA_String name = UA_STRING("dave");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("before");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &cfg, &description);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    /* Change only the description; leave password and configuration alone */
+    UA_Boolean no = false, yes = true;
+    UA_String newPassword = UA_STRING("unused");
+    UA_String newDescription = UA_STRING("after");
+    UA_Variant mod[7];
+    UA_Variant_setScalar(&mod[0], &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&mod[1], &no, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[2], &newPassword, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&mod[3], &no, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[4], &cfg,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&mod[5], &yes, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[6], &newDescription, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 7, mod);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    ck_assert(UA_String_equal(&umUsers[0].description, &newDescription));
+    ck_assert(UA_String_equal(&umUsers[0].password, &password));
+
+    /* An unsupported configuration is still refused on modify */
+    umOptions = UA_PASSWORDOPTIONSMASK_NONE;
+    UA_UserConfigurationMask disabled = UA_USERCONFIGURATIONMASK_DISABLED;
+    UA_Variant_setScalar(&mod[3], &yes, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[4], &disabled,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 7, mod);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_CallMethodResult_clear(&res);
+}
+END_TEST
+
+/* RemoveUser forwards to the provider and surfaces its status. */
+START_TEST(userManagement_removeUserReachesProvider) {
+    UA_String name = UA_STRING("erin");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &cfg, &description);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    UA_Variant rm;
+    UA_Variant_setScalar(&rm, &name, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_REMOVEUSER, 1, &rm);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umUsersSize, 0);
+
+    /* Removing it again is the provider's Bad_NotFound, passed through */
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_REMOVEUSER, 1, &rm);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADNOTFOUND);
+    UA_CallMethodResult_clear(&res);
+}
+END_TEST
+
+/* ChangePassword acts on the caller's own account over an encrypted channel.
+ * The local admin Session has neither a channel nor a user name, so it cannot
+ * reach the provider - a privileged caller must not change a password for
+ * someone else through this Method. */
+START_TEST(userManagement_changePasswordNeedsOwnEncryptedSession) {
+    UA_String oldPassword = UA_STRING("s3cret-password");
+    UA_String newPassword = UA_STRING("even-more-s3cret");
+    UA_Variant in[2];
+    UA_Variant_setScalar(&in[0], &oldPassword, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&in[1], &newPassword, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_CHANGEPASSWORD, 2, in);
+    ck_assert_uint_eq(res.statusCode,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_CallMethodResult_clear(&res);
+    ck_assert(!umChangePasswordCalled);
+}
+END_TEST
+
+#ifdef UA_ENABLE_AUDITING
+/* The /InputArguments of the last AuditUpdateMethodEvent (deep copy) */
+static UA_Variant umAuditInputs;
+
+static void
+umAuditCallback(UA_Server *s, UA_ApplicationNotificationType type,
+                const UA_KeyValueMap payload) {
+    (void)s;
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD)
+        return;
+    const UA_Variant *inputs =
+        UA_KeyValueMap_get(&payload, UA_QUALIFIEDNAME(0, "/InputArguments"));
+    ck_assert_ptr_nonnull(inputs);
+    UA_Variant_clear(&umAuditInputs);
+    ck_assert_uint_eq(UA_Variant_copy(inputs, &umAuditInputs), UA_STATUSCODE_GOOD);
+}
+
+static const UA_Variant *
+umAuditInput(size_t index) {
+    ck_assert(umAuditInputs.type == &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_gt(umAuditInputs.arrayLength, index);
+    return &((const UA_Variant*)umAuditInputs.data)[index];
+}
+
+static void
+umAssertAuditString(size_t index, const UA_String *expected) {
+    const UA_Variant *v = umAuditInput(index);
+    ck_assert(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_STRING]));
+    ck_assert(UA_String_equal((const UA_String*)v->data, expected));
+}
+
+/* The AuditUpdateMethodEvent of the UserManagement Methods does not carry the
+ * passwords. The other arguments are kept, and the provider still receives the
+ * password. The event is emitted also when the Method refuses the call. */
+START_TEST(auditMethodUpdate_redactsPasswords) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->auditingEnabled = true;
+    cfg->auditMethodUpdateEnabled = true;
+    cfg->auditNotificationCallback = umAuditCallback;
+    UA_Variant_init(&umAuditInputs);
+
+    /* AddUser: argument 1 is the password */
+    UA_String name = UA_STRING("alice");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("plant operator");
+    UA_UserConfigurationMask mask = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &mask, &description);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert(UA_String_equal(&umLastPassword, &password));
+    ck_assert_uint_eq(umAuditInputs.arrayLength, 4);
+    umAssertAuditString(0, &name);
+    ck_assert(UA_Variant_isEmpty(umAuditInput(1)));
+    ck_assert(UA_Variant_hasScalarType(umAuditInput(2),
+                  &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]));
+    umAssertAuditString(3, &description);
+
+    /* The same through the MethodId of the ObjectType declaration */
+    UA_String name2 = UA_STRING("bob");
+    setUserArgs(in, &name2, &password, &mask, &description);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENTTYPE_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    umAssertAuditString(0, &name2);
+    ck_assert(UA_Variant_isEmpty(umAuditInput(1)));
+
+    /* ModifyUser: argument 2 is the password */
+    UA_Boolean yes = true, no = false;
+    UA_String newPassword = UA_STRING("n3w-s3cret-password");
+    UA_Variant mod[7];
+    UA_Variant_setScalar(&mod[0], &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&mod[1], &yes, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[2], &newPassword, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&mod[3], &no, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[4], &mask,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&mod[5], &no, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[6], &description, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 7, mod);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert(UA_String_equal(&umUsers[0].password, &newPassword));
+    ck_assert_uint_eq(umAuditInputs.arrayLength, 7);
+    umAssertAuditString(0, &name);
+    ck_assert(UA_Variant_hasScalarType(umAuditInput(1), &UA_TYPES[UA_TYPES_BOOLEAN]));
+    ck_assert(UA_Variant_isEmpty(umAuditInput(2)));
+    ck_assert(UA_Variant_hasScalarType(umAuditInput(3), &UA_TYPES[UA_TYPES_BOOLEAN]));
+    umAssertAuditString(6, &description);
+
+    /* ChangePassword: both arguments are passwords. The local admin Session
+     * is refused, but the event is emitted. */
+    UA_Variant change[2];
+    UA_Variant_setScalar(&change[0], &newPassword, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&change[1], &password, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_clear(&umAuditInputs);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_CHANGEPASSWORD, 2, change);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umAuditInputs.arrayLength, 2);
+    ck_assert(UA_Variant_isEmpty(umAuditInput(0)));
+    ck_assert(UA_Variant_isEmpty(umAuditInput(1)));
+
+    /* RemoveUser has no secret argument */
+    UA_Variant rm;
+    UA_Variant_setScalar(&rm, &name2, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_REMOVEUSER, 1, &rm);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umAuditInputs.arrayLength, 1);
+    umAssertAuditString(0, &name2);
+
+    cfg->auditNotificationCallback = NULL;
+    UA_Variant_clear(&umAuditInputs);
+}
+END_TEST
+#endif /* UA_ENABLE_AUDITING */
+
+/* Without a complete provider the Object stays inert: no DataSource behind the
+ * Properties and no callbacks on the Methods. */
+START_TEST(userManagement_inertWithoutProvider) {
+    UA_String name = UA_STRING("frank");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &cfg, &description);
+
+    UA_CallMethodResult res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER,
+                                             4, in);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umUsersSize, 0);
+}
+END_TEST
+
+static Suite *testSuite_UserManagement(void) {
+    Suite *s = suite_create("RBAC User Management");
+
+    TCase *tc = tcase_create("UserManagement");
+    tcase_add_checked_fixture(tc, setupUserManagement, teardownUserManagement);
+    tcase_add_test(tc, userManagement_addUserReachesProvider);
+    tcase_add_test(tc, userManagement_passwordPolicyReadable);
+    tcase_add_test(tc, userManagement_rejectsMalformedArguments);
+    tcase_add_test(tc, userManagement_configurationValidatedAgainstPolicy);
+    tcase_add_test(tc, userManagement_modifyUserAppliesSelectedFields);
+    tcase_add_test(tc, userManagement_removeUserReachesProvider);
+    tcase_add_test(tc, userManagement_changePasswordNeedsOwnEncryptedSession);
+#ifdef UA_ENABLE_AUDITING
+    tcase_add_test(tc, auditMethodUpdate_redactsPasswords);
+#endif
+    suite_add_tcase(s, tc);
+
+    TCase *tc_none = tcase_create("NoProvider");
+    tcase_add_checked_fixture(tc_none, setupNoUserManagement,
+                              teardownUserManagement);
+    tcase_add_test(tc_none, userManagement_inertWithoutProvider);
+    suite_add_tcase(s, tc_none);
+    return s;
+}
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
 
 static Suite *testSuite_InformationModel(void) {
     Suite *s = suite_create("RBAC Information Model");
@@ -2587,6 +5473,7 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc, standardRolesWithCorrectIds);
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
     tcase_add_test(tc, getAllRoles_includesWellKnown);
+    tcase_add_test(tc, updateRole_identifiedByEitherKey);
     tcase_add_test(tc, protectMandatoryRoles);
     tcase_add_test(tc, allowModifyingOptionalRoles);
     tcase_add_test(tc, identityMapping_wellKnownRoles);
@@ -2597,6 +5484,8 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc, addedRole_ns0NodeFields);
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     tcase_add_test(tc, addRole_cApiPublishesRoleObject);
+    tcase_add_test(tc, customConfiguration_propertyReadable);
+    tcase_add_test(tc, excludeProperties_readWriteRegistry);
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
     tcase_add_test(tc, addRemoveRoleMethod_updatesAddressSpace);
@@ -2641,7 +5530,11 @@ int main(void) {
     srunner_add_suite(sr, testSuite_IdentityAppMgmt());
     srunner_add_suite(sr, testSuite_PermissionMapping());
     srunner_add_suite(sr, testSuite_NamespaceDefaults());
+    srunner_add_suite(sr, testSuite_AccessRestrictionStorage());
     srunner_add_suite(sr, testSuite_InformationModel());
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+    srunner_add_suite(sr, testSuite_UserManagement());
+#endif
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
     number_failed += srunner_ntests_failed(sr);

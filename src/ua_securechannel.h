@@ -147,8 +147,15 @@ struct UA_SecureChannel {
     UA_ShutdownReason shutdownReason;
 
     UA_ConnectionConfig config;
-    UA_String endpointUrl;
+    UA_String endpointUrl; /* From the HEL message, client-controlled */
     UA_String remoteAddress;
+
+    /* Server only: The configured ServerUrl of the listener that accepted the
+     * connection (for HTTP the URL of the Binary or JSON endpoint, for reverse
+     * connect the EndpointUrl announced in the ReverseHello). Unlike the
+     * endpointUrl, it identifies the Endpoint that is actually used by the
+     * SecureChannel. Empty if unknown. */
+    UA_String listenerUrl;
 
     /* Connection handling in the EventLoop */
     UA_ConnectionManager *connectionManager;

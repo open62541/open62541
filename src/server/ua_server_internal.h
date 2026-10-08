@@ -63,11 +63,33 @@ typedef struct {
  * Multiple nodes can share the same entry via the permissionIndex stored
  * in the node head. Entries originating from the server configuration
  * presets have refCount set to UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED to
- * prevent deletion during server runtime. */
+ * prevent deletion during server runtime.
+ *
+ * An entry holds the per-node RBAC state so that the node head only needs the
+ * index: the RolePermissions and the AccessRestrictions (Part 3 §5.2.11).
+ * Either part can be absent. An entry without RolePermissions behaves for the
+ * RolePermissions exactly like UA_PERMISSION_INDEX_INVALID (the namespace
+ * default applies); an entry without AccessRestrictions falls back to the
+ * namespace default AccessRestrictions. A node with neither part uses
+ * UA_PERMISSION_INDEX_INVALID. Entries are never modified on behalf of a
+ * single node: changing one part of a node selects (or creates) the entry with
+ * the other part kept. The lookup deduplicates over all fields except the
+ * refCount. Edits of the configuration (removing a Role,
+ * UA_Server_updateRolePermissionConfig) change entries in place and
+ * UA_Server_addRolePermissionConfig always appends, so equal entries can
+ * exist; that is harmless.
+ *
+ * The first two fields must stay in this order: the entry is exposed as a
+ * UA_RolePermissionSet by UA_Server_getRolePermissionConfig. */
 typedef struct {
     size_t rolePermissionsSize;
     UA_RolePermission *rolePermissions;
     size_t refCount;
+    UA_AccessRestrictionType accessRestrictions;
+    UA_Boolean hasRolePermissions; /* false: rolePermissions is empty and the
+                                    * namespace default applies */
+    UA_Boolean hasAccessRestrictions; /* false: accessRestrictions is unset and
+                                       * the namespace default applies */
 } UA_RolePermissionEntry;
 
 /* Namespace metadata for default role permissions.
@@ -76,6 +98,9 @@ typedef struct {
 typedef struct {
     size_t entriesSize;
     UA_RolePermission *entries;
+    UA_Boolean hasDefaultRolePermissions;
+    UA_AccessRestrictionType defaultAccessRestrictions;
+    UA_Boolean hasDefaultAccessRestrictions;
 } UA_NamespaceMetadata;
 
 /* Internal RBAC lifecycle */
@@ -84,6 +109,15 @@ void UA_Server_cleanupRBAC(UA_Server *server);
 
 /* Initialize RBAC information model (NS0 role representations and methods) */
 UA_StatusCode initNS0RBAC(UA_Server *server);
+
+/* The entry holding the RolePermissions of a node with the given
+ * permissionIndex. NULL if the node has no RolePermissions of its own: the
+ * index is UA_PERMISSION_INDEX_INVALID, out of range or refers to an entry with
+ * only AccessRestrictions. The namespace default applies then. Callers that
+ * must fail closed on an out-of-range index check it beforehand.
+ * Must be called with the server lock held. */
+const UA_RolePermissionEntry *
+getRolePermissionsEntry(const UA_Server *server, UA_PermissionIndex index);
 
 #endif /* UA_ENABLE_RBAC */
 
@@ -226,10 +260,11 @@ struct UA_Server {
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
 
 #ifdef UA_ENABLE_RBAC
-    /* Internal role-permission configurations. Nodes reference entries
-     * in this array via their permissionIndex field. Entries from the
-     * initial config presets have refCount set to
-     * UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED and are never deleted. */
+    /* Internal role-permission configurations (RolePermissions and
+     * AccessRestrictions). Nodes reference entries in this array via their
+     * permissionIndex field. Entries from the initial config presets have
+     * refCount set to UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED and are never
+     * deleted. */
     size_t rolePermissionsSize;
     UA_RolePermissionEntry *rolePermissions;
 
@@ -502,6 +537,13 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                        const UA_NodeId *methodNode, UA_StatusCode statusCodeId,
                        size_t inputsSize, UA_Variant *inputs,
                        size_t outputsSize, UA_Variant *outputs);
+
+void
+auditRoleMappingRuleChangedEvent(UA_Server *server, UA_SecureChannel *channel,
+                                 UA_Session *session, UA_Boolean status,
+                                 const UA_NodeId *sourceNode, const UA_NodeId *methodNode,
+                                 UA_StatusCode statusCodeId,
+                                 size_t inputsSize, UA_Variant *inputs);
 #endif
 
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
@@ -818,6 +860,21 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize);
 
+#ifdef UA_ENABLE_JSON_ENCODING
+/* The EndpointUrl of an HTTP transport profile. The configured URL is the
+ * Binary endpoint. JSON uses its /json child endpoint. */
+UA_StatusCode
+httpProfileEndpointUrl(const UA_String *url, const UA_String *profileUri,
+                       UA_String *profileUrl);
+#endif
+
+/* The TransportProfileUri of the Endpoint that is used by the SecureChannel.
+ * It is derived from the transport, the encoding and the listenerUrl of the
+ * channel, never from URLs sent by the client. Returns an empty string if the
+ * transport profile is unknown. */
+const UA_String *
+getChannelTransportProfileUri(const UA_SecureChannel *channel);
+
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                            size_t browsePathSize, const UA_QualifiedName *browsePath);
@@ -867,6 +924,10 @@ typedef struct {
     UA_ConnectionState state;
     uintptr_t connectionId;
     UA_ConnectionManager *connectionManager;
+
+    /* The configured ServerUrl the socket listens for. Points into the
+     * listenUrls of the BinaryProtocolManager. NULL if unknown. */
+    const UA_String *serverUrl;
 } UA_ServerConnection;
 
 typedef struct UA_BinaryProtocolManager UA_BinaryProtocolManager;
@@ -888,6 +949,12 @@ struct UA_BinaryProtocolManager {
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
     size_t serverConnectionsSize;
 
+    /* The configured ServerUrls of the opened listeners. The address of an
+     * entry is the initial context of the listen sockets opened for it. One
+     * ServerUrl can result in several listen sockets (e.g. IPv4 and IPv6). */
+    UA_String listenUrls[UA_MAXSERVERCONNECTIONS];
+    size_t listenUrlsSize;
+
     /* SecureChannels */
     TAILQ_HEAD(, UA_SecureChannel) channels;
 
@@ -907,6 +974,13 @@ void
 UA_BinaryConnectionConfig_set(UA_ConnectionConfig *connectionConfig,
                               UA_UInt32 bufSize, UA_UInt32 maxMsgSize,
                               UA_UInt32 maxChunks);
+
+/* Store a copy of the configured ServerUrl of a listener. Use the returned
+ * pointer as the initial context of its listen sockets. Then the
+ * SecureChannels accepted on them record the ServerUrl. */
+const UA_String *
+UA_BinaryProtocolManager_addListenUrl(UA_BinaryProtocolManager *bpm,
+                                      const UA_String *serverUrl);
 
 UA_Driver * UA_BinaryProtocolManager_new(void);
 
@@ -934,11 +1008,14 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             UA_ByteString *message);
 
+/* The listenerUrl is the configured ServerUrl of the accepting listener (can
+ * be NULL if unknown). It is copied to the new SecureChannel. */
 UA_StatusCode
 createServerSecureChannel(UA_Server *server,
                           const UA_ConnectionConfig *connectionConfig,
                           UA_ConnectionManager *cm,
                           uintptr_t connectionId, const UA_KeyValueMap *params,
+                          const UA_String *listenerUrl,
                           UA_SecureChannel **outChannel);
 
 void

@@ -44,6 +44,14 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
 }
 
 UA_StatusCode
+UA_CertificateUtils_getApplicationUri(const UA_ByteString *certificate,
+                                      UA_String *applicationUri) {
+    if(applicationUri)
+        *applicationUri = UA_STRING_NULL;
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
 UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
                                       UA_DateTime *expiryDateTime){
     return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -52,6 +60,17 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName){
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
+                                           UA_String *subjectCriteria,
+                                           UA_String *issuerCriteria) {
+    if(subjectCriteria)
+        *subjectCriteria = UA_STRING_NULL;
+    if(issuerCriteria)
+        *issuerCriteria = UA_STRING_NULL;
     return UA_STATUSCODE_BADNOTSUPPORTED;
 }
 

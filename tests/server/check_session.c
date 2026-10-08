@@ -1019,6 +1019,76 @@ START_TEST(Session_closeSession_secureChannel_mismatch) {
 
 /* Session restart after timeout handled by client reconnection logic */
 
+/* A server may advertise a copy of each Endpoint per hostname. The copies
+ * differ only in the EndpointUrl and are equivalent for ActivateSession. The
+ * Session is created and activated in-process on a SecureChannel that is not
+ * connected to a transport. */
+START_TEST(Session_activate_endpointCopiesPerHostname) {
+    UA_Server *srv = UA_Server_newForUnitTest();
+    ck_assert(srv != NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(srv);
+    config->tcpEnabled = false;
+    size_t size = config->endpointsSize;
+    UA_EndpointDescription *endpoints = (UA_EndpointDescription*)
+        UA_Array_new(2 * size, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    ck_assert(endpoints != NULL);
+    for(size_t i = 0; i < size; i++) {
+        for(size_t j = 0; j < 2; j++) {
+            UA_EndpointDescription *ed = &endpoints[2 * i + j];
+            ck_assert_uint_eq(UA_EndpointDescription_copy(&config->endpoints[i], ed),
+                              UA_STATUSCODE_GOOD);
+            UA_String_clear(&ed->endpointUrl);
+            ed->endpointUrl = UA_STRING_ALLOC(j == 0 ? "opc.tcp://host-a.example/" :
+                                              "opc.tcp://host-b.example/");
+        }
+    }
+    UA_Array_delete(config->endpoints, size, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    config->endpoints = endpoints;
+    config->endpointsSize = 2 * size;
+    ck_assert_uint_eq(UA_Server_run_startup(srv), UA_STATUSCODE_GOOD);
+
+    UA_SecurityPolicy *none = NULL;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(config->securityPolicies[i].policyType == UA_SECURITYPOLICYTYPE_NONE)
+            none = &config->securityPolicies[i];
+    }
+    ck_assert(none != NULL);
+    UA_SecureChannel channel;
+    UA_SecureChannel_init(&channel);
+    ck_assert_uint_eq(UA_SecureChannel_setSecurityPolicy(&channel, none, NULL),
+                      UA_STATUSCODE_GOOD);
+    channel.state = UA_SECURECHANNELSTATE_OPEN;
+
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionRequest_init(&createReq);
+    createReq.requestedSessionTimeout = 60000.0;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionResponse_init(&createRes);
+    lockServer(srv);
+    Service_CreateSession(srv, &channel, &createReq, &createRes);
+    unlockServer(srv);
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* An empty identity token selects the anonymous UserTokenPolicy */
+    UA_ActivateSessionRequest actReq;
+    UA_ActivateSessionRequest_init(&actReq);
+    actReq.requestHeader.authenticationToken = createRes.authenticationToken;
+    UA_ActivateSessionResponse actRes;
+    UA_ActivateSessionResponse_init(&actRes);
+    lockServer(srv);
+    Service_ActivateSession(srv, &channel, &actReq, &actRes);
+    unlockServer(srv);
+    ck_assert_uint_eq(actRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ActivateSessionResponse_clear(&actRes);
+
+    ck_assert_uint_eq(UA_Server_closeSession(srv, &createRes.sessionId),
+                      UA_STATUSCODE_GOOD);
+    UA_CreateSessionResponse_clear(&createRes);
+    UA_SecureChannel_clear(&channel);
+    UA_Server_run_shutdown(srv);
+    UA_Server_delete(srv);
+} END_TEST
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -1055,8 +1125,13 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session_ext, Session_secureChannel_mismatch);
     tcase_add_test(tc_session_ext, Session_closeSession_secureChannel_mismatch);
 
+    /* In-process Sessions without the TCP server of the fixture */
+    TCase *tc_session_inprocess = tcase_create("In-process");
+    tcase_add_test(tc_session_inprocess, Session_activate_endpointCopiesPerHostname);
+
     suite_add_tcase(s, tc_session);
     suite_add_tcase(s, tc_session_ext);
+    suite_add_tcase(s, tc_session_inprocess);
     return s;
 }
 

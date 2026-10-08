@@ -77,6 +77,15 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
                                          const UA_String *applicationUri);
 
+/* Extract the ApplicationUri from the uniformResourceIdentifier in the
+ * subjectAltName of the certificate. The subjectAltName of an Application
+ * Instance Certificate shall have exactly one URI (Part 6 §6.2.2). Returns
+ * UA_STATUSCODE_BADCERTIFICATEURIINVALID if the certificate has no URI or more
+ * than one. The output string is newly allocated. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_getApplicationUri(const UA_ByteString *certificate,
+                                      UA_String *applicationUri);
+
 /* Get the expire date from certificate */
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
@@ -85,6 +94,23 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName);
+
+/* Build the X.509 subject and issuer strings used by the Part 18 X509Subject
+ * identity criterion (§4.4.3): name-value pairs separated by '/', each value
+ * in quotes, in the order CN, O, OU, DC, L, S, C, dnQualifier, serialNumber.
+ * Attributes that occur more than once keep the order of the certificate. For
+ * example: CN="Jörg Müller"/O="Müller GmbH"/C="DE". Attributes that are not
+ * in Part 18 Table 10 are ignored.
+ *
+ * The values are UTF-8. Every Table 10 attribute of the name has to be
+ * included (§4.4.3). If one of them is empty, contains a control character or
+ * the quote that delimits the value, or uses an ASN.1 string type that cannot
+ * be converted, the string for that name (subject or issuer) is empty and
+ * matches no criterion. Both output strings are newly allocated. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
+                                           UA_String *subjectCriteria,
+                                           UA_String *issuerCriteria);
 
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,

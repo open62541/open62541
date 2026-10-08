@@ -860,8 +860,11 @@ copyChildNode(UA_Server *server, UA_Session *session,
     node->head.constructed = false;
 #ifdef UA_ENABLE_RBAC
     /* The new instance child starts without explicit RolePermissions (falls
-     * back to the namespace defaults). Keeping the copied permissionIndex
-     * would reference the shared entry without adjusting its refCount. */
+     * back to the namespace defaults) but keeps the AccessRestrictions of the
+     * InstanceDeclaration (set up before the node is inserted). Keeping the
+     * copied permissionIndex would reference the shared entry without
+     * adjusting its refCount. */
+    UA_PermissionIndex declPermissionIndex = node->head.permissionIndex;
     node->head.permissionIndex = UA_PERMISSION_INDEX_INVALID;
 #endif
 
@@ -926,12 +929,28 @@ copyChildNode(UA_Server *server, UA_Session *session,
     }
     UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
 
+#ifdef UA_ENABLE_RBAC
+    /* Reference the shared entry with only the AccessRestrictions of the
+     * InstanceDeclaration (if it has any). Released by the node deletion. */
+    res = retainInstanceAccessRestrictions(server, declPermissionIndex,
+                                           &node->head.permissionIndex);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_DELETE(server, node);
+        return res;
+    }
+    UA_PermissionIndex instancePermissionIndex = node->head.permissionIndex;
+#endif
+
     /* Add the node to the nodestore */
     UA_NodeId newNodeId = UA_NODEID_NULL;
     res = UA_NODESTORE_INSERT(server, node, &newNodeId);
     /* node = NULL; The pointer is no longer valid */
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+#ifdef UA_ENABLE_RBAC
+        UA_Server_decrementRolePermissionsRefCount(server, instancePermissionIndex);
+#endif
         return res;
+    }
 
     /* Add the node references */
     res = addNode_addRefs(server, session, &newNodeId, destinationNodeId,
@@ -1372,6 +1391,39 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
                                    item->nodeAttributes.content.decoded.type);
     if(retval != UA_STATUSCODE_GOOD)
         goto create_error;
+
+#ifdef UA_ENABLE_RBAC
+    /* The new Node already has its final NamespaceIndex and therefore its
+     * effective namespace-default AccessRestrictions. Enforce them before the
+     * AddNodes operation makes the Node visible. */
+    retval = checkNodeAccessRestrictions(server, session, node, false);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto create_error;
+#endif
+
+    /* The new Node is referenced from its parent. That modifies the parent
+     * and requires the AddReference permission there, the same as an
+     * AddReferences call with the parent as the source. The check is done
+     * here, only for the Node requested by the client. addNode_addRefs also
+     * runs for the children of an instantiated type, where the parent is the
+     * new instance. */
+    if(session != &server->adminSession &&
+       server->config.accessControl.allowAddReference &&
+       !UA_NodeId_isNull(&item->parentNodeId.nodeId)) {
+        UA_AddReferencesItem parentRef;
+        UA_AddReferencesItem_init(&parentRef);
+        parentRef.sourceNodeId = item->parentNodeId.nodeId;
+        parentRef.referenceTypeId = item->referenceTypeId;
+        parentRef.isForward = true;
+        parentRef.targetNodeId.nodeId = item->requestedNewNodeId.nodeId;
+        parentRef.targetNodeClass = item->nodeClass;
+        if(!server->config.accessControl.
+           allowAddReference(server, &server->config.accessControl,
+                             &session->sessionId, session->context, &parentRef)) {
+            retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+            goto create_error;
+        }
+    }
 
     /* Create a current source timestamp for values that don't have any */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
@@ -2348,23 +2400,59 @@ buildDeleteNodeSet(UA_Server *server, UA_Session *session,
         return res;
 
     /* Find out which hierarchical children should also be deleted. We know
-     * there are no "callback" ExpandedNodeId in the RefTree. */
+     * there are no "callback" ExpandedNodeId in the RefTree. Continue after an
+     * error to collect what we can, but report the first error. */
     size_t pos = 0;
     while(pos < refTree->size) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[pos].nodeId);
         pos++;
         if(!member)
             continue;
-        res |= autoDeleteChildren(server, session, refTree, hierarchRefsSet, &member->head);
+        UA_StatusCode childRes =
+            autoDeleteChildren(server, session, refTree, hierarchRefsSet, &member->head);
+        if(res == UA_STATUSCODE_GOOD)
+            res = childRes;
         UA_NODESTORE_RELEASE(server, member);
     }
     return res;
 }
 
+/* The children in the set are deleted together with the requested node. So the
+ * Session needs the same rights for them as for the requested node (the first
+ * entry of the set, which is checked before). This is checked before anything
+ * is modified. Any refusal aborts the deletion of the whole set. */
+static UA_StatusCode
+checkDeleteNodeSetAccess(UA_Server *server, UA_Session *session,
+                         const UA_DeleteNodesItem *item, const RefTree *refTree) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_DeleteNodesItem childItem = *item; /* Shallow copy */
+    for(size_t i = 1; i < refTree->size; i++) {
+        childItem.nodeId = refTree->targets[i].nodeId;
+        if(server->config.accessControl.allowDeleteNode &&
+           !server->config.accessControl.
+           allowDeleteNode(server, &server->config.accessControl,
+                           &session->sessionId, session->context, &childItem))
+            return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+#ifdef UA_ENABLE_RBAC
+        const UA_Node *member = UA_NODESTORE_GET(server, &childItem.nodeId);
+        if(!member)
+            continue;
+        UA_StatusCode res = checkNodeAccessRestrictions(server, session, member, false);
+        UA_NODESTORE_RELEASE(server, member);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+#endif
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The deletion is authorized at this point. The incoming references are
+ * removed with admin rights. The Session might lack the RemoveReference right
+ * on the referencing nodes. But keeping the references would leave them
+ * dangling. */
 static void
-deleteNodeSet(UA_Server *server, UA_Session *session,
-              const UA_ReferenceTypeSet *hierarchRefsSet,
-              UA_Boolean removeTargetRefs, RefTree *refTree) {
+deleteNodeSet(UA_Server *server, UA_Boolean removeTargetRefs, RefTree *refTree) {
     /* Delete the nodes based on the RefTree entries */
     for(size_t i = refTree->size; i > 0; --i) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i-1].nodeId);
@@ -2378,7 +2466,7 @@ deleteNodeSet(UA_Server *server, UA_Session *session,
         /* Everything that dereferences member must happen before the node is
          * released; remove by the RefTree's own NodeId copy afterwards. */
         if(removeTargetRefs)
-            removeIncomingReferences(server, session, &member->head);
+            removeIncomingReferences(server, &server->adminSession, &member->head);
         UA_NODESTORE_RELEASE(server, member);
         UA_NODESTORE_REMOVE(server, &refTree->targets[i-1].nodeId);
     }
@@ -2404,6 +2492,14 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
         *result = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
+
+#ifdef UA_ENABLE_RBAC
+    *result = checkNodeAccessRestrictions(server, session, node, false);
+    if(*result != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_RELEASE(server, node);
+        return;
+    }
+#endif
 
     if(UA_Node_hasSubTypeOrInstances(&node->head)) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
@@ -2440,7 +2536,19 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
         return;
     *result = buildDeleteNodeSet(server, session, &hierarchRefsSet, &item->nodeId,
                                  item->deleteTargetReferences, &refTree);
-    if(*result != UA_STATUSCODE_GOOD) {
+    if(session != &server->adminSession) {
+        /* Authorize the deletion of every node in the set. An incomplete set
+         * cannot be authorized. Abort before anything is modified. */
+        if(*result == UA_STATUSCODE_GOOD)
+            *result = checkDeleteNodeSetAccess(server, session, item, &refTree);
+        if(*result != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(server->config.logging, session,
+                                "DeleteNode (%N): Not deleted with StatusCode %s",
+                                item->nodeId, UA_StatusCode_name(*result));
+            RefTree_clear(&refTree);
+            return;
+        }
+    } else if(*result != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "DeleteNode: Incomplete lookup of nodes. "
                                "Still deleting what we have.");
@@ -2453,8 +2561,7 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
         recordModelChangeEvent(server, &refTree.targets[i].nodeId,
                                UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED);
     deconstructNodeSet(server, session, &hierarchRefsSet, &refTree);
-    deleteNodeSet(server, session, &hierarchRefsSet,
-                  item->deleteTargetReferences, &refTree);
+    deleteNodeSet(server, item->deleteTargetReferences, &refTree);
     RefTree_clear(&refTree);
 }
 
@@ -2557,6 +2664,33 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
             return;
         }
     }
+
+
+#ifdef UA_ENABLE_RBAC
+    /* Adding a local reference modifies both endpoint Nodes. Preflight both
+     * before either direction is changed so an insufficient channel cannot
+     * leave a one-sided reference behind. */
+    const UA_Node *restrictedNode =
+        UA_NODESTORE_GET(server, &item->sourceNodeId);
+    if(restrictedNode) {
+        *retval = checkNodeAccessRestrictions(server, session,
+                                              restrictedNode, false);
+        UA_NODESTORE_RELEASE(server, restrictedNode);
+        if(*retval != UA_STATUSCODE_GOOD)
+            return;
+    }
+    if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
+        restrictedNode =
+            UA_NODESTORE_GET(server, &item->targetNodeId.nodeId);
+        if(restrictedNode) {
+            *retval = checkNodeAccessRestrictions(server, session,
+                                                  restrictedNode, false);
+            UA_NODESTORE_RELEASE(server, restrictedNode);
+            if(*retval != UA_STATUSCODE_GOOD)
+                return;
+        }
+    }
+#endif
 
     /* TODO: Currently no expandednodeids are allowed */
     if(item->targetServerUri.length > 0) {
@@ -2774,6 +2908,31 @@ Operation_deleteReference_inner(UA_Server *server, UA_Session *session, void *co
             return;
         }
     }
+
+
+#ifdef UA_ENABLE_RBAC
+    /* Preflight both local endpoints before removing either direction. */
+    const UA_Node *restrictedNode =
+        UA_NODESTORE_GET(server, &item->sourceNodeId);
+    if(restrictedNode) {
+        *retval = checkNodeAccessRestrictions(server, session,
+                                              restrictedNode, false);
+        UA_NODESTORE_RELEASE(server, restrictedNode);
+        if(*retval != UA_STATUSCODE_GOOD)
+            return;
+    }
+    if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
+        restrictedNode =
+            UA_NODESTORE_GET(server, &item->targetNodeId.nodeId);
+        if(restrictedNode) {
+            *retval = checkNodeAccessRestrictions(server, session,
+                                                  restrictedNode, false);
+            UA_NODESTORE_RELEASE(server, restrictedNode);
+            if(*retval != UA_STATUSCODE_GOOD)
+                return;
+        }
+    }
+#endif
 
     /* Check the ReferenceType and get the RefTypeIndex */
     const UA_Node *refType =

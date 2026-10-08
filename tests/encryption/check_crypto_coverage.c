@@ -618,6 +618,237 @@ START_TEST(certificate_generation_pem) {
 }
 END_TEST
 
+static void
+createCertificateWithSan(const UA_String *subjectAltName,
+                         size_t subjectAltNameSize, UA_ByteString *cert) {
+    UA_String subject[2] = {UA_STRING_STATIC("O=TestOrganization"),
+                            UA_STRING_STATIC("CN=TestClient@localhost")};
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_ByteString privKey = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = UA_CreateCertificate(
+        UA_Log_Stdout, subject, 2, subjectAltName, subjectAltNameSize,
+        UA_CERTIFICATEFORMAT_DER, kvm, &privKey, cert);
+    UA_KeyValueMap_delete(kvm);
+    UA_ByteString_clear(&privKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+
+/* The subjectAltName of an Application Instance Certificate shall have exactly
+ * one URI, which is the ApplicationUri (Part 6 6.2.2) */
+START_TEST(application_uri_exactly_one) {
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    UA_String uri = UA_STRING_NULL;
+
+    /* One URI */
+    UA_String oneUri[2] = {UA_STRING_STATIC("DNS:localhost"),
+                           UA_STRING_STATIC("URI:urn:test.single")};
+    createCertificateWithSan(oneUri, 2, &cert);
+    UA_StatusCode retval = UA_CertificateUtils_getApplicationUri(&cert, &uri);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_String expected = UA_STRING("urn:test.single");
+    ck_assert(UA_String_equal(&uri, &expected));
+    UA_String_clear(&uri);
+    UA_ByteString_clear(&cert);
+
+    /* Two URIs */
+    UA_String twoUris[3] = {UA_STRING_STATIC("URI:urn:test.first"),
+                            UA_STRING_STATIC("DNS:localhost"),
+                            UA_STRING_STATIC("URI:urn:test.second")};
+    createCertificateWithSan(twoUris, 3, &cert);
+    retval = UA_CertificateUtils_getApplicationUri(&cert, &uri);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEURIINVALID);
+    ck_assert_uint_eq(uri.length, 0);
+    ck_assert_ptr_eq(uri.data, NULL);
+    UA_ByteString_clear(&cert);
+
+    /* No URI */
+    UA_String noUri[1] = {UA_STRING_STATIC("DNS:localhost")};
+    createCertificateWithSan(noUri, 1, &cert);
+    retval = UA_CertificateUtils_getApplicationUri(&cert, &uri);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEURIINVALID);
+    ck_assert_uint_eq(uri.length, 0);
+    UA_ByteString_clear(&cert);
+
+    /* PEM input and a certificate without a usable encoding */
+    UA_ByteString pem = {CERT_PEM_LENGTH, CERT_PEM_DATA};
+    retval = UA_CertificateUtils_getApplicationUri(&pem, &uri);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_STRING("urn:unconfigured:application");
+    ck_assert(UA_String_equal(&uri, &expected));
+    UA_String_clear(&uri);
+
+    UA_ByteString garbage = UA_BYTESTRING("not-a-certificate");
+    retval = UA_CertificateUtils_getApplicationUri(&garbage, &uri);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(uri.length, 0);
+}
+END_TEST
+
+/* Create a self-signed certificate with the subject and return its X509Subject
+ * criteria. The issuer criteria of a self-signed certificate are the same. */
+static void
+roleSubjectCriteria(const UA_String *subject, size_t subjectSize,
+                    UA_String *subjectCriteria) {
+    UA_ByteString privKey = UA_BYTESTRING_NULL;
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    UA_String subjectAltName[1] = {UA_STRING_STATIC("URI:urn:test.subject")};
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_StatusCode retval = UA_CreateCertificate(
+        UA_Log_Stdout, subject, subjectSize, subjectAltName, 1,
+        UA_CERTIFICATEFORMAT_DER, kvm, &privKey, &cert);
+    UA_KeyValueMap_delete(kvm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String issuerCriteria = UA_STRING_NULL;
+    retval = UA_CertificateUtils_getRoleSubjectCriteria(&cert, subjectCriteria,
+                                                        &issuerCriteria);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(subjectCriteria, &issuerCriteria));
+
+    UA_String_clear(&issuerCriteria);
+    UA_ByteString_clear(&cert);
+    UA_ByteString_clear(&privKey);
+}
+
+/* The X509Subject identity criteria (Part 18 4.4.3) are built from the subject
+ * and the issuer of the user certificate: name-value pairs in the order of
+ * Table 10, separated by '/', the value in quotes. The value is UTF-8 and may
+ * contain any printable character except the quote. Every Table 10 value has
+ * to be included, so a name with a value that cannot be represented has empty
+ * criteria that never match. */
+START_TEST(role_subject_criteria_utf8) {
+    /* "O=Müller GmbH", "CN=Jörg Test" in UTF-8 */
+    UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("O=M\xC3\xBCller GmbH"),
+                            UA_STRING_STATIC("CN=J\xC3\xB6rg Test")};
+    UA_String subjectCriteria = UA_STRING_NULL;
+    roleSubjectCriteria(subject, 3, &subjectCriteria);
+    UA_String expected =
+        UA_STRING("CN=\"J\xC3\xB6rg Test\"/O=\"M\xC3\xBCller GmbH\"/C=\"DE\"");
+    ck_assert_msg(UA_String_equal(&subjectCriteria, &expected),
+                  "subject criteria \"%.*s\"", (int)subjectCriteria.length,
+                  subjectCriteria.data);
+    UA_String_clear(&subjectCriteria);
+
+    /* The CommonName carries a quote. Leaving it out would give the subject
+     * the criteria of another subject without a CommonName. */
+    UA_String quoted[3] = {UA_STRING_STATIC("C=DE"),
+                           UA_STRING_STATIC("O=M\xC3\xBCller GmbH"),
+                           UA_STRING_STATIC("CN=J\xC3\xB6rg \"J\" Test")};
+    roleSubjectCriteria(quoted, 3, &subjectCriteria);
+    ck_assert_msg(subjectCriteria.length == 0,
+                  "subject criteria \"%.*s\"", (int)subjectCriteria.length,
+                  subjectCriteria.data);
+    UA_String_clear(&subjectCriteria);
+}
+END_TEST
+
+/* Names that are not in Table 10 are ignored, even if their value could not
+ * be represented in the criteria */
+START_TEST(role_subject_criteria_ignoresNonTableNames) {
+    UA_String subject[4] = {UA_STRING_STATIC("CN=alice"),
+                            UA_STRING_STATIC("title=The \"Boss\""),
+                            UA_STRING_STATIC("emailAddress=alice@example.com"),
+                            UA_STRING_STATIC("O=Acme")};
+    UA_String subjectCriteria = UA_STRING_NULL;
+    roleSubjectCriteria(subject, 4, &subjectCriteria);
+    UA_String expected = UA_STRING("CN=\"alice\"/O=\"Acme\"");
+    ck_assert_msg(UA_String_equal(&subjectCriteria, &expected),
+                  "subject criteria \"%.*s\"", (int)subjectCriteria.length,
+                  subjectCriteria.data);
+    UA_String_clear(&subjectCriteria);
+}
+END_TEST
+
+/* The attributes are emitted in the order of Part 18 Table 10, not in the
+ * order they appear in the certificate. */
+START_TEST(role_subject_criteria_attribute_order) {
+    UA_ByteString privKey = UA_BYTESTRING_NULL;
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    UA_String subject[4] = {UA_STRING_STATIC("CN=alice"),
+                            UA_STRING_STATIC("OU=Dev"),
+                            UA_STRING_STATIC("O=Acme"),
+                            UA_STRING_STATIC("C=DE")};
+    UA_String subjectAltName[1] = {UA_STRING_STATIC("URI:urn:test.order")};
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_StatusCode retval = UA_CreateCertificate(
+        UA_Log_Stdout, subject, 4, subjectAltName, 1,
+        UA_CERTIFICATEFORMAT_DER, kvm, &privKey, &cert);
+    UA_KeyValueMap_delete(kvm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String subjectCriteria = UA_STRING_NULL;
+    UA_String issuerCriteria = UA_STRING_NULL;
+    retval = UA_CertificateUtils_getRoleSubjectCriteria(&cert, &subjectCriteria,
+                                                        &issuerCriteria);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String expected =
+        UA_STRING("CN=\"alice\"/O=\"Acme\"/OU=\"Dev\"/C=\"DE\"");
+    ck_assert_msg(UA_String_equal(&subjectCriteria, &expected),
+                  "subject criteria \"%.*s\"", (int)subjectCriteria.length,
+                  subjectCriteria.data);
+
+    UA_String_clear(&subjectCriteria);
+    UA_String_clear(&issuerCriteria);
+    UA_ByteString_clear(&cert);
+    UA_ByteString_clear(&privKey);
+}
+END_TEST
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+/* A DirectoryString value that is malformed for its string type cannot be
+ * represented in the criteria, so the criteria of the DN are empty. The values
+ * are given as DER (RFC 4514 hexstring) to choose the string type. */
+START_TEST(role_subject_criteria_malformedStrings) {
+    const char *malformed[] = {
+        "CN=#0C034AFF67",       /* UTF8String with an invalid byte */
+        "CN=#0C044AC0AF67",     /* UTF8String with an overlong encoding */
+        "CN=#0C04EDA08041",     /* UTF8String with an encoded surrogate */
+        "CN=#130341E942",       /* PrintableString with a byte >= 0x80 */
+        "CN=#160341E942"        /* IA5String with a byte >= 0x80 */
+    };
+    for(size_t i = 0; i < sizeof(malformed) / sizeof(malformed[0]); i++) {
+        UA_String subject[2] = {UA_STRING_STATIC("O=Acme"),
+                                UA_STRING((char*)(uintptr_t)malformed[i])};
+        UA_String subjectCriteria = UA_STRING_NULL;
+        roleSubjectCriteria(subject, 2, &subjectCriteria);
+        ck_assert_msg(subjectCriteria.length == 0, "%s: subject criteria \"%.*s\"",
+                      malformed[i], (int)subjectCriteria.length,
+                      subjectCriteria.data);
+        UA_String_clear(&subjectCriteria);
+    }
+
+    /* Control: the same encodings with valid values */
+    UA_String valid[2] = {UA_STRING_STATIC("O=Acme"),
+                          UA_STRING_STATIC("CN=#0C044AC3B667")};
+    UA_String subjectCriteria = UA_STRING_NULL;
+    roleSubjectCriteria(valid, 2, &subjectCriteria);
+    UA_String expected = UA_STRING("CN=\"J\xC3\xB6g\"/O=\"Acme\"");
+    ck_assert_msg(UA_String_equal(&subjectCriteria, &expected),
+                  "subject criteria \"%.*s\"", (int)subjectCriteria.length,
+                  subjectCriteria.data);
+    UA_String_clear(&subjectCriteria);
+    valid[1] = UA_STRING("CN=#1303414242");
+    roleSubjectCriteria(valid, 2, &subjectCriteria);
+    expected = UA_STRING("CN=\"ABB\"/O=\"Acme\"");
+    ck_assert_msg(UA_String_equal(&subjectCriteria, &expected),
+                  "subject criteria \"%.*s\"", (int)subjectCriteria.length,
+                  subjectCriteria.data);
+    UA_String_clear(&subjectCriteria);
+}
+END_TEST
+#endif
+
 START_TEST(certificate_generation_ip_san) {
     UA_ByteString derPrivKey = UA_BYTESTRING_NULL;
     UA_ByteString derCert = UA_BYTESTRING_NULL;
@@ -1092,6 +1323,13 @@ static Suite *testSuite_crypto_coverage(void) {
     tcase_add_test(tc_certgen, certificate_generation_pem);
     tcase_add_test(tc_certgen, certificate_generation_ip_san);
     tcase_add_test(tc_certgen, certificate_generation_pem_ip_san);
+    tcase_add_test(tc_certgen, application_uri_exactly_one);
+    tcase_add_test(tc_certgen, role_subject_criteria_utf8);
+    tcase_add_test(tc_certgen, role_subject_criteria_ignoresNonTableNames);
+    tcase_add_test(tc_certgen, role_subject_criteria_attribute_order);
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    tcase_add_test(tc_certgen, role_subject_criteria_malformedStrings);
+#endif
 #endif
     suite_add_tcase(s, tc_certgen);
 

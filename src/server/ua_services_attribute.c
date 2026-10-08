@@ -137,6 +137,11 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
 static UA_StatusCode
 readRolePermissions(UA_Server *server, UA_Session *session,
                     const UA_Node *node, UA_DataValue *v) {
+    /* A detached Subscription samples without a Session. Without roles the
+     * effective permissions would fall back to allPermissionsForAnonymous. */
+    if(!session)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     /* Check if the user has ReadRolePermissions permission on this node */
     UA_UInt32 effectivePerms = 0;
     UA_StatusCode retval = UA_Server_getEffectivePermissions(
@@ -147,39 +152,48 @@ readRolePermissions(UA_Server *server, UA_Session *session,
     if(!(effectivePerms & UA_PERMISSIONTYPE_READROLEPERMISSIONS))
         return UA_STATUSCODE_BADUSERACCESSDENIED;
 
-    /* Check if node has a valid permission index */
-    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID) {
-        UA_Variant_setArray(&v->value, NULL, 0,
-                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        return UA_STATUSCODE_GOOD;
-    }
-
+    /* Resolve explicit permissions or the inherited namespace default. */
+    const UA_RolePermission *sourcePermissions = NULL;
+    size_t permissionsSize = 0;
     const UA_RolePermissionEntry *rp =
-        &server->rolePermissions[node->head.permissionIndex];
+        getRolePermissionsEntry(server, node->head.permissionIndex);
+    if(rp) {
+        sourcePermissions = rp->rolePermissions;
+        permissionsSize = rp->rolePermissionsSize;
+    } else {
+        UA_UInt16 ns = node->head.nodeId.namespaceIndex;
+        if(ns < server->namespaceMetadataSize && server->namespaceMetadata &&
+           server->namespaceMetadata[ns].hasDefaultRolePermissions) {
+            sourcePermissions = server->namespaceMetadata[ns].entries;
+            permissionsSize = server->namespaceMetadata[ns].entriesSize;
+        }
+    }
 
     /* If no entries -> return empty array */
-    if(rp->rolePermissionsSize == 0 || !rp->rolePermissions) {
+    if(permissionsSize == 0 || !sourcePermissions) {
         UA_Variant_setArray(&v->value, NULL, 0,
                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_RolePermissionType *permissions = (UA_RolePermissionType*)
-        UA_Array_new(rp->rolePermissionsSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-    if(!permissions)
+    UA_RolePermissionType *outPermissions = (UA_RolePermissionType*)
+        UA_Array_new(permissionsSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!outPermissions)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < rp->rolePermissionsSize; i++) {
-        retval = UA_NodeId_copy(&rp->rolePermissions[i].roleId, &permissions[i].roleId);
+    for(size_t i = 0; i < permissionsSize; i++) {
+        retval = UA_NodeId_copy(&sourcePermissions[i].roleId,
+                                &outPermissions[i].roleId);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(permissions, i, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+            UA_Array_delete(outPermissions, i,
+                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
             return retval;
         }
-        permissions[i].permissions = rp->rolePermissions[i].permissions;
+        outPermissions[i].permissions = sourcePermissions[i].permissions;
     }
 
-    UA_Variant_setArray(&v->value, permissions, rp->rolePermissionsSize,
+    UA_Variant_setArray(&v->value, outPermissions, permissionsSize,
                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
     return UA_STATUSCODE_GOOD;
 }
@@ -187,6 +201,10 @@ readRolePermissions(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 readUserRolePermissions(UA_Server *server, UA_Session *session,
                         const UA_Node *node, UA_DataValue *v) {
+    /* A detached Subscription samples without a Session */
+    if(!session)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     /* Return only the roles that the current session has been granted */
     size_t entriesSize = 0;
     UA_RolePermissionType *entries = NULL;
@@ -548,6 +566,17 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
         return true;
     }
 
+#ifdef UA_ENABLE_RBAC
+    /* Enforce the node's AccessRestrictions (Part 3 §5.2.11) */
+    UA_StatusCode arRes = checkNodeAccessRestrictions(server, session, node, false);
+    if(arRes != UA_STATUSCODE_GOOD) {
+        v->hasStatus = true;
+        v->status = arRes;
+        addMissingTimestamps(server, v, timestampsToReturn, id);
+        return true;
+    }
+#endif
+
     /* Browse permits reading every attribute except Value and
      * RolePermissions, which have dedicated permission bits. */
     if(session != &server->adminSession &&
@@ -799,8 +828,15 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
 #endif
         break;
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
-        /* TODO: Add support for AccessRestrictions from the 1.04 spec */
+#ifdef UA_ENABLE_RBAC
+        {
+        UA_AccessRestrictionType ar = getNodeAccessRestrictions(server, node);
+        retval = UA_Variant_setScalarCopy(&v->value, &ar,
+                                          &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
+        }
+#else
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+#endif
         break;
 
     default:
@@ -1907,17 +1943,23 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 /* Trigger sampling if a MonitoredItem surveils the attribute with no sampling
  * interval. This is reached after a successful attribute update from the
  * network Write service, the UA_Server_write APIs and internal writeAttribute
- * calls. Async writes enter here when Operation_Write is resumed. */
+ * calls. Async writes enter here when Operation_Write is resumed.
+ *
+ * The node that is being edited is read directly. The read uses the Session of
+ * each subscriber, not the Session of the writer. Otherwise a subscriber would
+ * receive values it is not allowed to read. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
-triggerImmediateDataChange(UA_Server *server, UA_Session *session,
-                           UA_Node *node, const UA_WriteValue *wvalue) {
+triggerImmediateDataChange(UA_Server *server, UA_Node *node,
+                           const UA_WriteValue *wvalue) {
     UA_MonitoredItem *mon = node->head.monitoredItems;
     for(; mon != NULL; mon = mon->nodeListNext) {
         /* Zero-interval items form the list prefix. Only items with a
          * positive sampling interval follow. */
         if(mon->parameters.samplingInterval > 0.0)
             return;
+        if(UA_MonitoredItem_isDeleting(mon))
+            continue;
         switch(mon->samplingType) {
         case UA_MONITOREDITEMSAMPLINGTYPE_EVENT:
             /* EVENT also covers OPC UA Event MonitoredItems. Those monitor
@@ -1938,8 +1980,8 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
         UA_DataValue value;
         UA_DataValue_init(&value);
         UA_Boolean done =
-            Operation_ReadWithNode(server, session, node,
-                                   mon->timestampsToReturn,
+            Operation_ReadWithNode(server, UA_MonitoredItem_getSamplingSession(mon),
+                                   node, mon->timestampsToReturn,
                                    &mon->itemToMonitor, &value);
         if(!done) {
             if(server->config.asyncOperationCancelCallback)
@@ -1963,6 +2005,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     const void *value = wvalue->value.value.data;
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+#ifdef UA_ENABLE_RBAC
+    /* Enforce the node's AccessRestrictions (Part 3 §5.2.11) */
+    retval = checkNodeAccessRestrictions(server, session, node, false);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+#endif
 
     UA_LOG_TRACE_SESSION(server->config.logging, session,
                          "Write attribute %" PRIi32 " of Node %N",
@@ -2199,7 +2248,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 
     /* Trigger MonitoredItems with no SamplingInterval */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    triggerImmediateDataChange(server, session, node, wvalue);
+    triggerImmediateDataChange(server, node, wvalue);
 #endif
 
     return UA_STATUSCODE_GOOD;
@@ -2500,6 +2549,42 @@ UA_Server_writeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
 }
 
 #ifdef UA_ENABLE_HISTORIZING
+static UA_StatusCode
+checkHistoryAccessRestrictions(UA_Server *server, const UA_Session *session,
+                               const UA_NodeId *nodeId) {
+#ifdef UA_ENABLE_RBAC
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_GOOD; /* Let the history backend report unknown nodes */
+    UA_StatusCode res = checkNodeAccessRestrictions(server, session, node, false);
+    UA_NODESTORE_RELEASE(server, node);
+    return res;
+#else
+    (void)server;
+    (void)session;
+    (void)nodeId;
+    return UA_STATUSCODE_GOOD;
+#endif
+}
+
+/* Release the scratch memory of the AccessRestrictions compaction.
+ * backendResults is NULL when its allocation failed and aliases
+ * response->results when nothing had to be compacted; UA_Array_delete does not
+ * take NULL. */
+static void
+freeHistoryReadScratch(void **historyData, UA_HistoryReadValueId *allowedNodes,
+                       size_t *allowedIndices,
+                       UA_HistoryReadResult *backendResults,
+                       const UA_HistoryReadResponse *response,
+                       size_t allowedSize) {
+    UA_free(historyData);
+    UA_free(allowedNodes);
+    UA_free(allowedIndices);
+    if(backendResults && backendResults != response->results)
+        UA_Array_delete(backendResults, allowedSize,
+                        &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+}
+
 UA_Boolean
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const void *request_, void *response_) {
@@ -2576,42 +2661,87 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    /* Allocate a temporary array to forward the result pointers to the
-     * backend */
-    void **historyData = (void **)
-        UA_calloc(request->nodesToReadSize, sizeof(void*));
-    if(!historyData) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return true;
-    }
-
     /* Allocate the results array */
     response->results = (UA_HistoryReadResult*)
         UA_Array_new(request->nodesToReadSize, &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
     if(!response->results) {
-        UA_free(historyData);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
     }
     response->resultsSize = request->nodesToReadSize;
 
+    /* Reject nodes whose channel does not meet their AccessRestrictions before
+     * entering the history backend. Keep denied operations at their original
+     * indices and compact the allowed operations for the batched backend API. */
+    size_t allowedSize = 0;
     for(size_t i = 0; i < response->resultsSize; ++i) {
-        void * data = UA_new(historyDataType);
-        if(!data) {
-            UA_free(historyData);
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-            return true;
+        UA_StatusCode ar = checkHistoryAccessRestrictions(
+            server, session, &request->nodesToRead[i].nodeId);
+        if(ar == UA_STATUSCODE_GOOD)
+            allowedSize++;
+        else
+            response->results[i].statusCode = ar;
+    }
+
+    if(allowedSize == 0)
+        return true;
+
+    UA_HistoryReadValueId *allowedNodes = NULL;
+    size_t *allowedIndices = NULL;
+    UA_HistoryReadResult *backendResults = response->results;
+    void **historyData = (void**)UA_calloc(allowedSize, sizeof(void*));
+    if(allowedSize != request->nodesToReadSize) {
+        allowedNodes = (UA_HistoryReadValueId*)
+            UA_calloc(allowedSize, sizeof(UA_HistoryReadValueId));
+        allowedIndices = (size_t*)UA_calloc(allowedSize, sizeof(size_t));
+        backendResults = (UA_HistoryReadResult*)
+            UA_Array_new(allowedSize, &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+    }
+    if(!historyData || (allowedSize != request->nodesToReadSize &&
+       (!allowedNodes || !allowedIndices || !backendResults))) {
+        freeHistoryReadScratch(historyData, allowedNodes, allowedIndices,
+                               backendResults, response, allowedSize);
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return true;
+    }
+
+    size_t j = 0;
+    for(size_t i = 0; i < request->nodesToReadSize; ++i) {
+        if(response->results[i].statusCode != UA_STATUSCODE_GOOD)
+            continue;
+        if(allowedNodes) {
+            allowedNodes[j] = request->nodesToRead[i]; /* borrowed members */
+            allowedIndices[j] = i;
         }
-        UA_ExtensionObject_setValue(&response->results[i].historyData,
+        void *data = UA_new(historyDataType);
+        if(!data) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            break;
+        }
+        UA_ExtensionObject_setValue(&backendResults[j].historyData,
                                     data, historyDataType);
-        historyData[i] = data;
+        historyData[j] = data;
+        j++;
+    }
+    if(j != allowedSize) {
+        freeHistoryReadScratch(historyData, allowedNodes, allowedIndices,
+                               backendResults, response, allowedSize);
+        return true;
+    }
+
+    UA_HistoryReadResult *finalResults = response->results;
+    size_t finalResultsSize = response->resultsSize;
+    if(backendResults != finalResults) {
+        response->results = backendResults;
+        response->resultsSize = allowedSize;
     }
 #define CALL_HISTORY_READ(FUNC, DETAILS, DATA)                               \
     FUNC(server, server->config.historyDatabase.context,                    \
          &session->sessionId, session->context, &request->requestHeader,    \
          (const DETAILS*)request->historyReadDetails.content.decoded.data,  \
          request->timestampsToReturn, request->releaseContinuationPoints,   \
-         request->nodesToReadSize, request->nodesToRead, response,          \
+         allowedSize, allowedNodes ? allowedNodes : request->nodesToRead,   \
+         response,                                                         \
          (DATA * const * const)historyData)
 
     switch(readKind) {
@@ -2638,7 +2768,45 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     }
 
 #undef CALL_HISTORY_READ
+
+    if(backendResults != finalResults) {
+        response->results = finalResults;
+        response->resultsSize = finalResultsSize;
+        for(size_t i = 0; i < allowedSize; i++) {
+            finalResults[allowedIndices[i]] = backendResults[i];
+            UA_HistoryReadResult_init(&backendResults[i]);
+        }
+        UA_Array_delete(backendResults, allowedSize,
+                        &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+
+        /* DiagnosticInfos, when supplied by a backend, use operation indices
+         * too. Expand the compact array to the original request shape. */
+        if(response->diagnosticInfosSize == allowedSize && allowedSize > 0) {
+            UA_DiagnosticInfo *compact = response->diagnosticInfos;
+            UA_DiagnosticInfo *expanded = (UA_DiagnosticInfo*)
+                UA_Array_new(finalResultsSize, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
+            if(expanded) {
+                for(size_t i = 0; i < allowedSize; i++) {
+                    expanded[allowedIndices[i]] = compact[i];
+                    UA_DiagnosticInfo_init(&compact[i]);
+                }
+                UA_Array_delete(compact, allowedSize,
+                                &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
+                response->diagnosticInfos = expanded;
+                response->diagnosticInfosSize = finalResultsSize;
+            } else {
+                UA_Array_delete(compact, allowedSize,
+                                &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
+                response->diagnosticInfos = NULL;
+                response->diagnosticInfosSize = 0;
+                response->responseHeader.serviceResult =
+                    UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+        }
+    }
     UA_free(historyData);
+    UA_free(allowedNodes);
+    UA_free(allowedIndices);
 
     return true;
 }
@@ -2670,6 +2838,23 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
         const UA_DataType *updateDetailsType =
             request->historyUpdateDetails[i].content.decoded.type;
         void *updateDetailsData = request->historyUpdateDetails[i].content.decoded.data;
+
+        const UA_NodeId *targetNodeId = NULL;
+        if(updateDetailsType == &UA_TYPES[UA_TYPES_UPDATEDATADETAILS])
+            targetNodeId = &((UA_UpdateDataDetails*)updateDetailsData)->nodeId;
+        else if(updateDetailsType == &UA_TYPES[UA_TYPES_DELETERAWMODIFIEDDETAILS])
+            targetNodeId = &((UA_DeleteRawModifiedDetails*)updateDetailsData)->nodeId;
+        else if(updateDetailsType == &UA_TYPES[UA_TYPES_DELETEEVENTDETAILS])
+            targetNodeId = &((UA_DeleteEventDetails*)updateDetailsData)->nodeId;
+
+        if(targetNodeId) {
+            UA_StatusCode ar = checkHistoryAccessRestrictions(
+                server, session, targetNodeId);
+            if(ar != UA_STATUSCODE_GOOD) {
+                response->results[i].statusCode = ar;
+                continue;
+            }
+        }
 
         if(updateDetailsType == &UA_TYPES[UA_TYPES_UPDATEDATADETAILS]) {
             if(!server->config.historyDatabase.updateData) {
