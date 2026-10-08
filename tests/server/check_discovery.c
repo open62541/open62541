@@ -8,6 +8,7 @@
 #include <open62541/plugin/pki_default.h>
 
 #include "server/ua_server_internal.h"
+#include "server/ua_discovery.h"
 #include "server/ua_services.h"
 #include "../encryption/certificates.h"
 
@@ -684,6 +685,44 @@ START_TEST(Server_registerUnregister) {
 }
 END_TEST
 
+START_TEST(Server_registerLimit) {
+    lockServer(server_lds);
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server_lds, UA_STRING("discovery"));
+    ck_assert_ptr_ne(dm, NULL);
+    dm->maxRegisteredServers = 1;
+    unlockServer(server_lds);
+
+    UA_RegisterServerRequest request;
+    UA_RegisterServerRequest_init(&request);
+    request.server.serverNamesSize = 1;
+    UA_LocalizedText serverName = UA_LOCALIZEDTEXT("en", "Test Server");
+    request.server.serverNames = &serverName;
+    request.server.discoveryUrlsSize = 1;
+    UA_String discoveryUrl = UA_STRING("opc.tcp://localhost:16664");
+    request.server.discoveryUrls = &discoveryUrl;
+    request.server.isOnline = true;
+
+    UA_RegisterServerResponse response;
+    UA_RegisterServerResponse_init(&response);
+    request.server.serverUri = UA_STRING("urn:open62541.test.first");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession,
+                           &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_RegisterServerResponse_clear(&response);
+    request.server.serverUri = UA_STRING("urn:open62541.test.second");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession,
+                           &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    UA_RegisterServerResponse_clear(&response);
+} END_TEST
+
 START_TEST(Server_registerTimeout) {
     registerServer();
     Client_find_registered();
@@ -754,6 +793,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register, setup_register, teardown_register);
     tcase_add_test(tc_register, Server_registerUnregister);
+    tcase_add_test(tc_register, Server_registerLimit);
     suite_add_tcase(s,tc_register);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST

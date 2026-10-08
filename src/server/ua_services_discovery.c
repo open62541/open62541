@@ -611,6 +611,17 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Limit new online registrations. Updates to existing records still work
+     * when the registry is full. */
+    if(requestServer->isOnline && !registeredServer_entry &&
+       dm->registeredServersSize >= dm->maxRegisteredServers) {
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
+                               "RegisterServer rejected: The maximum "
+                               "number of registered servers has been reached");
+        responseHeader->serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     if(requestServer->semaphoreFilePath.length) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         char* filePath = (char*)

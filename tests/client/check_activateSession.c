@@ -203,6 +203,17 @@ START_TEST(Client_activateSession_sameUserAllowed) {
     retval = UA_Client_activateCurrentSession(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    lockServer(server);
+    session_list_entry *entry = LIST_FIRST(&server->sessions);
+    ck_assert_ptr_ne(entry, NULL);
+    ck_assert_uint_eq(entry->session.securityDiagnostics.clientUserIdHistorySize, 1);
+    ck_assert(UA_String_equal(
+        &entry->session.securityDiagnostics.clientUserIdHistory[0],
+        &usernamePasswords[0].username));
+    unlockServer(server);
+#endif
+
     UA_Client_delete(client);
 }
 END_TEST
