@@ -60,7 +60,7 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
     res |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    res = UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
+    res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
 #endif
     if(res != UA_STATUSCODE_GOOD)
         UA_ReaderGroupConfig_clear(dst);
