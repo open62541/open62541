@@ -949,6 +949,12 @@ evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eve
     ctx.eventNode = eventNode;
     ctx.top = 0;
 
+    /* Operands are pushed to the stack before they are resolved. A failed
+     * resolution leaves the entry untouched and it is still cleaned up with
+     * the rest of the stack. Start from initialized (empty) variants.
+     * UA_Variant_clear resets an entry, so they stay initialized. */
+    memset(ctx.stack, 0, sizeof(ctx.stack));
+
     /* Pacify some compilers by initializing the first result */
     UA_Variant_init(&ctx.results[0]);
 

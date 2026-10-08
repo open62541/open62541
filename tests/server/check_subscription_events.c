@@ -911,6 +911,66 @@ START_TEST(evaluateFilterWhereClause) {
 }
 END_TEST
 
+/* Fill the stack below the caller with a recognizable non-zero pattern so that
+ * uninitialized stack memory used by the next call does not happen to be zero. */
+static void
+poisonStack(void) {
+    volatile UA_Byte buf[32768];
+    for(size_t i = 0; i < sizeof(buf); i++)
+        buf[i] = 0xA5;
+}
+
+/* An operand that cannot be resolved (here: a field the event does not have)
+ * must make the evaluation fail cleanly. The failed operand must not be cleaned
+ * up as if it held a valid Variant. */
+START_TEST(evaluateFilterUnresolvableOperand) {
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Equals(42, /NoSuchField) */
+    UA_Int32 v = 42;
+    UA_LiteralOperand lop;
+    UA_LiteralOperand_init(&lop);
+    UA_Variant_setScalar(&lop.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_QualifiedName fieldName = UA_QUALIFIEDNAME(0, "NoSuchField");
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+    sao.browsePathSize = 1;
+    sao.browsePath = &fieldName;
+
+    UA_ExtensionObject ops[2];
+    UA_ExtensionObject_init(&ops[0]);
+    ops[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    ops[0].content.decoded.data = &lop;
+    UA_ExtensionObject_init(&ops[1]);
+    ops[1].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[1].content.decoded.type = &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND];
+    ops[1].content.decoded.data = &sao;
+
+    UA_ContentFilterElement element;
+    UA_ContentFilterElement_init(&element);
+    element.filterOperator = UA_FILTEROPERATOR_EQUALS;
+    element.filterOperandsSize = 2;
+    element.filterOperands = ops;
+    UA_ContentFilter filter = {1, &element};
+    UA_ContentFilterResult result;
+    UA_ContentFilterResult_init(&result);
+
+    poisonStack();
+    lockServer(server);
+    retval = evaluateWhereClause(server, &server->adminSession, &eventNodeId,
+                                 &filter, &result);
+    unlockServer(server);
+
+    /* The filter does not match. Reaching this point means no crash. */
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(evaluateFilterRejectsOutOfRangeOperator) {
     static const UA_Int32 operators[] = {-1, 18, UA_INT32_MAX};
     UA_ContentFilterElement element;
@@ -948,6 +1008,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, discardNewestOverflow);
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateFilterWhereClause);
+    tcase_add_test(tc_server, evaluateFilterUnresolvableOperand);
     tcase_add_loop_test(tc_server, evaluateFilterRejectsOutOfRangeOperator, 0, 3);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
