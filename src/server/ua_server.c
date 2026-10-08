@@ -221,8 +221,21 @@ addDriver(UA_Server *server, UA_Driver *drv) {
     server->drivers = drv;
 
     /* Start the component if the server is started */
-    if(server->state == UA_LIFECYCLESTATE_STARTED && drv->start)
-        drv->start(drv);
+    if(server->state == UA_LIFECYCLESTATE_STARTED && drv->start) {
+        UA_StatusCode res = drv->start(drv);
+        if(res != UA_STATUSCODE_GOOD) {
+            /* Leave ownership with the caller. The start callback may have
+             * registered other drivers, so find this entry again. Keep the
+             * server backpointer available for cleanup after a partial start. */
+            UA_Driver **prev = &server->drivers;
+            while(*prev && *prev != drv)
+                prev = &(*prev)->next;
+            if(*prev)
+                *prev = drv->next;
+            drv->next = NULL;
+            return res;
+        }
+    }
 
     return UA_STATUSCODE_GOOD;
 }
