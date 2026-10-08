@@ -1819,6 +1819,27 @@ UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt
     return UA_STATUSCODE_GOOD;
 }
 
+void
+UA_MonitoredItem_pruneLinks(UA_Subscription *sub, UA_MonitoredItem *mon) {
+    size_t kept = 0;
+    for(size_t i = 0; i < mon->triggeringLinksSize; i++) {
+        if(UA_Subscription_getMonitoredItem(sub, mon->triggeringLinks[i]))
+            mon->triggeringLinks[kept++] = mon->triggeringLinks[i];
+    }
+    if(kept == mon->triggeringLinksSize)
+        return;
+    mon->triggeringLinksSize = kept;
+    if(kept == 0) {
+        UA_free(mon->triggeringLinks);
+        mon->triggeringLinks = NULL;
+        return;
+    }
+    UA_UInt32 *tmpLinks = (UA_UInt32*)
+        UA_realloc(mon->triggeringLinks, kept * sizeof(UA_UInt32));
+    if(tmpLinks)
+        mon->triggeringLinks = tmpLinks;
+}
+
 UA_StatusCode
 UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId) {
     /* Does the target MonitoredItem exist? */

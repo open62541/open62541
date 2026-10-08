@@ -1174,7 +1174,9 @@ UA_Node_insertOrUpdateLocale(UA_LocalizedTextListEntry **root,
     UA_StatusCode res;
     UA_LocalizedTextListEntry *lt, *prev = NULL;
     for(lt = *root; lt != NULL; prev = lt, lt = lt->next) {
-        if(!UA_String_equal(&value->locale, &lt->localizedText.locale))
+        /* A null and an empty locale are the same (Part 3, 8.4) */
+        if((value->locale.length > 0 || lt->localizedText.locale.length > 0) &&
+           !UA_String_equal(&value->locale, &lt->localizedText.locale))
             continue;
 
         /* No text -> remove the entry for this locale */

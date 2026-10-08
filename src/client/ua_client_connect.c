@@ -3246,12 +3246,11 @@ cleanupSession(UA_Client *client) {
     __Client_Subscriptions_clear(client);
 #endif
 
-    /* Delete outstanding async services */
+    /* Delete outstanding async services. The callback of each cancelled
+     * PublishRequest decrements currentlyOutStandingPublishRequests. Don't
+     * reset the counter here: the PublishResponse that triggered the cleanup
+     * is processed afterwards and decrements it as well. */
     __Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSESSIONCLOSED);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    client->currentlyOutStandingPublishRequests = 0;
-#endif
 
     client->sessionState = UA_SESSIONSTATE_CLOSED;
 

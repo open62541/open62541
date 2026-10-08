@@ -236,6 +236,11 @@ UA_StatusCode
 UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon,
                          UA_UInt32 linkId);
 
+/* Remove the links to MonitoredItems that no longer exist. A link goes away
+ * with the triggered MonitoredItem (Part 4, 5.13.1.6). */
+void
+UA_MonitoredItem_pruneLinks(UA_Subscription *sub, UA_MonitoredItem *mon);
+
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredItem *mon,
                                               const UA_DataValue *value);
