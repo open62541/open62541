@@ -2089,15 +2089,22 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /*Check whether the channel is encrypted according to specification*/
+    /* Locate the calling Session and require an encrypted channel before
+     * accepting new group keys. */
+    UA_Session *session = NULL;
     session_list_entry *session_entry;
     LIST_FOREACH(session_entry, &server->sessions, pointers) {
         if(UA_NodeId_equal(&session_entry->session.sessionId, sessionId)) {
+            session = &session_entry->session;
             if(session_entry->session.header.channel->securityMode !=
                UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
                 return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+            break;
         }
     }
+
+    if(!session)
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
 
     if(!server || !input)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
