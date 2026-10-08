@@ -1126,6 +1126,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     }
 
     EVP_PKEY_free(*csrLocalPrivateKey);
+    *csrLocalPrivateKey = NULL;
     /* CSR has already been generated and private key only needs to be set
      * if a new one has been generated. */
     if(newPrivateKey && newPrivateKey->length > 0) {
