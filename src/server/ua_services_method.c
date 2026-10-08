@@ -259,8 +259,8 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     result->outputArgumentsSize = outputArgsSize;
 
-    /* Call the method. If this is an async method, unlock the server lock for
-     * the duration of the (long-running) call. */
+    /* Invoke the method with the server mutex held. Async callbacks schedule
+     * work and return without waiting for it. */
     res = resolvedMethod->method(server, &session->sessionId, session->context,
                                  &resolvedMethod->head.nodeId,
                                  resolvedMethod->head.context,
@@ -271,7 +271,9 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
     /* TODO: Verify Output matches the argument definition */
 
 #ifdef UA_ENABLE_AUDITING
-    if(server->config.auditingEnabled && server->config.auditMethodUpdateEnabled) {
+    /* Async output remains application-owned; only audit synchronous calls. */
+    if(res != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY &&
+       server->config.auditingEnabled && server->config.auditMethodUpdateEnabled) {
         auditMethodUpdateEvent(server, session->channel, session, (res == UA_STATUSCODE_GOOD),
                                &callContext->head.nodeId, &resolvedMethod->head.nodeId,
                                res, request->inputArgumentsSize, mutableInputArgs,
@@ -411,13 +413,7 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     lockServer(server);
-    Operation_CallMethod(server, &server->adminSession, request, &result);
-    /* Cancel asynchronous responses right away */
-    if(result.statusCode == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
-        if(server->config.asyncOperationCancelCallback)
-            server->config.asyncOperationCancelCallback(server, result.outputArguments);
-        result.statusCode = UA_STATUSCODE_BADWAITINGFORRESPONSE;
-    }
+    callNoAsync(server, &server->adminSession, request, &result);
     unlockServer(server);
     return result;
 }

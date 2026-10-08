@@ -40,6 +40,12 @@ typedef struct {
     const UA_DataType *responseType;
 } UA_ServiceDescription;
 
+/* Shared payload for service-begin, service-async and service-end notifications. */
+void
+notifyService(UA_Server *server, UA_ApplicationNotificationType type,
+               UA_UInt32 channelId, UA_NodeId sessionId,
+               UA_UInt32 requestId, UA_NodeId serviceTypeId);
+
 /* Returns NULL if none found */
 UA_ServiceDescription * getServiceDescription(UA_UInt32 requestTypeId);
 
@@ -165,7 +171,7 @@ Service_Read(UA_Server *server, UA_Session *session,
 UA_Boolean
 Operation_Read(UA_Server *server, UA_Session *session,
                UA_TimestampsToReturn ttr,
-               const UA_ReadValueId *rvi, UA_DataValue *dv);
+               const UA_ReadValueId *rvi, UA_DataValue *dv, UA_Boolean *nonNullable);
 
 UA_Boolean
 Service_Write(UA_Server *server, UA_Session *session,

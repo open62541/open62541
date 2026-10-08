@@ -3,68 +3,40 @@
 
 /**
  * Adding Async Methods to Objects
- * -------------------------
+ * -------------------------------
  *
- * An object in an OPC UA information model may contain methods similar to
- * objects in a programming language. Methods are represented by a MethodNode.
- * Note that several objects may reference the same MethodNode. When an object
- * type is instantiated, a reference to the method is added instead of copying
- * the MethodNode. Therefore, the identifier of the context object is always
- * explicitly stated when a method is called.
+ * This Hello World method returns immediately with
+ * ``UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY``. A timed callback submits the
+ * output two seconds later with ``UA_Server_setAsyncCallMethodResult``. It runs
+ * on the server's event loop, so no worker thread or external mutex is needed.
  *
- * The method callback takes as input a custom data pointer attached to the
- * method node, the identifier of the object from which the method is called,
- * and two arrays for the input and output arguments. The input and output
- * arguments are all of type :ref:`variant`. Each variant may in turn contain a
- * (multi-dimensional) array or scalar of any data type.
+ * Cancellation ends the requester's wait but leaves the timed callback's output
+ * valid. This example lets the callback finish normally, including during
+ * shutdown. Its single result-setter call returns ownership to the server; a
+ * result submitted after cancellation is discarded.
  *
- * Constraints for the method arguments are defined in terms of data type, value
- * rank and array dimension (similar to variable definitions). The argument
- * definitions are stored in child VariableNodes of the MethodNode with the
- * respective BrowseNames ``(0, "InputArguments")`` and ``(0,
- * "OutputArguments")``.
- *
- * Example: Hello World Method
- * ^^^^^^^^^^^^^^^^^^^^^^^^^^^
- * The method takes a string scalar and returns a string scalar with "Hello "
- * prepended. The type and length of the input arguments is checked internally
- * by the SDK, so that we don't have to verify the arguments in the callback. */
+ * A worker thread can use the same ownership pattern with
+ * ``UA_MULTITHREADING >= 100``. Shared queues and cancellation flags still need
+ * their own synchronization. See :ref:`async-operations` for the API contract. */
 
 #include <open62541/client_config_default.h>
 #include <open62541/server.h>
 #include <open62541/plugin/log.h>
 
-/* The example mocks up a work queue for worker threads with a single slot. The
- * asyncLock is introduced to show how locking can be used for independent
- * worker threads. Notably the method result pointer must not be used after the
- * asyncOperationCancelCallback signals the cancellation of the operation. */
-
-#if UA_MULTITHREADING >= 100
-UA_Lock asyncLock;
-#endif
-UA_Variant * workQueue[1]; /* The currently active async callback */
-
 static void
 asyncOperationCancelCallback(UA_Server *server, const void *out) {
-    /* This blocks if a worker thread currently processes the async callback */
-    UA_LOCK(&asyncLock);
-
-    if((void*)workQueue[0] == out)
-        workQueue[0] = NULL; /* Disable active async callback */
-
-    UA_UNLOCK(&asyncLock);
+    /* Do not touch the worker's output or acknowledge on its behalf. The timed
+     * callback will finish normally and acknowledge, even during shutdown. */
+    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION,
+                "Async operation %p canceled; waiting for the worker", out);
 }
 
 static void
 asyncCall(UA_Server *server, void *data) {
     UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION, "call");
 
-    /* Process async result if still active */
-    UA_LOCK(&asyncLock);
-    if((void*)workQueue[0] == data)
-        UA_Server_setAsyncCallMethodResult(server, workQueue[0], UA_STATUSCODE_GOOD);
-    workQueue[0] = NULL;
-    UA_UNLOCK(&asyncLock);
+    /* Return ownership exactly once. Do not access output after this call. */
+    UA_Server_setAsyncCallMethodResult(server, (UA_Variant*)data, UA_STATUSCODE_GOOD);
 }
 
 static UA_StatusCode
@@ -76,42 +48,29 @@ helloWorldMethodCallback1(UA_Server *server,
                          size_t outputSize, UA_Variant *output) {
     UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION, "async");
 
-    UA_LOCK(&asyncLock);
-
-    /* The work queue is full */
-    if(workQueue[0]) {
-        UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION,
-                       "async queue full");
-        UA_UNLOCK(&asyncLock);
-        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
-    }
-
     /* Prepare the output */
     UA_String *inputStr = (UA_String*)input->data;
     UA_String out = UA_STRING_NULL;
-    UA_String_format(&out, "Hello %S", *inputStr);
-    UA_Variant_setScalarCopy(output, &out, &UA_TYPES[UA_TYPES_STRING]);
+    UA_StatusCode res = UA_String_format(&out, "Hello %S", *inputStr);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Variant_setScalarCopy(output, &out, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_clear(&out);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    /* Return the output with a five second delay */
-    UA_DateTime callTime = UA_DateTime_nowMonotonic() + (2 * UA_DATETIME_SEC);
-    UA_Server_addTimedCallback(server, asyncCall, output, callTime, NULL);
-
-    /* Store the pointer to the active async operation.
-     * So it can be cancelled. */
-    workQueue[0] = output;
-
-    UA_UNLOCK(&asyncLock);
+    /* Return the output with a two second delay */
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime callTime = el->dateTime_nowMonotonic(el) + (2 * UA_DATETIME_SEC);
+    res = UA_Server_addTimedCallback(server, asyncCall, output, callTime, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Signal async processing to the server. Will be completed later. */
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
-int main(void) {
-    /* Create the server */
-    UA_LOCK_INIT(&asyncLock);
-    UA_Server *server = UA_Server_new();
-
+static UA_StatusCode
+addHelloWorldMethod(UA_Server *server) {
     /* Set the cancel callback */
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->asyncOperationCancelCallback = asyncOperationCancelCallback;
@@ -136,18 +95,29 @@ int main(void) {
     helloAttr.displayName = UA_LOCALIZEDTEXT("en-US","Hello World async");
     helloAttr.executable = true;
     helloAttr.userExecutable = true;
-    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
+    return UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
                             UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"),
                             helloAttr, &helloWorldMethodCallback1,
                             1, &inputArgument, 1, &outputArgument, NULL, NULL);
+}
+
+int main(void) {
+    UA_Server *server = UA_Server_new();
+    if(!server)
+        return EXIT_FAILURE;
+
+    UA_StatusCode res = addHelloWorldMethod(server);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
 
     /* Run the server */
     UA_Server_runUntilInterrupt(server);
 
     /* Clean up */
     UA_Server_delete(server);
-    UA_LOCK_DESTROY(&asyncLock);
 
     return 0;
 }
