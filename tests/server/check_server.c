@@ -65,6 +65,61 @@ START_TEST(checkTcpDisabled) {
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
 } END_TEST
 
+typedef struct {
+    UA_Driver driver;
+    UA_StatusCode startResult;
+    unsigned starts;
+    unsigned stops;
+} TestDriver;
+
+static UA_StatusCode
+testDriverStart(UA_Driver *drv) {
+    TestDriver *test = (TestDriver*)drv;
+    test->starts++;
+    ck_assert_ptr_eq(drv->server, server);
+    ck_assert_ptr_eq(UA_Server_getDrivers(server), drv);
+    if(test->startResult == UA_STATUSCODE_GOOD)
+        drv->state = UA_LIFECYCLESTATE_STARTED;
+    return test->startResult;
+}
+
+static void
+testDriverStop(UA_Driver *drv) {
+    ((TestDriver*)drv)->stops++;
+    drv->state = UA_LIFECYCLESTATE_STOPPED;
+}
+
+START_TEST(addDriverPropagatesStartFailure) {
+    UA_Server_getConfig(server)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_Driver *previous = UA_Server_getDrivers(server);
+    TestDriver test;
+    memset(&test, 0, sizeof(test));
+    test.driver.start = testDriverStart;
+    test.driver.stop = testDriverStop;
+    test.startResult = UA_STATUSCODE_BADCONFIGURATIONERROR;
+
+    ck_assert_uint_eq(UA_Server_addDriver(server, &test.driver),
+                      UA_STATUSCODE_BADCONFIGURATIONERROR);
+    ck_assert_uint_eq(test.starts, 1);
+    ck_assert_ptr_eq(UA_Server_getDrivers(server), previous);
+    ck_assert_ptr_eq(test.driver.next, NULL);
+    ck_assert_ptr_eq(test.driver.server, server);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &test.driver),
+                      UA_STATUSCODE_BADNOTFOUND);
+
+    /* The same instance can be retried after correcting its configuration. */
+    test.startResult = UA_STATUSCODE_GOOD;
+    ck_assert_uint_eq(UA_Server_addDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(test.starts, 2);
+    ck_assert_ptr_eq(UA_Server_getDrivers(server), &test.driver);
+    ck_assert_ptr_eq(test.driver.next, previous);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(test.stops, 1);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(UA_Server_getDrivers(server), previous);
+} END_TEST
+
 START_TEST(checkGetNamespaceByName) {
     size_t notFoundIndex = 62541;
     UA_StatusCode notFound = UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/invalid"), &notFoundIndex);
@@ -844,6 +899,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, checkGetConfig);
     tcase_add_test(tc_call, checkTcpDisabled);
+    tcase_add_test(tc_call, addDriverPropagatesStartFailure);
     tcase_add_test(tc_call, checkGetNamespaceByName);
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
