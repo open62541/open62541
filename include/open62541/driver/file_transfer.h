@@ -252,7 +252,9 @@ typedef struct {
  * restores reused Objects' contexts and Properties' values, sources and contexts.
  * Reused Objects also survive disappearance of their storage entry.
  * While started, drivers supply the standard Methods, including shared
- * Namespace Zero Method nodes and copies inherited by subtypes.
+ * Namespace Zero Method nodes and copies inherited by subtypes. Other
+ * Methods of subtypes stay with the application, see
+ * UA_FileTransferDriver_getHandleInfo().
  *
  * On success, the backend struct is copied and its context becomes owned by
  * the driver. On failure, created nodes are removed, *outDriver is NULL and
@@ -283,6 +285,27 @@ UA_FileTransferDriver_newDirectory(UA_Server *server,
  * stopped driver and Bad_NotSupported for a file driver. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_FileTransferDriver_refresh(UA_Driver *driver);
+
+/* FileType subtypes can define Methods on an open file, e.g. CloseAndUpdate of
+ * the PubSubConfiguration (Part 14). These Methods stay with the application,
+ * which also implements the backend of the file. Their callbacks resolve the
+ * client's FileHandle to the open mode and the backend handle, and may then
+ * close it like the Close Method. Handles are bound to the Session and the file
+ * Object that opened them; others return Bad_InvalidArgument. closeHandle
+ * returns the result of the backend close. Both can be called from Method
+ * callbacks. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_getHandleInfo(UA_Driver *driver,
+                                    const UA_NodeId fileNodeId,
+                                    const UA_NodeId *sessionId,
+                                    UA_UInt32 fileHandle, UA_Byte *mode,
+                                    UA_UInt32 *backendHandle);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_closeHandle(UA_Driver *driver,
+                                  const UA_NodeId fileNodeId,
+                                  const UA_NodeId *sessionId,
+                                  UA_UInt32 fileHandle);
 
 /**
  * Local Backends

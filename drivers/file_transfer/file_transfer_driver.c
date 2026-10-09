@@ -497,6 +497,45 @@ UA_FileTransferDriver_refresh(UA_Driver *driver) {
     return res;
 }
 
+/* Handles are only valid for the Session and the file Object that opened them */
+static FTHandle *
+findObjectHandle(UA_Driver *driver, const UA_NodeId *fileNodeId,
+                 const UA_NodeId *sessionId, UA_UInt32 fileHandle) {
+    FTHandle *h = findFTHandle((FileTransferDriver*)driver, sessionId, fileHandle);
+    return h && UA_NodeId_equal(&h->file->nodeId, fileNodeId) ? h : NULL;
+}
+
+UA_StatusCode
+UA_FileTransferDriver_getHandleInfo(UA_Driver *driver, const UA_NodeId fileNodeId,
+                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
+                                    UA_Byte *mode, UA_UInt32 *backendHandle) {
+    if(!driver || !driver->server || !isFileTransferDriver(driver) || !sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    FTHandle *h = findObjectHandle(driver, &fileNodeId, sessionId, fileHandle);
+    if(h && mode)
+        *mode = h->mode;
+    if(h && backendHandle)
+        *backendHandle = h->backendHandle;
+    el->unlock(el);
+    return h ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
+UA_StatusCode
+UA_FileTransferDriver_closeHandle(UA_Driver *driver, const UA_NodeId fileNodeId,
+                                  const UA_NodeId *sessionId, UA_UInt32 fileHandle) {
+    if(!driver || !driver->server || !isFileTransferDriver(driver) || !sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    FTHandle *h = findObjectHandle(driver, &fileNodeId, sessionId, fileHandle);
+    UA_StatusCode res = h ? closeFTHandle(driver->server, h) :
+        UA_STATUSCODE_BADINVALIDARGUMENT;
+    el->unlock(el);
+    return res;
+}
+
 UA_StatusCode
 UA_FileTransferDriver_newDirectory(UA_Server *server,
                                    const UA_FileTransferBackend *backend,
