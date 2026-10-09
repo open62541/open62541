@@ -18,6 +18,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The local backend is a stub without its Win32 or POSIX file layer, e.g. with
+ * the lwIP architectures (same condition as in the backend) */
+#if defined(UA_ARCHITECTURE_WIN32) || \
+    (defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP))
+# define SKIP_WITHOUT_LOCAL_BACKEND() do {} while(0)
+#else
+# define SKIP_WITHOUT_LOCAL_BACKEND() return
+#endif
+
 UA_Server *server_ft;
 static UA_Driver *ftDriver;
 static void clearTestDrivers(void);
@@ -907,6 +916,7 @@ removeTree(const char *path) {
 #endif
 
 START_TEST(localDirectoryBackendContract) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
     UA_FileTransferBackend b;
     ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(
@@ -918,6 +928,7 @@ START_TEST(localDirectoryBackendContract) {
 } END_TEST
 
 START_TEST(localDirectoryBackendSandbox) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
     UA_FileTransferBackend b;
     ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(
@@ -964,6 +975,7 @@ START_TEST(localDirectoryBackendSandbox) {
 /* The names are UTF-8. On Windows, the backend stores them as UTF-16, so every
  * name is represented independent of the active code page. */
 START_TEST(localDirectoryUtf8Names) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
     const char *name = "Gr\xc3\xb6\xc3\x9f" "e-\xe6\x97\xa5\xe6\x9c\xac.txt";
     UA_String path = UA_STRING((char*)(uintptr_t)name);
@@ -1392,6 +1404,7 @@ START_TEST(fileMaxByteStringLength) {
 
 /* MimeType is inferred from the extension by the local filesystem backend */
 START_TEST(fileMimeType) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
 
     UA_FileTransferBackend pre;
@@ -2327,6 +2340,7 @@ START_TEST(removeDirectoryWithOpenHandles) {
 
 /* The full directory workflow on the local filesystem backend */
 START_TEST(localDirectoryMount) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
 
     /* Pre-create a small tree */
@@ -2371,6 +2385,7 @@ START_TEST(localDirectoryMount) {
 } END_TEST
 
 START_TEST(localFileMount) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
     UA_FileTransferBackend directory;
     ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(
@@ -2430,6 +2445,7 @@ START_TEST(localFileMount) {
 
 /* Sizes and positions beyond 2 GiB. The file is sparse, it takes no space. */
 START_TEST(localDirectoryLargeFile) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
 #ifndef _WIN32
     if(sizeof(long) < 8)
         return; /* The positions are long on POSIX */
@@ -3012,6 +3028,7 @@ START_TEST(scanSummaryLoggedOnChange) {
 /* rename(2) replaces an existing target silently. An entry created behind the
  * driver's back must not be destroyed by a MoveOrCopy onto its name. */
 START_TEST(moveOrCopyKeepsUnmirroredTarget) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
 
     UA_FileTransferBackend pre;
@@ -3390,6 +3407,7 @@ START_TEST(createFileRemovedOnFailedMirror) {
  * descends into a link target: a directory with an entry that is not served is
  * not empty for the driver, a served link is removed itself. */
 START_TEST(localDirectorySkipsLinksAndSpecialFiles) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
     char root[256], path[320], target[320];
     snprintf(root, sizeof(root), "%s/root", scratchDir);
@@ -4013,6 +4031,7 @@ START_TEST(directoryAccessRightsEnforced) {
 
 #ifndef _WIN32
 START_TEST(localDirectoryAccessRightsFollowPermissions) {
+    SKIP_WITHOUT_LOCAL_BACKEND();
     makeScratchDir();
     UA_FileTransferBackend backend;
     ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(
