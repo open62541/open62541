@@ -846,9 +846,13 @@ struct UA_ClientConfig {
     /* Number of PublishResponse queued up in the server */
     UA_UInt16 outStandingPublishRequests;
 
-    /* EventLoop */
+    /* EventLoop
+     * ~~~~~~~~~
+     * A shared EventLoop must be external to every client and server using it.
+     * Otherwise, one of them can stop or delete it while others still use it.
+     * The application owns the shared EventLoop's lifetime. */
     UA_EventLoop *eventLoop;
-    UA_Boolean externalEventLoop; /* Don't delete the EventLoop with the config */
+    UA_Boolean externalEventLoop; /* Do not stop or delete the EventLoop */
 };
 
 /* Makes a deep copy of the config. Only The copies of the plugins (logger,
