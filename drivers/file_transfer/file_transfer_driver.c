@@ -201,9 +201,7 @@ unbindEntryMethods(void *context, FTEntry *node) {
 }
 
 static UA_StatusCode
-FileTransferDriver_start(UA_Driver *drv) {
-    if(drv->state != UA_LIFECYCLESTATE_STOPPED)
-        return UA_STATUSCODE_BADINVALIDSTATE;
+startDriver(UA_Driver *drv) {
     FileTransferDriver *ftd = (FileTransferDriver*)drv;
     /* Constructors can run before registration. Check again now, so two
      * unregistered drivers cannot later claim the same existing Object. */
@@ -240,6 +238,20 @@ FileTransferDriver_start(UA_Driver *drv) {
                                             ftd->config.refreshInterval, &ftd->refreshCallbackId);
     if(res != UA_STATUSCODE_GOOD)
         FileTransferDriver_stop(drv);
+    return res;
+}
+
+/* The server does not report the start result of the drivers it starts */
+static UA_StatusCode
+FileTransferDriver_start(UA_Driver *drv) {
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    UA_StatusCode res = startDriver(drv);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(UA_Server_getConfig(drv->server)->logging, UA_LOGCATEGORY_SERVER,
+                     "FileTransfer: Starting the driver for %N failed with %s",
+                     ((FileTransferDriver*)drv)->root->nodeId,
+                     UA_StatusCode_name(res));
     return res;
 }
 
@@ -366,9 +378,10 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
             return res;
         }
     }
+    /* A directory backend can cast its file backend back to the full struct */
     UA_FileTransferFileInfo info;
-    UA_FileTransferFileBackend fileBackend = backend->file;
-    res = backendGetInfo(&fileBackend, path, &info);
+    UA_FileTransferBackend backendCopy = *backend;
+    res = backendGetInfo(&backendCopy.file, path, &info);
     if(res == UA_STATUSCODE_GOOD && info.isDirectory == standaloneFile)
         res = UA_STATUSCODE_BADINVALIDARGUMENT;
     if(res != UA_STATUSCODE_GOOD) {
