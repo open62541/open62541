@@ -418,7 +418,7 @@ if(UA_ENABLE_PUBSUB_BUFMALLOC)
     endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
+option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental, MQTT-C is deprecated)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
 if(UA_ENABLE_PUBSUB_MQTT)
     if(NOT UA_FILE_MQTT)
@@ -427,6 +427,10 @@ if(UA_ENABLE_PUBSUB_MQTT)
     if(NOT EXISTS "${UA_FILE_MQTT}")
         message(FATAL_ERROR "File ${UA_FILE_MQTT} not found.You probably need to initialize the git submodule for deps/mqtt-c.Therefore execute the following command \ngit submodule update --init --recursive")
     else()
+        message(WARNING "The MQTT-C library used for PubSub over MQTT (UA_ENABLE_PUBSUB_MQTT) is DEPRECATED. "
+                        "The upstream project is barely maintained and has known, unfixed issues. "
+                        "Only use MQTT-C with a trusted broker over a protected connection. "
+                        "The open62541 master branch offers a libwebsockets-based MQTT implementation (UA_ENABLE_LWS_MQTT) as an alternative.")
         # Warn if run in Windows
         if(WIN32)
             MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
