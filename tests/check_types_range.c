@@ -37,6 +37,73 @@ START_TEST(parseRangeMinEqualMax) {
     UA_free(range.dimensions);
 } END_TEST
 
+/* An index that does not fit into 32 bits has a valid syntax. It must not wrap
+ * around to a small index (Part 4, 7.27). */
+START_TEST(parseRangeIndexOverflow) {
+    UA_NumericRange range;
+    UA_String str = UA_STRING("4294967297");
+    UA_StatusCode retval = UA_NumericRange_parse(&range, str);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(range.dimensions[0].min, UA_UINT32_MAX);
+    ck_assert_uint_eq(range.dimensions[0].max, UA_UINT32_MAX);
+    UA_free(range.dimensions);
+
+    str = UA_STRING("1:99999999999");
+    retval = UA_NumericRange_parse(&range, str);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(range.dimensions[0].min, 1);
+    ck_assert_uint_eq(range.dimensions[0].max, UA_UINT32_MAX);
+    UA_free(range.dimensions);
+} END_TEST
+
+/* Beyond the lower bound there is no data, beyond the upper bound the result
+ * is partial (Part 4, 7.27) */
+START_TEST(copyArrayRangeIndexOverflow) {
+    UA_Variant v, v2;
+    UA_Variant_init(&v);
+    UA_Variant_init(&v2);
+    UA_UInt32 arr[5] = {1,2,3,4,5};
+    UA_Variant_setArray(&v, arr, 5, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_NumericRange r;
+    UA_StatusCode retval = UA_NumericRange_parse(&r, UA_STRING("4294967297"));
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Variant_copyRange(&v, &v2, r);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADINDEXRANGENODATA);
+    UA_Variant_clear(&v2);
+    UA_free(r.dimensions);
+
+    retval = UA_NumericRange_parse(&r, UA_STRING("3:4294967297"));
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Variant_copyRange(&v, &v2, r);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(v2.arrayLength, 2);
+    ck_assert_uint_eq(((UA_UInt32*)v2.data)[0], 4);
+    ck_assert_uint_eq(((UA_UInt32*)v2.data)[1], 5);
+    UA_Variant_clear(&v2);
+    UA_free(r.dimensions);
+} END_TEST
+
+/* No value can be indexed with more than 100 dimensions */
+START_TEST(parseRangeTooManyDimensions) {
+    char buf[2 * 101];
+    for(size_t i = 0; i < 101; i++) {
+        buf[2 * i] = '0';
+        buf[2 * i + 1] = ',';
+    }
+
+    UA_NumericRange range;
+    UA_String str = {2 * 100 - 1, (UA_Byte*)buf}; /* 100 dimensions */
+    UA_StatusCode retval = UA_NumericRange_parse(&range, str);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(range.dimensionsSize, 100);
+    UA_free(range.dimensions);
+
+    str.length = 2 * 101 - 1; /* 101 dimensions */
+    retval = UA_NumericRange_parse(&range, str);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADINDEXRANGENODATA);
+} END_TEST
+
 START_TEST(copySimpleArrayRange) {
    UA_Variant v, v2;
    UA_Variant_init(&v);
@@ -121,6 +188,9 @@ int main(void) {
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, parseRange);
     tcase_add_test(tc, parseRangeMinEqualMax);
+    tcase_add_test(tc, parseRangeIndexOverflow);
+    tcase_add_test(tc, copyArrayRangeIndexOverflow);
+    tcase_add_test(tc, parseRangeTooManyDimensions);
     tcase_add_test(tc, copySimpleArrayRange);
     tcase_add_test(tc, copyIntoStringArrayRange);
     tcase_add_test(tc, copyArrayRangeUpperBoundOutOfRange);

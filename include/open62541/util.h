@@ -277,7 +277,7 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
 
 /* Convert given byte string to a positive number. Returns the number of valid
  * digits. Stops if a non-digit char is found and returns the number of digits
- * up to that point. */
+ * up to that point. Returns zero if the number does not fit into 32 bits. */
 size_t UA_EXPORT
 UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number);
 
