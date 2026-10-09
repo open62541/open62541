@@ -4507,6 +4507,142 @@ START_TEST(constructorServesSharedSubtypeMethods) {
     UA_NodeId_clear(&files[1]);
 } END_TEST
 
+/* A subtype Method on an open file, like CloseAndUpdate of Part 14: apply the
+ * written content of the backend handle, then close the FileHandle. */
+static UA_Driver *subtypeDriver;
+static void *subtypeBackendContext;
+static UA_NodeId subtypeSessionId;
+static UA_ByteString subtypeApplied;
+
+static UA_StatusCode
+closeAndUpdateCallback(UA_Server *server, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *methodId,
+                       void *methodContext, const UA_NodeId *objectId,
+                       void *objectContext, size_t inputSize,
+                       const UA_Variant *input, size_t outputSize,
+                       UA_Variant *output) {
+    if(inputSize != 1 || !UA_Variant_hasScalarType(input, &UA_TYPES[UA_TYPES_UINT32]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_UInt32 fileHandle = *(UA_UInt32*)input->data;
+    UA_NodeId_clear(&subtypeSessionId);
+    UA_NodeId_copy(sessionId, &subtypeSessionId);
+    UA_Byte mode = 0;
+    UA_UInt32 backendHandle = 0;
+    UA_StatusCode res = UA_FileTransferDriver_getHandleInfo(
+        subtypeDriver, *objectId, sessionId, fileHandle, &mode, &backendHandle);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!(mode & UA_OPENFILEMODE_WRITE))
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    UA_FileTransferFileBackend b;
+    memset(&b, 0, sizeof(b));
+    b.context = subtypeBackendContext;
+    MemOpenFile *f = memHandle(&b, backendHandle);
+    ck_assert_ptr_nonnull(f);
+    UA_ByteString_clear(&subtypeApplied);
+    UA_ByteString_copy(&f->entry->content, &subtypeApplied);
+    return UA_FileTransferDriver_closeHandle(subtypeDriver, *objectId,
+                                             sessionId, fileHandle);
+}
+
+START_TEST(subtypeMethodUsesFileHandle) {
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 50100);
+    UA_ObjectTypeAttributes typeAttr = UA_ObjectTypeAttributes_default;
+    typeAttr.displayName = UA_LOCALIZEDTEXT("", "ConfigFileType");
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server_ft, typeId, UA_NS0ID(FILETYPE),
+                          UA_NS0ID(HASSUBTYPE), UA_QUALIFIEDNAME(1, "ConfigFileType"),
+                          typeAttr, NULL, NULL), UA_STATUSCODE_GOOD);
+    UA_NodeId methodId = UA_NODEID_NUMERIC(1, 50101);
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.displayName = UA_LOCALIZEDTEXT("", "CloseAndUpdate");
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+    UA_Argument inArg;
+    UA_Argument_init(&inArg);
+    inArg.name = UA_STRING("FileHandle");
+    inArg.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    inArg.valueRank = UA_VALUERANK_SCALAR;
+    ck_assert_uint_eq(UA_Server_addMethodNode(server_ft, methodId, typeId,
+                          UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(0, "CloseAndUpdate"),
+                          methodAttr, closeAndUpdateCallback, 1, &inArg, 0, NULL,
+                          NULL, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addReference(server_ft, methodId,
+                          UA_NS0ID(HASMODELLINGRULE),
+                          UA_NS0EXID(MODELLINGRULE_MANDATORY), true), UA_STATUSCODE_GOOD);
+
+    /* The driver serves the existing Object, as for the PubSubConfiguration */
+    UA_NodeId file;
+    ck_assert_uint_eq(UA_Server_addObjectNode(server_ft, UA_NODEID_NULL,
+                          UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
+                          UA_QUALIFIEDNAME(1, "Config"), typeId,
+                          UA_ObjectAttributes_default, NULL, &file), UA_STATUSCODE_GOOD);
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "old config");
+    subtypeBackendContext = backend.file.context;
+    UA_FileTransferNodeDescription description;
+    memset(&description, 0, sizeof(description));
+    description.nodeId = file;
+    ck_assert_uint_eq(UA_FileTransferDriver_newFile(server_ft, &backend.file,
+                          UA_STRING("f.bin"), &description, NULL, &subtypeDriver),
+                      UA_STATUSCODE_GOOD);
+    registerTestDriver(subtypeDriver);
+
+    UA_UInt32 handle = callOpen(file, UA_OPENFILEMODE_WRITE |
+                                UA_OPENFILEMODE_ERASEEXISTING, UA_STATUSCODE_GOOD);
+    callWrite(file, handle, "new config", UA_STATUSCODE_GOOD);
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &handle, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_CallMethodResult result = callObjectMethod(file, "CloseAndUpdate", 1, &input);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+    UA_ByteString expected = UA_BYTESTRING("new config");
+    ck_assert(UA_ByteString_equal(&subtypeApplied, &expected));
+    ck_assert_uint_eq(readOpenCount(file), 0);
+    callClose(file, handle, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* The Method rejects a read handle, which stays open */
+    handle = callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    result = callObjectMethod(file, "CloseAndUpdate", 1, &input);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADINVALIDSTATE);
+    UA_CallMethodResult_clear(&result);
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    UA_Byte mode = 0;
+    UA_UInt32 backendHandle = 0;
+    ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(subtypeDriver, file,
+                          &subtypeSessionId, handle, &mode, &backendHandle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(mode, UA_OPENFILEMODE_READ);
+    ck_assert_uint_ne(backendHandle, 0);
+
+    /* Handles of other Sessions, Objects or drivers are unknown */
+    UA_NodeId otherSession = UA_NODEID_NUMERIC(1, 4711);
+    ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(subtypeDriver, file,
+                          &otherSession, handle, NULL, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(subtypeDriver, file,
+                          NULL, handle, NULL, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_closeHandle(subtypeDriver, file,
+                          &otherSession, handle), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_closeHandle(subtypeDriver,
+                          UA_NS0ID(OBJECTSFOLDER), &subtypeSessionId, handle),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_Driver unrelated;
+    memset(&unrelated, 0, sizeof(unrelated));
+    unrelated.server = server_ft;
+    ck_assert_uint_eq(UA_FileTransferDriver_closeHandle(&unrelated, file,
+                          &subtypeSessionId, handle), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    ck_assert_uint_eq(UA_FileTransferDriver_closeHandle(subtypeDriver, file,
+                          &subtypeSessionId, handle), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readOpenCount(file), 0);
+    ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(subtypeDriver, file,
+                          &subtypeSessionId, handle, NULL, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_NodeId_clear(&subtypeSessionId);
+    UA_ByteString_clear(&subtypeApplied);
+    UA_NodeId_clear(&file);
+} END_TEST
+
 START_TEST(constructorFailureLeavesBackendAndOutputs) {
     backendClearCount = 0;
     UA_FileTransferBackend backend = memBackendWithFile("f.bin", "data");
@@ -5320,6 +5456,7 @@ int main(void) {
     tcase_add_test(tc_file, openHandleSurvivesReplacedParent);
     tcase_add_test(tc_file, readAtEndReturnsEmptyByteString);
     tcase_add_test(tc_file, fileBadHandles);
+    tcase_add_test(tc_file, subtypeMethodUsesFileHandle);
     tcase_add_test(tc_file, fileReadOnlyMount);
     tcase_add_test(tc_file, fileHandleLimits);
     tcase_add_test(tc_file, removeFileClosesHandles);
