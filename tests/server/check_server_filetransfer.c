@@ -3283,6 +3283,81 @@ failingGetInfo(UA_FileTransferFileBackend *b, const UA_String path,
         memGetInfoFn(b, path, outInfo);
 }
 
+/* The storage metadata of the failing path is gone, as for a file deleted
+ * behind the server's back. Its backend handles still work. */
+static UA_StatusCode
+vanishedGetInfo(UA_FileTransferFileBackend *b, const UA_String path,
+                UA_FileTransferFileInfo *outInfo) {
+    return isFailingPath(path) ? UA_STATUSCODE_BADNOTFOUND :
+        memGetInfoFn(b, path, outInfo);
+}
+
+/* An open handle keeps working when its file vanishes from the storage. The
+ * file cannot be opened again. */
+START_TEST(openHandleSurvivesVanishedFile) {
+    UA_FileTransferBackend b = memBackendWithFile("f.bin", "content");
+    memGetInfoFn = b.file.getInfo;
+    b.file.getInfo = vanishedGetInfo;
+    UA_NodeId fileId = addTestFileBackend(b, "VanishingFile", NULL);
+    UA_UInt32 h = callOpen(fileId, UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE,
+                           UA_STATUSCODE_GOOD);
+    strcpy(failingPath, "f.bin");
+    callWrite(fileId, h, "more", UA_STATUSCODE_GOOD);
+    callSetPosition(fileId, h, 0);
+    UA_ByteString data = callRead(fileId, h, 100, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 7);
+    ck_assert_int_eq(memcmp(data.data, "moreent", 7), 0);
+    UA_ByteString_clear(&data);
+    callClose(fileId, h, UA_STATUSCODE_GOOD);
+    callOpen(fileId, UA_OPENFILEMODE_READ, UA_STATUSCODE_BADNOTFOUND);
+    failingPath[0] = 0;
+    UA_NodeId_clear(&fileId);
+} END_TEST
+
+/* Replacing a parent directory with a file of the same name keeps the handles
+ * below it usable, before and after the refresh turns them into zombies */
+START_TEST(openHandleSurvivesReplacedParent) {
+    UA_FileTransferBackend b;
+    ck_assert_uint_eq(memBackend(&b), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createEntry(&b, UA_STRING("d"), true), UA_STATUSCODE_GOOD);
+    writeMemFile(&b, "d/f", "open");
+    UA_NodeId fsId = mountNamedMem(b, "FileSystem", NULL);
+    UA_NodeId dirId = resolveChild(server_ft, fsId, "d");
+    UA_NodeId fId = resolveChild(server_ft, dirId, "f");
+    UA_UInt32 h = callOpen(fId, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.remove(&b, UA_STRING("d/f")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.remove(&b, UA_STRING("d")), UA_STATUSCODE_GOOD);
+    writeMemFile(&b, "d", "file");
+
+    UA_ByteString data = callRead(fId, h, 10, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&data);
+    ck_assert_uint_eq(testRefresh(driverForRoot(fsId), fsId), UA_STATUSCODE_GOOD);
+    data = callRead(fId, h, 10, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&data);
+    callClose(fId, h, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(testRemove(driverForRoot(fsId), fsId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&dirId);
+    UA_NodeId_clear(&fId);
+    UA_NodeId_clear(&fsId);
+} END_TEST
+
+/* Read at the end of the file returns an empty ByteString, not a null one
+ * (Part 20, 4.2.4) */
+START_TEST(readAtEndReturnsEmptyByteString) {
+    UA_NodeId fileId = addTestFile("EofFile", "abc", NULL);
+    UA_UInt32 h = callOpen(fileId, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    UA_ByteString data = callRead(fileId, h, 10, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 3);
+    UA_ByteString_clear(&data);
+    data = callRead(fileId, h, 10, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 0);
+    ck_assert_ptr_nonnull(data.data);
+    UA_ByteString_clear(&data);
+    callClose(fileId, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fileId);
+} END_TEST
+
 /* CreateFile removes the new file again when it cannot be mirrored. A retry
  * then does not fail on an entry the client cannot see. */
 START_TEST(createFileRemovedOnFailedMirror) {
@@ -4593,6 +4668,27 @@ START_TEST(disabledPeriodicRefresh) {
     UA_NodeId_clear(&root);
 } END_TEST
 
+/* The header allows a directory backend to cast its file backend back to the
+ * full struct, also when the driver queries the root at construction */
+static UA_StatusCode
+castingGetInfo(UA_FileTransferFileBackend *b, const UA_String path,
+               UA_FileTransferFileInfo *outInfo) {
+    UA_FileTransferBackend *full = (UA_FileTransferBackend*)b;
+    if(full->listDirectory != memListDirectory)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return memGetInfo(b, path, outInfo);
+}
+
+START_TEST(directoryBackendCastsFileBackend) {
+    UA_FileTransferBackend backend = memBackendWithTree();
+    backend.file.getInfo = castingGetInfo;
+    UA_NodeId root;
+    UA_Driver *driver = newTestDirectory(server_ft, &backend, &root);
+    registerTestDriver(driver);
+    ck_assert(tryResolveChild(server_ft, root, "readme.txt", NULL));
+    UA_NodeId_clear(&root);
+} END_TEST
+
 START_TEST(defaultNodeDescriptions) {
     UA_FileTransferBackend backend = memBackendWithTree();
     UA_Driver *driver = NULL;
@@ -5196,6 +5292,7 @@ int main(void) {
     tcase_add_test(tc_lifecycle, failedRegistrationRetainsObjects);
     tcase_add_test(tc_lifecycle, directoryLifetimeAndAutomaticRefresh);
     tcase_add_test(tc_lifecycle, disabledPeriodicRefresh);
+    tcase_add_test(tc_lifecycle, directoryBackendCastsFileBackend);
     tcase_add_test(tc_lifecycle, defaultNodeDescriptions);
     tcase_add_test(tc_lifecycle, reuseFileRestoresProperties);
     tcase_add_test(tc_lifecycle, reuseDerivedPropertyDataTypes);
@@ -5219,6 +5316,9 @@ int main(void) {
     tcase_add_test(tc_file, fileOpenModes);
     tcase_add_test(tc_file, fileLocking);
     tcase_add_test(tc_file, fileReadWrite);
+    tcase_add_test(tc_file, openHandleSurvivesVanishedFile);
+    tcase_add_test(tc_file, openHandleSurvivesReplacedParent);
+    tcase_add_test(tc_file, readAtEndReturnsEmptyByteString);
     tcase_add_test(tc_file, fileBadHandles);
     tcase_add_test(tc_file, fileReadOnlyMount);
     tcase_add_test(tc_file, fileHandleLimits);

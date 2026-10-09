@@ -918,8 +918,11 @@ prepareSubtreeRelease(void *context, FTEntry *node) {
 static void
 releaseSubtree(UA_Server *server, FTEntry *node) {
     FTEntry *child;
-    while((child = ZIP_ROOT(&node->children)))
+    while((child = ZIP_ROOT(&node->children))) {
+        /* Releasing the child unlinks it from node->children */
+        UA_assert(child->parent == node);
         releaseSubtree(server, child);
+    }
     unbindObjectMethods(server, node);
     if(node->created)
         UA_Server_deleteNode(server, node->nodeId, true);
