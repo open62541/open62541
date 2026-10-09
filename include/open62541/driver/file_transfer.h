@@ -191,7 +191,11 @@ struct UA_FileTransferBackend {
  * 0:read-only [Boolean]
  *    Disable writes and directory mutations (default: false).
  * 0:max-scan-depth [UInt32]
- *    Maximum directory scan depth; 0 means unlimited (default).
+ *    Maximum depth of mirrored entries; the root's entries have depth 1 and
+ *    directories at the limit appear empty. 0 means unlimited (default).
+ *    CreateFile, CreateDirectory and MoveOrCopy return Bad_ResourceUnavailable
+ *    for targets beyond the limit. Lowering the limit keeps deeper Objects,
+ *    but they are no longer refreshed.
  * 0:max-nodes [UInt32]
  *    Maximum mirrored Objects, including the root; 0 means unlimited
  *    (default). Lowering the limit does not remove existing Objects.
@@ -199,8 +203,10 @@ struct UA_FileTransferBackend {
  *    Namespace for new entry BrowseNames and NodeIds (default: 0).
  *    Standard Properties and Methods remain in namespace 0.
  * 0:refresh-interval [Double]
- *    Directory refresh interval in milliseconds; must be positive
- *    (default: 1000). Vanished files with open handles remain until closed.
+ *    Directory refresh interval in milliseconds (default: 1000), at least
+ *    0.0001. 0 disables the periodic refresh, see
+ *    UA_FileTransferDriver_refresh(). Vanished files with open handles remain
+ *    until closed.
  * 0:max-open-handles-per-session [UInt16]
  *    Open-handle limit per Session in this driver (default: 64).
  * 0:max-open-handles-per-file [UInt16]
@@ -209,7 +215,14 @@ struct UA_FileTransferBackend {
  * 0:max-read-length [UInt32]
  *    Maximum bytes per Read or Write (default, also when zero: 1048576).
  *    Published as MaxByteStringLength. Reads are capped at this length;
- *    larger writes fail with Bad_InvalidArgument. */
+ *    larger writes fail with Bad_InvalidArgument.
+ *
+ * Each refresh lists every mirrored directory with the server lock held, with
+ * max-nodes twice (removals first). For large or deep trees, set
+ * max-scan-depth and max-nodes and consider a longer refresh-interval, or 0
+ * with UA_FileTransferDriver_refresh(). Skipped entries and trees cut off by
+ * these limits are logged at start and when their numbers change; unchanged
+ * results only at debug level. */
 
 /* Description of the root Object. Zero-initialized fields select defaults.
  * The description and its contents are borrowed only during construction. */
@@ -249,7 +262,8 @@ typedef struct {
  * Registration is separate. Before successful UA_Server_addDriver(), the
  * caller must free the driver before deleting the server; afterwards the
  * server owns it. To free explicitly, stop and remove the driver first.
- * Start mirrors directory entries and enables periodic reconciliation.
+ * Start mirrors directory entries and the periodic refresh (unless
+ * refresh-interval is 0) keeps them in sync.
  * Stop closes handles but preserves nodes and backend for restart. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_FileTransferDriver_newFile(UA_Server *server,
@@ -263,6 +277,12 @@ UA_FileTransferDriver_newDirectory(UA_Server *server,
                                    const UA_FileTransferBackend *backend,
                                    const UA_FileTransferNodeDescription *description,
                                    UA_NodeId *outNodeId, UA_Driver **outDriver);
+
+/* Reconcile the directory tree of a started directory driver with its backend
+ * now, e.g. with the periodic refresh disabled. Returns Bad_InvalidState for a
+ * stopped driver and Bad_NotSupported for a file driver. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_refresh(UA_Driver *driver);
 
 /**
  * Local Backends

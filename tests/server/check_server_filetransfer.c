@@ -2168,6 +2168,87 @@ START_TEST(crossMountReadOnlySource) {
     UA_NodeId_clear(&fsB);
 } END_TEST
 
+/* The Methods do not create entries below max-scan-depth, which the refresh
+ * would never list. The storage stays unchanged. */
+START_TEST(depthLimitAppliesToMethods) {
+    FTConfig options;
+    memset(&options, 0, sizeof(options));
+    options.maxScanDepth = 1;
+    UA_FileTransferBackend b = memBackendWithTree();
+    MemBackendContext *ctx = (MemBackendContext*)b.file.context;
+    UA_NodeId fsId = mountNamedMem(b, "FileSystem", &options);
+    UA_NodeId docs, readme;
+    ck_assert(tryResolveChild(server_ft, fsId, "docs", &docs));
+    ck_assert(tryResolveChild(server_ft, fsId, "readme.txt", &readme));
+
+    /* docs has depth 1, its entries would have depth 2 */
+    callCreateDirectory(docs, "deep", UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    callCreateFile(docs, "x.txt", false, NULL, UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    callCreateFile(docs, "y.txt", true, NULL, UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    callMoveOrCopy(fsId, readme, docs, false, "", UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    callMoveOrCopy(fsId, readme, docs, true, "", UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    ck_assert_ptr_null(memFind(ctx, UA_STRING("docs/deep")));
+    ck_assert_ptr_null(memFind(ctx, UA_STRING("docs/x.txt")));
+    ck_assert_ptr_null(memFind(ctx, UA_STRING("docs/y.txt")));
+    ck_assert_ptr_null(memFind(ctx, UA_STRING("docs/readme.txt")));
+    ck_assert_ptr_nonnull(memFind(ctx, UA_STRING("readme.txt")));
+    ck_assert(tryResolveChild(server_ft, fsId, "readme.txt", NULL));
+
+    /* Entries of the root are within the limit */
+    UA_NodeId dirId = callCreateDirectory(fsId, "top", UA_STATUSCODE_GOOD);
+    UA_NodeId fileId = callCreateFile(fsId, "z.txt", false, NULL, UA_STATUSCODE_GOOD);
+    UA_NodeId copyId = callMoveOrCopy(fsId, readme, fsId, true, "copy.txt",
+                                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(memFind(ctx, UA_STRING("top")));
+    ck_assert_ptr_nonnull(memFind(ctx, UA_STRING("z.txt")));
+    ck_assert_ptr_nonnull(memFind(ctx, UA_STRING("copy.txt")));
+
+    ck_assert_uint_eq(testRemove(driverForRoot(fsId), fsId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&docs);
+    UA_NodeId_clear(&readme);
+    UA_NodeId_clear(&dirId);
+    UA_NodeId_clear(&fileId);
+    UA_NodeId_clear(&copyId);
+    UA_NodeId_clear(&fsId);
+} END_TEST
+
+/* MoveOrCopy into another mount applies the depth limit of the target */
+START_TEST(depthLimitAppliesToCrossMountTargets) {
+    UA_FileTransferBackend bA;
+    ck_assert_uint_eq(memBackend(&bA), UA_STATUSCODE_GOOD);
+    writeMemFile(&bA, "doc.txt", "hello");
+    MemBackendContext *ctxA = (MemBackendContext*)bA.file.context;
+    UA_FileTransferBackend bB = memBackendWithTree();
+    MemBackendContext *ctxB = (MemBackendContext*)bB.file.context;
+    FTConfig options;
+    memset(&options, 0, sizeof(options));
+    options.maxScanDepth = 1;
+    UA_NodeId fsA = mountNamedMem(bA, "FsA", NULL);
+    UA_NodeId fsB = mountNamedMem(bB, "FsB", &options);
+    UA_NodeId aDoc, bDocs;
+    ck_assert(tryResolveChild(server_ft, fsA, "doc.txt", &aDoc));
+    ck_assert(tryResolveChild(server_ft, fsB, "docs", &bDocs));
+
+    callMoveOrCopy(fsA, aDoc, bDocs, false, "", UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    callMoveOrCopy(fsA, aDoc, bDocs, true, "", UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    ck_assert_ptr_null(memFind(ctxB, UA_STRING("docs/doc.txt")));
+    ck_assert_ptr_nonnull(memFind(ctxA, UA_STRING("doc.txt")));
+    ck_assert(tryResolveChild(server_ft, fsA, "doc.txt", NULL));
+
+    /* The root of the target is within the limit */
+    UA_NodeId movedId = callMoveOrCopy(fsA, aDoc, fsB, false, "", UA_STATUSCODE_GOOD);
+    ck_assert(tryResolveChild(server_ft, fsB, "doc.txt", NULL));
+    ck_assert_ptr_null(memFind(ctxA, UA_STRING("doc.txt")));
+
+    ck_assert_uint_eq(testRemove(driverForRoot(fsA), fsA), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(testRemove(driverForRoot(fsB), fsB), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&aDoc);
+    UA_NodeId_clear(&bDocs);
+    UA_NodeId_clear(&movedId);
+    UA_NodeId_clear(&fsA);
+    UA_NodeId_clear(&fsB);
+} END_TEST
+
 START_TEST(dirRefresh) {
     /* Keep a second reference to the backend to make out-of-band changes.
      * The context is shared with the copy held by the mount. */
@@ -2865,6 +2946,67 @@ START_TEST(mountSkipsUnreadableEntries) {
     UA_NodeId_clear(&readableId);
     UA_NodeId_clear(&lockedId);
     UA_NodeId_clear(&fsId);
+} END_TEST
+
+/* Counts the log messages above debug level whose format contains a marker */
+static const char *logMarker;
+static size_t logMarkerCount;
+
+static void
+countMarkerLog(void *context, UA_LogLevel level, UA_LogCategory category,
+               const char *msg, va_list args) {
+    if(level > UA_LOGLEVEL_DEBUG && logMarker && strstr(msg, logMarker))
+        logMarkerCount++;
+}
+
+static UA_Logger markerLogger = {countMarkerLog, NULL, NULL};
+
+/* Skipped entries and the limits are logged on the first refresh after start
+ * and when they change. Unchanged repeats stay at debug level. */
+START_TEST(scanSummaryLoggedOnChange) {
+    UA_ServerConfig *config = UA_Server_getConfig(server_ft);
+    UA_Logger *serverLogger = config->logging;
+    config->logging = &markerLogger;
+
+    logMarker = "cannot be mirrored or listed";
+    logMarkerCount = 0;
+    UA_NodeId fsId = UA_NODEID_NULL;
+    ck_assert_uint_eq(testAddDirectory(UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                          UA_QUALIFIEDNAME(0, "FileSystem"),
+                          backendArg(memBackendWithUnlistableSubdir("locked")),
+                          NULL, &fsId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(logMarkerCount, 1);
+    UA_Driver *driver = driverForRoot(fsId);
+    ck_assert_uint_eq(testRefresh(driver, fsId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_FileTransferDriver_refresh(driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(logMarkerCount, 1);
+    driver->stop(driver);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(logMarkerCount, 2);
+    ck_assert_uint_eq(testRemove(driver, fsId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fsId);
+
+    logMarker = "max-scan-depth";
+    logMarkerCount = 0;
+    FTConfig options;
+    memset(&options, 0, sizeof(options));
+    options.maxScanDepth = 1;
+    UA_FileTransferBackend b = memBackendWithTree();
+    fsId = mountNamedMem(b, "Limited", &options);
+    driver = driverForRoot(fsId);
+    ck_assert_uint_eq(logMarkerCount, 1);
+    ck_assert_uint_eq(testRefresh(driver, fsId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(logMarkerCount, 1);
+    ck_assert_uint_eq(createEntry(&b, UA_STRING("more"), true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(testRefresh(driver, fsId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(logMarkerCount, 2);
+    ck_assert_uint_eq(testRefresh(driver, fsId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(logMarkerCount, 2);
+    ck_assert_uint_eq(testRemove(driver, fsId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fsId);
+
+    logMarker = NULL;
+    config->logging = serverLogger;
 } END_TEST
 
 /* rename(2) replaces an existing target silently. An entry created behind the
@@ -4408,6 +4550,49 @@ START_TEST(directoryLifetimeAndAutomaticRefresh) {
     UA_NodeId_clear(&file);
 } END_TEST
 
+/* A negative refresh interval is rejected. 0 disables the periodic refresh;
+ * the application reconciles on demand. */
+START_TEST(disabledPeriodicRefresh) {
+    UA_Server_getConfig(server_ft)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server_ft), UA_STATUSCODE_GOOD);
+    UA_FileTransferBackend backend = memBackendWithTree();
+    UA_NodeId root;
+    UA_Driver *driver = newTestDirectory(server_ft, &backend, &root);
+    /* Negative, NaN, infinite and sub-tick intervals are rejected */
+    UA_Double zero = 0.0;
+    UA_Double invalid[4] = {-1, zero / zero, 1.0 / zero, 0.00001};
+    UA_Double interval;
+    for(size_t i = 0; i < 4; i++) {
+        ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+            UA_QUALIFIEDNAME(0, "refresh-interval"), &invalid[i], &UA_TYPES[UA_TYPES_DOUBLE]),
+            UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    }
+
+    interval = 0;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+        UA_QUALIFIEDNAME(0, "refresh-interval"), &interval, &UA_TYPES[UA_TYPES_DOUBLE]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createEntry(&backend, UA_STRING("new.txt"), false), UA_STATUSCODE_GOOD);
+    UA_fakeSleep(5000);
+    UA_Server_run_iterate(server_ft, false);
+    ck_assert(!tryResolveChild(server_ft, root, "new.txt", NULL));
+    ck_assert_uint_eq(UA_FileTransferDriver_refresh(driver), UA_STATUSCODE_GOOD);
+    ck_assert(tryResolveChild(server_ft, root, "new.txt", NULL));
+
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_FileTransferDriver_refresh(driver), UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(UA_FileTransferDriver_refresh(NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* A file driver has no tree to refresh */
+    UA_FileTransferBackend fileBackend = memBackendWithFile("f.bin", "data");
+    UA_Driver *fileDriver = newTestFile(server_ft, &fileBackend.file, "RefreshFile", NULL);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, fileDriver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_FileTransferDriver_refresh(fileDriver), UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&root);
+} END_TEST
+
 START_TEST(defaultNodeDescriptions) {
     UA_FileTransferBackend backend = memBackendWithTree();
     UA_Driver *driver = NULL;
@@ -5010,6 +5195,7 @@ int main(void) {
     tcase_add_test(tc_lifecycle, constructorFailureLeavesBackendAndOutputs);
     tcase_add_test(tc_lifecycle, failedRegistrationRetainsObjects);
     tcase_add_test(tc_lifecycle, directoryLifetimeAndAutomaticRefresh);
+    tcase_add_test(tc_lifecycle, disabledPeriodicRefresh);
     tcase_add_test(tc_lifecycle, defaultNodeDescriptions);
     tcase_add_test(tc_lifecycle, reuseFileRestoresProperties);
     tcase_add_test(tc_lifecycle, reuseDerivedPropertyDataTypes);
@@ -5053,6 +5239,8 @@ int main(void) {
     tcase_add_test(tc_dir, mountScanMirrorsTree);
     tcase_add_test(tc_dir, listingCarriesFullInfoAndInlineNames);
     tcase_add_test(tc_dir, mountScanDepthLimit);
+    tcase_add_test(tc_dir, depthLimitAppliesToMethods);
+    tcase_add_test(tc_dir, depthLimitAppliesToCrossMountTargets);
     tcase_add_test(tc_dir, dirCreateMethods);
     tcase_add_test(tc_dir, dirReadOnlyMount);
     tcase_add_test(tc_dir, directoryAccessRightsEnforced);
@@ -5076,6 +5264,7 @@ int main(void) {
     tcase_add_test(tc_dir, mirroredNamesUseMountNamespace);
     tcase_add_test(tc_dir, mountRejectsUnknownNamespace);
     tcase_add_test(tc_dir, mountSkipsUnreadableEntries);
+    tcase_add_test(tc_dir, scanSummaryLoggedOnChange);
     tcase_add_test(tc_dir, removalReleasesValueSources);
     tcase_add_test(tc_dir, copyFailsOnDestinationClose);
     tcase_add_test(tc_dir, maxNodesCountsRoot);

@@ -350,7 +350,23 @@ typedef enum {
 typedef struct {
     FTReconcileMode mode;
     UA_UInt32 remaining; /* Shared node budget for this tree walk */
+    UA_Boolean quiet;    /* Log skipped entries at debug level only */
+    FTScanSummary summary;
 } FTReconcile;
+
+/* Repeated refreshes meet the same skipped entries on every pass. Quiet passes
+ * log them at debug level only. */
+#define FT_LOG(server, quiet, LOGFN, ...) do {                              \
+        const UA_Logger *logger_ = UA_Server_getConfig(server)->logging;    \
+        if(quiet)                                                           \
+            UA_LOG_DEBUG(logger_, UA_LOGCATEGORY_SERVER, __VA_ARGS__);      \
+        else                                                                \
+            LOGFN(logger_, UA_LOGCATEGORY_SERVER, __VA_ARGS__);             \
+    } while(0)
+#define FT_LOG_SKIP(server, scan, ...) do {                                 \
+        (scan)->summary.skipped++;                                          \
+        FT_LOG(server, (scan)->quiet, UA_LOG_WARNING, __VA_ARGS__);         \
+    } while(0)
 
 static void *
 resetScanMark(void *context, FTEntry *node) {
@@ -404,8 +420,11 @@ static UA_StatusCode
 reconcileTree(UA_Server *server, FTEntry *dirNode, UA_UInt32 depth,
                FTReconcile *scan) {
     FileTransferDriver *ftd = dirNode->driver;
-    if(ftd->config.maxScanDepth > 0 && depth > ftd->config.maxScanDepth)
+    if(ftd->config.maxScanDepth > 0 && depth > ftd->config.maxScanDepth) {
+        if(scan->mode == FT_RECONCILE_FULL)
+            scan->summary.depthCut++;
         return UA_STATUSCODE_GOOD;
+    }
     ScanList entries;
     UA_StatusCode res = listEntries(&ftd->backend, dirNode->path, &entries);
     if(res != UA_STATUSCODE_GOOD)
@@ -429,21 +448,22 @@ reconcileTree(UA_Server *server, FTEntry *dirNode, UA_UInt32 depth,
             if(scan->mode == FT_RECONCILE_REMOVE_ONLY)
                 continue;
             if(!validEntryName(name)) {
-                UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
-                               "FileTransfer: Skipping the entry \"%S\" with an invalid name",
-                               name);
+                FT_LOG_SKIP(server, scan,
+                            "FileTransfer: Skipping the entry \"%S\" with an invalid name",
+                            name);
                 continue;
             }
-            if(scan->remaining == 0)
+            if(scan->remaining == 0) {
+                scan->summary.nodesCut++;
                 continue;
+            }
             res = mirrorObject(server, dirNode, name,
                                info->isDirectory ? NULL : info, &child);
             if(res != UA_STATUSCODE_GOOD) {
                 if(fatalScanError(res))
                     break;
-                UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
-                               "FileTransfer: Skipping the entry \"%S\": %s",
-                               name, UA_StatusCode_name(res));
+                FT_LOG_SKIP(server, scan, "FileTransfer: Skipping the entry \"%S\": %s",
+                            name, UA_StatusCode_name(res));
                 res = UA_STATUSCODE_GOOD;
                 continue;
             }
@@ -456,19 +476,45 @@ reconcileTree(UA_Server *server, FTEntry *dirNode, UA_UInt32 depth,
             continue;
         if(fatalScanError(res))
             break;
-        UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
-                       "FileTransfer: Cannot list the directory \"%S\": %s",
-                       child->path, UA_StatusCode_name(res));
+        FT_LOG_SKIP(server, scan, "FileTransfer: Cannot list the directory \"%S\": %s",
+                    child->path, UA_StatusCode_name(res));
         res = UA_STATUSCODE_GOOD;
     }
     clearScanList(&entries);
     return res;
 }
 
+/* Info for the depth limit, which can be intended. Warnings for missing entries. */
+static void
+logScanSummary(UA_Server *server, const FTEntry *directory,
+               const FTScanSummary *summary, UA_Boolean quiet) {
+    const FTConfig *config = &directory->driver->config;
+    if(summary->skipped > 0)
+        FT_LOG(server, quiet, UA_LOG_WARNING,
+               "FileTransfer: %N skipped %u entries that cannot be mirrored or listed",
+               directory->nodeId, (unsigned)summary->skipped);
+    if(summary->depthCut > 0)
+        FT_LOG(server, quiet, UA_LOG_INFO,
+               "FileTransfer: %N is mirrored up to max-scan-depth %u "
+               "(directories not listed: %u)", directory->nodeId,
+               (unsigned)config->maxScanDepth, (unsigned)summary->depthCut);
+    if(summary->nodesCut > 0)
+        FT_LOG(server, quiet, UA_LOG_WARNING,
+               "FileTransfer: %N reached max-nodes %u (listed entries not served: %u)",
+               directory->nodeId, (unsigned)config->maxNodes,
+               (unsigned)summary->nodesCut);
+}
+
+/* Without outSummary, the summary is logged right away */
 static UA_StatusCode
-reconcileDirectory(UA_Server *server, FTEntry *directory, FTReconcileMode mode) {
+reconcileDirectory(UA_Server *server, FTEntry *directory, FTReconcileMode mode,
+                   UA_Boolean quiet, FTScanSummary *outSummary) {
     FileTransferDriver *ftd = directory->driver;
-    FTReconcile scan = {mode, (UA_UInt32)0xffffffffu};
+    FTReconcile scan;
+    memset(&scan, 0, sizeof(scan));
+    scan.mode = mode;
+    scan.remaining = (UA_UInt32)0xffffffffu;
+    scan.quiet = quiet;
     UA_UInt32 depth = entryDepth(directory) + 1;
     /* Free the whole subtree's budget before adding anything. Traversal order
      * must not prevent one directory from using space freed in another. */
@@ -481,16 +527,34 @@ reconcileDirectory(UA_Server *server, FTEntry *directory, FTReconcileMode mode) 
         scan.remaining = ftd->config.maxNodes > current ? ftd->config.maxNodes - current : 0;
         scan.mode = FT_RECONCILE_FULL;
     }
-    return reconcileTree(server, directory, depth, &scan);
+    UA_StatusCode res = reconcileTree(server, directory, depth, &scan);
+    if(outSummary)
+        *outSummary = scan.summary;
+    else
+        logScanSummary(server, directory, &scan.summary, quiet);
+    return res;
 }
 
+/* The timer, the start and manual refreshes report the same problems on every
+ * pass. They are logged on the first pass after start and on changes. */
 UA_StatusCode
 fileTransferRefresh(UA_Driver *drv, const UA_NodeId directoryNodeId) {
     FileTransferDriver *ftd = (FileTransferDriver*)drv;
     FTEntry *directory = findFTEntry(ftd, &directoryNodeId);
     if(!directory || !directory->isDirectory || directory->zombie)
         return UA_STATUSCODE_BADNOTFOUND;
-    return reconcileDirectory(drv->server, directory, FT_RECONCILE_FULL);
+    FTScanSummary summary; /* Stays empty if the removal pass fails */
+    memset(&summary, 0, sizeof(summary));
+    UA_StatusCode res = reconcileDirectory(drv->server, directory, FT_RECONCILE_FULL,
+                                           ftd->scanReported, &summary);
+    UA_Boolean changed = !ftd->scanReported ||
+        summary.skipped != ftd->lastScan.skipped ||
+        summary.depthCut != ftd->lastScan.depthCut ||
+        summary.nodesCut != ftd->lastScan.nodesCut;
+    logScanSummary(drv->server, directory, &summary, !changed);
+    ftd->lastScan = summary;
+    ftd->scanReported = true;
+    return res;
 }
 
 /**************************************
@@ -506,6 +570,14 @@ nodeBudgetExhausted(FileTransferDriver *ftd) {
         ftd->entryCount >= ftd->config.maxNodes;
 }
 
+/* The scan does not list entries below max-scan-depth. The Methods must not
+ * create them either, the refresh would never see them again. */
+static UA_Boolean
+childBeyondScanDepth(const FTEntry *directory) {
+    UA_UInt32 maxDepth = directory->driver->config.maxScanDepth;
+    return maxDepth > 0 && entryDepth(directory) + 1 > maxDepth;
+}
+
 /* Create the backend entry and its Object together. Roll back the backend
  * entry if reading metadata or binding the Object fails. */
 static UA_StatusCode
@@ -514,7 +586,7 @@ createChild(UA_Server *server, FTEntry *directory, const UA_String name,
     FileTransferDriver *ftd = directory->driver;
     if(!validEntryName(name))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(nodeBudgetExhausted(ftd))
+    if(nodeBudgetExhausted(ftd) || childBeyondScanDepth(directory))
         return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     UA_String path = UA_STRING_NULL;
@@ -671,7 +743,7 @@ deleteMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     res = deleteBackendTree(b, target->path, target->isDirectory, &access);
     if(res != UA_STATUSCODE_GOOD) {
         if(target->isDirectory)
-            reconcileDirectory(server, dirNode, FT_RECONCILE_REMOVE_ONLY);
+            reconcileDirectory(server, dirNode, FT_RECONCILE_REMOVE_ONLY, false, NULL);
         return res;
     }
 
@@ -788,9 +860,9 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     }
 
     /* A copy (also for a move to another mount) creates Objects in the target
-     * mount */
-    if((createCopy || !sameDriver) &&
-       nodeBudgetExhausted(dstDriver)) {
+     * mount. Every target has to be within the target's scan depth. */
+    if(((createCopy || !sameDriver) && nodeBudgetExhausted(dstDriver)) ||
+       childBeyondScanDepth(targetDir)) {
         res = UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
         goto cleanup;
     }
@@ -828,7 +900,7 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         if(isDir) {
             res = mirrorObject(server, targetDir, name, NULL, &newNode);
             if(res == UA_STATUSCODE_GOOD) {
-                res = reconcileDirectory(server, newNode, FT_RECONCILE_FULL);
+                res = reconcileDirectory(server, newNode, FT_RECONCILE_FULL, false, NULL);
                 /* The entry was moved or copied. As in the scan, a directory
                  * whose content cannot be listed stays empty. */
                 if(res != UA_STATUSCODE_GOOD && !fatalScanError(res)) {
@@ -850,7 +922,7 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* The Objects of the entries deleted by an incomplete move are removed
      * (without adding entries) */
     if(deleteRes != UA_STATUSCODE_GOOD) {
-        reconcileDirectory(server, dirNode, FT_RECONCILE_REMOVE_ONLY);
+        reconcileDirectory(server, dirNode, FT_RECONCILE_REMOVE_ONLY, false, NULL);
         if(res == UA_STATUSCODE_GOOD)
             res = deleteRes;
     }
