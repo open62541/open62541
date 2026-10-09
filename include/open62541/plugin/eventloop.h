@@ -36,7 +36,12 @@ typedef struct UA_InterruptManager UA_InterruptManager;
  * An OPC UA-enabled application can have several clients and servers. And
  * server can serve different transport-level protocols for OPC UA. The
  * EventLoop is a central module that provides a unified control-flow for all of
- * these. Hence, several applications can share an EventLoop.
+ * these. Hence, several clients and servers can share an EventLoop. When they
+ * do, every client and server using that EventLoop must set
+ * ``externalEventLoop`` in its configuration. Otherwise, one of them may stop
+ * and delete the EventLoop during its own shutdown or configuration cleanup,
+ * while the others still use it. The application must keep the shared
+ * EventLoop alive until all its users have finished, then stop and delete it.
  *
  * The EventLoop and the ConnectionManager implementation is
  * architecture-specific. The goal is to have a single call to "poll" (epoll,

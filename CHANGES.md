@@ -3,6 +3,16 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Server configuration no longer starts the EventLoop
+
+`UA_ServerConfig_setDefault` and `UA_ServerConfig_setMinimal` no longer start
+the EventLoop. `UA_Server_run_startup` starts it when needed. This lets an
+application configure servers and their PubSub connections before starting
+the EventLoop. If multiple clients or servers share one EventLoop, set
+`externalEventLoop = true` in every participating configuration. The
+application must keep the shared EventLoop alive until all users have finished,
+then stop and delete it.
+
 ### Removing a PublishedDataSet removes the connected DataSetWriters
 
 `UA_Server_removePublishedDataSet` removes the connected DataSetWriters together
