@@ -1756,6 +1756,148 @@ START_TEST(Client_subscription_statusChange) {
 }
 END_TEST
 
+static size_t subscriptionDeleteCount;
+
+static UA_Client_Subscription *
+findTestSubscription(UA_Client *client, UA_UInt32 subId) {
+    UA_Client_Subscription *sub;
+    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
+        if(sub->subscriptionId == subId)
+            return sub;
+    }
+    return NULL;
+}
+
+static void
+subscriptionDeleteCallback(UA_Client *client, UA_UInt32 subId, void *subContext) {
+    subscriptionDeleteCount++;
+}
+
+/* A Bad StatusChange removes the Subscription also in the client */
+START_TEST(Client_subscription_statusChangeRemoves) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    statusChange = UA_STATUSCODE_GOOD;
+    subscriptionDeleteCount = 0;
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    request.requestedLifetimeCount = 5;
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, statusChangeHandler,
+                                       subscriptionDeleteCallback);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    UA_NodeId monTarget = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(monTarget);
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(client, subId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH, monRequest,
+                                                  NULL, dataChangeHandler, NULL);
+    ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+
+    /* Manually control the server thread */
+    pauseServer();
+
+    /* The Subscription times out in the server */
+    UA_Subscription *sub = getSubscriptionById(server, subId);
+    sub->statusChange = UA_STATUSCODE_BADTIMEOUT;
+
+    /* Send publish requests and receive them on the server side */
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+
+    /* Server sends the StatusChange and deletes the Subscription */
+    UA_fakeSleep((UA_UInt32)response.revisedPublishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    /* Client receives the StatusChange and deletes the Subscription as well */
+    UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(statusChange, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(subscriptionDeleteCount, 1);
+    ck_assert_ptr_eq(findTestSubscription(client, subId), NULL);
+
+    /* Neither side knows the Subscription */
+    runServer();
+    retval = UA_Client_Subscriptions_deleteSingle(client, subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+    ck_assert_uint_eq(subscriptionDeleteCount, 1);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+static void
+statusChangeDeleteHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
+                          UA_StatusChangeNotification *notification) {
+    statusChange = notification->status;
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+}
+
+/* The StatusChange callback deletes the Subscription itself. The remaining
+ * notifications of the message are dropped and nothing is acknowledged. */
+START_TEST(Client_subscription_statusChangeDeleteInCallback) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    statusChange = UA_STATUSCODE_GOOD;
+    subscriptionDeleteCount = 0;
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL,
+                                       statusChangeDeleteHandler,
+                                       subscriptionDeleteCallback);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+    UA_Client_Subscription *sub = findTestSubscription(client, subId);
+    ck_assert_ptr_ne(sub, NULL);
+
+    /* A StatusChange followed by a DataChange in the same message */
+    UA_StatusChangeNotification scn;
+    UA_StatusChangeNotification_init(&scn);
+    scn.status = UA_STATUSCODE_BADTIMEOUT;
+    UA_DataChangeNotification dcn;
+    UA_DataChangeNotification_init(&dcn);
+    UA_ExtensionObject notificationData[2];
+    UA_ExtensionObject_setValue(&notificationData[0], &scn,
+                                &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]);
+    UA_ExtensionObject_setValue(&notificationData[1], &dcn,
+                                &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]);
+
+    UA_UInt32 sequenceNumber = sub->sequenceNumber + 1;
+    UA_PublishRequest pubRequest;
+    UA_PublishRequest_init(&pubRequest);
+    UA_PublishResponse pubResponse;
+    UA_PublishResponse_init(&pubResponse);
+    pubResponse.subscriptionId = subId;
+    pubResponse.notificationMessage.sequenceNumber = sequenceNumber;
+    pubResponse.notificationMessage.notificationData = notificationData;
+    pubResponse.notificationMessage.notificationDataSize = 2;
+    pubResponse.availableSequenceNumbers = &sequenceNumber;
+    pubResponse.availableSequenceNumbersSize = 1;
+
+    lockClient(client);
+    client->currentlyOutStandingPublishRequests++;
+    __Client_Subscriptions_processPublishResponse(client, &pubRequest, &pubResponse);
+    unlockClient(client);
+
+    ck_assert_uint_eq(statusChange, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(subscriptionDeleteCount, 1);
+    ck_assert_ptr_eq(findTestSubscription(client, subId), NULL);
+
+    UA_Client_NotificationsAckNumber *ack;
+    LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
+        ck_assert_uint_ne(ack->subAck.subscriptionId, subId);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Write to the variable that is being monitored at a high rate */
 START_TEST(Client_subscription_writeBurst) {
     /* add a variable node to the address space */
@@ -2945,6 +3087,8 @@ static Suite* testSuite_Client(void) {
                    Client_subscription_admission_before_state_lookup);
     tcase_add_test(tc_client, Client_subscription_delete_async_noCallback);
     tcase_add_test(tc_client, Client_subscription_statusChange);
+    tcase_add_test(tc_client, Client_subscription_statusChangeRemoves);
+    tcase_add_test(tc_client, Client_subscription_statusChangeDeleteInCallback);
     tcase_add_test(tc_client, Client_subscription_timeout);
     tcase_add_test(tc_client, Client_subscription_detach);
     tcase_add_test(tc_client, Client_subscription_connectionClose);
