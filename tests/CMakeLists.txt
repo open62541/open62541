@@ -54,7 +54,7 @@ include_directories("${PROJECT_SOURCE_DIR}/plugins")
 
 if(UA_ARCHITECTURE_LWIP)
     # lwip includes
-    include_directories(${LWIP_INCLUDE_DIRS})
+    include_directories(SYSTEM ${LWIP_INCLUDE_DIRS})
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
@@ -319,6 +319,11 @@ ua_add_test(check_timer.c)
 ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
+
+if(UA_ARCHITECTURE_LWIP AND UA_ARCHITECTURE_POSIX)
+    ua_add_test(check_eventloop_lwip.c)
+    set_tests_properties(check_eventloop_lwip PROPERTIES TIMEOUT 120)
+endif()
 
 if(UA_ARCHITECTURE_WIN32)
     ua_add_test(check_eventloop_iocp.c)
