@@ -13,6 +13,17 @@ the EventLoop. If multiple clients or servers share one EventLoop, set
 application must keep the shared EventLoop alive until all users have finished,
 then stop and delete it.
 
+### lwIP network interface lifetime
+
+The default POSIX lwIP stack and TAP interface remain alive until process exit,
+independently of EventLoop lifetimes. They are initialized on the first loop
+start. Later loops reuse the interface and reject explicitly conflicting IP
+settings with `BadConfigurationError`.
+
+Custom `netifInit` callbacks are called once per successfully initialized loop,
+with retries after failure. Stop/start retains the interface. `netifShutdown`
+is called on deletion only after successful initialization.
+
 ### Removing a PublishedDataSet removes the connected DataSetWriters
 
 `UA_Server_removePublishedDataSet` removes the connected DataSetWriters together
