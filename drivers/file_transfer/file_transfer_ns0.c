@@ -79,6 +79,10 @@ removeFTEntry(FileTransferDriver *ftd, FTEntry *node) {
     ftd->entryCount--;
     unbindObjectContext(ftd->driver.server, node);
     releaseFileNode(ftd->driver.server, node);
+    if(node->transfer) {
+        UA_Variant_clear(&node->transfer->generateOptions);
+        UA_free(node->transfer);
+    }
     if(ftd->root == node)
         ftd->root = NULL;
     UA_NodeId_clear(&node->nodeId);
@@ -152,8 +156,26 @@ unregisterFileTransferMethodCallbacks(UA_Server *server) {
     setMethodCallbacks(server, storageMethodTables, 2, false);
 }
 
+static const FTMethodTable temporaryMethodTable = {
+    temporaryFileTransferTypeMethods, UA_FTMETHODS_SIZE(temporaryFileTransferTypeMethods)
+};
+
+UA_StatusCode
+registerTemporaryMethodCallbacks(UA_Server *server) {
+    return setMethodCallbacks(server, &temporaryMethodTable, 1, true);
+}
+
+void
+unregisterTemporaryMethodCallbacks(UA_Server *server) {
+    setMethodCallbacks(server, &temporaryMethodTable, 1, false);
+}
+
 static const FTMethod *
 entryMethods(const FTEntry *node, size_t *size) {
+    if(node->kind == FT_ENTRY_TEMPORARY) {
+        *size = UA_FTMETHODS_SIZE(temporaryFileTransferTypeMethods);
+        return temporaryFileTransferTypeMethods;
+    }
     if(node->kind == FT_ENTRY_STORAGE && node->isDirectory) {
         *size = UA_FTMETHODS_SIZE(fileDirectoryTypeMethods);
         return fileDirectoryTypeMethods;
@@ -438,6 +460,18 @@ readMaxLengthCallback(UA_Server *server, const UA_NodeId *sessionId,
 }
 
 static UA_StatusCode
+readTimeoutCallback(UA_Server *server, const UA_NodeId *sessionId,
+                    void *sessionContext, const UA_NodeId *nodeId,
+                    void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                    const UA_NumericRange *range, UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
+    FTEntry *node = (FTEntry*)nodeContext;
+    return readScalar(&node->driver->config.clientProcessingTimeout,
+                      &UA_TYPES[UA_TYPES_DURATION], includeSourceTimeStamp, value);
+}
+
+static UA_StatusCode
 readWritable(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
               FTEntry *node, UA_Boolean includeSourceTimeStamp, UA_DataValue *value) {
     UA_FileAccessRights rights = 0;
@@ -530,14 +564,24 @@ static const FTPropertyDesc fileProperties[FT_PROPERTIES_SIZE] = {
     {"MimeType", UA_TYPES_STRING, {NULL, NULL}, true, false}
 };
 
+static const FTPropertyDesc temporaryProperties[1] = {
+    {"ClientProcessingTimeout", UA_TYPES_DURATION, {readTimeoutCallback, NULL}, false, true}
+};
+
 static const FTPropertyDesc *
 entryProperties(const FTEntry *node, size_t *size) {
+    if(node->kind == FT_ENTRY_TEMPORARY) {
+        *size = 1;
+        return temporaryProperties;
+    }
     *size = FT_PROPERTIES_SIZE;
     return fileProperties;
 }
 
 static UA_Boolean
 isDriverValueSource(const UA_CallbackValueSource *source) {
+    if(source->read == readTimeoutCallback)
+        return true;
     for(size_t i = 0; i < FT_PROPERTIES_SIZE; i++) {
         if(fileProperties[i].source.read && source->read == fileProperties[i].source.read)
             return true;

@@ -79,9 +79,9 @@ listEntries(UA_FileTransferBackend *b, const UA_String path, ScanList *list) {
     return res;
 }
 
-/* Create an empty entry with its basename and type; metadata uses backend
- * defaults. The target path may have changed during a copy or move. */
-static UA_StatusCode
+/* Metadata uses backend defaults. The target path may have changed during a
+ * copy or move. */
+UA_StatusCode
 createBackendEntry(UA_FileTransferBackend *b, const UA_String path,
                     UA_Boolean isDirectory) {
     UA_String name = pathLastSegment(path);
