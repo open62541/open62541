@@ -129,12 +129,16 @@ isFullyConnected(UA_Client *client) {
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
         return false;
 
-    /* GetEndpoints handshake ongoing or not yet done */
-    if(client->endpointsHandshake || endpointUnconfigured(&client->endpoint))
-        return false;
-
     /* FindServers handshake ongoing or not yet done */
     if(client->findServersHandshake || client->discoveryUrl.length == 0)
+        return false;
+
+    /* Discovery services need neither an endpoint nor a Session */
+    if(client->discoveryOnly)
+        return true;
+
+    /* GetEndpoints handshake ongoing or not yet done */
+    if(client->endpointsHandshake || endpointUnconfigured(&client->endpoint))
         return false;
 
     if(!client->config.noSession) {
@@ -2250,6 +2254,10 @@ connectActivity(UA_Client *client) {
         return;
     }
 
+    /* Discovery services can be called without selecting an endpoint */
+    if(client->discoveryOnly)
+        return;
+
     /* GetEndpoints to identify the remote side and/or reset the SecureChannel
      * with encryption */
     if(endpointUnconfigured(&client->endpoint)) {
@@ -2823,6 +2831,7 @@ connectSecureChannel(UA_Client *client, const char *endpointUrl) {
     cc->noSession = true;
     UA_String_clear(&cc->endpointUrl);
     cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+    client->discoveryOnly = true;
     return connectInternal(client, false);
 }
 
@@ -2836,6 +2845,7 @@ __UA_Client_connect(UA_Client *client, UA_Boolean async, const char *endpointUrl
         cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
     }
 
+    client->discoveryOnly = false;
     connectInternal(client, async);
 
     unlockClient(client);
@@ -3092,6 +3102,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
 
     client->connectStatus = UA_STATUSCODE_GOOD;
+    client->discoveryOnly = false;
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
 
     UA_SecureChannel_init(&client->channel);
