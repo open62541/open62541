@@ -381,6 +381,18 @@ UA_WriterGroup_find(UA_PubSubManager *psm, const UA_NodeId id) {
     return NULL;
 }
 
+UA_WriterGroup *
+UA_WriterGroup_findByName(UA_PubSubConnection *c, const UA_String name) {
+    if(UA_String_isEmpty(&name))
+        return NULL;
+    UA_WriterGroup *wg;
+    LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+        if(!wg->deleteFlag && UA_String_equal(&name, &wg->config.name))
+            return wg;
+    }
+    return NULL;
+}
+
 UA_StatusCode
 UA_WriterGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_WriterGroup *wg,
                                  UA_UInt32 securityTokenId,
@@ -563,13 +575,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     /* Children evaluate their state machine after the state change of the parent.
      * Keep the current child state as the target state for the child. */
     UA_DataSetWriter *writer;
-    LIST_FOREACH(writer, &wg->writers, listEntry) {
-        if(psm->pubSubInitialSetupMode && writer->config.enabled) {
-            UA_DataSetWriter_setPubSubState(psm, writer, UA_PUBSUBSTATE_OPERATIONAL);
-        } else {
-            UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
-        }
-    }
+    LIST_FOREACH(writer, &wg->writers, listEntry)
+        UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
      * the last socket has closed. */
@@ -1797,32 +1804,20 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
 }
 
 UA_StatusCode
-UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
-                                  const UA_WriterGroupConfig *config) {
-    if(!server || !config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
-    if(!wg) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
+UA_WriterGroup_updateConfig(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                            const UA_WriterGroupConfig *config) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "The WriterGroup must be disabled to update the config");
-        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Validate the new configuration */
     UA_StatusCode res = validateWriterGroupConfig(psm, &wg->head, config);
-    if(res != UA_STATUSCODE_GOOD) {
-        unlockServer(server);
+    if(res != UA_STATUSCODE_GOOD)
         return res;
-    }
 
     /* Store the old configuration */
     UA_WriterGroupConfig oldConfig = wg->config;
@@ -1867,7 +1862,6 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
 
     /* Clean up and return */
     UA_WriterGroupConfig_clear(&oldConfig);
-    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 
  errout:
@@ -1878,6 +1872,24 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
 #endif
     UA_WriterGroupConfig_clear(&wg->config);
     wg->config = oldConfig; /* Restore the old config */
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
+                                  const UA_WriterGroupConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    if(!wg) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode res = UA_WriterGroup_updateConfig(psm, wg, config);
     unlockServer(server);
     return res;
 }

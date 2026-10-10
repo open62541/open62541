@@ -11,6 +11,35 @@ it returns `Bad_ConfigurationError`. Otherwise, while the WriterGroup of a
 connected writer is enabled, it returns `Bad_InvalidState` and changes nothing.
 Before, the PublishedDataSet was freed even when removing a connected writer failed.
 
+### Standard-compliant file-based PubSub configuration (PubSubConfiguration2)
+
+The file-based PubSub configuration (UA_ENABLE_PUBSUB_FILE_CONFIG) follows
+OPC UA Part 14 v1.05 (9.1.3.7). This is a breaking change of the API and of
+the file format:
+
+- The configuration file is a `UABinaryFileDataType` with a
+  `PubSubConfiguration2DataType` body. Files with the legacy
+  `PubSubConfigurationDataType` body are rejected. The file's namespaces
+  array is emitted on export and remapped against the server's
+  NamespaceArray on update.
+- `UA_Server_readPubSubConfiguration` replaces
+  `UA_Server_writePubSubConfigurationToByteString`.
+- The new `UA_Server_updatePubSubConfiguration` applies a file with the
+  element operations of the CloseAndUpdate method (add/match/modify/remove
+  with per-element status codes). Children are applied to the parent element
+  that was added, matched or modified in the same call. With
+  `requireCompleteUpdate` a failed update is rolled back.
+- `UA_Server_loadPubSubConfigFromByteString` (a destructive full replace) is
+  removed. A file is loaded with the references for Add of all its elements,
+  created by the new `UA_PubSubConfiguration_createReferences`. The top-level
+  Enabled field is ignored as for CloseAndUpdate; the added components are
+  enabled according to their own enabled flags.
+- The vendor-defined method "PubSub configuration" below PublishSubscribe
+  replaces the configuration with the elements of the file in one complete
+  update.
+- The information model methods (AddConnection, AddWriterGroup, ...) convert
+  their arguments with the same mapping and take all fields of the DataTypes.
+
 ### PubSub message security with OpenSSL and LibreSSL
 
 The PubSub SecurityPolicies `PubSub-Aes128-CTR` and `PubSub-Aes256-CTR`

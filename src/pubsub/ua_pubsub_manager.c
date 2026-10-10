@@ -66,6 +66,60 @@ UA_PubSubComponent_setPubSubState(UA_PubSubManager *psm, void *component,
     }
 }
 
+/* All component structs start with the UA_PubSubComponentHead */
+UA_PubSubComponentHead *
+UA_PubSubComponent_find(UA_PubSubManager *psm, UA_PubSubComponentType type,
+                        const UA_NodeId id) {
+    switch(type) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        return (UA_PubSubComponentHead*)UA_PubSubConnection_find(psm, id);
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        return (UA_PubSubComponentHead*)UA_WriterGroup_find(psm, id);
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        return (UA_PubSubComponentHead*)UA_DataSetWriter_find(psm, id);
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        return (UA_PubSubComponentHead*)UA_ReaderGroup_find(psm, id);
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        return (UA_PubSubComponentHead*)UA_DataSetReader_find(psm, id);
+    case UA_PUBSUBCOMPONENT_PUBLISHEDDATASET:
+        return (UA_PubSubComponentHead*)UA_PublishedDataSet_find(psm, id);
+    case UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET:
+        return (UA_PubSubComponentHead*)UA_SubscribedDataSet_find(psm, id);
+    default:
+        return NULL;
+    }
+}
+
+UA_StatusCode
+UA_PubSubComponent_remove(UA_PubSubManager *psm, UA_PubSubComponentHead *head) {
+    switch(head->componentType) {
+    case UA_PUBSUBCOMPONENT_CONNECTION: {
+        /* A connection with open channels is disabled and freed when the
+         * channels are closed. It is unusable (deleteFlag) until then. */
+        UA_PubSubConnection *c = (UA_PubSubConnection*)head;
+        UA_StatusCode res = UA_PubSubConnection_delete(psm, c);
+        if(res == UA_STATUSCODE_BADINTERNALERROR && c->deleteFlag)
+            res = UA_STATUSCODE_GOOD;
+        return res;
+    }
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        return UA_WriterGroup_remove(psm, (UA_WriterGroup*)head);
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        return UA_DataSetWriter_remove(psm, (UA_DataSetWriter*)head);
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        return UA_ReaderGroup_remove(psm, (UA_ReaderGroup*)head);
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        return UA_DataSetReader_remove(psm, (UA_DataSetReader*)head);
+    case UA_PUBSUBCOMPONENT_PUBLISHEDDATASET:
+        return UA_PublishedDataSet_remove(psm, (UA_PublishedDataSet*)head);
+    case UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET:
+        UA_SubscribedDataSet_remove(psm, (UA_SubscribedDataSet*)head);
+        return UA_STATUSCODE_GOOD;
+    default:
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+}
+
 void
 UA_PubSubComponentHead_clear(UA_PubSubComponentHead *psch) {
     UA_NodeId_clear(&psch->identifier);
@@ -244,9 +298,9 @@ UA_ReserveId_isFree(UA_PubSubManager *psm, UA_UInt16 id, UA_String transportProf
     return true;
 }
 
-static UA_UInt16
-UA_ReserveId_createId(UA_PubSubManager *psm,  UA_NodeId sessionId,
-                      UA_String transportProfileUri, UA_ReserveIdType reserveIdType) {
+UA_UInt16
+UA_ReserveId_findFreeId(UA_PubSubManager *psm, UA_String transportProfileUri,
+                        UA_ReserveIdType reserveIdType) {
     /* Total number of possible Ids */
     UA_UInt16 numberOfIds = 0x8000;
     /* Contains next possible free Id */
@@ -278,15 +332,24 @@ UA_ReserveId_createId(UA_PubSubManager *psm,  UA_NodeId sessionId,
         next_id_writerGroup = (UA_UInt16)(next_id + 1);
     else
         next_id_writer = (UA_UInt16)(next_id + 1);
+    return next_id;
+}
+
+static UA_UInt16
+UA_ReserveId_createId(UA_PubSubManager *psm,  UA_NodeId sessionId,
+                      UA_String transportProfileUri, UA_ReserveIdType reserveIdType) {
+    UA_UInt16 id = UA_ReserveId_findFreeId(psm, transportProfileUri, reserveIdType);
+    if(id == 0)
+        return 0;
 
     UA_ReserveId *reserveId =
-        UA_ReserveId_new(next_id, transportProfileUri, reserveIdType, sessionId);
+        UA_ReserveId_new(id, transportProfileUri, reserveIdType, sessionId);
     if(!reserveId)
         return 0;
 
     ZIP_INSERT(UA_ReserveIdTree, &psm->reserveIds, reserveId);
     psm->reserveIdsSize++;
-    return next_id;
+    return id;
 }
 
 static void *
@@ -805,13 +868,8 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
      * OPERATIONAL */
     if(state == UA_LIFECYCLESTATE_STARTED) {
         UA_PubSubConnection *c;
-        TAILQ_FOREACH(c, &psm->connections, listEntry) {
-            if (psm->pubSubInitialSetupMode) {
-                UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
-            } else {
-                UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
-            }
-        }
+        TAILQ_FOREACH(c, &psm->connections, listEntry)
+            UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
     }
 }
 
@@ -903,6 +961,15 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     TAILQ_FOREACH_SAFE(tmpSDS1, &psm->subscribedDataSets, listEntry, tmpSDS2) {
         UA_SubscribedDataSet_remove(psm, tmpSDS1);
     }
+
+    /* Remove the top-level configuration metadata */
+    psm->configurationVersion = 0;
+    UA_KeyValueMap_clear(&psm->configurationProperties);
+    UA_Array_delete(psm->defaultSecurityKeyServices,
+                    psm->defaultSecurityKeyServicesSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    psm->defaultSecurityKeyServices = NULL;
+    psm->defaultSecurityKeyServicesSize = 0;
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     /* Remove the SecurityGroups */

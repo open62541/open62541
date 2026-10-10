@@ -11,6 +11,7 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_PUBSUB_INTERNAL_H_
@@ -185,6 +186,12 @@ UA_PublishedDataSet_find(UA_PubSubManager *psm, const UA_NodeId id);
 UA_PublishedDataSet *
 UA_PublishedDataSet_findByName(UA_PubSubManager *psm, const UA_String name);
 
+/* Deep copy of the publish parameters of the DataSetFields */
+UA_StatusCode
+UA_PublishedDataSet_getPublishedData(const UA_PublishedDataSet *pds,
+                                     UA_PublishedVariableDataType **data,
+                                     size_t *dataSize);
+
 UA_AddPublishedDataSetResult
 UA_PublishedDataSet_create(UA_PubSubManager *psm,
                            const UA_PublishedDataSetConfig *publishedDataSetConfig,
@@ -213,6 +220,11 @@ UA_SubscribedDataSet_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_SubscribedDataSet *
 UA_SubscribedDataSet_findByName(UA_PubSubManager *psm, const UA_String name);
+
+UA_StatusCode
+UA_SubscribedDataSet_create(UA_PubSubManager *psm,
+                            const UA_SubscribedDataSetConfig *sdsConfig,
+                            UA_NodeId *sdsIdentifier);
 
 void
 UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds);
@@ -257,6 +269,10 @@ typedef struct UA_PubSubConnection {
 UA_PubSubConnection *
 UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id);
 
+/* Components pending deletion are skipped. An empty name never matches. */
+UA_PubSubConnection *
+UA_PubSubConnection_findByName(UA_PubSubManager *psm, const UA_String name);
+
 UA_StatusCode
 UA_PubSubConnection_create(UA_PubSubManager *psm,
                            const UA_PubSubConnectionConfig *connectionConfig,
@@ -264,6 +280,11 @@ UA_PubSubConnection_create(UA_PubSubManager *psm,
 
 UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
+
+/* The connection must be disabled */
+UA_StatusCode
+UA_PubSubConnection_updateConfig(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                                 const UA_PubSubConnectionConfig *config);
 
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
@@ -305,6 +326,9 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
 UA_DataSetWriter *
 UA_DataSetWriter_find(UA_PubSubManager *psm, const UA_NodeId id);
 
+UA_DataSetWriter *
+UA_DataSetWriter_findByName(UA_WriterGroup *wg, const UA_String name);
+
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState);
@@ -338,6 +362,11 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 
 UA_StatusCode
 UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw);
+
+/* The writer must be disabled */
+UA_StatusCode
+UA_DataSetWriter_updateConfig(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
+                              const UA_DataSetWriterConfig *config);
 
 /**********************************************/
 /*               WriterGroup                  */
@@ -378,6 +407,11 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
+/* The group must be disabled */
+UA_StatusCode
+UA_WriterGroup_updateConfig(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                            const UA_WriterGroupConfig *config);
+
 /* Exposed so we can change the publish interval without having to stop */
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
@@ -398,6 +432,10 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
 
 UA_WriterGroup *
 UA_WriterGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
+
+/* Components pending deletion are skipped. An empty name never matches. */
+UA_WriterGroup *
+UA_WriterGroup_findByName(UA_PubSubConnection *c, const UA_String name);
 
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
@@ -482,6 +520,9 @@ struct UA_DataSetReader {
 UA_DataSetReader *
 UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id);
 
+UA_DataSetReader *
+UA_DataSetReader_findByName(UA_ReaderGroup *rg, const UA_String name);
+
 /* Check ordering and report whether messages are missing. A preliminary check
  * refreshes receive time; update also commits the accepted counter. */
 UA_Boolean
@@ -514,6 +555,11 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr);
+
+/* The reader must be disabled */
+UA_StatusCode
+UA_DataSetReader_updateConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr,
+                              const UA_DataSetReaderConfig *config);
 
 UA_StatusCode
 DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr,
@@ -562,6 +608,11 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
 UA_StatusCode
 UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg);
 
+/* The group must be disabled */
+UA_StatusCode
+UA_ReaderGroup_updateConfig(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                            const UA_ReaderGroupConfig *config);
+
 UA_StatusCode
 UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                        UA_Boolean validate);
@@ -585,6 +636,10 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
 
 UA_ReaderGroup *
 UA_ReaderGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
+
+/* Components pending deletion are skipped. An empty name never matches. */
+UA_ReaderGroup *
+UA_ReaderGroup_findByName(UA_PubSubConnection *c, const UA_String name);
 
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
@@ -649,6 +704,92 @@ UA_SecurityGroup_remove(UA_PubSubManager *psm, UA_SecurityGroup *sg);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
+/**********************************************/
+/*      Configuration DataType Mapping        */
+/**********************************************/
+
+/* Mapping between the Part 14 configuration DataTypes and the internal
+ * UA_*Config structures (ua_pubsub_config_map.c). The _fromDataType views
+ * borrow from the source and must not outlive it. Never _clear a view. The
+ * Connection and DataSetReader views own their PublisherId: clean them up
+ * with _clearView. */
+
+UA_StatusCode
+UA_PubSubConnectionConfig_fromDataType(const UA_PubSubConnectionDataType *src,
+                                       UA_PubSubConnectionConfig *dst);
+
+void
+UA_PubSubConnectionConfig_clearView(UA_PubSubConnectionConfig *config);
+
+UA_StatusCode
+UA_WriterGroupConfig_fromDataType(const UA_WriterGroupDataType *src,
+                                  UA_WriterGroupConfig *dst);
+
+UA_StatusCode
+UA_DataSetWriterConfig_fromDataType(const UA_DataSetWriterDataType *src,
+                                    UA_DataSetWriterConfig *dst);
+
+UA_StatusCode
+UA_ReaderGroupConfig_fromDataType(const UA_ReaderGroupDataType *src,
+                                  UA_ReaderGroupConfig *dst);
+
+UA_StatusCode
+UA_DataSetReaderConfig_fromDataType(const UA_DataSetReaderDataType *src,
+                                    UA_DataSetReaderConfig *dst);
+
+void
+UA_DataSetReaderConfig_clearView(UA_DataSetReaderConfig *config);
+
+UA_StatusCode
+UA_PublishedDataSetConfig_fromDataType(const UA_PublishedDataSetDataType *src,
+                                       UA_PublishedDataSetConfig *dst);
+
+UA_StatusCode
+UA_DataSetFieldConfig_fromDataType(const UA_PublishedDataSetDataType *src,
+                                   size_t fieldIndex, UA_DataSetFieldConfig *dst);
+
+/* Add the fields of the DataType to an existing PublishedDataSet. The
+ * FieldMetaData and DataSetMetaData are copied verbatim, as the field configs
+ * do not carry every member. */
+UA_StatusCode
+UA_PublishedDataSet_addFieldsFromDataType(UA_PubSubManager *psm,
+                                          const UA_NodeId pdsId,
+                                          const UA_PublishedDataSetDataType *src);
+
+UA_StatusCode
+UA_SubscribedDataSetConfig_fromDataType(const UA_StandaloneSubscribedDataSetDataType *src,
+                                        UA_SubscribedDataSetConfig *dst);
+
+/* Deep copy. The caller sets the enabled flag from the component state */
+
+UA_StatusCode
+UA_PubSubConnectionConfig_toDataType(const UA_PubSubConnectionConfig *src,
+                                     UA_PubSubConnectionDataType *dst);
+
+UA_StatusCode
+UA_WriterGroupConfig_toDataType(const UA_WriterGroupConfig *src,
+                                UA_WriterGroupDataType *dst);
+
+UA_StatusCode
+UA_DataSetWriterConfig_toDataType(const UA_DataSetWriterConfig *src,
+                                  UA_DataSetWriterDataType *dst);
+
+UA_StatusCode
+UA_ReaderGroupConfig_toDataType(const UA_ReaderGroupConfig *src,
+                                UA_ReaderGroupDataType *dst);
+
+UA_StatusCode
+UA_DataSetReaderConfig_toDataType(const UA_DataSetReaderConfig *src,
+                                  UA_DataSetReaderDataType *dst);
+
+UA_StatusCode
+UA_PublishedDataSet_toDataType(const UA_PublishedDataSet *pds,
+                               UA_PublishedDataSetDataType *dst);
+
+UA_StatusCode
+UA_SubscribedDataSetConfig_toDataType(const UA_SubscribedDataSetConfig *src,
+                                      UA_StandaloneSubscribedDataSetDataType *dst);
+
 /******************/
 /* PubSub Manager */
 /******************/
@@ -688,10 +829,12 @@ struct UA_PubSubManager {
     size_t reserveIdsSize;
     UA_ReserveIdTree reserveIds;
 
-    /* During the initial activation of the PubSub subsystem (e.g. when loading a configuration file), special behaviour
-     * is required within the PubSub state machine transitions. This global flag can be set to indicate that the
-     * configuration phase is active, and it is evaluated during the state changes of the PubSub components. */
-    UA_Boolean pubSubInitialSetupMode;
+    /* Top-level fields of the PubSubConfiguration2DataType. The
+     * configurationVersion (VersionTime) is updated on every change. */
+    UA_UInt32 configurationVersion;
+    UA_KeyValueMap configurationProperties;
+    size_t defaultSecurityKeyServicesSize;
+    UA_EndpointDescription *defaultSecurityKeyServices;
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     LIST_HEAD(, UA_PubSubKeyStorage) pubSubKeyList;
@@ -726,12 +869,27 @@ UA_PubSubComponent_setPubSubState(UA_PubSubManager *psm, void *component,
                                   UA_PubSubState targetState,
                                   UA_StatusCode errorReason);
 
+UA_PubSubComponentHead *
+UA_PubSubComponent_find(UA_PubSubManager *psm, UA_PubSubComponentType type,
+                        const UA_NodeId id);
+
+/* Remove a component with its children. A connection with open channels
+ * gets the deleteFlag and is freed later; this returns Good. */
+UA_StatusCode
+UA_PubSubComponent_remove(UA_PubSubManager *psm, UA_PubSubComponentHead *head);
+
 UA_StatusCode
 UA_PubSubManager_reserveIds(UA_PubSubManager *psm, UA_NodeId sessionId,
                             UA_UInt16 numRegWriterGroupIds,
                             UA_UInt16 numRegDataSetWriterIds,
                             UA_String transportProfileUri, UA_UInt16 **writerGroupIds,
                             UA_UInt16 **dataSetWriterIds);
+
+/* An unused, unreserved WriterGroupId/DataSetWriterId from 0x8000. Returns 0
+ * if all are taken. */
+UA_UInt16
+UA_ReserveId_findFreeId(UA_PubSubManager *psm, UA_String transportProfileUri,
+                        UA_ReserveIdType reserveIdType);
 
 void
 UA_PubSubManager_freeIds(UA_PubSubManager *psm);
@@ -750,6 +908,29 @@ UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 UA_StatusCode
 UA_PubSubSecurityPolicy_validate(const UA_PubSubSecurityPolicy *policy,
                                  UA_MessageSecurityMode securityMode);
+
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+
+/* Encode the configuration as the file content (lock held) */
+UA_StatusCode
+UA_PubSubManager_encodeConfig2Blob(UA_PubSubManager *psm, UA_ByteString *buf);
+
+/* Decode a configuration file and remap its namespace indices. cfg borrows
+ * from eo, which the caller clears after use. */
+UA_StatusCode
+UA_PubSubManager_decodeConfig2Blob(UA_PubSubManager *psm, const UA_ByteString *buf,
+                                   UA_ExtensionObject *eo,
+                                   UA_PubSubConfiguration2DataType *cfg);
+
+/* UA_Server_updatePubSubConfiguration with the lock held */
+UA_StatusCode
+UA_PubSubManager_updateConfigFile(UA_PubSubManager *psm, const UA_ByteString *file,
+                                  size_t refsSize,
+                                  const UA_PubSubConfigurationRefDataType *refs,
+                                  UA_Boolean requireCompleteUpdate,
+                                  UA_PubSubConfigurationUpdateResult *result);
+
+#endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
 
 /************************************/
 /* Information Model Representation */

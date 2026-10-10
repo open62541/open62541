@@ -65,6 +65,18 @@ UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id) {
     return c;
 }
 
+UA_PubSubConnection *
+UA_PubSubConnection_findByName(UA_PubSubManager *psm, const UA_String name) {
+    if(!psm || UA_String_isEmpty(&name))
+        return NULL;
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        if(!c->deleteFlag && UA_String_equal(&name, &c->config.name))
+            return c;
+    }
+    return NULL;
+}
+
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
     UA_PublisherId_clear(&connectionConfig->publisherId);
@@ -401,21 +413,11 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     /* Children evaluate their state machine after the state change of the parent.
      * Keep the current child state as the target state for the child. */
     UA_ReaderGroup *rg;
-    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(psm->pubSubInitialSetupMode && rg->config.enabled) {
-            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
-        } else {
-            UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
-        }
-    }
+    LIST_FOREACH(rg, &c->readerGroups, listEntry)
+        UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
     UA_WriterGroup *wg;
-    LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-        if(psm->pubSubInitialSetupMode && wg->config.enabled) {
-            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
-        } else {
-            UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
-        }
-    }
+    LIST_FOREACH(wg, &c->writerGroups, listEntry)
+        UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
      * the last socket has closed. */
@@ -944,27 +946,14 @@ UA_Server_processPubSubConnectionReceive(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_updatePubSubConnectionConfig(UA_Server *server,
-                                       const UA_NodeId connectionId,
-                                       const UA_PubSubConnectionConfig *config) {
-    if(!server || !config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    /* Find the connection */
-    UA_PubSubManager *psm = getPSM(server);
-    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
-    if(!c) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
+UA_PubSubConnection_updateConfig(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                                 const UA_PubSubConnectionConfig *config) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Verify the connection is disabled */
     if(UA_PubSubState_isEnabled(c->head.state)) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c,
                             "The PubSubConnection must be disabled to update the config");
-        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -985,13 +974,33 @@ UA_Server_updatePubSubConnectionConfig(UA_Server *server,
     }
 
     UA_PubSubConnectionConfig_clear(&oldConfig);
-    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 
  errout:
     /* Restore the old config */
     UA_PubSubConnectionConfig_clear(&c->config);
     c->config = oldConfig;
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updatePubSubConnectionConfig(UA_Server *server,
+                                       const UA_NodeId connectionId,
+                                       const UA_PubSubConnectionConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    /* Find the connection */
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+    if(!c) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode res = UA_PubSubConnection_updateConfig(psm, c, config);
     unlockServer(server);
     return res;
 }
