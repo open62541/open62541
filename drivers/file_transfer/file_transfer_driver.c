@@ -385,7 +385,9 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
         res = UA_Server_readNodeClass(server, desc.nodeId, &cls);
         if(res == UA_STATUSCODE_GOOD) {
             created = false;
-            res = checkFileTransferObject(server, desc.nodeId, !standaloneFile);
+            res = checkFileTransferObject(server, desc.nodeId,
+                                          standaloneFile ? UA_NS0ID(FILETYPE) :
+                                          UA_NS0ID(FILEDIRECTORYTYPE));
             if(res == UA_STATUSCODE_GOOD && findEntryOwner(server, &desc.nodeId))
                 res = UA_STATUSCODE_BADNODEIDEXISTS;
         }
@@ -403,7 +405,9 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
             desc.referenceTypeId = UA_NS0ID(HASCOMPONENT);
         if(UA_NodeId_isNull(&desc.typeDefinition))
             desc.typeDefinition = standaloneFile ? UA_NS0ID(FILETYPE) : UA_NS0ID(FILEDIRECTORYTYPE);
-        res = checkFileTransferType(server, desc.typeDefinition, !standaloneFile);
+        res = checkFileTransferType(server, desc.typeDefinition,
+                                    standaloneFile ? UA_NS0ID(FILETYPE) :
+                                    UA_NS0ID(FILEDIRECTORYTYPE));
         if(res != UA_STATUSCODE_GOOD) {
             el->unlock(el);
             return res;
