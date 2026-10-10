@@ -29,7 +29,8 @@
 -->
 
 <!-- FileType, FileDirectoryType (without the <FileDirectoryName> and <FileName>
-     placeholders) and OpenFileMode for the file transfer driver with the reduced
+     placeholders), TemporaryFileTransferType (without the <TransferState>
+     placeholder) and OpenFileMode for the file transfer driver with the reduced
      Namespace Zero. Extracted from Opc.Ua.NodeSet2.xml of the UA-Nodeset
      (1.05.07). -->
 <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" LastModified="2026-07-30T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
@@ -902,6 +903,266 @@
           <Body>
             <Argument>
               <Name>NewNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="i=15744" BrowseName="TemporaryFileTransferType">
+    <DisplayName>TemporaryFileTransferType</DisplayName>
+    <Category>Base Info TemporaryFileTransferType Base</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part20/4.4.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15745</Reference>
+      <Reference ReferenceType="HasComponent">i=15746</Reference>
+      <Reference ReferenceType="HasComponent">i=15749</Reference>
+      <Reference ReferenceType="HasComponent">i=15751</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=15745" BrowseName="ClientProcessingTimeout" ParentNodeId="i=15744" DataType="i=290">
+    <DisplayName>ClientProcessingTimeout</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15744</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="i=15746" BrowseName="GenerateFileForRead" ParentNodeId="i=15744">
+    <DisplayName>GenerateFileForRead</DisplayName>
+    <Category>Base Info TemporaryFileTransferType Base</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part20/4.4.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15747</Reference>
+      <Reference ReferenceType="HasProperty">i=15748</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15744</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=15747" BrowseName="InputArguments" ParentNodeId="i=15746" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15746</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>GenerateOptions</Name>
+              <DataType>
+                <Identifier>i=24</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=15748" BrowseName="OutputArguments" ParentNodeId="i=15746" DataType="i=296" ValueRank="1" ArrayDimensions="3">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15746</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>FileNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>FileHandle</Name>
+              <DataType>
+                <Identifier>i=7</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>CompletionStateMachine</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=15749" BrowseName="GenerateFileForWrite" ParentNodeId="i=15744">
+    <DisplayName>GenerateFileForWrite</DisplayName>
+    <Category>Base Info TemporaryFileTransferType Base</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part20/4.4.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=16359</Reference>
+      <Reference ReferenceType="HasProperty">i=15750</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15744</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=16359" BrowseName="InputArguments" ParentNodeId="i=15749" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15749</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>GenerateOptions</Name>
+              <DataType>
+                <Identifier>i=24</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=15750" BrowseName="OutputArguments" ParentNodeId="i=15749" DataType="i=296" ValueRank="1" ArrayDimensions="2">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15749</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>FileNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>FileHandle</Name>
+              <DataType>
+                <Identifier>i=7</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=15751" BrowseName="CloseAndCommit" ParentNodeId="i=15744">
+    <DisplayName>CloseAndCommit</DisplayName>
+    <Category>Base Info TemporaryFileTransferType Base</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part20/4.4.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15752</Reference>
+      <Reference ReferenceType="HasProperty">i=15753</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15744</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=15752" BrowseName="InputArguments" ParentNodeId="i=15751" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15751</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>FileHandle</Name>
+              <DataType>
+                <Identifier>i=7</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=15753" BrowseName="OutputArguments" ParentNodeId="i=15751" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15751</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>CompletionStateMachine</Name>
               <DataType>
                 <Identifier>i=17</Identifier>
               </DataType>
