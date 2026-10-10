@@ -547,6 +547,11 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_server_alarmsconditions.c)
 endif()
 
+if(UA_ENABLE_METHODCALLS AND UA_GENERATED_NAMESPACE_ZERO)
+    ua_add_test(server/check_server_filetransfer.c)
+    ua_add_test(client/check_client_filetransfer.c)
+endif()
+
 # Single-threaded counterpart of check_server_asyncop.c, built in every configuration
 ua_add_test(server/check_server_asyncop_singlethreaded.c)
 

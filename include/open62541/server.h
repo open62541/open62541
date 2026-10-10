@@ -1947,6 +1947,8 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * Some drivers define core functionality and are added internally in the server
  * implementation. */
 
+/* GENERIC permits multiple instances. Other driver types
+ * can be added only once to a server. */
 typedef enum {
     UA_DRIVERTYPE_GENERIC = 0,
     UA_DRIVERTYPE_GDS_RECEIVER
@@ -2020,7 +2022,9 @@ struct UA_Driver {
 };
 
 /* Adds the Driver to the server. Starts the driver if the server is already
- * started. */
+ * started and returns the start result. A failed start rolls back registration
+ * and leaves ownership with the caller. The server backpointer is retained
+ * for cleanup; stop the driver if needed before freeing it. */
 UA_StatusCode
 UA_Server_addDriver(UA_Server *server, UA_Driver *drv);
 
