@@ -1306,7 +1306,8 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 }
 
 static UA_StatusCode
-UDP_eventSourceStart(UA_ConnectionManager *cm) {
+UDP_eventSourceStart(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)cm->eventSource.eventLoop;
     if(!el)
@@ -1352,7 +1353,8 @@ UDP_shutdownCB(void *application, UA_RegisteredFD *rfd) {
 }
 
 static void
-UDP_eventSourceStop(UA_ConnectionManager *cm) {
+UDP_eventSourceStop(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)cm->eventSource.eventLoop;
     (void)el;
@@ -1375,7 +1377,8 @@ UDP_eventSourceStop(UA_ConnectionManager *cm) {
 }
 
 static UA_StatusCode
-UDP_eventSourceDelete(UA_ConnectionManager *cm) {
+UDP_eventSourceDelete(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -1403,9 +1406,9 @@ UA_ConnectionManager_new_LWIP_UDP(const UA_String eventSourceName) {
 
     cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
-    cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *))UDP_eventSourceStart;
-    cm->cm.eventSource.stop = (void (*)(UA_EventSource *))UDP_eventSourceStop;
-    cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))UDP_eventSourceDelete;
+    cm->cm.eventSource.start = UDP_eventSourceStart;
+    cm->cm.eventSource.stop = UDP_eventSourceStop;
+    cm->cm.eventSource.free = UDP_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)udpName);
     cm->cm.openConnection = UDP_openConnection;
     cm->cm.allocNetworkBuffer = UA_EventLoopLWIP_allocNetworkBuffer;

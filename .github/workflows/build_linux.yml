@@ -242,7 +242,7 @@ jobs:
             build:
               name: "Debug Build & Unit Tests with lwip (gcc, ASan)"
               cmd_deps: |
-                sudo apt-get install -y -qq build-essential clang-18 cmake gcc git iproute2 libpcap-dev
+                sudo apt-get install -y -qq build-essential clang-18 cmake gcc git iproute2 libpcap-dev net-tools
                 cd ${HOME}
                 git clone https://github.com/lwip-tcpip/lwip.git
                 cd ${HOME}/lwip

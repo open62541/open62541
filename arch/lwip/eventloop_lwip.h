@@ -346,7 +346,7 @@ UA_EventLoopLWIP_pipe(UA_FD fds[2]);
 
 /* Cancel the current _run by sending to the self-pipe */
 void
-UA_EventLoopLWIP_cancel(UA_EventLoopLWIP *el);
+UA_EventLoopLWIP_cancel(UA_EventLoop *el);
 
 void
 UA_EventLoopLWIP_addDelayedCallback(UA_EventLoop *public_el,

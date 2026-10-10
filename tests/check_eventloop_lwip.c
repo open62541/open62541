@@ -191,6 +191,37 @@ START_TEST(customInterfaceLifecycle) {
     ck_assert_uint_eq(shutdownCalls, 1);
 } END_TEST
 
+/* Invoke lifecycle methods through their public function pointers. In addition
+ * to checking ownership, UBSan verifies the callback types at these calls. */
+START_TEST(publicCallbackLifecycle) {
+    UA_EventLoop *el = newLoop(NULL);
+    UA_ConnectionManager *tcp = UA_ConnectionManager_new_LWIP_TCP(UA_STRING("tcp"));
+    UA_ConnectionManager *udp = UA_ConnectionManager_new_LWIP_UDP(UA_STRING("udp"));
+    ck_assert_ptr_nonnull(tcp);
+    ck_assert_ptr_nonnull(udp);
+    UA_EventSource *sources[] = {&tcp->eventSource, &udp->eventSource};
+    for(unsigned i = 0; i < 2; i++) {
+        ck_assert_uint_eq(el->registerEventSource(el, sources[i]), UA_STATUSCODE_GOOD);
+        ck_assert_ptr_eq(sources[i]->eventLoop, el);
+        ck_assert_int_eq(sources[i]->state, UA_EVENTSOURCESTATE_STOPPED);
+    }
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+    for(unsigned i = 0; i < 2; i++)
+        ck_assert_int_eq(sources[i]->state, UA_EVENTSOURCESTATE_STARTED);
+    el->cancel(el);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    el->stop(el);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+
+    /* Explicit deregistration and deletion for TCP; loop-owned deletion for
+     * UDP exercises the other ownership path. */
+    ck_assert_uint_eq(el->deregisterEventSource(el, sources[0]), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(sources[0]->state, UA_EVENTSOURCESTATE_FRESH);
+    ck_assert_ptr_eq(el->eventSources, sources[1]);
+    ck_assert_uint_eq(sources[0]->free(sources[0]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(el->free(el), UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     Suite *suite = suite_create("lwIP EventLoop lifecycle");
     TCase *tc = tcase_create("lifecycle");
@@ -199,6 +230,7 @@ int main(void) {
     tcase_add_test(tc, sequentialLoopsAndRestart);
     tcase_add_test(tc, conflictingAndInvalidConfiguration);
     tcase_add_test(tc, customInterfaceLifecycle);
+    tcase_add_test(tc, publicCallbackLifecycle);
     suite_add_tcase(suite, tc);
     SRunner *runner = srunner_create(suite);
     /* Exercise successive loop lifetimes within the same lwIP process. */
