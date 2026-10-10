@@ -8,6 +8,8 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 #include <open62541/types.h>
 #include <open62541/transport_generated.h>
 #include <open62541/plugin/accesscontrol_default.h>
@@ -135,10 +137,14 @@ START_TEST(checkGetLifecycleState) {
     /* Before startup, server should be in stopped state */
     UA_LifecycleState state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_int_eq(UA_Server_getConfig(server)->eventLoop->state,
+                     UA_EVENTLOOPSTATE_FRESH);
 
     /* After startup, server should be in started state */
     UA_StatusCode ret = UA_Server_run_startup(server);
     ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getConfig(server)->eventLoop->state,
+                     UA_EVENTLOOPSTATE_STARTED);
 
     state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STARTED);
@@ -149,6 +155,54 @@ START_TEST(checkGetLifecycleState) {
 
     state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+START_TEST(checkSharedExternalEventLoop) {
+    UA_ServerConfig *firstConfig = UA_Server_getConfig(server);
+    UA_EventLoop *el = firstConfig->eventLoop;
+    firstConfig->externalEventLoop = true;
+    firstConfig->tcpEnabled = false;
+
+    UA_ServerConfig secondConfig = {0};
+    secondConfig.eventLoop = el;
+    secondConfig.externalEventLoop = true;
+    ck_assert_uint_eq(UA_ServerConfig_setMinimal(&secondConfig, 0, NULL),
+                      UA_STATUSCODE_GOOD);
+    secondConfig.tcpEnabled = false;
+    UA_Server *second = UA_Server_newWithConfig(&secondConfig);
+    ck_assert_ptr_ne(second, NULL);
+
+    UA_ClientConfig clientConfig = {0};
+    clientConfig.eventLoop = el;
+    clientConfig.externalEventLoop = true;
+    ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
+                      UA_STATUSCODE_GOOD);
+    UA_Client *client = UA_Client_newWithConfig(&clientConfig);
+    ck_assert_ptr_ne(client, NULL);
+
+    /* Configuring all three users must not start the shared EventLoop. */
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_FRESH);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+    ck_assert_uint_eq(UA_Server_run_startup(second), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_run_iterate(client, 0), UA_STATUSCODE_GOOD);
+
+    /* Shutting down one server and deleting the client must leave the shared
+     * EventLoop available to the other server. */
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+    UA_Client_delete(client);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+    UA_Server_run_iterate(second, false);
+    ck_assert_int_eq(UA_Server_getLifecycleState(second),
+                     UA_LIFECYCLESTATE_STARTED);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(second), UA_STATUSCODE_GOOD);
+    UA_Server_delete(second);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+
+    /* The fixture's last server can now stop and free the EventLoop. */
+    firstConfig->externalEventLoop = false;
 } END_TEST
 
 static size_t
@@ -849,6 +903,7 @@ int main(void) {
     tcase_add_test(tc_call, checkServer_run);
     tcase_add_test(tc_call, checkGetStatistics);
     tcase_add_test(tc_call, checkGetLifecycleState);
+    tcase_add_test(tc_call, checkSharedExternalEventLoop);
     tcase_add_test(tc_call, helloEndpointUrlLimit);
     tcase_add_test(tc_call, helloTrailingData);
     tcase_add_test(tc_call, checkNoneEndpointUserTokens);
