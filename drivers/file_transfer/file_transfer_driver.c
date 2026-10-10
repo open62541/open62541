@@ -206,6 +206,9 @@ configureDriver(FileTransferDriver *ftd) {
         driverParam(ftd, "refresh-interval", &UA_TYPES[UA_TYPES_DOUBLE], &res);
     if(interval)
         ftd->config.refreshInterval = *interval;
+    /* Published as ClientProcessingTimeout of a temporary root (Part 20, 4.4.1) */
+    if(ftd->root->kind == FT_ENTRY_TEMPORARY)
+        ftd->config.activityTimeout = UA_FILETRANSFER_CLIENTPROCESSINGTIMEOUT_DEFAULT;
     const UA_Double *timeout = (const UA_Double*)
         driverParam(ftd, "activity-timeout", &UA_TYPES[UA_TYPES_DOUBLE], &res);
     if(timeout)
@@ -468,6 +471,8 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
     }
     ftd->backend = *backend;
     ftd->config.maxReadLength = UA_FILETRANSFER_MAXREADLENGTH_DEFAULT;
+    if(rootKind == FT_ROOT_TEMPORARY)
+        ftd->config.activityTimeout = UA_FILETRANSFER_CLIENTPROCESSINGTIMEOUT_DEFAULT;
     ZIP_INIT(&ftd->entriesByNodeId);
     ZIP_INIT(&ftd->handlesById);
     ZIP_INIT(&ftd->handlesBySession);

@@ -238,7 +238,9 @@ struct UA_FileTransferBackend {
  *    milliseconds like Close, e.g. for the ActivityTimeout of a TrustList
  *    (Part 12, 7.8.2.1). The FileType Methods, openHandle and getHandleInfo
  *    count as calls. Idle handles are closed within twice the timeout. 0
- *    disables it (default); otherwise at least 0.0001.
+ *    disables it (default); otherwise at least 0.0001. Temporary drivers
+ *    publish it as ClientProcessingTimeout (default: 60000) and cancel an idle
+ *    transfer; closing the Session ends the transfers in any case.
  * 0:max-read-length [UInt32]
  *    Maximum bytes per Read or Write (default, also when zero: 1048576).
  *    Published as MaxByteStringLength. Reads are capped at this length;
@@ -430,7 +432,8 @@ typedef struct {
  * default type is TemporaryFileTransferType, the default BrowseName
  * 1:TemporaryFileTransfer. The parameters namespace-index (for the transfer
  * files, default: the namespace of the root NodeId), max-open-handles-per-session,
- * max-read-length and read-only (rejects GenerateFileForWrite) apply.
+ * max-read-length, activity-timeout and read-only (rejects GenerateFileForWrite)
+ * apply.
  * UA_FileTransferDriver_refresh() returns Bad_NotSupported. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_FileTransferDriver_newTemporary(UA_Server *server,
