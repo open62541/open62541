@@ -239,6 +239,12 @@ struct UA_FileTransferBackend {
  *    (Part 12, 7.8.2.1). The FileType Methods, openHandle and getHandleInfo
  *    count as calls. Idle handles are closed within twice the timeout. 0
  *    disables it (default); otherwise at least 0.0001.
+ * 0:client-processing-timeout [Double]
+ *    Temporary drivers: maximum time in milliseconds between the Method calls
+ *    of a transfer (default: 60000), published as ClientProcessingTimeout. An
+ *    idle transfer is cancelled and its file removed within twice the timeout.
+ *    0 disables it (closing the Session still ends the transfers); otherwise
+ *    at least 0.0001.
  * 0:max-read-length [UInt32]
  *    Maximum bytes per Read or Write (default, also when zero: 1048576).
  *    Published as MaxByteStringLength. Reads are capped at this length;

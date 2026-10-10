@@ -215,8 +215,15 @@ configureDriver(FileTransferDriver *ftd) {
         ftd->config.activityTimeout = *timeout;
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    timeout = (const UA_Double*)
+        driverParam(ftd, "client-processing-timeout", &UA_TYPES[UA_TYPES_DOUBLE], &res);
+    if(timeout)
+        ftd->config.clientProcessingTimeout = *timeout;
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     if(!validInterval(ftd->config.refreshInterval) ||
-       !validInterval(ftd->config.activityTimeout))
+       !validInterval(ftd->config.activityTimeout) ||
+       !validInterval(ftd->config.clientProcessingTimeout))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_Boolean complete = (ftd->root->kind == FT_ENTRY_TEMPORARY) ?
         storeComplete(&ftd->backend) :
@@ -289,6 +296,11 @@ startDriver(UA_Driver *drv) {
     ZIP_ITER(FTEntriesById, &ftd->entriesByNodeId, bindEntryMethods, &res);
     if(res == UA_STATUSCODE_GOOD && ftd->root->kind == FT_ENTRY_TEMPORARY)
         res = registerTemporaryMethodCallbacks(drv->server);
+    if(res == UA_STATUSCODE_GOOD && ftd->root->kind == FT_ENTRY_TEMPORARY &&
+       ftd->config.clientProcessingTimeout > 0)
+        res = UA_Server_addRepeatedCallback(drv->server, sweepTransfers, ftd,
+                                            ftd->config.clientProcessingTimeout,
+                                            &ftd->transferSweepCallbackId);
     if(res == UA_STATUSCODE_GOOD && ftd->root->isDirectory &&
        ftd->config.refreshInterval > 0)
         res = UA_Server_addRepeatedCallback(drv->server, refreshCallback, ftd,
@@ -333,6 +345,10 @@ FileTransferDriver_stop(UA_Driver *drv) {
     if(ftd->sweepCallbackId) {
         UA_Server_removeCallback(drv->server, ftd->sweepCallbackId);
         ftd->sweepCallbackId = 0;
+    }
+    if(ftd->transferSweepCallbackId) {
+        UA_Server_removeCallback(drv->server, ftd->transferSweepCallbackId);
+        ftd->transferSweepCallbackId = 0;
     }
     if(wasStarted)
         ZIP_ITER(FTEntriesById, &ftd->entriesByNodeId, unbindEntryMethods, NULL);

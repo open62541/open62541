@@ -263,6 +263,30 @@ sweepIdleHandles(UA_Server *server, void *driver) {
     }
 }
 
+static void *
+idleTransferHandle(void *context, FTHandle *h) {
+    const UA_DateTime *limit = (const UA_DateTime*)context;
+    return (h->file->transfer && h->file->transfer->lastActivity <= *limit) ? h : NULL;
+}
+
+/* Part 20, 4.4.1: the Server may cancel a transfer whose client is idle for
+ * longer than the ClientProcessingTimeout. The sweep runs in this interval,
+ * so a transfer ends within twice the timeout. */
+void
+sweepTransfers(UA_Server *server, void *driver) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime limit = el->dateTime_nowMonotonic(el) -
+        (UA_DateTime)(ftd->config.clientProcessingTimeout * UA_DATETIME_MSEC);
+    FTHandle *h;
+    while((h = (FTHandle*)ZIP_ITER(FTHandlesById, &ftd->handlesById,
+                                   idleTransferHandle, &limit))) {
+        UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                       "FileTransfer: Cancelled the idle transfer \"%S\"", h->file->path);
+        closeFTHandle(server, h);
+    }
+}
+
 /**************************************
  * FileType Method Callbacks
  **************************************/
@@ -281,6 +305,11 @@ resolveHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
     if(!h || !UA_NodeId_equal(&h->file->nodeId, objectId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     touchFTHandle(ftd->driver.server, h);
+    /* Each call on a transfer file restarts its ClientProcessingTimeout */
+    if(h->file->transfer) {
+        UA_EventLoop *el = UA_Server_getConfig(ftd->driver.server)->eventLoop;
+        h->file->transfer->lastActivity = el->dateTime_nowMonotonic(el);
+    }
     *outHandle = h;
     return UA_STATUSCODE_GOOD;
 }

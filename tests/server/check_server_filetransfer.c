@@ -7198,6 +7198,95 @@ START_TEST(temporaryCallbackFailures) {
     resetTemporaryCallbacks();
 } END_TEST
 
+static UA_Driver *
+newTimedTemporaryDriver(const char *name, UA_Double timeout, UA_NodeId *outRoot) {
+    UA_FileTransferTemporaryOptions options = temporaryOptions(true, true);
+    UA_FileTransferNodeDescription description = temporaryDescription(name);
+    UA_Driver *driver = NULL;
+    ck_assert_uint_eq(UA_FileTransferDriver_newTemporary(server_ft, &options, &description,
+                          outRoot, &driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "client-processing-timeout"), &timeout,
+                          &UA_TYPES[UA_TYPES_DOUBLE]), UA_STATUSCODE_GOOD);
+    return driver;
+}
+
+/* Part 20, 4.4.1: an idle transfer is cancelled after ClientProcessingTimeout */
+START_TEST(temporaryIdleTransferCancelled) {
+    resetTemporaryCallbacks();
+    UA_Server_getConfig(server_ft)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server_ft), UA_STATUSCODE_GOOD);
+    UA_NodeId root;
+    UA_Driver *driver = newTimedTemporaryDriver("Temp", 100, &root);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    ck_assert(readTimeoutValue(root) == 100.0);
+
+    /* Method calls keep the transfer alive */
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 4; i++) {
+        UA_fakeSleep(60);
+        UA_Server_run_iterate(server_ft, false);
+        callWrite(file, h, "x", UA_STATUSCODE_GOOD);
+    }
+    ck_assert(nodeExists(file));
+
+    /* An idle transfer ends within twice the timeout and releases the lock */
+    UA_fakeSleep(210);
+    UA_Server_run_iterate(server_ft, false);
+    ck_assert(!nodeExists(file));
+    ck_assert_uint_eq(tempCommitCalls, 0);
+    UA_NodeId_clear(&file);
+    h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
+START_TEST(temporaryTimeoutParameter) {
+    resetTemporaryCallbacks();
+    UA_Server_getConfig(server_ft)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server_ft), UA_STATUSCODE_GOOD);
+
+    /* 0 disables the timeout */
+    UA_NodeId root;
+    UA_Driver *driver = newTimedTemporaryDriver("Unlimited", 0, &root);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    ck_assert(readTimeoutValue(root) == 0.0);
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
+    UA_fakeSleep(10 * 60 * 1000);
+    UA_Server_run_iterate(server_ft, false);
+    ck_assert(nodeExists(file));
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    UA_NodeId_clear(&root);
+
+    /* Negative, NaN, infinite and sub-tick timeouts are rejected */
+    UA_Double zero = 0.0;
+    UA_Double invalid[4] = {-1, zero / zero, 1.0 / zero, 0.00001};
+    for(size_t i = 0; i < 4; i++) {
+        UA_Driver *rejected = newTimedTemporaryDriver("Invalid", invalid[i], NULL);
+        ck_assert_uint_eq(UA_Server_addDriver(server_ft, rejected),
+                          UA_STATUSCODE_BADINVALIDARGUMENT);
+        ck_assert_uint_eq(rejected->free(rejected), UA_STATUSCODE_GOOD);
+    }
+
+    /* Another type than Double fails the start */
+    UA_Driver *wrongType = newTimedTemporaryDriver("WrongType", 100, NULL);
+    UA_Int32 wrong = 100;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&wrongType->params,
+                          UA_QUALIFIEDNAME(0, "client-processing-timeout"), &wrong,
+                          &UA_TYPES[UA_TYPES_INT32]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, wrongType),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(wrongType->free(wrongType), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
+    resetTemporaryCallbacks();
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server_filetransfer");
 
@@ -7347,6 +7436,8 @@ int main(void) {
     tcase_add_test(tc_temp, temporaryApplicationStore);
     tcase_add_test(tc_temp, temporaryStopAndSessionClose);
     tcase_add_test(tc_temp, temporaryCallbackFailures);
+    tcase_add_test(tc_temp, temporaryIdleTransferCancelled);
+    tcase_add_test(tc_temp, temporaryTimeoutParameter);
     suite_add_tcase(s, tc_temp);
 
     SRunner *sr = srunner_create(s);

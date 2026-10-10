@@ -123,6 +123,8 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
             res = UA_STATUSCODE_BADOUTOFMEMORY;
     }
     if(res == UA_STATUSCODE_GOOD) {
+        UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+        file->transfer->lastActivity = el->dateTime_nowMonotonic(el);
         file->transfer->forWrite = forWrite;
         if(forWrite && generateOptions)
             res = UA_Variant_copy(generateOptions, &file->transfer->generateOptions);
