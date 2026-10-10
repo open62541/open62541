@@ -72,6 +72,28 @@ backendComplete(const UA_FileTransferBackend *b, UA_Boolean standaloneFile,
     return true;
 }
 
+/* The store of a temporary driver holds a flat set of files. The application
+ * writes the prepared read transfers, so write is always needed. */
+static UA_Boolean
+storeComplete(const UA_FileTransferBackend *b) {
+    return backendComplete(b, true, false) && b->create && b->remove;
+}
+
+typedef enum {
+    FT_ROOT_FILE,
+    FT_ROOT_DIRECTORY,
+    FT_ROOT_TEMPORARY
+} FTRootKind;
+
+static UA_NodeId
+rootBaseType(FTRootKind kind) {
+    if(kind == FT_ROOT_FILE)
+        return UA_NS0ID(FILETYPE);
+    if(kind == FT_ROOT_DIRECTORY)
+        return UA_NS0ID(FILEDIRECTORYTYPE);
+    return UA_NS0ID(TEMPORARYFILETRANSFERTYPE);
+}
+
 /* A namespaceIndex for the mirrored BrowseNames has to resolve in the server's
  * namespace array. An index that does not would put the Objects in a namespace
  * no client can interpret, and the mismatch would only show up on a browse. */
@@ -177,6 +199,8 @@ configureDriver(FileTransferDriver *ftd) {
         driverParam(ftd, "namespace-index", &UA_TYPES[UA_TYPES_UINT16], &res);
     if(ns)
         ftd->config.namespaceIndex = *ns;
+    else if(ftd->root->kind == FT_ENTRY_TEMPORARY)
+        ftd->config.namespaceIndex = ftd->root->nodeId.namespaceIndex; /* Not ns0 */
     ftd->config.refreshInterval = 1000;
     const UA_Double *interval = (const UA_Double*)
         driverParam(ftd, "refresh-interval", &UA_TYPES[UA_TYPES_DOUBLE], &res);
@@ -191,7 +215,10 @@ configureDriver(FileTransferDriver *ftd) {
     if(!validInterval(ftd->config.refreshInterval) ||
        !validInterval(ftd->config.activityTimeout))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(!backendComplete(&ftd->backend, !ftd->root->isDirectory, ftd->config.readOnly))
+    UA_Boolean complete = (ftd->root->kind == FT_ENTRY_TEMPORARY) ?
+        storeComplete(&ftd->backend) :
+        backendComplete(&ftd->backend, !ftd->root->isDirectory, ftd->config.readOnly);
+    if(!complete)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     return checkMountNamespace(ftd->driver.server, &ftd->config);
 }
@@ -200,7 +227,9 @@ static void *
 prepareEntry(void *context, FTEntry *node) {
     UA_Server *server = node->driver->driver.server;
     UA_StatusCode res = bindObjectContext(server, node);
-    if(res == UA_STATUSCODE_GOOD && !node->isDirectory && !node->binding) {
+    if(res == UA_STATUSCODE_GOOD && node->kind == FT_ENTRY_TEMPORARY) {
+        res = setupFileNode(server, node, NULL);
+    } else if(res == UA_STATUSCODE_GOOD && !node->isDirectory && !node->binding) {
         UA_FileTransferFileInfo info;
         res = backendGetInfo(&node->driver->backend.file, node->path, &info);
         if(res == UA_STATUSCODE_GOOD)
@@ -255,6 +284,8 @@ startDriver(UA_Driver *drv) {
         return res;
     drv->state = UA_LIFECYCLESTATE_STARTED;
     ZIP_ITER(FTEntriesById, &ftd->entriesByNodeId, bindEntryMethods, &res);
+    if(res == UA_STATUSCODE_GOOD && ftd->root->kind == FT_ENTRY_TEMPORARY)
+        res = registerTemporaryMethodCallbacks(drv->server);
     if(res == UA_STATUSCODE_GOOD && ftd->root->isDirectory &&
        ftd->config.refreshInterval > 0)
         res = UA_Server_addRepeatedCallback(drv->server, refreshCallback, ftd,
@@ -311,15 +342,19 @@ FileTransferDriver_stop(UA_Driver *drv) {
      * belong to the application or to another driver. */
     if(wasStarted) {
         UA_Boolean otherStarted = false;
+        UA_Boolean otherTemporary = false;
         for(UA_Driver *other = UA_Server_getDrivers(drv->server); other; other = other->next) {
-            if(other != drv && isFileTransferDriver(other) &&
-               other->state == UA_LIFECYCLESTATE_STARTED) {
-                otherStarted = true;
-                break;
-            }
+            if(other == drv || !isFileTransferDriver(other) ||
+               other->state != UA_LIFECYCLESTATE_STARTED)
+                continue;
+            otherStarted = true;
+            if(((FileTransferDriver*)other)->root->kind == FT_ENTRY_TEMPORARY)
+                otherTemporary = true;
         }
         if(!otherStarted)
             unregisterFileTransferMethodCallbacks(drv->server);
+        if(ftd->root->kind == FT_ENTRY_TEMPORARY && !otherTemporary)
+            unregisterTemporaryMethodCallbacks(drv->server);
     }
 
     drv->state = UA_LIFECYCLESTATE_STOPPED;
@@ -360,7 +395,7 @@ FileTransferDriver_free(UA_Driver *drv) {
 
 static UA_StatusCode
 newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
-          UA_Boolean standaloneFile, const UA_String path,
+          FTRootKind rootKind, const UA_String path,
           const UA_FileTransferNodeDescription *description, UA_NodeId *outNodeId,
           UA_Driver **outDriver) {
     if(outDriver)
@@ -369,7 +404,10 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     /* Mutating callbacks may be omitted when read-only is configured before
      * start. The callbacks needed for initialization must already be present. */
-    if(!backendComplete(backend, standaloneFile, true))
+    UA_Boolean standaloneFile = (rootKind == FT_ROOT_FILE);
+    UA_Boolean complete = (rootKind == FT_ROOT_TEMPORARY) ?
+        storeComplete(backend) : backendComplete(backend, standaloneFile, true);
+    if(!complete)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
@@ -385,9 +423,7 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
         res = UA_Server_readNodeClass(server, desc.nodeId, &cls);
         if(res == UA_STATUSCODE_GOOD) {
             created = false;
-            res = checkFileTransferObject(server, desc.nodeId,
-                                          standaloneFile ? UA_NS0ID(FILETYPE) :
-                                          UA_NS0ID(FILEDIRECTORYTYPE));
+            res = checkFileTransferObject(server, desc.nodeId, rootBaseType(rootKind));
             if(res == UA_STATUSCODE_GOOD && findEntryOwner(server, &desc.nodeId))
                 res = UA_STATUSCODE_BADNODEIDEXISTS;
         }
@@ -404,24 +440,26 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
         if(UA_NodeId_isNull(&desc.referenceTypeId))
             desc.referenceTypeId = UA_NS0ID(HASCOMPONENT);
         if(UA_NodeId_isNull(&desc.typeDefinition))
-            desc.typeDefinition = standaloneFile ? UA_NS0ID(FILETYPE) : UA_NS0ID(FILEDIRECTORYTYPE);
-        res = checkFileTransferType(server, desc.typeDefinition,
-                                    standaloneFile ? UA_NS0ID(FILETYPE) :
-                                    UA_NS0ID(FILEDIRECTORYTYPE));
+            desc.typeDefinition = rootBaseType(rootKind);
+        res = checkFileTransferType(server, desc.typeDefinition, rootBaseType(rootKind));
         if(res != UA_STATUSCODE_GOOD) {
             el->unlock(el);
             return res;
         }
     }
-    /* A directory backend can cast its file backend back to the full struct */
+    /* A directory backend can cast its file backend back to the full struct.
+     * The transfer files of a temporary root are created on demand. */
     UA_FileTransferFileInfo info;
-    UA_FileTransferBackend backendCopy = *backend;
-    res = backendGetInfo(&backendCopy.file, path, &info);
-    if(res == UA_STATUSCODE_GOOD && info.isDirectory == standaloneFile)
-        res = UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(res != UA_STATUSCODE_GOOD) {
-        el->unlock(el);
-        return res;
+    memset(&info, 0, sizeof(info));
+    if(rootKind != FT_ROOT_TEMPORARY) {
+        UA_FileTransferBackend backendCopy = *backend;
+        res = backendGetInfo(&backendCopy.file, path, &info);
+        if(res == UA_STATUSCODE_GOOD && info.isDirectory == standaloneFile)
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
+        if(res != UA_STATUSCODE_GOOD) {
+            el->unlock(el);
+            return res;
+        }
     }
     FileTransferDriver *ftd = (FileTransferDriver*)UA_calloc(1, sizeof(FileTransferDriver));
     if(!ftd) {
@@ -456,8 +494,10 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
                 if(name.length == 0)
                     name = UA_STRING("File");
                 desc.browseName = (UA_QualifiedName){1, name};
-            } else {
+            } else if(rootKind == FT_ROOT_DIRECTORY) {
                 desc.browseName = UA_QUALIFIEDNAME(0, "FileSystem");
+            } else {
+                desc.browseName = UA_QUALIFIEDNAME(1, "TemporaryFileTransfer");
             }
         }
         if(desc.attributes.displayName.text.length == 0)
@@ -470,15 +510,17 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
     }
     FTEntry *root = NULL;
     if(res == UA_STATUSCODE_GOOD) {
-        root = newFTEntry(ftd, NULL, rootId, path, !standaloneFile);
+        root = newFTEntry(ftd, NULL, rootId, path, rootKind == FT_ROOT_DIRECTORY);
         if(!root) {
             res = UA_STATUSCODE_BADOUTOFMEMORY;
         } else {
             root->created = created;
+            if(rootKind == FT_ROOT_TEMPORARY)
+                root->kind = FT_ENTRY_TEMPORARY;
             if(created)
                 res = bindObjectContext(server, root);
-            if(res == UA_STATUSCODE_GOOD && standaloneFile && created)
-                res = setupFileNode(server, root, &info);
+            if(res == UA_STATUSCODE_GOOD && created && rootKind != FT_ROOT_DIRECTORY)
+                res = setupFileNode(server, root, standaloneFile ? &info : NULL);
         }
         if(res == UA_STATUSCODE_GOOD)
             ftd->root = root;
@@ -512,8 +554,40 @@ UA_FileTransferDriver_newFile(UA_Server *server,
     memset(&fullBackend, 0, sizeof(fullBackend));
     if(backend)
         fullBackend.file = *backend;
-    return newDriver(server, backend ? &fullBackend : NULL, true, path,
+    return newDriver(server, backend ? &fullBackend : NULL, FT_ROOT_FILE, path,
                      description, outNodeId, outDriver);
+}
+
+UA_StatusCode
+UA_FileTransferDriver_newTemporary(UA_Server *server,
+                                   const UA_FileTransferTemporaryOptions *options,
+                                   const UA_FileTransferNodeDescription *description,
+                                   UA_NodeId *outNodeId, UA_Driver **outDriver) {
+    if(outDriver)
+        *outDriver = NULL;
+    if(!options || (!options->generateFileForRead && !options->closeAndCommit))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_FileTransferBackend store;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(options->store)
+        store = *options->store;
+    else
+        res = memStoreInit(&store);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = newDriver(server, &store, FT_ROOT_TEMPORARY, UA_STRING_NULL,
+                    description, outNodeId, outDriver);
+    if(res != UA_STATUSCODE_GOOD) {
+        /* An application store stays with the caller */
+        if(!options->store)
+            store.file.clear(&store.file);
+        return res;
+    }
+    FileTransferDriver *ftd = (FileTransferDriver*)*outDriver;
+    ftd->generateFileForRead = options->generateFileForRead;
+    ftd->closeAndCommit = options->closeAndCommit;
+    ftd->transferContext = options->context;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -588,8 +662,8 @@ UA_FileTransferDriver_openHandle(UA_Driver *driver, const UA_NodeId fileNodeId,
     UA_StatusCode res;
     if(driver->state != UA_LIFECYCLESTATE_STARTED)
         res = UA_STATUSCODE_BADINVALIDSTATE;
-    else if(!node)
-        res = UA_STATUSCODE_BADINVALIDARGUMENT;
+    else if(!node || node->kind != FT_ENTRY_STORAGE)
+        res = UA_STATUSCODE_BADINVALIDARGUMENT; /* Transfer files have one handle */
     else if(node->isDirectory || node->zombie)
         res = UA_STATUSCODE_BADNOTFOUND;
     else
@@ -609,6 +683,6 @@ UA_FileTransferDriver_newDirectory(UA_Server *server,
                                    const UA_FileTransferBackend *backend,
                                    const UA_FileTransferNodeDescription *description,
                                    UA_NodeId *outNodeId, UA_Driver **outDriver) {
-    return newDriver(server, backend, false, UA_STRING_NULL,
+    return newDriver(server, backend, FT_ROOT_DIRECTORY, UA_STRING_NULL,
                      description, outNodeId, outDriver);
 }

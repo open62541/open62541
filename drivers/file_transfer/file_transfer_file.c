@@ -43,6 +43,9 @@ accessRights(UA_Server *server, const FTEntry *node,
         if(!vanished)
             rights = info.accessRights & UA_FILEACCESS_ALL;
     }
+    /* A read transfer only reads its file */
+    if(node->transfer && !node->transfer->forWrite)
+        rights &= (UA_FileAccessRights)~UA_FILEACCESS_WRITE;
     const FTConfig *opts = &node->driver->config;
     if(opts->readOnly)
         rights &= (UA_FileAccessRights)~UA_FILEACCESS_WRITE;
@@ -183,7 +186,8 @@ touchFTHandle(UA_Server *server, FTHandle *h) {
 }
 
 /* Close the backend handle and release the handle. Removes zombie nodes once
- * their last handle is closed. */
+ * their last handle is closed. Closing ends a transfer, except for the
+ * commit that uses the file afterwards. */
 UA_StatusCode
 closeFTHandle(UA_Server *server, FTHandle *h) {
     FTEntry *node = h->file;
@@ -201,8 +205,12 @@ closeFTHandle(UA_Server *server, FTHandle *h) {
     }
     UA_free(h);
 
-    if(node->zombie && node->subtreeHandleCount == 0)
+    if(node->transfer) {
+        if(!node->transfer->committing)
+            removeTransferFile(server, node);
+    } else if(node->zombie && node->subtreeHandleCount == 0) {
         removeSubtree(server, node);
+    }
     return res;
 }
 
@@ -364,6 +372,9 @@ openMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(!node)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
+    /* A transfer file has exactly the handle returned by its generate Method */
+    if(node->kind != FT_ENTRY_STORAGE)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
     if(node->isDirectory || node->zombie)
         return UA_STATUSCODE_BADNOTFOUND;
     UA_StatusCode res;
