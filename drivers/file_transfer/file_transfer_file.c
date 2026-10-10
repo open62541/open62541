@@ -43,6 +43,9 @@ accessRights(UA_Server *server, const FTEntry *node,
         if(!vanished)
             rights = info.accessRights & UA_FILEACCESS_ALL;
     }
+    /* A read transfer only reads its file */
+    if(node->transfer && !node->transfer->forWrite)
+        rights &= (UA_FileAccessRights)~UA_FILEACCESS_WRITE;
     const FTConfig *opts = &node->driver->config;
     if(opts->readOnly)
         rights &= (UA_FileAccessRights)~UA_FILEACCESS_WRITE;
@@ -182,10 +185,9 @@ touchFTHandle(UA_Server *server, FTHandle *h) {
     h->lastActivity = el->dateTime_nowMonotonic(el);
 }
 
-/* Close the backend handle and release the handle. Removes zombie nodes once
- * their last handle is closed. */
+/* Close the backend handle and release the handle, but keep its file */
 UA_StatusCode
-closeFTHandle(UA_Server *server, FTHandle *h) {
+releaseFTHandle(FTHandle *h) {
     FTEntry *node = h->file;
     UA_FileTransferFileBackend *b = &node->driver->backend.file;
     UA_StatusCode res = b->close(b, h->backendHandle);
@@ -200,8 +202,18 @@ closeFTHandle(UA_Server *server, FTHandle *h) {
         entry->subtreeHandleCount--;
     }
     UA_free(h);
+    return res;
+}
 
-    if(node->zombie && node->subtreeHandleCount == 0)
+/* Release the handle. Closing the handle of a temporary file ends its
+ * transfer. Removes zombie nodes once their last handle is closed. */
+UA_StatusCode
+closeFTHandle(UA_Server *server, FTHandle *h) {
+    FTEntry *node = h->file;
+    UA_StatusCode res = releaseFTHandle(h);
+    if(node->transfer)
+        removeTransferFile(server, node);
+    else if(node->zombie && node->subtreeHandleCount == 0)
         removeSubtree(server, node);
     return res;
 }
@@ -364,6 +376,9 @@ openMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(!node)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
+    /* A transfer file has exactly the handle returned by its generate Method */
+    if(node->kind != FT_ENTRY_STORAGE)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
     if(node->isDirectory || node->zombie)
         return UA_STATUSCODE_BADNOTFOUND;
     UA_StatusCode res;
