@@ -71,13 +71,18 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
 
     UA_StatusCode retval = bResp.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && bResp.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = bResp.results[0].statusCode;
+
     if(retval == UA_STATUSCODE_GOOD) {
-        for(size_t i = 0; i < bResp.resultsSize; ++i) {
-            for(size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
-                UA_ReferenceDescription *ref = &bResp.results[i].references[j];
-                retval |= callback(ref->nodeId.nodeId, !ref->isForward,
-                                   ref->referenceTypeId, handle);
-            }
+        UA_BrowseResult *result = &bResp.results[0];
+        for(size_t j = 0; j < result->referencesSize; ++j) {
+            UA_ReferenceDescription *ref = &result->references[j];
+            retval |= callback(ref->nodeId.nodeId, !ref->isForward,
+                               ref->referenceTypeId, handle);
         }
     }
 
