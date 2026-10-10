@@ -127,6 +127,7 @@ struct UA_Client {
 
     UA_Boolean findServersHandshake;   /* Ongoing FindServers */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
+    UA_Boolean discoveryOnly;          /* Skip endpoint selection */
     UA_Boolean namespacesHandshake;    /* Ongoing Namespaces read */
     UA_Boolean haveNamespaces;         /* Do we have the namespaces? */
 
