@@ -6498,6 +6498,66 @@ START_TEST(temporaryTypeInNamespaceZero) {
 #endif
 } END_TEST
 
+/* The internal store of temporary transfers: a flat set of files with
+ * independent handles that grows on demand */
+START_TEST(memoryStoreContract) {
+    UA_FileTransferBackend b;
+    ck_assert_uint_eq(memStoreInit(&b), UA_STATUSCODE_GOOD);
+    UA_FileTransferFileInfo info;
+    memset(&info, 0, sizeof(info));
+    ck_assert_uint_eq(b.create(&b, UA_STRING("a"), &info), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.create(&b, UA_STRING("a"), &info), UA_STATUSCODE_BADBROWSENAMEDUPLICATED);
+    ck_assert_uint_eq(b.create(&b, UA_STRING("d/a"), &info), UA_STATUSCODE_BADINVALIDARGUMENT);
+    info.isDirectory = true;
+    ck_assert_uint_eq(b.create(&b, UA_STRING("d"), &info), UA_STATUSCODE_BADNOTSUPPORTED);
+
+    UA_UInt32 w = 0, r = 0;
+    ck_assert_uint_eq(b.file.open(&b.file, UA_STRING("a"), UA_OPENFILEMODE_WRITE, NULL, &w),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.write(&b.file, w, UA_BYTESTRING("hello")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.open(&b.file, UA_STRING("a"), UA_OPENFILEMODE_READ, NULL, &r),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(r, w);
+    UA_ByteString data;
+    ck_assert_uint_eq(b.file.read(&b.file, r, 3, &data), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 3);
+    UA_ByteString_clear(&data);
+    UA_UInt64 position = 0;
+    ck_assert_uint_eq(b.file.getPosition(&b.file, r, &position), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(position, 3);
+    ck_assert_uint_eq(b.file.setPosition(&b.file, r, 100), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.read(&b.file, r, 3, &data), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 0);
+
+    memset(&info, 0, sizeof(info));
+    ck_assert_uint_eq(b.file.getInfo(&b.file, UA_STRING("a"), &info), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(info.size, 5);
+    ck_assert_str_eq(info.name, "a");
+    ck_assert_uint_eq(info.accessRights, UA_FILEACCESS_READ | UA_FILEACCESS_WRITE);
+    memset(&info, 0, sizeof(info));
+    ck_assert_uint_eq(b.file.getInfo(&b.file, UA_STRING_NULL, &info), UA_STATUSCODE_GOOD);
+    ck_assert(info.isDirectory);
+
+    /* Removing a file invalidates its handles */
+    ck_assert_uint_eq(b.remove(&b, UA_STRING("a")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.read(&b.file, r, 3, &data), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(b.file.close(&b.file, w), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(b.remove(&b, UA_STRING("a")), UA_STATUSCODE_BADNOTFOUND);
+
+    /* The tables grow; clear frees files with open handles */
+    memset(&info, 0, sizeof(info));
+    char name[16];
+    for(size_t i = 0; i < 40; i++) {
+        snprintf(name, sizeof(name), "f%u", (unsigned)i);
+        ck_assert_uint_eq(b.create(&b, UA_STRING(name), &info), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(b.file.open(&b.file, UA_STRING(name), UA_OPENFILEMODE_WRITE,
+                                      NULL, &w), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(b.file.write(&b.file, w, UA_BYTESTRING("x")), UA_STATUSCODE_GOOD);
+    }
+    b.file.clear(&b.file);
+    ck_assert_ptr_null(b.file.context);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server_filetransfer");
 
@@ -6632,6 +6692,7 @@ int main(void) {
     TCase *tc_temp = tcase_create("TemporaryFileTransferType");
     tcase_add_checked_fixture(tc_temp, setup, teardown);
     tcase_add_test(tc_temp, temporaryTypeInNamespaceZero);
+    tcase_add_test(tc_temp, memoryStoreContract);
     suite_add_tcase(s, tc_temp);
 
     SRunner *sr = srunner_create(s);
