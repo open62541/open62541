@@ -27,6 +27,7 @@ struct HTTPAcceptedConnection {
     uintptr_t connectionId;
     UA_HTTPParser parser;
     UA_UInt64 timeoutId;
+    UA_UInt64 requestDeadlineId;
     HTTPAcceptedConnectionState state;
     void *context;
     UA_String remoteAddress;
@@ -141,6 +142,23 @@ acceptedConnectionTimeout(void *application, void *data) {
 }
 
 static void
+requestDeadlineTimeout(void *application, void *data) {
+    (void)application;
+    HTTPAcceptedConnection *connection = (HTTPAcceptedConnection*)data;
+    connection->requestDeadlineId = 0;
+    requestAcceptedConnectionClose(connection, "request deadline exceeded");
+}
+
+static void
+removeRequestDeadline(HTTPAcceptedConnection *connection) {
+    if(!connection || !connection->requestDeadlineId)
+        return;
+    UA_EventLoop *el = connection->listener->manager->cm.eventSource.eventLoop;
+    el->removeTimer(el, connection->requestDeadlineId);
+    connection->requestDeadlineId = 0;
+}
+
+static void
 removeAcceptedConnectionTimeout(HTTPAcceptedConnection *connection) {
     if(!connection || !connection->timeoutId)
         return;
@@ -171,6 +189,7 @@ requestAcceptedConnectionClose(HTTPAcceptedConnection *connection,
        connection->state >= HTTP_ACCEPTED_CONNECTION_CLOSING)
         return;
     removeAcceptedConnectionTimeout(connection);
+    removeRequestDeadline(connection);
     setConnectionState(connection, HTTP_ACCEPTED_CONNECTION_CLOSING, reason);
     UA_HTTP_closeWsi(connection->wsi);
 }
@@ -382,6 +401,7 @@ sendAutomaticResponse(HTTPAcceptedConnection *connection, UA_UInt16 status) {
 static void
 parserComplete(void *context) {
     HTTPAcceptedConnection *connection = (HTTPAcceptedConnection*)context;
+    removeRequestDeadline(connection);
     setConnectionState(connection, HTTP_ACCEPTED_CONNECTION_REQUEST_ACTIVE,
                        "request complete");
     if(connection->rejectionStatus) {
@@ -469,6 +489,17 @@ receiveAcceptedConnectionData(HTTPAcceptedConnection *connection,
                                        "overlapping request received");
         return -1;
     }
+    if(!connection->requestDeadlineId) {
+        UA_EventLoop *el = connection->listener->manager->cm.eventSource.eventLoop;
+        UA_Double deadline = (UA_Double)connection->listener->timeout * 1000.0;
+        if(el->addTimer(el, requestDeadlineTimeout, NULL, connection,
+                        deadline, NULL, UA_TIMERPOLICY_ONCE,
+                        &connection->requestDeadlineId) != UA_STATUSCODE_GOOD) {
+            requestAcceptedConnectionClose(connection,
+                                           "request deadline could not be armed");
+            return -1;
+        }
+    }
     if(armAcceptedConnectionTimeout(connection) != UA_STATUSCODE_GOOD)
         return -1;
 
@@ -494,6 +525,8 @@ receiveAcceptedConnectionData(HTTPAcceptedConnection *connection,
 static HTTPAcceptedConnection *
 registerAcceptedConnection(HTTPListenConnection *listener,
                            struct lws *wsi) {
+    if(listener->acceptedConnectionsCount >= listener->maxConnections)
+        return NULL;
     HTTPAcceptedConnection *connection =
         (HTTPAcceptedConnection*)UA_calloc(1, sizeof(*connection));
     if(!connection)
@@ -519,6 +552,7 @@ registerAcceptedConnection(HTTPListenConnection *listener,
 
     LIST_INSERT_HEAD(&listener->manager->acceptedConnections,
                      connection, next);
+    listener->acceptedConnectionsCount++;
     lws_set_opaque_user_data(wsi, connection);
     UA_HTTPParser_reset(&connection->parser);
     UA_KeyValuePair parameter = {0};
@@ -544,6 +578,7 @@ unregisterAcceptedConnection(HTTPAcceptedConnection *connection) {
     HTTPListenConnection *listener = connection->listener;
     HTTPConnectionManager *manager = listener->manager;
     removeAcceptedConnectionTimeout(connection);
+    removeRequestDeadline(connection);
     if(connection->state < HTTP_ACCEPTED_CONNECTION_CLOSING)
         setConnectionState(connection, HTTP_ACCEPTED_CONNECTION_CLOSING,
                            "connection released");
@@ -554,6 +589,7 @@ unregisterAcceptedConnection(HTTPAcceptedConnection *connection) {
                        UA_CONNECTIONSTATE_CLOSING,
                        &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     LIST_REMOVE(connection, next);
+    listener->acceptedConnectionsCount--;
     connection->wsi = NULL;
     UA_String_clear(&connection->remoteAddress);
     UA_free(connection);

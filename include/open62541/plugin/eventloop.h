@@ -795,7 +795,13 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  *    application protocol narrow the generic HTTP coding set.
  *
  * 0:timeout [uint16]
- *    Connection or request timeout in seconds (default: 30).
+ *    Connection or request timeout in seconds (default: 30). For listeners,
+ *    this is also the absolute deadline for receiving each complete request;
+ *    receiving more bytes does not extend that deadline.
+
+ * 0:max-connections [uint32]
+ *    Maximum accepted connections per HTTP listener (default: 100). A zero
+ *    value selects the default.
  *
  * 0:listen [boolean]
  *    Create a listening connection (default: false).
