@@ -157,6 +157,11 @@ countSessionHandles(FileTransferDriver *ftd, const UA_NodeId *sessionId) {
     return count;
 }
 
+UA_Boolean
+sessionHandleLimitReached(FileTransferDriver *ftd, const UA_NodeId *sessionId) {
+    return countSessionHandles(ftd, sessionId) >= ftd->config.maxHandlesPerSession;
+}
+
 /* Part 20 requires Session-unique handles. Each driver owns its counter and
  * handles; check the other instances without a shared allocator or registry. */
 static UA_UInt32
@@ -542,7 +547,17 @@ writeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(data.length > ftd->config.maxReadLength)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* A transfer file must not grow beyond max-transfer-size */
     UA_FileTransferFileBackend *b = &h->file->driver->backend.file;
+    UA_UInt64 limit = ftd->config.maxTransferSize;
+    if(h->file->transfer && limit > 0) {
+        UA_UInt64 position = 0;
+        res = b->getPosition(b, h->backendHandle, &position);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        if(position > limit || (UA_UInt64)data.length > limit - position)
+            return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
+    }
     return b->write(b, h->backendHandle, data);
 }
 

@@ -26,6 +26,7 @@ _UA_BEGIN_DECLS
 
 #define UA_FILETRANSFER_COPYCHUNKSIZE 65536
 #define UA_FILETRANSFER_CLIENTPROCESSINGTIMEOUT_DEFAULT 60000.0 /* ms */
+#define UA_FILETRANSFER_MAXTRANSFERSIZE_DEFAULT (16u << 20) /* 16 MiB */
 
 typedef struct FileTransferDriver FileTransferDriver;
 typedef struct FTEntry FTEntry;
@@ -110,6 +111,8 @@ typedef struct {
     UA_UInt32 maxReadLength;
     UA_Double activityTimeout;
     UA_Double clientProcessingTimeout; /* Temporary transfers, in ms */
+    UA_Boolean exclusiveReads;         /* Temporary transfers */
+    UA_UInt64 maxTransferSize;         /* Temporary transfers, 0 is unlimited */
 } FTConfig;
 
 /* One driver owns one backend and one root Object for its entire lifetime. */
@@ -129,8 +132,8 @@ struct FileTransferDriver {
     UA_UInt32 entryCount; /* Includes retained zombie entries */
     UA_UInt32 nextHandle;
 
-    /* A TemporaryFileTransferType root serves at most one write transfer or
-     * any number of read transfers at a time */
+    /* A TemporaryFileTransferType root serves one write transfer or up to
+     * max-open-handles-per-file read transfers (one with exclusive-reads) */
     UA_FileTransferPrepareReadCallback prepareRead;
     UA_FileTransferCommitWriteCallback commitWrite;
     void *transferContext;
@@ -230,6 +233,8 @@ UA_StatusCode checkFTAccess(UA_Server *server, const FTEntry *node,
                             UA_FileAccessRights required, UA_StatusCode deniedStatus);
 FTHandle *findFTHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
                        UA_UInt32 handle);
+UA_Boolean sessionHandleLimitReached(FileTransferDriver *ftd,
+                                     const UA_NodeId *sessionId);
 /* mode combines UA_OPENFILEMODE_* flags in the protocol's Byte representation. */
 UA_StatusCode openFileHandle(UA_Server *server, FTEntry *node,
                              const UA_NodeId *sessionId, void *sessionContext,

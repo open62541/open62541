@@ -219,6 +219,15 @@ configureDriver(FileTransferDriver *ftd) {
         driverParam(ftd, "client-processing-timeout", &UA_TYPES[UA_TYPES_DOUBLE], &res);
     if(timeout)
         ftd->config.clientProcessingTimeout = *timeout;
+    const UA_Boolean *exclusiveReads = (const UA_Boolean*)
+        driverParam(ftd, "exclusive-reads", &UA_TYPES[UA_TYPES_BOOLEAN], &res);
+    if(exclusiveReads)
+        ftd->config.exclusiveReads = *exclusiveReads;
+    ftd->config.maxTransferSize = UA_FILETRANSFER_MAXTRANSFERSIZE_DEFAULT;
+    const UA_UInt64 *maxTransferSize = (const UA_UInt64*)
+        driverParam(ftd, "max-transfer-size", &UA_TYPES[UA_TYPES_UINT64], &res);
+    if(maxTransferSize)
+        ftd->config.maxTransferSize = *maxTransferSize;
     if(res != UA_STATUSCODE_GOOD)
         return res;
     if(!validInterval(ftd->config.refreshInterval) ||

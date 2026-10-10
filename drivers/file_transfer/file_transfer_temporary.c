@@ -98,6 +98,9 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
     UA_FileTransferFileInfo info;
     if(res == UA_STATUSCODE_GOOD)
         res = backendGetInfo(&ftd->backend.file, path, &info);
+    if(res == UA_STATUSCODE_GOOD && ftd->config.maxTransferSize > 0 &&
+       info.size > ftd->config.maxTransferSize)
+        res = UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     UA_NodeId nodeId = UA_NODEID_NULL;
     if(res == UA_STATUSCODE_GOOD) {
@@ -175,6 +178,16 @@ removeTransferFile(UA_Server *server, FTEntry *file) {
  * TemporaryFileTransferType Methods
  **************************************/
 
+/* Each transfer holds one handle. The limits are checked before prepareRead
+ * runs: max-open-handles-per-file for the transfers of the root and
+ * max-open-handles-per-session for the Session. */
+static UA_Boolean
+transferLimitReached(FileTransferDriver *ftd, const UA_NodeId *sessionId) {
+    UA_UInt32 transfers = ftd->activeReads + (ftd->activeWrite ? 1u : 0u);
+    return transfers >= ftd->config.maxHandlesPerFile ||
+        sessionHandleLimitReached(ftd, sessionId);
+}
+
 static FTEntry *
 resolveTemporaryRoot(UA_Server *server, const UA_NodeId *objectId,
                      void *objectContext) {
@@ -227,8 +240,11 @@ generateFileForReadMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(inputSize < 1 || outputSize < 3)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     FileTransferDriver *ftd = root->driver;
-    if(!ftd->prepareRead || ftd->activeWrite)
+    if(!ftd->prepareRead || ftd->activeWrite ||
+       (ftd->config.exclusiveReads && ftd->activeReads > 0))
         return UA_STATUSCODE_BADNOTREADABLE;
+    if(transferLimitReached(ftd, sessionId))
+        return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
     return generateFile(server, root, sessionId, sessionContext, &input[0],
                         false, output);
 }
@@ -250,6 +266,8 @@ generateFileForWriteMethodCallback(UA_Server *server, const UA_NodeId *sessionId
     if(!ftd->commitWrite || ftd->config.readOnly || ftd->activeWrite ||
        ftd->activeReads > 0)
         return UA_STATUSCODE_BADNOTWRITABLE;
+    if(transferLimitReached(ftd, sessionId))
+        return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
     return generateFile(server, root, sessionId, sessionContext, &input[0],
                         true, output);
 }

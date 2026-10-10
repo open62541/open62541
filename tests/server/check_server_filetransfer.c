@@ -7287,6 +7287,118 @@ START_TEST(temporaryTimeoutParameter) {
     resetTemporaryCallbacks();
 } END_TEST
 
+static UA_Driver *
+newConfiguredTemporaryDriver(const char *name, const char *param, const void *value,
+                             const UA_DataType *type, UA_NodeId *outRoot) {
+    UA_FileTransferTemporaryOptions options = temporaryOptions(true, true);
+    UA_FileTransferNodeDescription description = temporaryDescription(name);
+    UA_Driver *driver = NULL;
+    ck_assert_uint_eq(UA_FileTransferDriver_newTemporary(server_ft, &options, &description,
+                          outRoot, &driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, (char*)(uintptr_t)param), value, type),
+                      UA_STATUSCODE_GOOD);
+    registerTestDriver(driver);
+    return driver;
+}
+
+START_TEST(temporaryExclusiveReads) {
+    resetTemporaryCallbacks();
+    UA_Boolean exclusive = true;
+    UA_NodeId root;
+    newConfiguredTemporaryDriver("Temp", "exclusive-reads", &exclusive,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN], &root);
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
+    callGenerate(root, false, NULL, UA_STATUSCODE_BADNOTREADABLE);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    h = callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
+START_TEST(temporaryTransferSizeLimit) {
+    resetTemporaryCallbacks();
+    UA_UInt64 limit = 8;
+    UA_NodeId root;
+    UA_Driver *driver = newConfiguredTemporaryDriver("Temp", "max-transfer-size", &limit,
+                                                     &UA_TYPES[UA_TYPES_UINT64], &root);
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    callWrite(file, h, "12345", UA_STATUSCODE_GOOD);
+    callWrite(file, h, "6789", UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    callWrite(file, h, "678", UA_STATUSCODE_GOOD);
+    callCommit(root, h, UA_STATUSCODE_GOOD);
+    ck_assert(contentEquals(tempCommitted, "12345678"));
+    UA_NodeId_clear(&file);
+
+    /* A prepared file beyond the limit fails the transfer */
+    tempReadContent = UA_BYTESTRING("123456789");
+    callGenerate(root, false, NULL, UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    ck_assert_uint_eq(((FileTransferDriver*)driver)->entryCount, 1);
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
+/* The transfers of a root and the handles of a Session are limited before
+ * prepareRead runs */
+START_TEST(temporaryTransferLimits) {
+    resetTemporaryCallbacks();
+    UA_UInt16 limit = 2;
+    UA_NodeId root;
+    newConfiguredTemporaryDriver("Temp", "max-open-handles-per-file", &limit,
+                                 &UA_TYPES[UA_TYPES_UINT16], &root);
+    UA_NodeId files[2];
+    UA_UInt32 handles[2];
+    for(size_t i = 0; i < 2; i++)
+        handles[i] = callGenerate(root, false, &files[i], UA_STATUSCODE_GOOD);
+    callGenerate(root, false, NULL, UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    ck_assert_uint_eq(tempPrepareCalls, 2);
+    for(size_t i = 0; i < 2; i++) {
+        callClose(files[i], handles[i], UA_STATUSCODE_GOOD);
+        UA_NodeId_clear(&files[i]);
+    }
+    UA_NodeId_clear(&root);
+
+    UA_UInt16 sessionLimit = 1;
+    newConfiguredTemporaryDriver("Session", "max-open-handles-per-session", &sessionLimit,
+                                 &UA_TYPES[UA_TYPES_UINT16], &root);
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
+    callGenerate(root, false, NULL, UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    ck_assert_uint_eq(tempPrepareCalls, 3);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
+START_TEST(temporaryLimitParametersRequireTheirTypes) {
+    resetTemporaryCallbacks();
+    UA_FileTransferTemporaryOptions options = temporaryOptions(true, true);
+    UA_FileTransferNodeDescription description = temporaryDescription("Temp");
+    UA_Driver *driver = NULL;
+    ck_assert_uint_eq(UA_FileTransferDriver_newTemporary(server_ft, &options, &description,
+                          NULL, &driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    UA_UInt32 wrong = 1;
+    const char *keys[2] = {"exclusive-reads", "max-transfer-size"};
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                              UA_QUALIFIEDNAME(0, (char*)(uintptr_t)keys[i]), &wrong,
+                              &UA_TYPES[UA_TYPES_UINT32]), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+        ck_assert_uint_eq(UA_KeyValueMap_remove(&driver->params,
+                              UA_QUALIFIEDNAME(0, (char*)(uintptr_t)keys[i])),
+                          UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    resetTemporaryCallbacks();
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server_filetransfer");
 
@@ -7438,6 +7550,10 @@ int main(void) {
     tcase_add_test(tc_temp, temporaryCallbackFailures);
     tcase_add_test(tc_temp, temporaryIdleTransferCancelled);
     tcase_add_test(tc_temp, temporaryTimeoutParameter);
+    tcase_add_test(tc_temp, temporaryExclusiveReads);
+    tcase_add_test(tc_temp, temporaryTransferSizeLimit);
+    tcase_add_test(tc_temp, temporaryTransferLimits);
+    tcase_add_test(tc_temp, temporaryLimitParametersRequireTheirTypes);
     suite_add_tcase(s, tc_temp);
 
     SRunner *sr = srunner_create(s);
