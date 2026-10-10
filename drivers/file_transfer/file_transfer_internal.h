@@ -25,6 +25,7 @@ _UA_BEGIN_DECLS
      UA_OPENFILEMODE_ERASEEXISTING | UA_OPENFILEMODE_APPEND)
 
 #define UA_FILETRANSFER_COPYCHUNKSIZE 65536
+#define UA_FILETRANSFER_CLIENTPROCESSINGTIMEOUT_DEFAULT 60000.0 /* ms */
 
 typedef struct FileTransferDriver FileTransferDriver;
 typedef struct FTEntry FTEntry;
@@ -56,6 +57,13 @@ typedef enum {
     FT_ENTRY_TRANSFERFILE  /* Temporary file of one transfer */
 } FTEntryKind;
 
+/* One transfer of a TemporaryFileTransferType Object */
+typedef struct {
+    UA_Boolean forWrite;
+    UA_Boolean committing;      /* The handle is closed for CloseAndCommit */
+    UA_Variant generateOptions; /* Of a write transfer, for closeAndCommit */
+} FTTransfer;
+
 ZIP_HEAD(FTEntriesById, FTEntry);
 ZIP_HEAD(FTChildrenByName, FTEntry);
 ZIP_HEAD(FTHandlesById, FTHandle);
@@ -85,6 +93,7 @@ struct FTEntry {
     UA_Boolean openForWrite; /* Files only */
     UA_Boolean scanSeen; /* Temporary mark during directory reconciliation */
     struct FTFileBinding *binding; /* Property bindings; owned by the model layer */
+    FTTransfer *transfer; /* Transfer files only */
 };
 
 /* Configuration read from drv.params on start. */
@@ -97,7 +106,7 @@ typedef struct {
     UA_UInt16 maxHandlesPerSession;
     UA_UInt16 maxHandlesPerFile;
     UA_UInt32 maxReadLength;
-    UA_Double activityTimeout;
+    UA_Double activityTimeout;         /* ClientProcessingTimeout when temporary */
 } FTConfig;
 
 /* One driver owns one backend and one root Object for its entire lifetime. */
@@ -116,6 +125,15 @@ struct FileTransferDriver {
     struct FTHandlesBySession handlesBySession;
     UA_UInt32 entryCount; /* Includes retained zombie entries */
     UA_UInt32 nextHandle;
+
+    /* A TemporaryFileTransferType root serves at most one write transfer or
+     * any number of read transfers at a time */
+    UA_FileTransferTemporaryCallback generateFileForRead;
+    UA_FileTransferTemporaryCallback closeAndCommit;
+    void *transferContext;
+    UA_UInt32 nextTransferId;
+    UA_UInt32 activeReads;
+    UA_Boolean activeWrite;
 };
 
 static UA_INLINE enum ZIP_CMP
@@ -175,9 +193,13 @@ UA_StatusCode setupFileNode(UA_Server *server, FTEntry *node,
 /* Idempotent rollback/release: Property callbacks must not outlive the entry. */
 void releaseFileNode(UA_Server *server, FTEntry *node);
 
-/* Shared type Methods and copied/subtype Methods have separate bindings. */
+/* Shared type Methods and copied/subtype Methods have separate bindings. The
+ * TemporaryFileTransferType Methods are registered by temporary drivers only,
+ * so other drivers work without these Namespace Zero nodes. */
 UA_StatusCode registerFileTransferMethodCallbacks(UA_Server *server);
 void unregisterFileTransferMethodCallbacks(UA_Server *server);
+UA_StatusCode registerTemporaryMethodCallbacks(UA_Server *server);
+void unregisterTemporaryMethodCallbacks(UA_Server *server);
 UA_StatusCode bindObjectMethods(UA_Server *server, FTEntry *node);
 void unbindObjectMethods(UA_Server *server, FTEntry *node);
 
@@ -189,6 +211,7 @@ typedef struct {
 } FTMethod;
 extern const FTMethod fileTypeMethods[6];
 extern const FTMethod fileDirectoryTypeMethods[4];
+extern const FTMethod temporaryFileTransferTypeMethods[3];
 
 /* file.c -- permissions and Session handles */
 /* Query the backend with a zero-initialized FileInfo. */
@@ -220,6 +243,13 @@ void closeSessionHandles(UA_Server *server, FileTransferDriver *ftd,
  * summary changes, otherwise at debug level only. */
 UA_StatusCode fileTransferRefresh(UA_Driver *driver,
                                   const UA_NodeId directoryNodeId);
+/* Create an empty file or directory with its basename in the info */
+UA_StatusCode createBackendEntry(UA_FileTransferBackend *b, const UA_String path,
+                                 UA_Boolean isDirectory);
+
+/* temporary.c -- remove the file and the Object of a transfer whose handle is
+ * closed, with the server lock held */
+void removeTransferFile(UA_Server *server, FTEntry *file);
 
 /* backend_memory.c -- flat in-memory store for the files of temporary
  * transfers. Without listing, rename and copy; clear frees it. */

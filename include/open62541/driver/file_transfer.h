@@ -80,9 +80,9 @@ typedef struct {
                                 * leaves an existing one unchanged. */
 } UA_FileTransferFileInfo;
 
-/* The caller of an open. The driver passes the Session of the Method call for
- * Open, CreateFile, the copies of MoveOrCopy and
- * UA_FileTransferDriver_openHandle(). Direct calls of the application pass
+/* Who opens a file. For Open, CreateFile, GenerateFileForRead/-Write, the
+ * copies of MoveOrCopy and UA_FileTransferDriver_openHandle(), the driver
+ * passes the Session of the Method call. Calls of the application pass
  * NULL. */
 typedef struct {
     UA_Server *server;
@@ -274,25 +274,26 @@ typedef struct {
  * by BrowseName text regardless of namespace. Ambiguous or incompatible
  * entries are rejected; unrelated existing nodes are untouched.
  *
- * Bound Object contexts point to the driver, including while stopped. Reused
- * roots are bound on first start. Freeing removes driver-created nodes and
- * restores reused Objects' contexts and Properties' values, sources and contexts.
- * Reused Objects also survive disappearance of their storage entry.
- * Delete and successful moves delete reused Objects at the source as well.
- * Before deleting an Object, its context from construction or reuse is restored
- * for the application lifecycle destructors.
- * While started, drivers supply the standard Methods, including shared
- * Namespace Zero Method nodes and copies inherited by subtypes. Other
- * Methods of subtypes stay with the application, see
- * UA_FileTransferDriver_getHandleInfo(). The drivers own these Method nodes:
- * the first start replaces callbacks set by the application, the last stop
- * removes them. FileType Objects of the application that are served without a
- * driver need their own Method nodes.
+ * The bound Objects get the driver as context, also while it is stopped. A
+ * reused root is bound at the first start. Freeing the driver removes the
+ * nodes it created and restores the contexts of reused Objects and the values,
+ * sources and contexts of their Properties. Reused Objects stay when their
+ * storage entry disappears, but Delete and successful moves delete them like
+ * created ones. Before an Object is deleted, the context from its construction
+ * or reuse is restored for the lifecycle destructors of the application.
  *
- * On success, the backend struct is copied and its context becomes owned by
- * the driver. On failure, created nodes are removed, *outDriver is NULL and
- * the caller retains the backend. outDriver is required; outNodeId is optional
- * and receives an owned NodeId only on success.
+ * While started, the drivers serve the standard Methods: the shared Method
+ * nodes of Namespace Zero and the copies that subtypes inherit. Other Methods
+ * of subtypes stay with the application, see
+ * UA_FileTransferDriver_getHandleInfo(). The drivers own these Method nodes:
+ * the first start replaces callbacks of the application, the last stop
+ * removes them. FileType and TemporaryFileTransferType Objects that the
+ * application serves without a driver need Method nodes of their own.
+ *
+ * On success, the backend struct is copied and the driver owns its context. On
+ * failure, the created nodes are removed, *outDriver is NULL and the backend
+ * stays with the caller. outDriver is required; outNodeId is optional and
+ * receives an owned NodeId only on success.
  *
  * Registration is separate. Before successful UA_Server_addDriver(), the
  * caller must free the driver before deleting the server; afterwards the
@@ -383,6 +384,61 @@ UA_FileTransferBackend_localDirectory(const UA_String rootPath,
 UA_EXPORT UA_StatusCode
 UA_FileTransferFileBackend_localFile(const UA_String filePath,
                                      UA_FileTransferFileBackend *out);
+
+/**
+ * Temporary File Transfer
+ * ~~~~~~~~~~~~~~~~~~~~~~~
+ * A TemporaryFileTransferType Object (Part 20, 4.4) transfers a file in a
+ * handshake. With GenerateFileForRead the application prepares a file that the
+ * client reads and closes. With GenerateFileForWrite the client writes a file
+ * that the application processes on CloseAndCommit; Close aborts the transfer.
+ * The transfer files are not browsable and only the generating Session can use
+ * the returned handle; closing it ends the transfer. The Methods complete
+ * synchronously, completionStateMachine is always null.
+ *
+ * The callbacks work on the file at path in the store. They run with the
+ * server lock held and borrow generateOptions, which may be an empty Variant.
+ *
+ * generateFileForRead writes the content into the existing empty file and
+ * closes its own store handles. A Bad result fails GenerateFileForRead and
+ * removes the file.
+ *
+ * closeAndCommit runs after the client handle is closed. Its result is the
+ * result of CloseAndCommit. The file is removed afterwards in any case; the
+ * application copies or moves what it keeps. */
+typedef UA_StatusCode
+(*UA_FileTransferTemporaryCallback)(UA_Server *server, const UA_NodeId *sessionId,
+                                    void *sessionContext,
+                                    const UA_Variant *generateOptions,
+                                    void *context, UA_FileTransferFileBackend *store,
+                                    const UA_String path);
+
+typedef struct {
+    UA_FileTransferTemporaryCallback generateFileForRead; /* NULL: Bad_NotReadable */
+    UA_FileTransferTemporaryCallback closeAndCommit;      /* NULL: Bad_NotWritable */
+    void *context;                                        /* Passed to both callbacks */
+    /* Storage of the transfer files, NULL selects an internal memory store.
+     * Needs the file operations, create and remove; the driver uses no
+     * listDirectory, rename and copy. The callbacks get its file part; cast it
+     * back to UA_FileTransferBackend to rename or copy, e.g. to keep a written
+     * file. The access callbacks get the random NodeIds of the transfer files;
+     * authorize the generate Methods with the access control plugin instead. */
+    const UA_FileTransferBackend *store;
+} UA_FileTransferTemporaryOptions;
+
+/* Construct a stopped driver for a TemporaryFileTransferType Object. At least
+ * one callback is required. The description, reuse and ownership rules of
+ * UA_FileTransferDriver_newFile() apply to the root Object and the store; the
+ * default type is TemporaryFileTransferType, the default BrowseName
+ * 1:TemporaryFileTransfer. The parameters namespace-index (for the transfer
+ * files, default: the namespace of the root NodeId), max-open-handles-per-session,
+ * max-read-length and read-only (rejects GenerateFileForWrite) apply.
+ * UA_FileTransferDriver_refresh() returns Bad_NotSupported. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_newTemporary(UA_Server *server,
+                                   const UA_FileTransferTemporaryOptions *options,
+                                   const UA_FileTransferNodeDescription *description,
+                                   UA_NodeId *outNodeId, UA_Driver **outDriver);
 
 _UA_END_DECLS
 
