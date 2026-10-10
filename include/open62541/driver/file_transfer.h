@@ -229,20 +229,25 @@ struct UA_FileTransferBackend {
  *    UA_FileTransferDriver_refresh(). Vanished files with open handles remain
  *    until closed.
  * 0:max-open-handles-per-session [UInt16]
- *    Open-handle limit per Session in this driver (default: 64).
+ *    Open handles per Session in this driver (default: 64).
  * 0:max-open-handles-per-file [UInt16]
- *    Open-handle limit per file (default: 16). Either handle limit makes
- *    Open return Bad_ResourceUnavailable when reached.
+ *    Open handles per file (default: 16). When either limit is reached, Open
+ *    returns Bad_ResourceUnavailable. For temporary drivers, each transfer
+ *    counts as one handle, and a write transfer always runs alone.
  * 0:activity-timeout [Double]
- *    Close handles without a Method call for longer than this many
- *    milliseconds like Close, e.g. for the ActivityTimeout of a TrustList
- *    (Part 12, 7.8.2.1). The FileType Methods, openHandle and getHandleInfo
- *    count as calls. Idle handles are closed within twice the timeout. 0
- *    disables it (default); otherwise at least 0.0001.
+ *    Close a handle like Close when it sees no Method call for this long, e.g.
+ *    for the ActivityTimeout of a TrustList (Part 12, 7.8.2.1). The FileType
+ *    Methods, openHandle and getHandleInfo count as calls. A handle closes at
+ *    the latest after twice the timeout. 0 turns it off (default). Temporary
+ *    drivers publish it as ClientProcessingTimeout (default: 60000) and cancel
+ *    idle transfers.
+ * 0:max-transfer-size [UInt64]
+ *    Temporary drivers: largest temporary file in bytes (default: 16777216, 0
+ *    means no limit). Larger files fail with Bad_ResourceUnavailable.
  * 0:max-read-length [UInt32]
- *    Maximum bytes per Read or Write (default, also when zero: 1048576).
- *    Published as MaxByteStringLength. Reads are capped at this length;
- *    larger writes fail with Bad_InvalidArgument.
+ *    Maximum bytes per Read or Write (default, also for 0: 1048576), published
+ *    as MaxByteStringLength. Longer reads return this many bytes; longer
+ *    writes fail with Bad_InvalidArgument.
  *
  * Each refresh lists every mirrored directory with the server lock held, with
  * max-nodes twice (removals first). For large or deep trees, set
@@ -431,8 +436,9 @@ typedef struct {
  * UA_FileTransferDriver_newFile() apply to the root Object and the store; the
  * default type is TemporaryFileTransferType, the default BrowseName
  * 1:TemporaryFileTransfer. The parameters namespace-index (for the transfer
- * files, default: the namespace of the root NodeId), max-open-handles-per-session,
- * max-read-length and read-only (rejects GenerateFileForWrite) apply.
+ * files, default: the namespace of the root NodeId), the handle limits,
+ * max-read-length, activity-timeout and read-only (rejects GenerateFileForWrite)
+ * apply.
  * UA_FileTransferDriver_refresh() returns Bad_NotSupported. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_FileTransferDriver_newTemporary(UA_Server *server,
