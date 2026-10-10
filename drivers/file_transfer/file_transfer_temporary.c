@@ -98,6 +98,9 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
     UA_FileTransferFileInfo info;
     if(res == UA_STATUSCODE_GOOD)
         res = backendGetInfo(&ftd->backend.file, path, &info);
+    if(res == UA_STATUSCODE_GOOD && ftd->config.maxTransferSize > 0 &&
+       info.size > ftd->config.maxTransferSize)
+        res = UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     UA_NodeId nodeId = UA_NODEID_NULL;
     if(res == UA_STATUSCODE_GOOD) {
@@ -173,6 +176,16 @@ removeTransferFile(UA_Server *server, FTEntry *file) {
  * TemporaryFileTransferType Methods
  **************************************/
 
+/* Each transfer holds one handle. The limits are checked before
+ * generateFileForRead runs: max-open-handles-per-file for the transfers of the
+ * root and max-open-handles-per-session for the Session. */
+static UA_Boolean
+transferLimitReached(FileTransferDriver *ftd, const UA_NodeId *sessionId) {
+    UA_UInt32 transfers = ftd->activeReads + (ftd->activeWrite ? 1u : 0u);
+    return transfers >= ftd->config.maxHandlesPerFile ||
+        sessionHandleLimitReached(ftd, sessionId);
+}
+
 static FTEntry *
 resolveTemporaryRoot(UA_Server *server, const UA_NodeId *objectId,
                      void *objectContext) {
@@ -197,8 +210,11 @@ generateFile(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     if(forWrite && (!ftd->closeAndCommit || ftd->config.readOnly ||
                     ftd->activeWrite || ftd->activeReads > 0))
         return UA_STATUSCODE_BADNOTWRITABLE;
-    if(!forWrite && (!ftd->generateFileForRead || ftd->activeWrite))
+    if(!forWrite && (!ftd->generateFileForRead || ftd->activeWrite ||
+                     (ftd->config.exclusiveReads && ftd->activeReads > 0)))
         return UA_STATUSCODE_BADNOTREADABLE;
+    if(transferLimitReached(ftd, sessionId))
+        return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     FTEntry *file = NULL;
     UA_StatusCode res = createTransferFile(server, root, sessionId, sessionContext,
