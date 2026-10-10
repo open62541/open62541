@@ -1424,7 +1424,8 @@ if(UA_ENABLE_METHODCALLS)
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_ns0.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_memory.c)
 endif()
 
 # For file based server and client configuration
