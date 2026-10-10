@@ -6460,6 +6460,42 @@ START_TEST(duplicateListingKeepsTree) {
     UA_NodeId_clear(&root);
 } END_TEST
 
+/**************************************
+ * TemporaryFileTransferType Tests
+ **************************************/
+
+/* The reduced Namespace Zero carries the type without its optional
+ * <TransferState> state machine */
+START_TEST(temporaryTypeInNamespaceZero) {
+    UA_NodeClass cls;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, UA_NS0ID(TEMPORARYFILETRANSFERTYPE),
+                                              &cls), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cls, UA_NODECLASS_OBJECTTYPE);
+    const UA_UInt32 children[] = {
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_CLIENTPROCESSINGTIMEOUT,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORREAD,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORREAD_INPUTARGUMENTS,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORREAD_OUTPUTARGUMENTS,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORWRITE,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORWRITE_INPUTARGUMENTS,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORWRITE_OUTPUTARGUMENTS,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_CLOSEANDCOMMIT,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_CLOSEANDCOMMIT_INPUTARGUMENTS,
+        UA_NS0ID_TEMPORARYFILETRANSFERTYPE_CLOSEANDCOMMIT_OUTPUTARGUMENTS};
+    for(size_t i = 0; i < sizeof(children) / sizeof(children[0]); i++)
+        ck_assert_uint_eq(UA_Server_readNodeClass(server_ft,
+                              UA_NODEID_NUMERIC(0, children[i]), &cls), UA_STATUSCODE_GOOD);
+    UA_NodeId commit = resolveChild(server_ft, UA_NS0ID(TEMPORARYFILETRANSFERTYPE),
+                                    "CloseAndCommit");
+    UA_NodeId expected = UA_NS0ID(TEMPORARYFILETRANSFERTYPE_CLOSEANDCOMMIT);
+    ck_assert(UA_NodeId_equal(&commit, &expected));
+    UA_NodeId_clear(&commit);
+#ifndef UA_GENERATED_NAMESPACE_ZERO_FULL
+    ck_assert(!tryResolveChild(server_ft, UA_NS0ID(TEMPORARYFILETRANSFERTYPE),
+                               "<TransferState>", NULL));
+#endif
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server_filetransfer");
 
@@ -6590,6 +6626,11 @@ int main(void) {
     tcase_add_test(tc_backend, localDirectoryBackendSandbox);
     tcase_add_test(tc_backend, localDirectoryUtf8Names);
     suite_add_tcase(s, tc_backend);
+
+    TCase *tc_temp = tcase_create("TemporaryFileTransferType");
+    tcase_add_checked_fixture(tc_temp, setup, teardown);
+    tcase_add_test(tc_temp, temporaryTypeInNamespaceZero);
+    suite_add_tcase(s, tc_temp);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
