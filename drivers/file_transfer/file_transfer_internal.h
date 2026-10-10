@@ -49,13 +49,22 @@ typedef struct FTHandle {
     UA_DateTime lastActivity; /* Monotonic, for the activity-timeout */
 } FTHandle;
 
+/* Storage entries mirror the backend tree; the other kinds have no storage
+ * parent */
+typedef enum {
+    FT_ENTRY_STORAGE = 0,  /* FileType or FileDirectoryType Object */
+    FT_ENTRY_TEMPORARY,    /* TemporaryFileTransferType Object */
+    FT_ENTRY_TRANSFERFILE  /* Temporary file of one transfer */
+} FTEntryKind;
+
 ZIP_HEAD(FTEntriesById, FTEntry);
 ZIP_HEAD(FTChildrenByName, FTEntry);
 ZIP_HEAD(FTHandlesById, FTHandle);
 ZIP_HEAD(FTHandlesBySession, FTHandle);
 
-/* One entry per driver-managed FileType/FileDirectoryType Object.
- * The Object context points to the owning driver. */
+/* One entry per driver-managed Object: the FileType and FileDirectoryType
+ * Objects of the storage, a TemporaryFileTransferType root and its transfer
+ * files. The Object context points to the owning driver. */
 struct FTEntry {
     ZIP_ENTRY(FTEntry) idTreeEntry;
     ZIP_ENTRY(FTEntry) nameTreeEntry;
@@ -65,6 +74,7 @@ struct FTEntry {
     UA_NodeId nodeId;
     FileTransferDriver *driver;
     UA_String path; /* Relative to the mount root */
+    UA_Byte kind; /* FTEntryKind */
     UA_Boolean isDirectory;
     UA_Boolean created;         /* Object was created by this driver */
     UA_Boolean contextBound;
@@ -75,7 +85,7 @@ struct FTEntry {
     UA_UInt32 subtreeHandleCount; /* OpenCount for files; sum below directories */
     UA_Boolean openForWrite; /* Files only */
     UA_Boolean scanSeen; /* Temporary mark during directory reconciliation */
-    struct FTFileBinding *binding; /* Files only; owned by the model layer */
+    struct FTFileBinding *binding; /* Property bindings; owned by the model layer */
 };
 
 /* Configuration read from drv.params on start. */
@@ -150,15 +160,17 @@ FTEntry *resolveFTEntry(UA_Server *server, const UA_NodeId *objectId,
                         void *objectContext);
 FTEntry *resolveFTEntryById(UA_Server *server, const UA_NodeId *objectId);
 
+/* The type (definition) has to be base or one of its subtypes */
 UA_StatusCode checkFileTransferType(UA_Server *server,
                                     const UA_NodeId typeDefinition,
-                                    UA_Boolean isDirectory);
+                                    const UA_NodeId base);
 UA_StatusCode checkFileTransferObject(UA_Server *server, const UA_NodeId nodeId,
-                                      UA_Boolean isDirectory);
+                                      const UA_NodeId base);
 UA_StatusCode mirrorObject(UA_Server *server, FTEntry *directory,
                            const UA_String name,
                            const UA_FileTransferFileInfo *info, FTEntry **outNode);
 UA_StatusCode bindObjectContext(UA_Server *server, FTEntry *node);
+/* Bind the Properties of the entry kind. info sets the MimeType of files. */
 UA_StatusCode setupFileNode(UA_Server *server, FTEntry *node,
                             const UA_FileTransferFileInfo *info);
 /* Idempotent rollback/release: Property callbacks must not outlive the entry. */
