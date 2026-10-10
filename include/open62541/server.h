@@ -512,8 +512,7 @@ UA_Server_readAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
  *
  * - NodeClass
  * - NodeId
- * - Symmetric
- * - ContainsNoLoops
+ * - BrowseName
  *
  * The following attributes cannot be written from C-API, as they are specific
  * to the session (context set by the access control callback):
@@ -521,7 +520,8 @@ UA_Server_readAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
  * - UserWriteMask
  * - UserAccessLevel
  * - UserExecutable
- */
+ *
+ * The WriteMask and UserWriteMask never mark these attributes as writable. */
 
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value);
@@ -953,7 +953,10 @@ typedef struct {
      * @param nodeConstructorContext Additional data attached to the node
      *        by the type constructor(s).
      * @param range Points to the numeric range the client wants to write to (or
-     *        NULL). */
+     *        NULL).
+     * @param data The value as it was written. If a range is given, this is
+     *        only the part written to the range, not the complete new value
+     *        of the attribute. */
     void (*onWrite)(UA_Server *server, const UA_NodeId *sessionId,
                     void *sessionContext, const UA_NodeId *nodeId,
                     void *nodeContext, const UA_NumericRange *range,
@@ -2268,7 +2271,16 @@ struct UA_ServerConfig {
     void *context; /* Used to attach custom data to a server config. This can
                     * then be retrieved e.g. in a callback that forwards a
                     * pointer to the server. */
-    UA_Logger *logging; /* Plugin for log output */
+    /* Plugin for log output. The default configuration (setDefault and
+     * similar) hands this pointer on to other plugins, such as the EventLoop
+     * and the SecurityPolicies. Replacing the pointer afterwards reaches only
+     * part of the library. Set the logger before calling setDefault, or
+     * overwrite the logger in place and keep its clear callback:
+     *
+     *   UA_Logger logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_WARNING);
+     *   logger.clear = config->logging->clear;
+     *   *config->logging = logger; */
+    UA_Logger *logging;
 
     /* Server Description
      * ~~~~~~~~~~~~~~~~~~
