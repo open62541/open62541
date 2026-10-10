@@ -221,6 +221,10 @@ void closeSessionHandles(UA_Server *server, FileTransferDriver *ftd,
 UA_StatusCode fileTransferRefresh(UA_Driver *driver,
                                   const UA_NodeId directoryNodeId);
 
+/* backend_memory.c -- flat in-memory store for the files of temporary
+ * transfers. Without listing, rename and copy; clear frees it. */
+UA_StatusCode memStoreInit(UA_FileTransferBackend *out);
+
 /* Shared helpers independent of driver state. */
 /* Entry names must not contain path separators or navigate the hierarchy */
 static UA_INLINE UA_Boolean
