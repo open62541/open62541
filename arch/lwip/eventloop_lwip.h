@@ -271,7 +271,7 @@ typedef struct {
     volatile UA_Boolean executing;
 
     /* Network Interface functions. */
-    struct netif netif;
+    UA_Boolean netifInitialized;
     UA_EventLoopConfiguration config;
     UA_StatusCode (*netifInit)(UA_EventLoop *el, const UA_String *ipaddr,
                                const UA_String *netmask, const UA_String *gw);

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2025 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "eventloop_lwip.h"
@@ -13,9 +14,10 @@
 
 #if defined(UA_ARCHITECTURE_POSIX)
 #include <netif/tapif.h>
+#include <pthread.h>
 #endif
 
-/* These are just default values and not unchangeable IP assignments. They can be overridden at runtime */
+/* Defaults for the first initialization of the POSIX TAP interface. */
 #define LWIP_PORT_INIT_IPADDR(addr)   IP4_ADDR(&addr, 192, 168, 0, 200);
 #define LWIP_PORT_INIT_GW(addr)       IP4_ADDR(&addr, 192, 168, 0, 1);
 #define LWIP_PORT_INIT_NETMASK(addr)  IP4_ADDR(&addr, 255, 255, 255, 0);
@@ -206,7 +208,7 @@ UA_EventLoopLWIP_start(UA_EventLoopLWIP *el) {
                  "Starting the EventLoop");
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(el->netifInit) {
+    if(el->netifInit && !el->netifInitialized) {
         const UA_String *ipaddr = (const UA_String*)
             UA_KeyValueMap_getScalar(&el->config.params, LWIPEventLoopConfigParameters[LWIPEVENTLOOP_PARAMINDEX_IPADDR].name,
                              &UA_TYPES[UA_TYPES_STRING]);
@@ -221,9 +223,11 @@ UA_EventLoopLWIP_start(UA_EventLoopLWIP *el) {
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                          "Error during the initialisation of the network interface");
+            UA_UNLOCK(&el->elMutex);
             return res;
         }
-    } else {
+        el->netifInitialized = true;
+    } else if(!el->netifInit) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                       "No function defined to initialize the network interface."
                       "Initialization must be performed externally");
@@ -536,12 +540,6 @@ UA_EventLoopLWIP_free(UA_EventLoopLWIP *el) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Call netif shutdown*/
-    if(el->netifShutdown)
-        el->netifShutdown((UA_EventLoop*)el);
-
-    UA_KeyValueMap_clear(&el->config.params);
-
     /* Deregister and delete all the EventSources */
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
@@ -555,6 +553,11 @@ UA_EventLoopLWIP_free(UA_EventLoopLWIP *el) {
     /* Process remaining delayed callbacks */
     processDelayed(el);
 
+    /* Release custom interface resources after all loop activity has ended. */
+    if(el->netifInitialized && el->netifShutdown)
+        el->netifShutdown((UA_EventLoop*)el);
+
+    UA_KeyValueMap_clear(&el->config.params);
     UA_KeyValueMap_clear(&el->eventLoop.params);
 
     /* Clean up */
@@ -566,52 +569,112 @@ UA_EventLoopLWIP_free(UA_EventLoopLWIP *el) {
 
 #if defined(UA_ARCHITECTURE_POSIX)
 
-static bool initAlready = false;
-static UA_StatusCode defaultNetifInit(UA_EventLoopLWIP *el, const UA_String *ipaddr,
-                                      const UA_String *netmask, const UA_String *gw) {
+/* The Unix TAP worker and lwIP stack run for the lifetime of the process.
+ * They retain the interface pointer, so its storage must outlive every loop. */
+static struct {
+    struct netif netif;
+    ip4_addr_t ipaddr;
+    ip4_addr_t netmask;
+    ip4_addr_t gateway;
+    UA_Boolean initialized;
+} defaultNetwork;
+static pthread_mutex_t defaultNetworkMutex = PTHREAD_MUTEX_INITIALIZER;
+
+static pthread_once_t tcpipInitOnce = PTHREAD_ONCE_INIT;
+static pthread_mutex_t tcpipInitMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t tcpipInitCondition = PTHREAD_COND_INITIALIZER;
+static UA_Boolean tcpipInitComplete;
+
+static void
+defaultTcpipInitDone(void *context) {
+    pthread_mutex_lock(&tcpipInitMutex);
+    tcpipInitComplete = true;
+    pthread_cond_signal(&tcpipInitCondition);
+    pthread_mutex_unlock(&tcpipInitMutex);
+}
+
+static void
+defaultTcpipInit(void) {
+    /* tcpip_init starts a worker asynchronously. Wait until that worker has
+     * initialized the stack before adding an interface or opening sockets. */
+    tcpip_init(defaultTcpipInitDone, NULL);
+    pthread_mutex_lock(&tcpipInitMutex);
+    while(!tcpipInitComplete)
+        pthread_cond_wait(&tcpipInitCondition, &tcpipInitMutex);
+    pthread_mutex_unlock(&tcpipInitMutex);
+}
+
+static UA_StatusCode
+parseNetifAddress(const UA_String *value, ip4_addr_t *address) {
+    if(!value)
+        return UA_STATUSCODE_GOOD;
+    char buffer[IPV4_ADDRESS_STRING_LENGTH];
+    if(value->length == 0 || value->length >= sizeof(buffer) ||
+       memchr(value->data, '\0', value->length))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    memcpy(buffer, value->data, value->length);
+    buffer[value->length] = '\0';
+    return ip4addr_aton(buffer, address) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
+static UA_StatusCode
+defaultNetifInit(UA_EventLoop *el, const UA_String *ipaddr,
+                 const UA_String *netmask, const UA_String *gw) {
     ip4_addr_t local_ipaddr, local_netmask, local_gw;
     LWIP_PORT_INIT_IPADDR(local_ipaddr);
     LWIP_PORT_INIT_NETMASK(local_netmask);
     LWIP_PORT_INIT_GW(local_gw);
 
-    /* Override with provided parameters */
-    if(ipaddr && netmask && gw) {
-        char ipaddr_s[IPV4_ADDRESS_STRING_LENGTH];
-        mp_snprintf(ipaddr_s, IPV4_ADDRESS_STRING_LENGTH, "%.*s",
-                    (int)ipaddr->length, (char*)ipaddr->data);
-        char netmask_s[IPV4_ADDRESS_STRING_LENGTH];
-        mp_snprintf(netmask_s, IPV4_ADDRESS_STRING_LENGTH, "%.*s",
-                    (int)netmask->length, (char*)netmask->data);
-        char gw_s[IPV4_ADDRESS_STRING_LENGTH];
-        mp_snprintf(gw_s, IPV4_ADDRESS_STRING_LENGTH, "%.*s",
-                    (int)gw->length, (char*)gw->data);
+    UA_StatusCode res = parseNetifAddress(ipaddr, &local_ipaddr);
+    if(res == UA_STATUSCODE_GOOD)
+        res = parseNetifAddress(netmask, &local_netmask);
+    if(res == UA_STATUSCODE_GOOD)
+        res = parseNetifAddress(gw, &local_gw);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-        if(!ip4addr_aton(ipaddr_s, &local_ipaddr) || !ip4addr_aton(netmask_s, &local_netmask) ||
-           !ip4addr_aton(gw_s, &local_gw))
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* The initialization can only be done once for the runtime of the process */
-    if(!initAlready) {
-        tcpip_init(NULL, NULL);
-        LOCK_TCPIP_CORE();
-        if(!netif_add(&el->netif, &local_ipaddr, &local_netmask, &local_gw, NULL, tapif_init, tcpip_input)) {
-            UNLOCK_TCPIP_CORE();
-            return UA_STATUSCODE_BADINTERNALERROR;
+    /* This lock is independent of UA_MULTITHREADING: different EventLoops may
+     * start concurrently even when each loop is used by just one thread. */
+    pthread_mutex_lock(&defaultNetworkMutex);
+    if(defaultNetwork.initialized) {
+        /* Omitted parameters reuse the existing configuration. */
+        if((ipaddr && !ip4_addr_cmp(&local_ipaddr, &defaultNetwork.ipaddr)) ||
+           (netmask && !ip4_addr_cmp(&local_netmask, &defaultNetwork.netmask)) ||
+           (gw && !ip4_addr_cmp(&local_gw, &defaultNetwork.gateway)))
+            res = UA_STATUSCODE_BADCONFIGURATIONERROR;
+        pthread_mutex_unlock(&defaultNetworkMutex);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(el->logger, UA_LOGCATEGORY_EVENTLOOP,
+                         "The default lwIP interface already has a different IP configuration");
         }
-        netif_set_default(&el->netif);
-        netif_set_up(&el->netif);
-        UNLOCK_TCPIP_CORE();
+        return res;
     }
-    initAlready = true;
+
+    pthread_once(&tcpipInitOnce, defaultTcpipInit);
+    LOCK_TCPIP_CORE();
+    if(netif_add(&defaultNetwork.netif, &local_ipaddr, &local_netmask,
+                 &local_gw, NULL, tapif_init, tcpip_input)) {
+        netif_set_default(&defaultNetwork.netif);
+        netif_set_up(&defaultNetwork.netif);
+        defaultNetwork.ipaddr = local_ipaddr;
+        defaultNetwork.netmask = local_netmask;
+        defaultNetwork.gateway = local_gw;
+        defaultNetwork.initialized = true;
+    } else {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UNLOCK_TCPIP_CORE();
+    pthread_mutex_unlock(&defaultNetworkMutex);
+    return res;
+}
+
+static UA_StatusCode defaultNetifPoll(UA_EventLoop *el) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode defaultNetifPoll(UA_EventLoopLWIP *el) {
-    return UA_STATUSCODE_GOOD;
-}
-
-static void defaultNetifShutdown(UA_EventLoopLWIP *el) {
+static void defaultNetifShutdown(UA_EventLoop *el) {
+    /* The process owns the default interface and its TAP worker. */
 }
 
 #endif
@@ -637,9 +700,9 @@ UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config
     UA_Timer_init(&el->timer);
 
 #if defined(UA_ARCHITECTURE_POSIX)
-    el->netifInit = (UA_StatusCode (*)(UA_EventLoop*, const UA_String*, const UA_String*, const UA_String*))defaultNetifInit;
-    el->netifPoll = (UA_StatusCode (*)(UA_EventLoop*))defaultNetifPoll;
-    el->netifShutdown = (void (*)(UA_EventLoop*))defaultNetifShutdown;
+    el->netifInit = defaultNetifInit;
+    el->netifPoll = defaultNetifPoll;
+    el->netifShutdown = defaultNetifShutdown;
 #endif
 
     if(config) {

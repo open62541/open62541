@@ -1132,9 +1132,20 @@ typedef struct UA_EventLoopConfiguration UA_EventLoopConfiguration;
  * Defines the configuration parameters and optional callback functions for managing
  * the network interface within the EventLoop.
  *
- * The functions for initializing, polling, and shutting down the network interface
- * are optional. If they are not provided, the initialization and management of the
- * network interface must be handled externally.
+ * The interface callbacks are optional. On POSIX, omitted callbacks use the
+ * default TAP interface. It and the lwIP stack are shared by all default
+ * EventLoops and remain alive until process exit, independently of EventLoop,
+ * server, and client lifetimes. The first EventLoop start initializes them.
+ * Subsequent loops reuse that configuration; explicitly conflicting IP settings
+ * return BadConfigurationError. Omitted IP settings reuse the existing values.
+ *
+ * On other platforms the application must provide callbacks or manage the
+ * network interface externally. Custom callbacks retain application-defined
+ * ownership: netifInit is called during start and retried until it succeeds.
+ * The interface then remains initialized through loop stop/start. netifShutdown
+ * is called during deletion, after all loop activity has ended, only if
+ * netifInit succeeded. Shared custom interfaces
+ * must outlive every EventLoop using them.
  *
  * ** Configuration Parameters for the EventLoop**
  *
