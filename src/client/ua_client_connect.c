@@ -128,8 +128,8 @@ isFullyConnected(UA_Client *client) {
     if(client->findServersHandshake || client->discoveryUrl.length == 0)
         return false;
 
-    /* SecureChannel-only discovery connect is complete */
-    if(client->config.noSession)
+    /* Discovery services need neither an endpoint nor a Session */
+    if(client->discoveryOnly)
         return true;
 
     /* GetEndpoints handshake ongoing or not yet done */
@@ -137,7 +137,7 @@ isFullyConnected(UA_Client *client) {
         return false;
 
     /* No Session, but is required */
-    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
+    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->config.noSession)
         return false;
 
     return true;
@@ -1499,8 +1499,8 @@ connectActivity(UA_Client *client) {
         return;
     }
 
-    /* Have the final SecureChannel but no session */
-    if(client->config.noSession)
+    /* Discovery services can be called without selecting an endpoint */
+    if(client->discoveryOnly)
         return;
 
     /* GetEndpoints to identify the remote side and/or reset the SecureChannel
@@ -1509,6 +1509,10 @@ connectActivity(UA_Client *client) {
         setConnectStatus(client, requestGetEndpoints(client));
         return;
     }
+
+    /* Have the final SecureChannel but no session */
+    if(client->config.noSession)
+        return;
 
     /* Create and Activate the Session */
     switch(client->sessionState) {
@@ -1931,12 +1935,14 @@ connectSecureChannel(UA_Client *client, const char *endpointUrl) {
     cc->noSession = true;
     UA_String_clear(&cc->endpointUrl);
     cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+    client->discoveryOnly = true;
     return connectInternal(client, false);
 }
 
 UA_StatusCode
 __UA_Client_connect(UA_Client *client, UA_Boolean async) {
     lockClient(client);
+    client->discoveryOnly = false;
     connectInternal(client, async);
     unlockClient(client);
     return client->connectStatus;
@@ -2190,6 +2196,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
 
     client->connectStatus = UA_STATUSCODE_GOOD;
+    client->discoveryOnly = false;
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
 
     UA_SecureChannel_init(&client->channel);
