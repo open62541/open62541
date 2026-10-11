@@ -5233,6 +5233,48 @@ START_TEST(reuseDerivedPropertyDataTypes) {
     UA_NodeId_clear(&alias);
 } END_TEST
 
+/* A client Delete or move deletes the Objects of the storage entries, also
+ * reused application Objects (Part 20, 4.3.5) */
+START_TEST(deleteRemovesReusedObjects) {
+    UA_UInt16 ns = UA_Server_addNamespace(server_ft, "urn:test:existing-files");
+    UA_NodeId root = modelObject(UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(FILEDIRECTORYTYPE), ns, "ExistingFS");
+    UA_NodeId docs = modelObject(root, UA_NS0ID(FILEDIRECTORYTYPE), ns, "docs");
+    UA_NodeId file = modelObject(docs, UA_NS0ID(FILETYPE), ns, "a.txt");
+    UA_NodeId readme = modelObject(root, UA_NS0ID(FILETYPE), ns, "readme.txt");
+    UA_FileTransferBackend backend = memBackendWithTree();
+    UA_FileTransferNodeDescription description;
+    memset(&description, 0, sizeof(description));
+    description.nodeId = root;
+    UA_Driver *driver = NULL;
+    ck_assert_uint_eq(UA_FileTransferDriver_newDirectory(server_ft, &backend,
+        &description, NULL, &driver), UA_STATUSCODE_GOOD);
+    registerTestDriver(driver);
+    UA_NodeId created = resolveChild(server_ft, docs, "sub");
+
+    callDelete(root, docs, UA_STATUSCODE_GOOD);
+    UA_NodeClass cls;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, docs, &cls), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, file, &cls), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, created, &cls), UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+    /* The moved entry gets a new Object at the target */
+    UA_NodeId target = callCreateDirectory(root, "target", UA_STATUSCODE_GOOD);
+    UA_NodeId moved = callMoveOrCopy(root, readme, target, false, "", UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, readme, &cls), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert(!UA_NodeId_equal(&moved, &readme));
+    ck_assert(tryResolveChild(server_ft, target, "readme.txt", NULL));
+
+    ck_assert_uint_eq(testRemove(driver, root), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, root, &cls), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&root);
+    UA_NodeId_clear(&docs);
+    UA_NodeId_clear(&file);
+    UA_NodeId_clear(&readme);
+    UA_NodeId_clear(&created);
+    UA_NodeId_clear(&target);
+    UA_NodeId_clear(&moved);
+} END_TEST
+
 START_TEST(reuseNestedDirectoryStructure) {
     UA_UInt16 ns = UA_Server_addNamespace(server_ft, "urn:test:existing-files");
     UA_NodeId root = modelObject(UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(FILEDIRECTORYTYPE), ns, "ExistingFS");
@@ -5642,6 +5684,7 @@ int main(void) {
     tcase_add_test(tc_lifecycle, reuseFileRestoresProperties);
     tcase_add_test(tc_lifecycle, reuseDerivedPropertyDataTypes);
     tcase_add_test(tc_lifecycle, reuseNestedDirectoryStructure);
+    tcase_add_test(tc_lifecycle, deleteRemovesReusedObjects);
     tcase_add_test(tc_lifecycle, reuseRejectsConflictingDriversAndTypes);
     tcase_add_test(tc_lifecycle, driverLimitsAndSessionCleanupAreIndependent);
     tcase_add_test(tc_lifecycle, crossDriverCopyUsesDestinationPolicyAndBudget);

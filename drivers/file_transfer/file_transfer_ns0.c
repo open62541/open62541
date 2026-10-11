@@ -915,14 +915,21 @@ prepareSubtreeRelease(void *context, FTEntry *node) {
     return NULL;
 }
 
+static void releaseSubtree(UA_Server *server, FTEntry *node);
+
+/* The iteration keeps the neighbours of a released child. The child does not
+ * unlink itself, the parent drops its whole child index afterwards. */
+static void *
+releaseChild(void *context, FTEntry *child) {
+    child->parent = NULL;
+    releaseSubtree((UA_Server*)context, child);
+    return NULL;
+}
+
 static void
 releaseSubtree(UA_Server *server, FTEntry *node) {
-    FTEntry *child;
-    while((child = ZIP_ROOT(&node->children))) {
-        /* Releasing the child unlinks it from node->children */
-        UA_assert(child->parent == node);
-        releaseSubtree(server, child);
-    }
+    ZIP_ITER(FTChildrenByName, &node->children, releaseChild, server);
+    ZIP_INIT(&node->children);
     unbindObjectMethods(server, node);
     if(node->created)
         UA_Server_deleteNode(server, node->nodeId, true);
@@ -935,4 +942,17 @@ void
 removeSubtree(UA_Server *server, FTEntry *subtreeRoot) {
     prepareSubtreeRelease(subtreeRoot, subtreeRoot);
     releaseSubtree(server, subtreeRoot);
+}
+
+static void *
+markCreated(void *context, FTEntry *node) {
+    node->created = true;
+    ZIP_ITER(FTChildrenByName, &node->children, markCreated, NULL);
+    return NULL;
+}
+
+void
+deleteSubtree(UA_Server *server, FTEntry *subtreeRoot) {
+    markCreated(NULL, subtreeRoot);
+    removeSubtree(server, subtreeRoot);
 }
