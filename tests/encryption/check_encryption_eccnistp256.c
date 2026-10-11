@@ -763,6 +763,84 @@ START_TEST(encryption_rejects_malformed_signature_length) {
 }
 END_TEST
 
+/* --- Test: a failed ephemeral key of CreateSession is not signed --- */
+
+static UA_StatusCode (*hookedGenerateNonce)(const UA_SecurityPolicy *policy,
+                                            void *channelContext, UA_ByteString *out);
+static UA_StatusCode (*hookedSign)(const UA_SecurityPolicy *policy,
+                                   void *channelContext, const UA_ByteString *message,
+                                   UA_ByteString *signature);
+static void *secureChannelContext;
+static size_t failedEphemeralKeys;
+static size_t signedFailedKeys;
+
+/* The server marks the buffer for an ephemeral key with "eph" */
+static UA_Boolean
+isEphemeralKeyMarker(const UA_ByteString *buf) {
+    return buf->length >= 3 && buf->data[0] == 'e' &&
+        buf->data[1] == 'p' && buf->data[2] == 'h';
+}
+
+/* The first ephemeral key is for the SecureChannel. Fail the one of the
+ * Session, which uses its own context. */
+static UA_StatusCode
+failSessionEphemeralKey(const UA_SecurityPolicy *policy, void *channelContext,
+                        UA_ByteString *out) {
+    if(isEphemeralKeyMarker(out)) {
+        if(!secureChannelContext)
+            secureChannelContext = channelContext;
+        if(channelContext != secureChannelContext) {
+            failedEphemeralKeys++;
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+    return hookedGenerateNonce(policy, channelContext, out);
+}
+
+static UA_StatusCode
+countSignedFailedKeys(const UA_SecurityPolicy *policy, void *channelContext,
+                      const UA_ByteString *message, UA_ByteString *signature) {
+    if(isEphemeralKeyMarker(message))
+        signedFailedKeys++;
+    return hookedSign(policy, channelContext, message, signature);
+}
+
+START_TEST(encryption_createSession_ephemeralKeyFailure) {
+    pauseServer();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_String uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
+    UA_SecurityPolicy *sp = NULL;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(UA_String_equal(&config->securityPolicies[i].policyUri, &uri))
+            sp = &config->securityPolicies[i];
+    }
+    ck_assert_ptr_nonnull(sp);
+    hookedGenerateNonce = sp->generateNonce;
+    hookedSign = sp->asymSignatureAlgorithm.sign;
+    sp->generateNonce = failSessionEphemeralKey;
+    sp->asymSignatureAlgorithm.sign = countSignedFailedKeys;
+    secureChannelContext = NULL;
+    failedEphemeralKeys = 0;
+    signedFailedKeys = 0;
+    runServer();
+
+    UA_Client *client = createEncryptedClient_P256();
+    ck_assert(client != NULL);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    pauseServer();
+    sp->generateNonce = hookedGenerateNonce;
+    sp->asymSignatureAlgorithm.sign = hookedSign;
+    runServer();
+
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(failedEphemeralKeys, 0);
+    ck_assert_uint_eq(signedFailedKeys, 0);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
     TCase *tc_encryption = tcase_create("Encryption ECC_nistP256");
@@ -777,6 +855,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption, encryption_csr_generation);
     tcase_add_test(tc_encryption, encryption_update_certificate);
     tcase_add_test(tc_encryption, encryption_rejects_malformed_signature_length);
+    tcase_add_test(tc_encryption, encryption_createSession_ephemeralKeyFailure);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
 
