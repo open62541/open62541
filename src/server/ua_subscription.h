@@ -354,6 +354,13 @@ struct UA_Subscription {
 #endif
 };
 
+/* Sampling uses the rights of the subscriber, never those of the Session that
+ * caused the change. NULL if the Subscription is detached. */
+static UA_INLINE UA_Session *
+UA_MonitoredItem_getSamplingSession(const UA_MonitoredItem *mon) {
+    return mon->subscription->session;
+}
+
 UA_Subscription * UA_Subscription_new(void);
 
 void

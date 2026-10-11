@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #define CONFIGUREADMIN UA_NS0ID(WELLKNOWNROLE_CONFIGUREADMIN)
+#define OBSERVER UA_NS0ID(WELLKNOWNROLE_OBSERVER)
 
 static UA_Server *server = NULL;
 
@@ -341,6 +342,74 @@ START_TEST(addNodes_instantiationNeedsOnlyParentAddReference) {
     UA_NodeId_clear(&device);
 } END_TEST
 
+/**************************/
+/* Event MonitoredItems   */
+/**************************/
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* The EventNotifier of a node the Session may not browse cannot be read. The
+ * reason for that is returned. */
+START_TEST(eventItem_needsBrowse) {
+    UA_NodeId nodeId = addObject("Notifier", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES),
+                                 UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT);
+    setPermissions(nodeId, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_RECEIVEEVENTS);
+    UA_StatusCode res;
+    rbacMonitor(server, rbacSession(server, NULL, OBSERVER), nodeId,
+                UA_ATTRIBUTEID_EVENTNOTIFIER, "Message", &res);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    rbacMonitor(server, rbacSession(server, NULL, CONFIGUREADMIN), nodeId,
+                UA_ATTRIBUTEID_EVENTNOTIFIER, "Message", &res);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+} END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+/**********************/
+/* RolePermissions    */
+/**********************/
+
+/* The local admin Session bypasses all checks, also for the RolePermissions of
+ * a Node whose list does not grant ReadRolePermissions */
+START_TEST(adminSession_readsRolePermissions) {
+    UA_NodeId nodeId = addObject("Protected", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    UA_RolePermission rp = {OBSERVER, UA_PERMISSIONTYPE_BROWSE};
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, nodeId, 1, &rp,
+                                                       false, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readRolePermissions(server, nodeId, &v),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(v.arrayLength, 1);
+    UA_Variant_clear(&v);
+} END_TEST
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+/* A detached Subscription samples without a Session and gets no
+ * RolePermissions */
+START_TEST(detachedSubscription_samplesNoRolePermissions) {
+    UA_NodeId nodeId = addObject("Protected", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    setPermissions(nodeId, UA_PERMISSIONTYPE_BROWSE |
+                   UA_PERMISSIONTYPE_READROLEPERMISSIONS);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+    UA_StatusCode res;
+    UA_MonitoredItem *mon = rbacMonitor(server, session, nodeId,
+                                        UA_ATTRIBUTEID_ROLEPERMISSIONS, NULL, &res);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    lockServer(server);
+    UA_Boolean attachedReadable =
+        !TAILQ_LAST(&mon->queue, NotificationQueue)->data.dataChange.value.hasStatus;
+    UA_Session_detachSubscription(server, session, mon->subscription, false);
+    UA_MonitoredItem_sample(server, mon);
+    UA_StatusCode detachedStatus =
+        TAILQ_LAST(&mon->queue, NotificationQueue)->data.dataChange.value.status;
+    unlockServer(server);
+    ck_assert(attachedReadable);
+    ck_assert_uint_eq(detachedStatus, UA_STATUSCODE_BADUSERACCESSDENIED);
+} END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
 static Suite *testSuite_rbacServices(void) {
     Suite *s = suite_create("RBAC Services");
 
@@ -358,6 +427,21 @@ static Suite *testSuite_rbacServices(void) {
     tcase_add_test(tc_add, addNodes_grantedWithParentAddReference);
     tcase_add_test(tc_add, addNodes_instantiationNeedsOnlyParentAddReference);
     suite_add_tcase(s, tc_add);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    TCase *tc_events = tcase_create("Event MonitoredItems");
+    tcase_add_checked_fixture(tc_events, setup, teardown);
+    tcase_add_test(tc_events, eventItem_needsBrowse);
+    suite_add_tcase(s, tc_events);
+#endif
+
+    TCase *tc_rp = tcase_create("RolePermissions");
+    tcase_add_checked_fixture(tc_rp, setup, teardown);
+    tcase_add_test(tc_rp, adminSession_readsRolePermissions);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    tcase_add_test(tc_rp, detachedSubscription_samplesNoRolePermissions);
+#endif
+    suite_add_tcase(s, tc_rp);
 
     return s;
 }

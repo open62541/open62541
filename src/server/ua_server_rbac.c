@@ -569,7 +569,8 @@ UA_Server_initRBAC(UA_Server *server) {
     if(server->config.allPermissionsForAnonymous) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "RBAC: allPermissionsForAnonymous is enabled. "
-                       "All permissions are granted regardless of roles. "
+                       "Nodes without own or namespace-default RolePermissions "
+                       "grant all permissions regardless of roles. "
                        "Disable for production use.");
     }
 
