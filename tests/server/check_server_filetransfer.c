@@ -5011,6 +5011,35 @@ START_TEST(directoryLifetimeAndAutomaticRefresh) {
 
 /* A negative refresh interval is rejected. 0 disables the periodic refresh;
  * the application reconciles on demand. */
+/* A known parameter with the wrong type fails the start instead of being
+ * ignored; unknown keys are not checked */
+START_TEST(driverParametersRequireTheirTypes) {
+    UA_FileTransferBackend backend = memBackendWithTree();
+    UA_NodeId root;
+    UA_Driver *driver = newTestDirectory(server_ft, &backend, &root);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    UA_Int32 wrong = 1;
+    const char *keys[3] = {"read-only", "refresh-interval", "max-nodes"};
+    for(size_t i = 0; i < 3; i++) {
+        ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                              UA_QUALIFIEDNAME(0, (char*)(uintptr_t)keys[i]), &wrong,
+                              &UA_TYPES[UA_TYPES_INT32]), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+        ck_assert_uint_eq(UA_KeyValueMap_remove(&driver->params,
+                              UA_QUALIFIEDNAME(0, (char*)(uintptr_t)keys[i])),
+                          UA_STATUSCODE_GOOD);
+    }
+    UA_Boolean readOnly = true;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "read-only"), &readOnly,
+                          &UA_TYPES[UA_TYPES_BOOLEAN]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "vendor-option"), &wrong,
+                          &UA_TYPES[UA_TYPES_INT32]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&root);
+} END_TEST
+
 START_TEST(disabledPeriodicRefresh) {
     UA_Server_getConfig(server_ft)->tcpEnabled = false;
     ck_assert_uint_eq(UA_Server_run_startup(server_ft), UA_STATUSCODE_GOOD);
@@ -5718,6 +5747,7 @@ int main(void) {
     tcase_add_test(tc_lifecycle, failedRegistrationRetainsObjects);
     tcase_add_test(tc_lifecycle, directoryLifetimeAndAutomaticRefresh);
     tcase_add_test(tc_lifecycle, disabledPeriodicRefresh);
+    tcase_add_test(tc_lifecycle, driverParametersRequireTheirTypes);
     tcase_add_test(tc_lifecycle, directoryBackendCastsFileBackend);
     tcase_add_test(tc_lifecycle, defaultNodeDescriptions);
     tcase_add_test(tc_lifecycle, reuseFileRestoresProperties);

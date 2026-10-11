@@ -113,55 +113,69 @@ refreshCallback(UA_Server *server, void *context) {
     ftd->refreshResult = res;
 }
 
+/* A known key with another type than documented is a configuration error,
+ * not an absent value */
+static const void *
+driverParam(FileTransferDriver *ftd, const char *key, const UA_DataType *type,
+            UA_StatusCode *res) {
+    const UA_Variant *value = UA_KeyValueMap_get(&ftd->driver.params,
+        UA_QUALIFIEDNAME(0, (char*)(uintptr_t)key));
+    if(!value)
+        return NULL;
+    if(UA_Variant_hasScalarType(value, type))
+        return value->data;
+    UA_LOG_ERROR(UA_Server_getConfig(ftd->driver.server)->logging, UA_LOGCATEGORY_SERVER,
+                 "FileTransfer: The parameter %s of %N has the wrong type",
+                 key, ftd->root->nodeId);
+    *res = UA_STATUSCODE_BADINVALIDARGUMENT;
+    return NULL;
+}
+
 static UA_StatusCode
 configureDriver(FileTransferDriver *ftd) {
-    const UA_KeyValueMap *params = &ftd->driver.params;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     memset(&ftd->config, 0, sizeof(ftd->config));
     ftd->config.maxHandlesPerSession = UA_FILETRANSFER_MAXHANDLESPERSESSION_DEFAULT;
     const UA_UInt16 *maxPerSession = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "max-open-handles-per-session"),
-                                 &UA_TYPES[UA_TYPES_UINT16]);
+        driverParam(ftd, "max-open-handles-per-session", &UA_TYPES[UA_TYPES_UINT16], &res);
     if(maxPerSession)
         ftd->config.maxHandlesPerSession = *maxPerSession;
 
     ftd->config.maxHandlesPerFile = UA_FILETRANSFER_MAXHANDLESPERFILE_DEFAULT;
     const UA_UInt16 *maxPerFile = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "max-open-handles-per-file"),
-                                 &UA_TYPES[UA_TYPES_UINT16]);
+        driverParam(ftd, "max-open-handles-per-file", &UA_TYPES[UA_TYPES_UINT16], &res);
     if(maxPerFile)
         ftd->config.maxHandlesPerFile = *maxPerFile;
 
     ftd->config.maxReadLength = UA_FILETRANSFER_MAXREADLENGTH_DEFAULT;
     const UA_UInt32 *maxReadLength = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "max-read-length"),
-                                 &UA_TYPES[UA_TYPES_UINT32]);
+        driverParam(ftd, "max-read-length", &UA_TYPES[UA_TYPES_UINT32], &res);
     if(maxReadLength && *maxReadLength > 0)
         ftd->config.maxReadLength = *maxReadLength;
 
-    const UA_Boolean *readOnly = (const UA_Boolean*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "read-only"), &UA_TYPES[UA_TYPES_BOOLEAN]);
+    const UA_Boolean *readOnly = (const UA_Boolean*)
+        driverParam(ftd, "read-only", &UA_TYPES[UA_TYPES_BOOLEAN], &res);
     if(readOnly)
         ftd->config.readOnly = *readOnly;
-    const UA_UInt32 *maxDepth = (const UA_UInt32*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "max-scan-depth"), &UA_TYPES[UA_TYPES_UINT32]);
+    const UA_UInt32 *maxDepth = (const UA_UInt32*)
+        driverParam(ftd, "max-scan-depth", &UA_TYPES[UA_TYPES_UINT32], &res);
     if(maxDepth)
         ftd->config.maxScanDepth = *maxDepth;
-    const UA_UInt32 *maxNodes = (const UA_UInt32*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "max-nodes"), &UA_TYPES[UA_TYPES_UINT32]);
+    const UA_UInt32 *maxNodes = (const UA_UInt32*)
+        driverParam(ftd, "max-nodes", &UA_TYPES[UA_TYPES_UINT32], &res);
     if(maxNodes)
         ftd->config.maxNodes = *maxNodes;
-    const UA_UInt16 *ns = (const UA_UInt16*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "namespace-index"), &UA_TYPES[UA_TYPES_UINT16]);
+    const UA_UInt16 *ns = (const UA_UInt16*)
+        driverParam(ftd, "namespace-index", &UA_TYPES[UA_TYPES_UINT16], &res);
     if(ns)
         ftd->config.namespaceIndex = *ns;
     ftd->config.refreshInterval = 1000;
-    const UA_Double *interval = (const UA_Double*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "refresh-interval"), &UA_TYPES[UA_TYPES_DOUBLE]);
+    const UA_Double *interval = (const UA_Double*)
+        driverParam(ftd, "refresh-interval", &UA_TYPES[UA_TYPES_DOUBLE], &res);
     if(interval)
         ftd->config.refreshInterval = *interval;
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     /* Zero disables the periodic refresh. Otherwise the timer needs at least
      * one DateTime tick and an Int64 tick count (rejects NaN and infinity). */
     UA_Double ri = ftd->config.refreshInterval;
