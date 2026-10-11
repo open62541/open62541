@@ -137,6 +137,9 @@ UA_Boolean isBelow(const FTEntry *node, const FTEntry *root);
 /* Release bindings and remove driver-created Objects, including the root.
  * Reused Objects survive; callers must close all subtree handles first. */
 void removeSubtree(UA_Server *server, FTEntry *subtreeRoot);
+/* A client deleted or moved the storage entries. Their Objects are deleted,
+ * also reused ones (Part 20, 4.3.5). */
+void deleteSubtree(UA_Server *server, FTEntry *subtreeRoot);
 
 /* Validate an untrusted context against registered, started drivers before
  * resolving the Object. NodeId-only lookup is for cross-driver destinations. */
