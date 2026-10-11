@@ -342,6 +342,55 @@ START_TEST(addNodes_instantiationNeedsOnlyParentAddReference) {
     UA_NodeId_clear(&device);
 } END_TEST
 
+/**********/
+/* Browse */
+/**********/
+
+/* Whether the forward references of the node list the target */
+static UA_Boolean
+browseFinds(UA_Session *session, const UA_NodeId nodeId, const UA_NodeId target) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = nodeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseRequest request;
+    UA_BrowseRequest_init(&request);
+    request.nodesToBrowseSize = 1;
+    request.nodesToBrowse = &bd;
+
+    UA_BrowseResponse response;
+    UA_BrowseResponse_init(&response);
+    lockServer(server);
+    Service_Browse(server, session, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < response.results[0].referencesSize; i++)
+        found |= UA_NodeId_equal(&response.results[0].references[i].nodeId.nodeId,
+                                 &target);
+    UA_BrowseResponse_clear(&response);
+    return found;
+}
+
+/* Browsing the parent does not list a child without the Browse permission.
+ * The local admin Session sees it. */
+START_TEST(browse_hidesTargetWithoutBrowse) {
+    UA_NodeId parent = addObject("Parent", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    UA_NodeId visible = addObject("Visible", parent, UA_NS0ID(HASCOMPONENT), 0);
+    UA_NodeId hidden = addObject("Hidden", parent, UA_NS0ID(HASCOMPONENT), 0);
+    setPermissions(parent, UA_PERMISSIONTYPE_BROWSE);
+    setPermissions(visible, UA_PERMISSIONTYPE_BROWSE);
+    setPermissions(hidden, 0);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+
+    ck_assert(browseFinds(session, parent, visible));
+    ck_assert(!browseFinds(session, parent, hidden));
+    ck_assert(browseFinds(&server->adminSession, parent, hidden));
+} END_TEST
+
 /**************************/
 /* Event MonitoredItems   */
 /**************************/
@@ -427,6 +476,11 @@ static Suite *testSuite_rbacServices(void) {
     tcase_add_test(tc_add, addNodes_grantedWithParentAddReference);
     tcase_add_test(tc_add, addNodes_instantiationNeedsOnlyParentAddReference);
     suite_add_tcase(s, tc_add);
+
+    TCase *tc_browse = tcase_create("Browse");
+    tcase_add_checked_fixture(tc_browse, setup, teardown);
+    tcase_add_test(tc_browse, browse_hidesTargetWithoutBrowse);
+    suite_add_tcase(s, tc_browse);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     TCase *tc_events = tcase_create("Event MonitoredItems");
