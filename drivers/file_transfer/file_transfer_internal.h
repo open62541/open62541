@@ -180,6 +180,7 @@ extern const FTMethod fileDirectoryTypeMethods[4];
 /* Query the backend with a zero-initialized FileInfo. */
 UA_StatusCode backendGetInfo(UA_FileTransferFileBackend *backend,
                              const UA_String path, UA_FileTransferFileInfo *info);
+/* Rights of the entry, none if a managed ancestor denies traversal */
 UA_StatusCode getFTAccessRights(UA_Server *server, const FTEntry *node,
                                 const UA_NodeId *sessionId, void *sessionContext,
                                 UA_FileAccessRights *outRights);

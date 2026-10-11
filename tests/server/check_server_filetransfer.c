@@ -4072,6 +4072,45 @@ START_TEST(fileAccessRightsEnforced) {
     UA_NodeId_clear(&fileId);
 } END_TEST
 
+/* The file Properties are scalars without IndexRange (Part 4, 7.27). Like
+ * Open, Writable and UserWritable need traversal of the managed ancestors
+ * (Part 20, 4.2.1). */
+START_TEST(filePropertiesRangeAndAncestors) {
+    AccessPolicy policy;
+    UA_FileTransferBackend backend = accessBackend(memBackendWithTree(), &policy);
+    UA_NodeId fsId = mountNamedMem(backend, "FileSystem", NULL);
+    UA_NodeId readme = resolveChild(server_ft, fsId, "readme.txt");
+    const char *names[6] = {"Size", "Writable", "UserWritable", "OpenCount",
+                            "LastModifiedTime", "MaxByteStringLength"};
+    for(size_t i = 0; i < 6; i++) {
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        rvi.nodeId = resolveChild(server_ft, readme, names[i]);
+        rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+        rvi.indexRange = UA_STRING("0");
+        UA_DataValue dv = UA_Server_read(server_ft, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        ck_assert_uint_eq(dv.status, UA_STATUSCODE_BADINDEXRANGENODATA);
+        UA_DataValue_clear(&dv);
+        UA_NodeId_clear(&rvi.nodeId);
+    }
+
+    policy.target = fsId;
+    policy.user = UA_FILEACCESS_READ | UA_FILEACCESS_WRITE;
+    ck_assert(!readBooleanProperty(readme, "UserWritable"));
+    ck_assert(readBooleanProperty(readme, "Writable"));
+    callOpen(readme, UA_OPENFILEMODE_WRITE, UA_STATUSCODE_BADUSERACCESSDENIED);
+    policy.general = UA_FILEACCESS_READ | UA_FILEACCESS_WRITE;
+    ck_assert(!readBooleanProperty(readme, "Writable"));
+    policy.general = policy.user = UA_FILEACCESS_READ | UA_FILEACCESS_WRITE |
+        UA_FILEACCESS_TRAVERSE;
+    ck_assert(readBooleanProperty(readme, "UserWritable"));
+    ck_assert(readBooleanProperty(readme, "Writable"));
+
+    ck_assert_uint_eq(testRemove(driverForRoot(fsId), fsId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&readme);
+    UA_NodeId_clear(&fsId);
+} END_TEST
+
 START_TEST(directoryAccessRightsEnforced) {
     AccessPolicy policy;
     UA_FileTransferBackend backend = accessBackend(memBackendWithTree(), &policy);
@@ -5733,6 +5772,7 @@ int main(void) {
     tcase_add_test(tc_dir, dirCreateMethods);
     tcase_add_test(tc_dir, dirReadOnlyMount);
     tcase_add_test(tc_dir, directoryAccessRightsEnforced);
+    tcase_add_test(tc_dir, filePropertiesRangeAndAncestors);
     tcase_add_test(tc_dir, changedListingDoesNotBypassAccessCallbacks);
     tcase_add_test(tc_dir, unmirroredEntriesDoNotBypassAccessCallbacks);
     tcase_add_test(tc_dir, dirDelete);

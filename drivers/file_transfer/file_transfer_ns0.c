@@ -373,11 +373,14 @@ readFileInfo(void *nodeContext, UA_Boolean includeSourceTimeStamp,
                        includeSourceTimeStamp, value);
 }
 
+/* The Properties are scalars, an IndexRange selects nothing (Part 4, 7.27) */
 static UA_StatusCode
 readSizeCallback(UA_Server *server, const UA_NodeId *sessionId,
                  void *sessionContext, const UA_NodeId *nodeId,
                  void *nodeContext, UA_Boolean includeSourceTimeStamp,
                  const UA_NumericRange *range, UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
     return readFileInfo(nodeContext, includeSourceTimeStamp, FT_FILEINFO_SIZE,
                         value);
 }
@@ -387,6 +390,8 @@ readLastModifiedCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *sessionContext, const UA_NodeId *nodeId,
                          void *nodeContext, UA_Boolean includeSourceTimeStamp,
                          const UA_NumericRange *range, UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
     return readFileInfo(nodeContext, includeSourceTimeStamp,
                         FT_FILEINFO_LASTMODIFIED, value);
 }
@@ -437,6 +442,8 @@ readWritableCallback(UA_Server *server, const UA_NodeId *sessionId,
                      void *sessionContext, const UA_NodeId *nodeId,
                      void *nodeContext, UA_Boolean includeSourceTimeStamp,
                      const UA_NumericRange *range, UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
     return readWritable(server, NULL, NULL, (FTEntry*)nodeContext,
                          includeSourceTimeStamp, value);
 }
@@ -446,6 +453,8 @@ readUserWritableCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *sessionContext, const UA_NodeId *nodeId,
                          void *nodeContext, UA_Boolean includeSourceTimeStamp,
                          const UA_NumericRange *range, UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
     return readWritable(server, sessionId, sessionContext, (FTEntry*)nodeContext,
                          includeSourceTimeStamp, value);
 }
