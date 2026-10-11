@@ -1033,8 +1033,7 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         return res;
     }
 
-    /* Set up the connection parameters.
-     * TODO: Complete the MQTT parameters. */
+    /* Set up the connection parameters. */
     UA_Boolean listen = true;
     UA_KeyValuePair kvp[5];
     UA_KeyValueMap kvm = {5, kvp};
@@ -1050,11 +1049,18 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     kvp[4].key = UA_QUALIFIEDNAME(0, "validate");
     UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
+    UA_KeyValueMap options = UA_KEYVALUEMAP_NULL;
+    res = UA_KeyValueMap_copy(&kvm, &options);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_PubSubConnection_mqttProperties(&c->config.connectionProperties, &options);
+
     /* Connect */
-    res = c->cm->openConnection(c->cm, &kvm, psm, rg, ReaderGroupChannelCallback);
+    if(res == UA_STATUSCODE_GOOD)
+        res = c->cm->openConnection(c->cm, &options, psm, rg, ReaderGroupChannelCallback);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg, "Could not open the MQTT connection");
     }
+    UA_KeyValueMap_clear(&options);
     return res;
 }
 
