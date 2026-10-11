@@ -2153,6 +2153,8 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              UA_Variant *value);
 
 /**
+ * .. _server-rbac:
+ *
  * Role-Based Access Control (RBAC)
  * --------------------------------
  *
@@ -2164,6 +2166,8 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  *
  * RBAC allows fine-grained access control by assigning roles to sessions and
  * defining permissions per role on individual nodes or entire namespaces.
+ *
+ * See :ref:`security-rbac` for the concepts and the default RolePermissions.
  *
  * Type Definitions
  * ~~~~~~~~~~~~~~~~
@@ -2695,8 +2699,10 @@ struct UA_ServerConfig {
     size_t rolesSize;
     UA_Role *roles;
 
-    /* If true, all permissions are granted regardless of roles.
-     * WARNING: Effectively disables authorization. Use for testing only. */
+    /* If true, nodes without own or namespace-default RolePermissions grant
+     * all permissions regardless of roles. Defaults to true for backwards
+     * compatibility.
+     * WARNING: Disables authorization for unconfigured nodes. */
     UA_Boolean allPermissionsForAnonymous;
 #endif
 };
