@@ -269,9 +269,10 @@ fillHistoricalDataBackend(UA_HistoryDataBackend backend) {
 }
 
 static void
-requestHistory(UA_DateTime start, UA_DateTime end, UA_HistoryReadResponse * response,
-               UA_UInt32 numValuesPerNode, UA_Boolean returnBounds,
-               UA_ByteString *continuationPoint) {
+requestHistoryRange(UA_DateTime start, UA_DateTime end,
+                    UA_HistoryReadResponse * response,
+                    UA_UInt32 numValuesPerNode, UA_Boolean returnBounds,
+                    UA_ByteString *continuationPoint, const char *indexRange) {
     UA_ReadRawModifiedDetails *details = UA_ReadRawModifiedDetails_new();
     details->startTime = start;
     details->endTime = end;
@@ -283,6 +284,8 @@ requestHistory(UA_DateTime start, UA_DateTime end, UA_HistoryReadResponse * resp
     UA_NodeId_copy(&outNodeId, &valueId->nodeId);
     if (continuationPoint)
         UA_ByteString_copy(continuationPoint, &valueId->continuationPoint);
+    if (indexRange)
+        valueId->indexRange = UA_STRING_ALLOC(indexRange);
 
     UA_HistoryReadRequest request;
     UA_HistoryReadRequest_init(&request);
@@ -299,6 +302,14 @@ requestHistory(UA_DateTime start, UA_DateTime end, UA_HistoryReadResponse * resp
     Service_HistoryRead(server, &server->adminSession, &request, response);
     unlockServer(server);
     UA_HistoryReadRequest_clear(&request);
+}
+
+static void
+requestHistory(UA_DateTime start, UA_DateTime end, UA_HistoryReadResponse * response,
+               UA_UInt32 numValuesPerNode, UA_Boolean returnBounds,
+               UA_ByteString *continuationPoint) {
+    requestHistoryRange(start, end, response, numValuesPerNode, returnBounds,
+                        continuationPoint, NULL);
 }
 
 static UA_UInt32
@@ -906,6 +917,59 @@ START_TEST(Server_HistorizingStrategyUser) {
 }
 END_TEST
 
+/* A raw read with an IndexRange returns that range of each value. The parsed
+ * range must be freed afterwards (LeakSanitizer reports it otherwise). */
+START_TEST(Server_HistorizingReadIndexRange) {
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = UA_HistoryDataBackend_Memory(3, 100);
+    setting.maxHistoryDataResponseSize = 100;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    UA_StatusCode retval =
+        gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_EventLoop *el = UA_Client_getConfig(client)->eventLoop;
+    UA_DateTime start = el->dateTime_now(el);
+    UA_DateTime end = start + (3 * UA_DATETIME_SEC);
+    for(UA_UInt32 i = 0; i < 3; ++i) {
+        UA_UInt32 elements[2] = {i, 100 + i};
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        value.hasValue = true;
+        UA_Variant_setArrayCopy(&value.value, elements, 2,
+                                &UA_TYPES[UA_TYPES_UINT32]);
+        value.hasSourceTimestamp = true;
+        value.sourceTimestamp = start + (i * UA_DATETIME_SEC);
+        value.hasServerTimestamp = true;
+        value.serverTimestamp = value.sourceTimestamp;
+        retval = setting.historizingBackend.
+            serverSetHistoryData(server, setting.historizingBackend.context,
+                                 NULL, NULL, &outNodeId, UA_FALSE, &value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_DataValue_clear(&value);
+    }
+
+    UA_HistoryReadResponse response;
+    UA_HistoryReadResponse_init(&response);
+    requestHistoryRange(start, end, &response, 0, false, NULL, "1");
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_HistoryData *data = (UA_HistoryData *)
+        response.results[0].historyData.content.decoded.data;
+    ck_assert_ptr_ne(data, NULL);
+    ck_assert_uint_eq(data->dataValuesSize, 3);
+    for(size_t j = 0; j < data->dataValuesSize; ++j) {
+        const UA_Variant *v = &data->dataValues[j].value;
+        ck_assert(v->type == &UA_TYPES[UA_TYPES_UINT32]);
+        ck_assert_uint_eq(v->arrayLength, 1);
+        ck_assert_uint_eq(*(UA_UInt32 *)v->data, 100 + j);
+    }
+    UA_HistoryReadResponse_clear(&response);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
+}
+END_TEST
+
 START_TEST(Server_HistorizingStrategyPoll) {
     UA_EventLoop *el = UA_Client_getConfig(client)->eventLoop;
     UA_DateTime start = el->dateTime_now(el);
@@ -1104,6 +1168,7 @@ testSuite_Client(void) {
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_HistorizingStrategyPoll);
     tcase_add_test(tc_server, Server_HistorizingStrategyUser);
+    tcase_add_test(tc_server, Server_HistorizingReadIndexRange);
     tcase_add_test(tc_server, Server_HistorizingStrategyValueSet);
     tcase_add_test(tc_server, Server_HistorizingBackendMemory);
     tcase_add_test(tc_server, Server_HistorizingRandomIndexBackend);

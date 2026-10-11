@@ -962,6 +962,61 @@ START_TEST(Session_secureChannel_mismatch) {
     UA_Client_delete(client2);
 } END_TEST
 
+static UA_StatusCode
+closeSessionRaw(UA_Client *client) {
+    UA_CloseSessionRequest request;
+    UA_CloseSessionRequest_init(&request);
+    UA_CloseSessionResponse response;
+    UA_CloseSessionResponse_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    UA_StatusCode result = response.responseHeader.serviceResult;
+    UA_CloseSessionResponse_clear(&response);
+    return result;
+}
+
+START_TEST(Session_closeSession_secureChannel_mismatch) {
+    /* CloseSession with the AuthenticationToken of a Session that is bound to
+     * another SecureChannel is rejected with Bad_SessionIdInvalid (Part 4,
+     * 5.7.4.3), both before and after activation. The Session stays alive. */
+    UA_Client *other = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(other, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    /* Not activated */
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    UA_CreateSessionResponse createRes;
+    ck_assert_uint_eq(createSessionRaw(client, &createRes), UA_STATUSCODE_GOOD);
+    UA_NodeId_copy(&createRes.authenticationToken, &other->authenticationToken);
+    ck_assert_uint_eq(closeSessionRaw(other), UA_STATUSCODE_BADSESSIONIDINVALID);
+    UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
+    ck_assert_uint_eq(closeSessionRaw(client), UA_STATUSCODE_GOOD);
+    UA_CreateSessionResponse_clear(&createRes);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* Activated */
+    client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&other->authenticationToken);
+    UA_NodeId_copy(&client->authenticationToken, &other->authenticationToken);
+    ck_assert_uint_eq(closeSessionRaw(other), UA_STATUSCODE_BADSESSIONIDINVALID);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE), &value),
+        UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    UA_Client_disconnect(other);
+    UA_Client_delete(other);
+} END_TEST
+
 /* Session restart after timeout handled by client reconnection logic */
 
 static Suite* testSuite_Session(void) {
@@ -998,6 +1053,7 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session_ext, Session_createSession_certIgnored_on_none_policy);
     tcase_add_test(tc_session_ext, Session_createSession_noServerCertOnNonePolicy);
     tcase_add_test(tc_session_ext, Session_secureChannel_mismatch);
+    tcase_add_test(tc_session_ext, Session_closeSession_secureChannel_mismatch);
 
     suite_add_tcase(s, tc_session);
     suite_add_tcase(s, tc_session_ext);

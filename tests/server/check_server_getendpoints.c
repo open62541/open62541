@@ -6,6 +6,8 @@
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
+#include "server/ua_server_internal.h"
+#include "server/ua_services.h"
 #include "thread_wrapper.h"
 #include "test_helpers.h"
 #include "../encryption/certificates.h"
@@ -205,12 +207,73 @@ START_TEST(testServerCertificateInGetEndpoints) {
 }
 END_TEST
 
+/* Each x509 token must have a SecurityPolicy other than #None, which its
+ * signature needs. */
+static size_t
+countCertificateTokens(UA_Server *s, const UA_String *securityPolicyUri) {
+    UA_GetEndpointsRequest request;
+    UA_GetEndpointsRequest_init(&request);
+    request.endpointUrl = UA_STRING("opc.tcp://localhost:4840");
+    UA_GetEndpointsResponse response;
+    UA_GetEndpointsResponse_init(&response);
+    lockServer(s);
+    Service_GetEndpoints(s, &s->adminSession, &request, &response);
+    unlockServer(s);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    const UA_String noneUri = UA_STRING_STATIC(NONE_URI);
+    size_t count = 0;
+    for(size_t i = 0; i < response.endpointsSize; i++) {
+        UA_EndpointDescription *ep = &response.endpoints[i];
+        if(!UA_String_equal(&ep->securityPolicyUri, securityPolicyUri))
+            continue;
+        for(size_t j = 0; j < ep->userIdentityTokensSize; j++) {
+            UA_UserTokenPolicy *utp = &ep->userIdentityTokens[j];
+            if(utp->tokenType != UA_USERTOKENTYPE_CERTIFICATE)
+                continue;
+            const UA_String *tokenUri = (utp->securityPolicyUri.length > 0) ?
+                &utp->securityPolicyUri : &ep->securityPolicyUri;
+            ck_assert(!UA_String_equal(tokenUri, &noneUri));
+            count++;
+        }
+    }
+    UA_GetEndpointsResponse_clear(&response);
+    return count;
+}
+
+/* The endpoints choose the SecurityPolicy of the user tokens. So x509 is
+ * offered for a SecurityPolicy added after the AccessControl was set up. */
+START_TEST(certificateTokenWithLaterSecurityPolicy) {
+    UA_Server *s = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(s, NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(s);
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_StatusCode retval =
+        UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &certificate,
+                                                        &privateKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_String secureUri = UA_STRING(BASIC256SHA256_URI);
+    retval = UA_ServerConfig_addEndpoint(config, secureUri,
+                                         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String noneUri = UA_STRING(NONE_URI);
+    ck_assert_uint_gt(countCertificateTokens(s, &secureUri), 0);
+    ck_assert_uint_gt(countCertificateTokens(s, &noneUri), 0);
+    UA_Server_delete(s);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("Server GetEndpoints");
     TCase *tc = tcase_create("ServerCertificate present in Endpoint");
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, testServerCertificateInGetEndpoints);
     suite_add_tcase(s, tc);
+
+    TCase *tc_tokens = tcase_create("Certificate token policies");
+    tcase_add_test(tc_tokens, certificateTokenWithLaterSecurityPolicy);
+    suite_add_tcase(s, tc_tokens);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

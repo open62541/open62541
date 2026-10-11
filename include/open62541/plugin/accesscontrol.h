@@ -26,7 +26,12 @@ typedef struct UA_AccessControl UA_AccessControl;
  *
  * The ``sessionId`` and ``sessionContext`` can be both NULL. This is the case
  * when, for example, a MonitoredItem (the underlying Subscription) is detached
- * from its Session but continues to run. */
+ * from its Session but continues to run.
+ *
+ * The callbacks ``activateSession``, ``getUserRightsMask``,
+ * ``getUserAccessLevel``, ``getUserExecutable``, ``getUserExecutableOnObject``
+ * and ``allowBrowseNode`` are mandatory. The server does not start without
+ * them. The other callbacks can be NULL. */
 
 struct UA_AccessControl {
     void *context;

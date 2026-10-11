@@ -91,6 +91,15 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    /* Check the upper bound for the number of links. Every link to add or to
+     * remove is one operation. */
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->linksToRemoveSize + request->linksToAddSize >
+       server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return true;
+    }
+
     /* Get the Subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
@@ -108,6 +117,12 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    /* A link goes away with the triggered MonitoredItem (Part 4, 5.13.1.6).
+     * Links to deleted MonitoredItems are otherwise only removed when the
+     * triggering item reports. Drop them here so that they cannot pile up
+     * across requests. */
+    UA_MonitoredItem_pruneLinks(sub, mon);
+
     /* Allocate the results arrays */
     if(request->linksToRemoveSize > 0) {
         response->removeResults = (UA_StatusCode*)
@@ -124,7 +139,7 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
             UA_Array_new(request->linksToAddSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->addResults) {
             UA_Array_delete(response->removeResults,
-                            request->linksToAddSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                            request->linksToRemoveSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
             response->removeResults = NULL;
             response->removeResultsSize = 0;
             response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;

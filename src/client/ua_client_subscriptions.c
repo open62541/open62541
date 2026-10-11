@@ -687,16 +687,25 @@ Client_MonitoredItems_create(UA_Client *client,
        response->resultsSize != request.itemsToCreateSize)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
 
+    /* The Subscription and its MonitoredItems are removed if the Session was
+     * closed while waiting for the response. Look them up again. */
+    sub = findSubscriptionById(client, request.subscriptionId);
+    if(!sub && response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+
     /* Update the MonitoredItems */
-    for(size_t i = 0; i < request.itemsToCreateSize; i++) {
-        UA_assert(mons[i]);
+    for(size_t i = 0; sub && i < request.itemsToCreateSize; i++) {
+        UA_Client_MonitoredItem *mon = findMonitoredItemByHandle(sub,
+            request.itemsToCreate[i].requestedParameters.clientHandle);
+        if(!mon)
+            continue;
         UA_MonitoredItemCreateResult *item = &response->results[i];
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD ||
            item->statusCode != UA_STATUSCODE_GOOD) {
-            MonitoredItem_delete(client, sub, mons[i]);
+            MonitoredItem_delete(client, sub, mon);
             continue;
         }
-        MonitoredItem_createFinish(client, sub, mons[i], item);
+        MonitoredItem_createFinish(client, sub, mon, item);
     }
 
     UA_CreateMonitoredItemsRequest_clear(&request);
@@ -1271,7 +1280,11 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], &response,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
 
-    MonitoredItems_reconcileModify(sub, &modifiedRequest, &response);
+    /* The Subscription is removed if the Session was closed while waiting for
+     * the response */
+    sub = findSubscriptionById(client, modifiedRequest.subscriptionId);
+    if(sub)
+        MonitoredItems_reconcileModify(sub, &modifiedRequest, &response);
 
     unlockClient(client);
 

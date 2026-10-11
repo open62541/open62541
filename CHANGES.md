@@ -97,6 +97,14 @@ Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section
 within NetworkMessages can be controlled via the `dataSetOrdering` field in the
 `UA_UadpWriterGroupMessageDataType` configuration.
 
+### The AccessControl plugin needs its mandatory callbacks
+
+`UA_Server_run_startup` returns `Bad_ConfigurationError` if one of the
+AccessControl callbacks `activateSession`, `getUserRightsMask`,
+`getUserAccessLevel`, `getUserExecutable`, `getUserExecutableOnObject` or
+`allowBrowseNode` is NULL. Before, the server started and crashed on the first
+request that used it.
+
 ### PubSub AddConnection rolls back incomplete configurations
 
 The `PublishSubscribe.AddConnection` information model method now removes the

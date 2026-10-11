@@ -435,6 +435,77 @@ START_TEST(removeOnShutdownWithoutConnection) {
     ck_assert_int_eq(serverCallbackStates[1], UA_SECURECHANNELSTATE_CLOSED);
 } END_TEST
 
+static UA_UInt64 secondReverseConnectHandle = 0;
+static UA_SecureChannelState firstReverseConnectState;
+static UA_SecureChannelState secondReverseConnectState;
+
+static void
+recordServerStateCallback(UA_Server *s, UA_UInt64 handle,
+                          UA_SecureChannelState state, void *context) {
+    if(handle == reverseConnectHandle)
+        firstReverseConnectState = state;
+    else if(handle == secondReverseConnectHandle)
+        secondReverseConnectState = state;
+}
+
+static void
+iterateClientServerUntilState(const UA_SecureChannelState *state,
+                              UA_SecureChannelState expected,
+                              UA_UInt32 fakeSleep) {
+    for(size_t i = 0; i < REVERSECONNECT_MAX_ITERATIONS &&
+        *state != expected; ++i)
+        iterateClientServer(fakeSleep);
+}
+
+/* A connected entry stays registered until its connection has closed. An entry
+ * added in the meantime must not get lost. */
+START_TEST(removeConnectedThenAdd) {
+    firstReverseConnectState = UA_SECURECHANNELSTATE_CLOSED;
+    secondReverseConnectState = UA_SECURECHANNELSTATE_CLOSED;
+    secondReverseConnectHandle = 0;
+
+    listenForReverseConnect();
+
+    UA_StatusCode ret =
+        UA_Server_addReverseConnect(server, UA_STRING(reverseConnectUrl),
+                                    recordServerStateCallback, NULL,
+                                    &reverseConnectHandle);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    ret = UA_Server_run_startup(server);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    iterateClientServerUntilState(&firstReverseConnectState,
+                                  UA_SECURECHANNELSTATE_OPEN, 1);
+    ck_assert_int_eq(firstReverseConnectState, UA_SECURECHANNELSTATE_OPEN);
+
+    /* Add a new entry while the removed connection is still closing */
+    ret = UA_Server_removeReverseConnect(server, reverseConnectHandle);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    ret = UA_Server_addReverseConnect(server, UA_STRING(reverseConnectUrl),
+                                      recordServerStateCallback, NULL,
+                                      &secondReverseConnectHandle);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    iterateClientServerUntilState(&firstReverseConnectState,
+                                  UA_SECURECHANNELSTATE_CLOSED, 1);
+    ck_assert_int_eq(firstReverseConnectState, UA_SECURECHANNELSTATE_CLOSED);
+
+    /* The new entry connects once the client listens again */
+    UA_Client_disconnect(client);
+    listenForReverseConnect();
+    iterateClientServerUntilState(&secondReverseConnectState,
+                                  UA_SECURECHANNELSTATE_OPEN,
+                                  REVERSE_RECONNECT_INTERVAL_TEST + 1);
+    ck_assert_int_eq(secondReverseConnectState, UA_SECURECHANNELSTATE_OPEN);
+
+    ret = UA_Server_removeReverseConnect(server, secondReverseConnectHandle);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    iterateClientServerUntilState(&secondReverseConnectState,
+                                  UA_SECURECHANNELSTATE_CLOSED, 1);
+    ck_assert_int_eq(secondReverseConnectState, UA_SECURECHANNELSTATE_CLOSED);
+
+    ret = UA_Server_run_shutdown(server);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server_reverseconnect");
 
@@ -447,6 +518,7 @@ int main(void) {
     tcase_add_test(tc_call, checkReconnect);
     tcase_add_test(tc_call, removeOnShutdownWithConnection);
     tcase_add_test(tc_call, removeOnShutdownWithoutConnection);
+    tcase_add_test(tc_call, removeConnectedThenAdd);
 
     suite_add_tcase(s, tc_call);
 

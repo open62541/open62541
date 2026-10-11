@@ -1664,6 +1664,46 @@ START_TEST(Client_subscription_connectionClose) {
 }
 END_TEST
 
+/* The server closes the Session while PublishRequests are queued. The first
+ * BadSessionClosed response cleans up the Session and resets the counter of
+ * outstanding PublishRequests before the response itself is processed. */
+START_TEST(Client_subscription_publishCounterAfterSessionClosed) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* Send the PublishRequests */
+    UA_Client_run_iterate(client, 1);
+    ck_assert_uint_gt(client->currentlyOutStandingPublishRequests, 1);
+
+    /* Close the Session on the server. The queued PublishRequests are answered
+     * with BadSessionClosed. */
+    pauseServer();
+    retval = UA_Server_closeSession(server, &client->sessionId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 100 &&
+            client->sessionState == UA_SESSIONSTATE_ACTIVATED; i++) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+    }
+    ck_assert(client->sessionState != UA_SESSIONSTATE_ACTIVATED);
+
+    /* The counter did not wrap around */
+    ck_assert_uint_le(client->currentlyOutStandingPublishRequests,
+                      cc->outStandingPublishRequests);
+
+    runServer();
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_subscription_statusChange) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -2384,6 +2424,109 @@ dataChangeCallback_ext(UA_Client *c, UA_UInt32 subId, void *subContext,
     /* no-op: just need a valid callback */
 }
 
+static UA_UInt32 monDeleteCount;
+
+static void
+monDeleteCallback(UA_Client *c, UA_UInt32 subId, void *subContext,
+                  UA_UInt32 monId, void *monContext) {
+    monDeleteCount++;
+}
+
+/* Close the Session on the server side. The client then receives
+ * BadSessionClosed for its queued Publish requests or BadSessionIdInvalid for
+ * the next request. Both remove the local Subscriptions while the synchronous
+ * call still waits for its response. */
+static void
+closeSessionOnServer(UA_Client *client) {
+    pauseServer();
+    UA_StatusCode retval = UA_Server_closeSession(server, &client->sessionId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    runServer();
+}
+
+START_TEST(Client_monitoredItems_create_sessionClosed) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    closeSessionOnServer(client);
+
+    monDeleteCount = 0;
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+    UA_MonitoredItemCreateResult monResult =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL,
+                                                  dataChangeCallback_ext,
+                                                  monDeleteCallback);
+    ck_assert(monResult.statusCode == UA_STATUSCODE_BADSESSIONIDINVALID ||
+              monResult.statusCode == UA_STATUSCODE_BADSESSIONCLOSED);
+
+    /* The MonitoredItem was removed once, together with the Subscription */
+    ck_assert_uint_eq(monDeleteCount, 1);
+
+    UA_MonitoredItemCreateResult_clear(&monResult);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_monitoredItems_modify_sessionClosed) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+    UA_MonitoredItemCreateResult monResult =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL,
+                                                  dataChangeCallback_ext, NULL);
+    ck_assert_uint_eq(monResult.statusCode, UA_STATUSCODE_GOOD);
+
+    closeSessionOnServer(client);
+
+    UA_MonitoredItemModifyRequest itemToModify;
+    UA_MonitoredItemModifyRequest_init(&itemToModify);
+    itemToModify.monitoredItemId = monResult.monitoredItemId;
+    itemToModify.requestedParameters.samplingInterval = 100.0;
+    itemToModify.requestedParameters.queueSize = 1;
+
+    UA_ModifyMonitoredItemsRequest modifyRequest;
+    UA_ModifyMonitoredItemsRequest_init(&modifyRequest);
+    modifyRequest.subscriptionId = response.subscriptionId;
+    modifyRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    modifyRequest.itemsToModify = &itemToModify;
+    modifyRequest.itemsToModifySize = 1;
+
+    UA_ModifyMonitoredItemsResponse modifyResponse =
+        UA_Client_MonitoredItems_modify(client, modifyRequest);
+    ck_assert(modifyResponse.responseHeader.serviceResult ==
+              UA_STATUSCODE_BADSESSIONIDINVALID ||
+              modifyResponse.responseHeader.serviceResult ==
+              UA_STATUSCODE_BADSESSIONCLOSED);
+
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
+    UA_MonitoredItemCreateResult_clear(&monResult);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_monitoredItem_getSetContext) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -2805,6 +2948,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_timeout);
     tcase_add_test(tc_client, Client_subscription_detach);
     tcase_add_test(tc_client, Client_subscription_connectionClose);
+    tcase_add_test(tc_client, Client_subscription_publishCounterAfterSessionClosed);
     tcase_add_test(tc_client, Client_subscription_createDataChanges);
     tcase_add_test(tc_client, Client_subscription_createDataChanges_negativeInterval);
     tcase_add_test(tc_client, Client_subscription_modifyMonitoredItem);
@@ -2821,6 +2965,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_getSetContext);
     tcase_add_test(tc_client, Client_subscription_deleteSingle);
     tcase_add_test(tc_client, Client_subscription_setPublishingMode);
+    tcase_add_test(tc_client, Client_monitoredItems_create_sessionClosed);
+    tcase_add_test(tc_client, Client_monitoredItems_modify_sessionClosed);
     tcase_add_test(tc_client, Client_monitoredItem_getSetContext);
     tcase_add_test(tc_client, Client_subscription_setMonitoringMode);
     tcase_add_test(tc_client, Client_subscription_setTriggering);
