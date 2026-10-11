@@ -594,6 +594,29 @@ START_TEST(SecureChannel_sendSymmetricMessage_modeSignAndEncrypt)
     ck_assert_msg(fCalled.sym_enc, "Expected message to have been encrypted");
 } END_TEST
 
+START_TEST(SecureChannel_receiveSymmetricMessage_minimumPayload) {
+    size_t payloadSize = (size_t)(_i % 3);
+    UA_Boolean encrypted = (_i >= 3);
+    testChannel.securityMode = encrypted ? UA_MESSAGESECURITYMODE_SIGNANDENCRYPT :
+        UA_MESSAGESECURITYMODE_SIGN;
+    keySizes.sym_sig_size = 32;
+    keySizes.sym_enc_keyLen = 32;
+    keySizes.sym_enc_blockSize = 16;
+
+    UA_Byte raw[64] = {0};
+    size_t padding = encrypted ? 16 - ((8 + payloadSize + 32) % 16) : 0;
+    UA_ByteString chunk = {16 + 8 + payloadSize + padding + 32, raw};
+    if(encrypted)
+        memset(raw + 16 + 8 + payloadSize, (int)(padding - 1), padding);
+
+    UA_StatusCode res = decryptAndVerifyChunk(&testChannel, &dummyPolicy.symSignatureAlgorithm,
+                                              &dummyPolicy.symEncryptionAlgorithm,
+                                              UA_MESSAGETYPE_MSG, &chunk, 16);
+    ck_assert_uint_eq(res, payloadSize ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    if(payloadSize)
+        ck_assert_uint_eq(chunk.length, 16 + 8 + payloadSize);
+} END_TEST
+
 START_TEST(SecureChannel_sendSymmetricMessage_invalidParameters) {
     // initialize dummy message
     UA_ReadRequest dummyMessage;
@@ -1200,6 +1223,7 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeNone);
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeSign);
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeSignAndEncrypt);
+    tcase_add_loop_test(tc_sendSymmetricMessage, SecureChannel_receiveSymmetricMessage_minimumPayload, 0, 6);
     suite_add_tcase(s, tc_sendSymmetricMessage);
 
     TCase *tc_processBuffer = tcase_create("Test chunk assembly");
