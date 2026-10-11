@@ -186,7 +186,8 @@ struct UA_FileTransferBackend {
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
  *
  * Set ``driver->params`` before UA_Server_addDriver(). Parameters are read on
- * each start; all keys use namespace 0.
+ * each start; all keys use namespace 0. A known key with another type than
+ * listed fails the start with Bad_InvalidArgument.
  *
  * 0:read-only [Boolean]
  *    Disable writes and directory mutations (default: false).
@@ -254,7 +255,10 @@ typedef struct {
  * While started, drivers supply the standard Methods, including shared
  * Namespace Zero Method nodes and copies inherited by subtypes. Other
  * Methods of subtypes stay with the application, see
- * UA_FileTransferDriver_getHandleInfo().
+ * UA_FileTransferDriver_getHandleInfo(). The drivers own these Method nodes:
+ * the first start replaces callbacks set by the application, the last stop
+ * removes them. FileType Objects of the application that are served without a
+ * driver need their own Method nodes.
  *
  * On success, the backend struct is copied and its context becomes owned by
  * the driver. On failure, created nodes are removed, *outDriver is NULL and
