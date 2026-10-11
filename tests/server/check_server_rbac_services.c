@@ -1,0 +1,373 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ */
+
+/* RBAC enforcement in the services, called with in-process Sessions without a
+ * SecureChannel */
+
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/nodeids.h>
+
+#include "test_helpers.h"
+#include "test_helpers_rbac.h"
+
+#include <check.h>
+#include <stdlib.h>
+
+#define CONFIGUREADMIN UA_NS0ID(WELLKNOWNROLE_CONFIGUREADMIN)
+
+static UA_Server *server = NULL;
+
+static void setup(void) {
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_Server_getConfig(server)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+}
+
+static void teardown(void) {
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+    server = NULL;
+}
+
+/* Anonymous may browse. ConfigureAdmin gets the given permissions. */
+static void
+setPermissions(const UA_NodeId nodeId, UA_PermissionType configureAdminPermissions) {
+    UA_RolePermission rp[2];
+    rp[0].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    rp[0].permissions = UA_PERMISSIONTYPE_BROWSE;
+    rp[1].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
+    rp[1].permissions = configureAdminPermissions;
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, nodeId, 2, rp,
+                                                       false, NULL),
+                      UA_STATUSCODE_GOOD);
+}
+
+static UA_NodeId
+addObject(const char *name, const UA_NodeId parentId,
+          const UA_NodeId referenceTypeId, UA_Byte eventNotifier) {
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", (char*)(uintptr_t)name);
+    attr.eventNotifier = eventNotifier;
+    UA_NodeId nodeId = UA_NODEID_STRING(1, (char*)(uintptr_t)name);
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, nodeId, parentId,
+                                              referenceTypeId,
+                                              UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+                                              UA_NS0ID(BASEOBJECTTYPE),
+                                              attr, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    return nodeId;
+}
+
+static UA_Boolean
+nodeExists(const UA_NodeId nodeId) {
+    UA_NodeClass nodeClass;
+    return (UA_Server_readNodeClass(server, nodeId, &nodeClass) == UA_STATUSCODE_GOOD);
+}
+
+static void *
+matchReferenceTarget(void *context, UA_ReferenceTarget *t) {
+    const UA_NodeId *target = (const UA_NodeId*)context;
+    if(!UA_NodePointer_isLocal(t->targetId))
+        return NULL;
+    UA_NodeId id = UA_NodePointer_toNodeId(t->targetId);
+    return UA_NodeId_equal(&id, target) ? (void*)0x01 : NULL;
+}
+
+/* Inspect the references stored in the source node. Browse would hide
+ * references to deleted nodes. */
+static UA_Boolean
+hasReferenceTo(const UA_NodeId source, const UA_NodeId target) {
+    UA_Boolean found = false;
+    lockServer(server);
+    const UA_Node *node = UA_NODESTORE_GET(server, &source);
+    ck_assert_ptr_ne(node, NULL);
+    for(size_t i = 0; i < node->head.referencesSize && !found; i++) {
+        found = (UA_NodeReferenceKind_iterate(&node->head.references[i],
+                                              matchReferenceTarget,
+                                              (void*)(uintptr_t)&target) != NULL);
+    }
+    UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+    return found;
+}
+
+static UA_StatusCode
+deleteNodeAs(UA_Session *session, const UA_NodeId nodeId) {
+    UA_DeleteNodesItem item;
+    UA_DeleteNodesItem_init(&item);
+    item.nodeId = nodeId;
+    item.deleteTargetReferences = true;
+    UA_DeleteNodesRequest request;
+    UA_DeleteNodesRequest_init(&request);
+    request.nodesToDeleteSize = 1;
+    request.nodesToDelete = &item;
+
+    UA_DeleteNodesResponse response;
+    UA_DeleteNodesResponse_init(&response);
+    lockServer(server);
+    Service_DeleteNodes(server, session, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    UA_StatusCode res = response.results[0];
+    UA_DeleteNodesResponse_clear(&response);
+    return res;
+}
+
+/****************/
+/* Delete Nodes */
+/****************/
+
+/* The child is deleted together with its parent. Without DeleteNode on the
+ * child, the whole delete is refused and nothing is deleted. */
+START_TEST(deleteNodes_recursive_refusedWithoutChildPermission) {
+    UA_NodeId parent = addObject("Parent", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    UA_NodeId child = addObject("Child", parent, UA_NS0ID(HASCOMPONENT), 0);
+    setPermissions(parent, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_DELETENODE);
+    setPermissions(child, UA_PERMISSIONTYPE_BROWSE);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+
+    ck_assert_uint_eq(deleteNodeAs(session, parent), UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(nodeExists(parent));
+    ck_assert(nodeExists(child));
+    ck_assert(hasReferenceTo(UA_NS0ID(OBJECTSFOLDER), parent));
+    ck_assert(hasReferenceTo(parent, child));
+
+    /* The local admin is not restricted */
+    ck_assert_uint_eq(UA_Server_deleteNode(server, parent, true), UA_STATUSCODE_GOOD);
+    ck_assert(!nodeExists(parent));
+    ck_assert(!nodeExists(child));
+} END_TEST
+
+START_TEST(deleteNodes_recursive_grantedWithChildPermission) {
+    UA_NodeId parent = addObject("Parent", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    UA_NodeId child = addObject("Child", parent, UA_NS0ID(HASCOMPONENT), 0);
+    setPermissions(parent, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_DELETENODE);
+    setPermissions(child, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_DELETENODE);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+
+    ck_assert_uint_eq(deleteNodeAs(session, parent), UA_STATUSCODE_GOOD);
+    ck_assert(!nodeExists(parent));
+    ck_assert(!nodeExists(child));
+    ck_assert(!hasReferenceTo(UA_NS0ID(OBJECTSFOLDER), parent));
+} END_TEST
+
+/* Deleting a node removes the references that point to it. This must not
+ * depend on the RemoveReference permission on the referencing nodes. Otherwise
+ * the references would dangle. */
+START_TEST(deleteNodes_removesIncomingReferences) {
+    UA_NodeId referrer = addObject("Referrer", UA_NS0ID(OBJECTSFOLDER),
+                                   UA_NS0ID(ORGANIZES), 0);
+    UA_NodeId target = addObject("Target", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    ck_assert_uint_eq(UA_Server_addReference(server, referrer,
+                                             UA_NS0ID(HASNOTIFIER),
+                                             UA_EXPANDEDNODEID_NODEID(target), true),
+                      UA_STATUSCODE_GOOD);
+    setPermissions(referrer, UA_PERMISSIONTYPE_BROWSE);
+    setPermissions(target, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_DELETENODE);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+    ck_assert(hasReferenceTo(referrer, target));
+
+    ck_assert_uint_eq(deleteNodeAs(session, target), UA_STATUSCODE_GOOD);
+    ck_assert(!nodeExists(target));
+    ck_assert(nodeExists(referrer));
+    ck_assert(!hasReferenceTo(referrer, target));
+    ck_assert(!hasReferenceTo(UA_NS0ID(OBJECTSFOLDER), target));
+} END_TEST
+
+/* A child with another parent is not deleted along. So its permissions do
+ * not matter for the delete. */
+START_TEST(deleteNodes_childWithOtherParentNotCollected) {
+    UA_NodeId parent = addObject("Parent", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    UA_NodeId otherParent = addObject("OtherParent", UA_NS0ID(OBJECTSFOLDER),
+                                      UA_NS0ID(ORGANIZES), 0);
+    UA_NodeId child = addObject("Child", parent, UA_NS0ID(HASCOMPONENT), 0);
+    ck_assert_uint_eq(UA_Server_addReference(server, otherParent,
+                                             UA_NS0ID(ORGANIZES),
+                                             UA_EXPANDEDNODEID_NODEID(child), true),
+                      UA_STATUSCODE_GOOD);
+    setPermissions(parent, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_DELETENODE);
+    setPermissions(child, UA_PERMISSIONTYPE_BROWSE);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+
+    ck_assert_uint_eq(deleteNodeAs(session, parent), UA_STATUSCODE_GOOD);
+    ck_assert(!nodeExists(parent));
+    ck_assert(nodeExists(child));
+    ck_assert(hasReferenceTo(otherParent, child));
+    ck_assert(!hasReferenceTo(child, parent));
+} END_TEST
+
+/*************/
+/* Add Nodes */
+/*************/
+
+static UA_StatusCode
+addObjectAs(UA_Session *session, const char *name, const UA_NodeId parentId,
+            const UA_NodeId typeId, UA_NodeId *outNodeId) {
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", (char*)(uintptr_t)name);
+    UA_AddNodesItem item;
+    UA_AddNodesItem_init(&item);
+    item.parentNodeId.nodeId = parentId;
+    item.referenceTypeId = UA_NS0ID(HASCOMPONENT);
+    item.requestedNewNodeId.nodeId = UA_NODEID_STRING(1, (char*)(uintptr_t)name);
+    item.browseName = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    item.nodeClass = UA_NODECLASS_OBJECT;
+    item.typeDefinition.nodeId = typeId;
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes, &attr,
+                                        &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES]);
+    UA_AddNodesRequest request;
+    UA_AddNodesRequest_init(&request);
+    request.nodesToAddSize = 1;
+    request.nodesToAdd = &item;
+
+    UA_AddNodesResponse response;
+    UA_AddNodesResponse_init(&response);
+    lockServer(server);
+    Service_AddNodes(server, session, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    UA_StatusCode res = response.results[0].statusCode;
+    if(outNodeId)
+        UA_NodeId_copy(&response.results[0].addedNodeId, outNodeId);
+    UA_AddNodesResponse_clear(&response);
+    return res;
+}
+
+/* The parent gets a Reference to the new Node. Without AddReference on the
+ * parent the Node is not added. */
+START_TEST(addNodes_refusedWithoutParentAddReference) {
+    UA_NodeId parent = addObject("Parent", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    setPermissions(parent, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_ADDNODE);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+
+    UA_NodeId child = UA_NODEID_STRING(1, "Child");
+    ck_assert_uint_eq(addObjectAs(session, "Child", parent,
+                                  UA_NS0ID(BASEOBJECTTYPE), NULL),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(!nodeExists(child));
+    ck_assert(!hasReferenceTo(parent, child));
+} END_TEST
+
+START_TEST(addNodes_grantedWithParentAddReference) {
+    UA_NodeId parent = addObject("Parent", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    setPermissions(parent, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_ADDNODE |
+                   UA_PERMISSIONTYPE_ADDREFERENCE);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+
+    UA_NodeId child = UA_NODEID_STRING(1, "Child");
+    ck_assert_uint_eq(addObjectAs(session, "Child", parent,
+                                  UA_NS0ID(BASEOBJECTTYPE), NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(nodeExists(child));
+    ck_assert(hasReferenceTo(parent, child));
+} END_TEST
+
+/* The children of an instantiated type are referenced from the new instance,
+ * not from the parent. AddNode and AddReference on the parent are sufficient.
+ * The type and its InstanceDeclarations only allow Browse. */
+START_TEST(addNodes_instantiationNeedsOnlyParentAddReference) {
+    UA_ObjectTypeAttributes typeAttr = UA_ObjectTypeAttributes_default;
+    typeAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DeviceType");
+    UA_NodeId typeId = UA_NODEID_STRING(1, "DeviceType");
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server, typeId,
+                          UA_NS0ID(BASEOBJECTTYPE), UA_NS0ID(HASSUBTYPE),
+                          UA_QUALIFIEDNAME(1, "DeviceType"), typeAttr,
+                          NULL, NULL), UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes varAttr = UA_VariableAttributes_default;
+    varAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Status");
+    UA_NodeId statusDecl = UA_NODEID_STRING(1, "DeviceType.Status");
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, statusDecl, typeId,
+                          UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Status"),
+                          UA_NS0ID(BASEDATAVARIABLETYPE), varAttr, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addReference(server, statusDecl,
+                          UA_NS0ID(HASMODELLINGRULE),
+                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY),
+                          true), UA_STATUSCODE_GOOD);
+
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Reset");
+    methodAttr.executable = true;
+    UA_NodeId resetDecl = UA_NODEID_STRING(1, "DeviceType.Reset");
+    ck_assert_uint_eq(UA_Server_addMethodNode(server, resetDecl, typeId,
+                          UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Reset"),
+                          methodAttr, NULL, 0, NULL, 0, NULL, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addReference(server, resetDecl,
+                          UA_NS0ID(HASMODELLINGRULE),
+                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY),
+                          true), UA_STATUSCODE_GOOD);
+
+    setPermissions(typeId, UA_PERMISSIONTYPE_BROWSE);
+    setPermissions(statusDecl, UA_PERMISSIONTYPE_BROWSE);
+    setPermissions(resetDecl, UA_PERMISSIONTYPE_BROWSE);
+
+    UA_NodeId parent = addObject("Parent", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    setPermissions(parent, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_ADDNODE |
+                   UA_PERMISSIONTYPE_ADDREFERENCE);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+
+    UA_NodeId device = UA_NODEID_NULL;
+    ck_assert_uint_eq(addObjectAs(session, "Device", parent, typeId, &device),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(nodeExists(device));
+    ck_assert(hasReferenceTo(parent, device));
+    ck_assert(hasReferenceTo(device, resetDecl));
+
+    /* The mandatory Variable was instantiated */
+    UA_QualifiedName statusName = UA_QUALIFIEDNAME(1, "Status");
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(server, device, 1, &statusName);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    ck_assert(!UA_NodeId_equal(&bpr.targets[0].targetId.nodeId, &statusDecl));
+    UA_BrowsePathResult_clear(&bpr);
+    UA_NodeId_clear(&device);
+} END_TEST
+
+static Suite *testSuite_rbacServices(void) {
+    Suite *s = suite_create("RBAC Services");
+
+    TCase *tc_delete = tcase_create("DeleteNodes");
+    tcase_add_checked_fixture(tc_delete, setup, teardown);
+    tcase_add_test(tc_delete, deleteNodes_recursive_refusedWithoutChildPermission);
+    tcase_add_test(tc_delete, deleteNodes_recursive_grantedWithChildPermission);
+    tcase_add_test(tc_delete, deleteNodes_removesIncomingReferences);
+    tcase_add_test(tc_delete, deleteNodes_childWithOtherParentNotCollected);
+    suite_add_tcase(s, tc_delete);
+
+    TCase *tc_add = tcase_create("AddNodes");
+    tcase_add_checked_fixture(tc_add, setup, teardown);
+    tcase_add_test(tc_add, addNodes_refusedWithoutParentAddReference);
+    tcase_add_test(tc_add, addNodes_grantedWithParentAddReference);
+    tcase_add_test(tc_add, addNodes_instantiationNeedsOnlyParentAddReference);
+    suite_add_tcase(s, tc_add);
+
+    return s;
+}
+
+int main(void) {
+    Suite *s = testSuite_rbacServices();
+    SRunner *sr = srunner_create(s);
+    srunner_set_fork_status(sr, CK_NOFORK);
+    srunner_run_all(sr, CK_NORMAL);
+    int number_failed = srunner_ntests_failed(sr);
+    srunner_free(sr);
+    return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
