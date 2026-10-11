@@ -411,7 +411,96 @@ START_TEST(eventItem_needsBrowse) {
                 UA_ATTRIBUTEID_EVENTNOTIFIER, "Message", &res);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 } END_TEST
+
+/* An Event is delivered only with ReceiveEvents on its EventType and on its
+ * SourceNode */
+START_TEST(eventDelivery_needsReceiveEvents) {
+    UA_NodeId source = addObject("Source", UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), 0);
+    UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
+    UA_NodeId eventType = UA_NODEID_STRING(1, "TestEventType");
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server, eventType,
+                          UA_NS0ID(BASEEVENTTYPE), UA_NS0ID(HASSUBTYPE),
+                          UA_QUALIFIEDNAME(1, "TestEventType"), attr, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_StatusCode res;
+    UA_MonitoredItem *mon = rbacMonitor(server, rbacSession(server, NULL, OBSERVER),
+                                        UA_NS0ID(SERVER), UA_ATTRIBUTEID_EVENTNOTIFIER,
+                                        "Message", &res);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    const UA_PermissionType receive = UA_PERMISSIONTYPE_BROWSE |
+        UA_PERMISSIONTYPE_RECEIVEEVENTS;
+    const UA_PermissionType cases[3][2] = { /* {SourceNode, EventType} */
+        {UA_PERMISSIONTYPE_BROWSE, receive}, {receive, UA_PERMISSIONTYPE_BROWSE},
+        {receive, receive}};
+    for(size_t i = 0; i < 3; i++) {
+        UA_RolePermission rp = {OBSERVER, cases[i][0]};
+        ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, source, 1, &rp,
+                                                           false, NULL),
+                          UA_STATUSCODE_GOOD);
+        rp.permissions = cases[i][1];
+        ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, eventType, 1, &rp,
+                                                           false, NULL),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_Server_createEvent(server, source, eventType, 100,
+                                                UA_LOCALIZEDTEXT("", "event"),
+                                                NULL, NULL, NULL),
+                          UA_STATUSCODE_GOOD);
+        lockServer(server);
+        size_t queued = mon->queueSize;
+        unlockServer(server);
+        ck_assert_uint_eq(queued, i == 2 ? 1 : 0);
+    }
+} END_TEST
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+/********************/
+/* User Attributes  */
+/********************/
+
+/* UserAccessLevel, UserWriteMask and UserExecutable never exceed the
+ * attributes of the Node */
+START_TEST(userAttributes_cappedByNodeAttributes) {
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    vAttr.writeMask = UA_WRITEMASK_DISPLAYNAME;
+    UA_NodeId var = UA_NODEID_STRING(1, "Var");
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, var, UA_NS0ID(OBJECTSFOLDER),
+                          UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "Var"),
+                          UA_NS0ID(BASEDATAVARIABLETYPE), vAttr, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_MethodAttributes mAttr = UA_MethodAttributes_default;
+    mAttr.executable = false;
+    UA_NodeId method = UA_NODEID_STRING(1, "Method");
+    ck_assert_uint_eq(UA_Server_addMethodNode(server, method, UA_NS0ID(OBJECTSFOLDER),
+                          UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Method"),
+                          mAttr, NULL, 0, NULL, 0, NULL, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    setPermissions(var, UA_PERMISSIONTYPE_ALL);
+    setPermissions(method, UA_PERMISSIONTYPE_ALL);
+    UA_Session *session = rbacSession(server, NULL, CONFIGUREADMIN);
+
+    const UA_NodeId nodes[3] = {var, var, method};
+    const UA_UInt32 attributes[3] = {UA_ATTRIBUTEID_USERACCESSLEVEL,
+        UA_ATTRIBUTEID_USERWRITEMASK, UA_ATTRIBUTEID_USEREXECUTABLE};
+    const UA_UInt32 expected[3] = {UA_ACCESSLEVELMASK_READ, UA_WRITEMASK_DISPLAYNAME, 0};
+    for(size_t i = 0; i < 3; i++) {
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        rvi.nodeId = nodes[i];
+        rvi.attributeId = attributes[i];
+        UA_DataValue dv;
+        UA_DataValue_init(&dv);
+        lockServer(server);
+        Operation_Read(server, session, UA_TIMESTAMPSTORETURN_NEITHER, &rvi, &dv);
+        unlockServer(server);
+        ck_assert(!dv.hasStatus);
+        UA_UInt32 value = (i == 0) ? *(UA_Byte*)dv.value.data :
+            (i == 1) ? *(UA_UInt32*)dv.value.data : *(UA_Boolean*)dv.value.data;
+        ck_assert_uint_eq(value, expected[i]);
+        UA_DataValue_clear(&dv);
+    }
+} END_TEST
 
 /**********************/
 /* RolePermissions    */
@@ -486,8 +575,14 @@ static Suite *testSuite_rbacServices(void) {
     TCase *tc_events = tcase_create("Event MonitoredItems");
     tcase_add_checked_fixture(tc_events, setup, teardown);
     tcase_add_test(tc_events, eventItem_needsBrowse);
+    tcase_add_test(tc_events, eventDelivery_needsReceiveEvents);
     suite_add_tcase(s, tc_events);
 #endif
+
+    TCase *tc_attr = tcase_create("User Attributes");
+    tcase_add_checked_fixture(tc_attr, setup, teardown);
+    tcase_add_test(tc_attr, userAttributes_cappedByNodeAttributes);
+    suite_add_tcase(s, tc_attr);
 
     TCase *tc_rp = tcase_create("RolePermissions");
     tcase_add_checked_fixture(tc_rp, setup, teardown);

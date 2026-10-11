@@ -301,12 +301,10 @@ START_TEST(Client_anonymous_restricted_access) {
     ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(resp.resultsSize, 1);
 
-    if(resp.results[0].status == UA_STATUSCODE_GOOD && resp.results[0].hasValue) {
-        UA_Byte userAccessLevel = *(UA_Byte*)resp.results[0].value.data;
-        printf("Anonymous UserAccessLevel on ProductUri: 0x%02x\n", userAccessLevel);
-        /* Anonymous should NOT have write access */
-        ck_assert_uint_eq(userAccessLevel & UA_ACCESSLEVELMASK_WRITE, 0);
-    }
+    /* UserAccessLevel is a non-Value attribute and therefore requires Browse
+     * permission on the Node. */
+    ck_assert_uint_eq(resp.results[0].status,
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
 
     UA_ReadResponse_clear(&resp);
     UA_Client_disconnect(client);
