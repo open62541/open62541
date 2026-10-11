@@ -115,6 +115,16 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate);
 
+/* Checks if "issuer" is the issuer of "certificate".
+ * Returns the result in "isIssuer".
+ *
+ * Returns UA_STATUSCODE_BADINVALIDARGUMENT if any parameter is NULL or when
+ * issuer or certificate is no valid x509 certificate. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_isIssuer(const UA_ByteString *issuer,
+                             const UA_ByteString *certificate,
+                             UA_Boolean *isIssuer);
+
 /* Decrypt a private key in PEM format using a password. The output is the key
  * in the binary DER format. Also succeeds if the PEM private key does not
  * require a password or is already in the DER format. The outDerKey memory is
