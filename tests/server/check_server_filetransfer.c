@@ -831,7 +831,37 @@ START_TEST(memoryBackendContract) {
 # include <winioctl.h>
 #else
 # include <dirent.h>
+# include <errno.h>
 # include <unistd.h>
+#endif
+
+/* With glibc, the test replaces readdir() to inject enumeration errors into
+ * the local backend */
+#if defined(__GLIBC__) && defined(UA_ARCHITECTURE_POSIX) && \
+    !defined(UA_ARCHITECTURE_LWIP)
+# if __GLIBC_PREREQ(2, 34)
+#  define FT_TEST_READDIR_FAULTS
+#  include <dlfcn.h>
+# endif
+#endif
+
+#ifdef FT_TEST_READDIR_FAULTS
+/* readdir() fails with EIO after this many entries; negative never fails */
+static long readdirFaultAfter = -1;
+
+struct dirent *
+readdir(DIR *dir) {
+    static struct dirent *(*nextReaddir)(DIR *);
+    if(!nextReaddir)
+        *(void**)&nextReaddir = dlsym(RTLD_NEXT, "readdir");
+    if(readdirFaultAfter == 0) {
+        errno = EIO;
+        return NULL;
+    }
+    if(readdirFaultAfter > 0)
+        readdirFaultAfter--;
+    return nextReaddir(dir);
+}
 #endif
 
 static char scratchDir[128];
@@ -3477,6 +3507,105 @@ START_TEST(localDirectorySkipsLinksAndSpecialFiles) {
 } END_TEST
 #endif /* !_WIN32 */
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+static void
+writeLocalFile(const char *path, const char *content) {
+    FILE *f = fopen(path, "wb");
+    ck_assert_ptr_nonnull(f);
+    ck_assert_int_eq(fputs(content, f) >= 0, 1);
+    ck_assert_int_eq(fclose(f), 0);
+}
+
+static void
+checkLocalFile(const char *path, const char *expected) {
+    char buf[64] = {0};
+    FILE *f = fopen(path, "rb");
+    ck_assert_ptr_nonnull(f);
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    ck_assert_uint_eq(n, strlen(expected));
+    ck_assert_str_eq(buf, expected);
+}
+
+/* Writing needs no read access to the file (Part 20, 4.2.2) */
+START_TEST(localWriteOnlyFile) {
+    if(geteuid() == 0)
+        return; /* The permissions do not apply to root */
+    makeScratchDir();
+    char path[256];
+    snprintf(path, sizeof(path), "%s/w.bin", scratchDir);
+    writeLocalFile(path, "abc");
+    ck_assert_int_eq(chmod(path, 0200), 0);
+    UA_FileTransferBackend b;
+    ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(UA_STRING(scratchDir), &b),
+                      UA_STATUSCODE_GOOD);
+    UA_String name = UA_STRING("w.bin");
+    UA_FileTransferFileInfo info;
+    memset(&info, 0, sizeof(info));
+    ck_assert_uint_eq(b.file.getInfo(&b.file, name, &info), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(info.accessRights, UA_FILEACCESS_WRITE);
+
+    UA_UInt32 h = 0;
+    ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_READ, &h),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_WRITE, &h),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.write(&b.file, h, UA_BYTESTRING("XY")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.close(&b.file, h), UA_STATUSCODE_GOOD);
+    /* Append starts at the end; SetPosition still moves the next write */
+    ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_WRITE |
+                                  UA_OPENFILEMODE_APPEND, &h), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.write(&b.file, h, UA_BYTESTRING("Z")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.setPosition(&b.file, h, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.write(&b.file, h, UA_BYTESTRING("Q")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.close(&b.file, h), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(chmod(path, 0600), 0);
+    checkLocalFile(path, "QYcZ");
+    ck_assert_int_eq(chmod(path, 0200), 0);
+    ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_WRITE |
+                                  UA_OPENFILEMODE_ERASEEXISTING, &h), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.file.close(&b.file, h), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(chmod(path, 0600), 0);
+    checkLocalFile(path, "");
+    b.file.clear(&b.file);
+    removeTree(scratchDir);
+} END_TEST
+#endif
+
+#ifdef FT_TEST_READDIR_FAULTS
+static void
+countListed(void *listContext, const UA_FileTransferFileInfo *info) {
+    (*(size_t*)listContext)++;
+}
+
+/* An enumeration error fails the listing instead of ending it early. The
+ * faults hit before the first entry and after some entries. */
+START_TEST(localDirectoryListingErrors) {
+    makeScratchDir();
+    char path[256];
+    for(int i = 0; i < 3; i++) {
+        snprintf(path, sizeof(path), "%s/f%d", scratchDir, i);
+        writeLocalFile(path, "x");
+    }
+    UA_FileTransferBackend b;
+    ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(UA_STRING(scratchDir), &b),
+                      UA_STATUSCODE_GOOD);
+    size_t listed = 0;
+    ck_assert_uint_eq(b.listDirectory(&b, UA_STRING_NULL, countListed, &listed),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(listed, 3);
+    for(long after = 0; after < 4; after++) {
+        readdirFaultAfter = after;
+        listed = 0;
+        UA_StatusCode res = b.listDirectory(&b, UA_STRING_NULL, countListed, &listed);
+        readdirFaultAfter = -1;
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADUNEXPECTEDERROR);
+    }
+    b.file.clear(&b.file);
+    removeTree(scratchDir);
+} END_TEST
+#endif
+
 /* Mounts can be added before the driver is started. The Methods are served
  * once it is started. */
 START_TEST(mountBeforeStart) {
@@ -4256,6 +4385,67 @@ partialListDirectory(UA_FileTransferBackend *b, const UA_String path,
     UA_StatusCode res = memListDirectory(b, path, cb, listContext);
     return failListing ? UA_STATUSCODE_BADUNEXPECTEDERROR : res;
 }
+
+/* A failing source listing never loses data in a move to another driver. A
+ * failed copy is removed again; when deleting the source fails, the complete
+ * copy is kept. */
+static size_t listingCalls;
+static size_t failingListingCall;
+
+static UA_StatusCode
+countedPartialListDirectory(UA_FileTransferBackend *b, const UA_String path,
+                            UA_FileTransferListCallback cb, void *listContext) {
+    UA_StatusCode res = memListDirectory(b, path, cb, listContext);
+    return (++listingCalls == failingListingCall) ? UA_STATUSCODE_BADUNEXPECTEDERROR : res;
+}
+
+START_TEST(crossMountMoveKeepsSourceOnFailedListing) {
+    UA_Boolean moved = false;
+    for(size_t call = 1; !moved; call++) {
+        UA_FileTransferBackend bA;
+        ck_assert_uint_eq(memBackend(&bA), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(createEntry(&bA, UA_STRING("docs"), true), UA_STATUSCODE_GOOD);
+        writeMemFile(&bA, "docs/important.txt", "data");
+        bA.listDirectory = countedPartialListDirectory;
+        MemBackendContext *ctxA = (MemBackendContext*)bA.file.context;
+        UA_FileTransferBackend bB;
+        ck_assert_uint_eq(memBackend(&bB), UA_STATUSCODE_GOOD);
+        MemBackendContext *ctxB = (MemBackendContext*)bB.file.context;
+        UA_NodeId fsA = mountNamedMem(bA, "FsA", NULL);
+        UA_NodeId fsB = mountNamedMem(bB, "FsB", NULL);
+        UA_NodeId docs = resolveChild(server_ft, fsA, "docs");
+
+        listingCalls = 0;
+        failingListingCall = call;
+        UA_Variant input[4];
+        UA_Boolean copy = false;
+        UA_String newName = UA_STRING_NULL;
+        UA_Variant_setScalar(&input[0], &docs, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalar(&input[1], &fsB, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalar(&input[2], &copy, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        UA_Variant_setScalar(&input[3], &newName, &UA_TYPES[UA_TYPES_STRING]);
+        UA_CallMethodResult result =
+            callMethod(fsA, UA_NS0ID_FILEDIRECTORYTYPE_MOVEORCOPY, 4, input);
+        moved = (result.statusCode == UA_STATUSCODE_GOOD);
+        UA_CallMethodResult_clear(&result);
+        failingListingCall = 0;
+
+        UA_Boolean inSource = memFind(ctxA, UA_STRING("docs/important.txt")) != NULL;
+        UA_Boolean inTarget = memFind(ctxB, UA_STRING("docs/important.txt")) != NULL;
+        ck_assert(inSource || inTarget);
+        if(moved)
+            ck_assert(!inSource && inTarget);
+        if(!inTarget)
+            ck_assert_ptr_null(memFind(ctxB, UA_STRING("docs")));
+        ck_assert_uint_lt(call, 10);
+
+        ck_assert_uint_eq(testRemove(driverForRoot(fsA), fsA), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(testRemove(driverForRoot(fsB), fsB), UA_STATUSCODE_GOOD);
+        UA_NodeId_clear(&docs);
+        UA_NodeId_clear(&fsA);
+        UA_NodeId_clear(&fsB);
+    }
+} END_TEST
 
 /* An incomplete listing is dropped as a whole. The refresh keeps the mirrored
  * tree and the Delete Method keeps the directory. */
@@ -5525,6 +5715,7 @@ int main(void) {
     tcase_add_test(tc_dir, copyFailsOnDestinationClose);
     tcase_add_test(tc_dir, maxNodesCountsRoot);
     tcase_add_test(tc_dir, failedListingKeepsTree);
+    tcase_add_test(tc_dir, crossMountMoveKeepsSourceOnFailedListing);
     tcase_add_test(tc_dir, duplicateListingKeepsTree);
     tcase_add_test(tc_dir, indexedDirectoryAndSessionCleanup);
     tcase_add_test(tc_dir, maxNodesReusedAcrossDirectories);
@@ -5536,6 +5727,12 @@ int main(void) {
 # ifndef _WIN32
     tcase_add_test(tc_dir, localDirectorySkipsLinksAndSpecialFiles);
 # endif
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+    tcase_add_test(tc_dir, localWriteOnlyFile);
+#endif
+#ifdef FT_TEST_READDIR_FAULTS
+    tcase_add_test(tc_dir, localDirectoryListingErrors);
+#endif
     tcase_add_checked_fixture(tc_dir, setup, teardown);
     suite_add_tcase(s, tc_dir);
 
