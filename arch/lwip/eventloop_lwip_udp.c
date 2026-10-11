@@ -605,8 +605,10 @@ UDP_delayedClose(void *application, void *context) {
 
 /* Gets called when a socket receives data or closes */
 static void
-UDP_connectionSocketCallback(UA_LWIPConnectionManager *pcm, UDP_FD *conn,
+UDP_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
                              short event) {
+    UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)es;
+    UDP_FD *conn = (UDP_FD*)rfd;
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
@@ -798,7 +800,7 @@ UDP_registerListenSocket(UA_LWIPConnectionManager *pcm, UA_UInt16 port,
     newudpfd->rfd.fd = listenSocket;
     newudpfd->rfd.es = &pcm->cm.eventSource;
     newudpfd->rfd.listenEvents = UA_FDEVENT_IN;
-    newudpfd->rfd.eventSourceCB = (UA_FDCallback)UDP_connectionSocketCallback;
+    newudpfd->rfd.eventSourceCB = UDP_connectionSocketCallback;
     newudpfd->applicationCB = connectionCallback;
     newudpfd->application = application;
     newudpfd->context = context;
@@ -1168,7 +1170,7 @@ UDP_openSendConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *para
     conn->rfd.fd = newSock;
     conn->rfd.listenEvents = 0;
     conn->rfd.es = &pcm->cm.eventSource;
-    conn->rfd.eventSourceCB = (UA_FDCallback)UDP_connectionSocketCallback;
+    conn->rfd.eventSourceCB = UDP_connectionSocketCallback;
     conn->applicationCB = connectionCallback;
     conn->application = application;
     conn->context = context;
