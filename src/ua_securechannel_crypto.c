@@ -1036,7 +1036,7 @@ decryptAndVerifyChunk(UA_SecureChannel *channel,
     /* Verify the content length. The encrypted payload has to be at least 9
      * bytes long: 8 byte for the SequenceHeader and one byte for the actual
      * message */
-    UA_CHECK(offset + padSize + sigsize + 9 < chunk->length,
+    UA_CHECK(offset + padSize + sigsize + 9 <= chunk->length,
              UA_LOG_ERROR_CHANNEL(sp->logger, channel, "Impossible padding value");
              return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
