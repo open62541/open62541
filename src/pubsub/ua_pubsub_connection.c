@@ -573,6 +573,8 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(psc->deleteFlag && psc->recvChannelsSize == 0 && psc->sendChannel == 0) {
             UA_PubSubConnection_delete(psm, psc);
+            /* The last channel may have closed while deletion was pending. */
+            UA_PubSubManager_setState(psm, psm->drv.state);
             unlockServer(server);
             return;
         }

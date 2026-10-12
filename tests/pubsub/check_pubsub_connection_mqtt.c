@@ -219,6 +219,52 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     UA_PubSubConnectionConfig_clear(&connectionConfig);
 } END_TEST
 
+START_TEST(RemovalBeforeShutdownCompletesManagerStop) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnectionConfig connection = {0};
+    connection.name = UA_STRING("MQTT shutdown");
+    connection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
+    UA_NetworkAddressUrlDataType address = {UA_STRING_NULL, UA_STRING(get_mqtt_broker_address())};
+    UA_Variant_setScalar(&connection.address, &address, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    UA_NodeId connectionId, groupId;
+    ck_assert_uint_eq(UA_Server_addPubSubConnection(server, &connection, &connectionId), UA_STATUSCODE_GOOD);
+
+    UA_ReaderGroupConfig reader = {0};
+    reader.name = UA_STRING("Reader");
+    reader.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_BrokerDataSetReaderTransportDataType transport = {0};
+    transport.queueName = UA_STRING("open62541/shutdown");
+    UA_ExtensionObject_setValueNoDelete(&reader.transportSettings, &transport,
+                                      &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]);
+    ck_assert_uint_eq(UA_Server_addReaderGroup(server, connectionId, &reader, &groupId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_enableAllPubSubComponents(server), UA_STATUSCODE_GOOD);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, groupId);
+    ck_assert_ptr_ne(rg, NULL);
+    ck_assert_uint_gt(rg->recvChannelsSize, 0);
+
+    UA_StatusCode res = (_i == 0) ? UA_Server_removePubSubConnection(server, connectionId) :
+        UA_Server_removeReaderGroup(server, groupId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(UA_ReaderGroup_find(psm, groupId), NULL);
+
+    /* Exercise shutdown's driver stop with a bounded event-loop drain. */
+    lockServer(server);
+    psm->drv.stop(&psm->drv);
+    unlockServer(server);
+    ck_assert_int_eq(psm->drv.state, UA_LIFECYCLESTATE_STOPPING);
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    for(unsigned i = 0; i < 1000; i++) {
+        ck_assert_uint_eq(el->run(el, 1), UA_STATUSCODE_GOOD);
+        if(psm->drv.state == UA_LIFECYCLESTATE_STOPPED &&
+           !UA_ReaderGroup_find(psm, groupId) &&
+           (_i != 0 || !UA_PubSubConnection_find(psm, connectionId)))
+            break;
+    }
+    ck_assert_ptr_null(UA_ReaderGroup_find(psm, groupId));
+    ck_assert_uint_eq(psm->connectionsSize, _i == 0 ? 0 : 1);
+    ck_assert_int_eq(psm->drv.state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_connections_minimal_config =
         tcase_create("Create PubSub Mqtt Connections with minimal valid config");
@@ -247,6 +293,10 @@ int main(void) {
                    GetMaximalConnectionConfigurationAndCompareValues);
 
     Suite *s = suite_create("PubSub Mqtt connection creation");
+    TCase *tc_shutdown = tcase_create("PubSub deferred removal shutdown");
+    tcase_add_checked_fixture(tc_shutdown, setup, teardown);
+    tcase_add_loop_test(tc_shutdown, RemovalBeforeShutdownCompletesManagerStop, 0, 2);
+    suite_add_tcase(s, tc_shutdown);
     suite_add_tcase(s, tc_add_pubsub_connections_minimal_config);
     suite_add_tcase(s, tc_add_pubsub_connections_invalid_config);
     suite_add_tcase(s, tc_add_pubsub_connections_maximal_config);
