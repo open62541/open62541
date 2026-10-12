@@ -988,7 +988,7 @@ UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
  * separate connections are created for each topic and for each direction
  * (publishing / subscribing). Publishers become established after CONNACK;
  * subscribers become established after SUBACK. TLS in the native manager
- * requires the Mbed TLS encryption backend (3.6 or 4.x) and an explicit CA.
+ * requires the Mbed TLS encryption backend (3.6.0 or newer) and an explicit CA.
  * Unsupported TLS configurations fail instead of falling back to plaintext.
  *
  * **Open Connection Parameters:**
@@ -1022,10 +1022,10 @@ UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
  *    Password for an encrypted private key (LWS only).
  *
  * 0:ca-certificate [bytestring]
- *    DER or PEM encoded CA certificate used to validate the broker
- *    certificate. The native manager requires this or ``ca-file-path``;
- *    the LWS manager uses the system trust store when omitted. The broker
- *    certificate and hostname are always validated for TLS connections.
+ *    The native manager requires this parameter or ``ca-file-path`` for TLS.
+ *    Provide a DER or PEM encoded CA certificate to validate the broker.
+ *    Only the LWS manager uses the system trust store when this is omitted.
+ *    The broker certificate and hostname are always validated for TLS.
  *
  * 0:ca-file-path [string]
  *    CA certificate file (PEM or DER) for the native Mbed TLS manager.

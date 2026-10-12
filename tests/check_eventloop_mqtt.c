@@ -45,6 +45,8 @@ static char* get_mqtt_broker_address(void) {
 }
 
 static void setup(void) {
+    messageCount = 0;
+    establishedCount = 0;
     UA_String broker = UA_STRING(get_mqtt_broker_address());
     if (UA_parseEndpointUrl(&broker, &broker_hostname, &broker_port, NULL) == UA_STATUSCODE_BADTCPENDPOINTURLINVALID) {
         printf("Failed to parse OPEN62541_TEST_MQTT_BROKER");
@@ -737,7 +739,7 @@ int main(void) {
     Suite *s  = suite_create("Test MQTT TCP EventLoop");
     TCase *tcBroker = tcase_create("broker integration");
     tcase_add_checked_fixture(tcBroker, setup, teardown);
-    tcase_add_test(tcBroker, connectSubscribePublish);
+    tcase_add_loop_test(tcBroker, connectSubscribePublish, 0, 2);
     suite_add_tcase(s, tcBroker);
     TCase *tcOffline = tcase_create("offline broker reuse");
     tcase_add_test(tcOffline, distinctBrokersUseDistinctTcpConnections);

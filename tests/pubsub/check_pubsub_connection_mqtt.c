@@ -19,6 +19,8 @@
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
+static UA_ConnectionManager *overriddenMqtt = NULL;
+static UA_StatusCode (*savedMqttOpen)(UA_ConnectionManager*, const UA_KeyValueMap*, void*, void*, UA_ConnectionManager_connectionCallback);
 
 static char* get_mqtt_broker_address(void) {
     char* broker = getenv("OPEN62541_TEST_MQTT_BROKER");
@@ -33,6 +35,11 @@ static void setup(void) {
 }
 
 static void teardown(void) {
+    if(overriddenMqtt) {
+        overriddenMqtt->openConnection = savedMqttOpen;
+        overriddenMqtt = NULL;
+        savedMqttOpen = NULL;
+    }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -291,7 +298,8 @@ START_TEST(MqttGroupPropertiesReachTransport) {
         }
     }
     ck_assert_ptr_ne(mqtt, NULL);
-    UA_StatusCode (*savedOpen)(UA_ConnectionManager*, const UA_KeyValueMap*, void*, void*, UA_ConnectionManager_connectionCallback) = mqtt->openConnection;
+    overriddenMqtt = mqtt;
+    savedMqttOpen = mqtt->openConnection;
     mqtt->openConnection = checkMqttParameters;
     mqttValidationCalls = 0;
     mqttSubscribe = (_i == 0);
@@ -332,7 +340,6 @@ START_TEST(MqttGroupPropertiesReachTransport) {
         ck_assert_uint_eq(UA_Server_addWriterGroup(server, connectionId, &writer, NULL), UA_STATUSCODE_GOOD);
     }
     ck_assert_uint_eq(mqttValidationCalls, 1);
-    mqtt->openConnection = savedOpen;
 } END_TEST
 
 int main(void) {
