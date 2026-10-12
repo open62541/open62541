@@ -1421,7 +1421,7 @@ if(UA_ENABLE_METHODCALLS)
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_internal.h)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_driver.c
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_model.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_ns0.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
