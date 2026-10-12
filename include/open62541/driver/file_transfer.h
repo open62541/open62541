@@ -152,8 +152,10 @@ struct UA_FileTransferBackend {
     /* File operations; first member to allow casting b back to this struct */
     UA_FileTransferFileBackend file;
 
-    /* Enumerate entries at path. Unreadable metadata may be skipped. An
-     * enumeration error discards the listing. Never truncate overlong names;
+    /* Enumerate entries at path. Return an error if enumeration or reading
+     * entry metadata fails, including when an entry disappears during the
+     * listing. An error discards the entire listing; a successful incomplete
+     * listing could lose data during a move. Never truncate overlong names;
      * return Bad_EncodingLimitsExceeded instead. */
     UA_StatusCode (*listDirectory)(UA_FileTransferBackend *b, const UA_String path,
                                    UA_FileTransferListCallback cb, void *listContext);
@@ -252,6 +254,9 @@ typedef struct {
  * roots are bound on first start. Freeing removes driver-created nodes and
  * restores reused Objects' contexts and Properties' values, sources and contexts.
  * Reused Objects also survive disappearance of their storage entry.
+ * Delete and successful moves delete reused Objects at the source as well.
+ * Before deleting an Object, its context from construction or reuse is restored
+ * for the application lifecycle destructors.
  * While started, drivers supply the standard Methods, including shared
  * Namespace Zero Method nodes and copies inherited by subtypes. Other
  * Methods of subtypes stay with the application, see

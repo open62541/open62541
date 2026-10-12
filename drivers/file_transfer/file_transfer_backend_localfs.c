@@ -716,7 +716,7 @@ listEntry(const char *dirPath, const char *name,
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     FtStat st;
     if(ftStat(entryPath, &st) != 0)
-        return UA_STATUSCODE_GOOD;
+        return errnoToStatusCode(errno);
     if(FT_ISDIR(st.st_mode) && ftIsLink(entryPath))
         return UA_STATUSCODE_GOOD;
     if(!FT_ISDIR(st.st_mode) && !FT_ISREG(st.st_mode))

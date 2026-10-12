@@ -443,7 +443,7 @@ newDriver(UA_Server *server, const UA_FileTransferBackend *backend,
             desc.attributes.displayName.text = desc.browseName.name;
         res = UA_Server_addObjectNode(server, desc.nodeId, desc.parentNodeId,
                                       desc.referenceTypeId, desc.browseName, desc.typeDefinition,
-                                      desc.attributes, &ftd->driver, &rootId);
+                                      desc.attributes, NULL, &rootId);
     } else {
         res = UA_NodeId_copy(&desc.nodeId, &rootId);
     }
