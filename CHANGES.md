@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Detect a CertificateGroup that accepts all certificates
+
+`UA_CertificateGroup_isAcceptAll` tells whether a CertificateGroup was set up
+with `UA_CertificateGroup_AcceptAll`. The server uses it to warn at startup when
+a SecurityPolicy other than #None is configured and the SecureChannel PKI, or
+the Session PKI while x509 user tokens are offered, accepts all certificates.
+
 ### Removing a PublishedDataSet removes the connected DataSetWriters
 
 `UA_Server_removePublishedDataSet` removes the connected DataSetWriters together

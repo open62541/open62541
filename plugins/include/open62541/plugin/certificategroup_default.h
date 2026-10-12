@@ -18,6 +18,11 @@ _UA_BEGIN_DECLS
 UA_EXPORT void
 UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup);
 
+/* Returns true if the group was set up with UA_CertificateGroup_AcceptAll. A
+ * custom group that also accepts every certificate is not detected. */
+UA_EXPORT UA_Boolean
+UA_CertificateGroup_isAcceptAll(const UA_CertificateGroup *certGroup);
+
 #ifdef UA_ENABLE_ENCRYPTION
 /*
  * Initialises and configures a certificate group with an in-memory backend.
