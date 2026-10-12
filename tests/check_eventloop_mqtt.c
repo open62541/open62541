@@ -84,12 +84,13 @@ typedef struct {
     UA_ConnectionManager *tcp;
     UA_ConnectionManager *mqtt;
     UA_EventLoop *loop;
+    UA_DelayedCallback closer;
 } OfflineMQTT;
 
 static OfflineMQTT
 setupOfflineMQTT(const TestConnectionManager_CallbackOverloads *overloads,
                  UA_Boolean fakeClock) {
-    OfflineMQTT test;
+    OfflineMQTT test = {0};
     test.tcp = TestConnectionManager_new("tcp", overloads);
     ck_assert_ptr_ne(test.tcp, NULL);
     test.mqtt = UA_ConnectionManager_new_MQTT(UA_STRING("mqttCM"));
@@ -115,6 +116,7 @@ teardownOfflineMQTT(OfflineMQTT *test) {
     test->loop->stop(test->loop);
     while(test->loop->state != UA_EVENTLOOPSTATE_STOPPED)
         test->loop->run(test->loop, 1);
+    ck_assert(!test->closer.callback);
     ck_assert_uint_eq(test->loop->free(test->loop), UA_STATUSCODE_GOOD);
 }
 
@@ -415,6 +417,7 @@ static void
 closeTopicDelayed(void *application, void *context) {
     OfflineMQTT *test = (OfflineMQTT*)application;
     TopicState *topic = (TopicState*)context;
+    test->closer.callback = NULL;
     ck_assert_uint_eq(test->mqtt->closeConnection(test->mqtt, topic->id), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(test->mqtt->closeConnection(test->mqtt, topic->id), UA_STATUSCODE_GOOD);
 }
@@ -424,14 +427,14 @@ START_TEST(pendingTopicRemovalDuringBrokerClose) {
     TopicState topics[2] = {{0}, {0}};
     openTrackedTopic(&test, &topics[0]);
     openTrackedTopic(&test, &topics[1]);
-    UA_DelayedCallback closer = {0};
-    closer.callback = closeTopicDelayed;
-    closer.application = &test;
-    closer.context = &topics[0];
     if(_i == 0)
         closeTopicDelayed(&test, &topics[0]);
-    else if(_i == 1)
-        test.loop->addDelayedCallback(test.loop, &closer);
+    else if(_i == 1) {
+        test.closer.callback = closeTopicDelayed;
+        test.closer.application = &test;
+        test.closer.context = &topics[0];
+        test.loop->addDelayedCallback(test.loop, &test.closer);
+    }
     ck_assert_uint_eq(TestConnectionManager_inject(test.tcp, 100, UA_CONNECTIONSTATE_CLOSING, NULL, NULL), UA_STATUSCODE_GOOD);
     if(_i == 2)
         closeTopicDelayed(&test, &topics[0]);

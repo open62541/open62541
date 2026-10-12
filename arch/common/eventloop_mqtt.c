@@ -331,6 +331,7 @@ removeTopicConnection(MQTTTopicConnection *tc) {
 
 static void
 removeTopicConnectionDelayed(void *application, void *context) {
+    (void)application;
     MQTTTopicConnection *tc = (MQTTTopicConnection*)context;
     tc->dc.callback = NULL;
     if(tc->brokerConnection)
@@ -343,6 +344,7 @@ removeTopicConnectionDelayed(void *application, void *context) {
 
 static void
 removeBrokerConnectionDelayed(void *application, void *context) {
+    (void)application;
     MQTTBrokerConnection *bc = (MQTTBrokerConnection*)context;
     MQTTConnectionManager *mcm = bc->mcm;
     UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
@@ -380,6 +382,7 @@ removeBrokerConnection(MQTTBrokerConnection *bc) {
         return;
     bc->tcpConnectionState = UA_CONNECTIONSTATE_CLOSING;
     bc->dc.callback = removeBrokerConnectionDelayed;
+    bc->dc.application = NULL;
     bc->dc.context = bc;
     UA_EventLoop *el = bc->mcm->cm.eventSource.eventLoop;
     el->addDelayedCallback(el, &bc->dc);
