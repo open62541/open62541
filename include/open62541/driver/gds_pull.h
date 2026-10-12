@@ -90,6 +90,11 @@ typedef void (*UA_GDSPullRequesterNotificationCallback)(
  * - application-id: [NodeId]
  * - create-private-key: [Boolean]
  * - cycle-interval: [UInt32]
+ * - cycle-timeout: [UInt32]
+ *
+ * A cycle that has not finished cycle-timeout after
+ * it started is aborted and the connection to the CertificateManager is
+ * closed.
  *
  * The managed certificate groups with the local and remote mappings:
  *
