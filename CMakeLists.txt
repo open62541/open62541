@@ -520,6 +520,11 @@ if("${UA_ARCHITECTURE}" STREQUAL "posix")
         list(APPEND open62541_LIBRARIES "rt")
         list(APPEND pkgcfg_libsprivate "-lrt")
     endif()
+elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
+    # The default TAP interface is shared across EventLoops. Its initialization
+    # is synchronized independently of UA_MULTITHREADING.
+    list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
+    list(APPEND pkgcfg_libsprivate "-lpthread")
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     list(APPEND open62541_LIBRARIES "ws2_32")
     list(APPEND open62541_LIBRARIES "iphlpapi")
@@ -923,6 +928,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/alarms_conditions.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/mdns.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/file_transfer.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
 
@@ -1407,6 +1413,20 @@ if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 endif()
 
+# The file transfer driver uses the OS-specific file handling definitions.
+# It is appended after the eventloop sources so that the amalgamation
+# integrates the architecture header before the driver code.
+if(UA_ENABLE_METHODCALLS)
+    list(APPEND lib_headers
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_internal.h)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_driver.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_model.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
+endif()
+
 # For file based server and client configuration
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_config_json.c)
@@ -1534,6 +1554,7 @@ else()
 
     if(UA_ENABLE_METHODCALLS)
         list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.FileTransferMinimal.xml)
     endif()
 
     if(UA_ENABLE_DIAGNOSTICS)
@@ -1762,7 +1783,8 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
 endif()
 
 if(UA_ARCHITECTURE_LWIP)
-    include_directories_private(${LWIP_INCLUDE_DIRS})
+    target_include_directories(open62541-object SYSTEM PRIVATE ${LWIP_INCLUDE_DIRS})
+    target_include_directories(open62541-plugins SYSTEM PRIVATE ${LWIP_INCLUDE_DIRS})
 endif()
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     target_include_directories(open62541-object SYSTEM PRIVATE ${MBEDTLS_INCLUDE_DIRS})

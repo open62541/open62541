@@ -1947,6 +1947,8 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * Some drivers define core functionality and are added internally in the server
  * implementation. */
 
+/* GENERIC permits multiple instances. Other driver types
+ * can be added only once to a server. */
 typedef enum {
     UA_DRIVERTYPE_GENERIC = 0,
     UA_DRIVERTYPE_GDS_RECEIVER
@@ -2020,7 +2022,9 @@ struct UA_Driver {
 };
 
 /* Adds the Driver to the server. Starts the driver if the server is already
- * started. */
+ * started and returns the start result. A failed start rolls back registration
+ * and leaves ownership with the caller. The server backpointer is retained
+ * for cleanup; stop the driver if needed before freeing it. */
 UA_StatusCode
 UA_Server_addDriver(UA_Server *server, UA_Driver *drv);
 
@@ -2345,11 +2349,11 @@ struct UA_ServerConfig {
 
     /* EventLoop
      * ~~~~~~~~~
-     * The sever can be plugged into an external EventLoop. Otherwise the
-     * EventLoop is considered to be attached to the server's lifecycle and will
-     * be destroyed when the config is cleaned up. */
+     * A shared EventLoop must be external to every client and server using it.
+     * Otherwise, one of them can stop or delete it while others still use it.
+     * The application owns the shared EventLoop's lifetime. */
     UA_EventLoop *eventLoop;
-    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
+    UA_Boolean externalEventLoop; /* Do not stop or delete the EventLoop */
 
     /* Application Notification
      * ~~~~~~~~~~~~~~~~~~~~~~~~

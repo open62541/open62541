@@ -420,6 +420,30 @@ function unit_tests_lwip {
     make test ARGS="-V"
 }
 
+function unit_tests_lwip_sanitizer {
+    # The GCC coverage run does not enable ASan. Exercise shared interface
+    # lifetimes and the suites that recreate loops within one process with
+    # Clang's Debug ASan/UBSan instrumentation as well.
+    cmake -S . -B build-lwip-asan \
+          -DCMAKE_C_COMPILER=clang-18 \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ARCHITECTURE=posix-lwip \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DEBUG_SANITIZER=ON \
+          -DUA_ENABLE_COVERAGE=OFF \
+          -DUA_ENABLE_PUBSUB=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_FORCE_WERROR=ON || return
+    cmake --build build-lwip-asan ${MAKEOPTS} \
+          --target check_eventloop_lwip check_server_ns0_diagnostics check_server_node_services || return
+    # Run as root for TAP access without file capabilities, which prevent
+    # LeakSanitizer from attaching to its process.
+    sudo -E env ASAN_OPTIONS=halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+        ctest --test-dir build-lwip-asan --parallel 1 --timeout 180 \
+              --output-on-failure --no-tests=error \
+              -R '^(check_eventloop_lwip|check_server_ns0_diagnostics|check_server_node_services)$'
+}
+
 function unit_tests_32 {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \

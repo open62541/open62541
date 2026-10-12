@@ -54,7 +54,7 @@ include_directories("${PROJECT_SOURCE_DIR}/plugins")
 
 if(UA_ARCHITECTURE_LWIP)
     # lwip includes
-    include_directories(${LWIP_INCLUDE_DIRS})
+    include_directories(SYSTEM ${LWIP_INCLUDE_DIRS})
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
@@ -320,6 +320,11 @@ ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
 
+if(UA_ARCHITECTURE_LWIP AND UA_ARCHITECTURE_POSIX)
+    ua_add_test(check_eventloop_lwip.c)
+    set_tests_properties(check_eventloop_lwip PROPERTIES TIMEOUT 120)
+endif()
+
 if(UA_ARCHITECTURE_WIN32)
     ua_add_test(check_eventloop_iocp.c)
 endif()
@@ -545,6 +550,11 @@ endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_server_alarmsconditions.c)
+endif()
+
+if(UA_ENABLE_METHODCALLS AND UA_GENERATED_NAMESPACE_ZERO)
+    ua_add_test(server/check_server_filetransfer.c)
+    ua_add_test(client/check_client_filetransfer.c)
 endif()
 
 # Single-threaded counterpart of check_server_asyncop.c, built in every configuration

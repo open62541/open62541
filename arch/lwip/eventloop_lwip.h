@@ -271,7 +271,7 @@ typedef struct {
     volatile UA_Boolean executing;
 
     /* Network Interface functions. */
-    struct netif netif;
+    UA_Boolean netifInitialized;
     UA_EventLoopConfiguration config;
     UA_StatusCode (*netifInit)(UA_EventLoop *el, const UA_String *ipaddr,
                                const UA_String *netmask, const UA_String *gw);
@@ -346,7 +346,7 @@ UA_EventLoopLWIP_pipe(UA_FD fds[2]);
 
 /* Cancel the current _run by sending to the self-pipe */
 void
-UA_EventLoopLWIP_cancel(UA_EventLoopLWIP *el);
+UA_EventLoopLWIP_cancel(UA_EventLoop *el);
 
 void
 UA_EventLoopLWIP_addDelayedCallback(UA_EventLoop *public_el,

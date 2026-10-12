@@ -455,8 +455,10 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
     if(handle)
         *handle = newContext->handle;
 
-    /* Attempt to connect right away */
-    res = attemptReverseConnect(rpm, newContext);
+    /* The EventLoop's ConnectionManagers are started during server startup.
+     * Until then, keep the reverse connection for the startup attempt. */
+    if(rpm->drv.state == UA_LIFECYCLESTATE_STARTED)
+        res = attemptReverseConnect(rpm, newContext);
 
     unlockServer(server);
     return res;
@@ -529,6 +531,13 @@ UA_ReverseBinaryProtocolManager_start(UA_Driver *drv) {
 
     /* Set the state to started */
     setReverseBinaryProtocolManagerState(rpm, UA_LIFECYCLESTATE_STARTED);
+
+    /* Start reverse connections that were registered before server startup. */
+    reverse_connect_context *rev;
+    LIST_FOREACH(rev, &rpm->reverseConnects, next) {
+        if(!rev->connectionId)
+            attemptReverseConnect(rpm, rev);
+    }
 
     return UA_STATUSCODE_GOOD;
 }
