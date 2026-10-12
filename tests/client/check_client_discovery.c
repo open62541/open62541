@@ -145,7 +145,9 @@ END_TEST
 START_TEST(Client_getEndpoints_connected) {
     /* Connect first, then getEndpoints on same URL — should succeed */
     UA_Client *client = UA_Client_newForUnitTest();
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = _i == 0 ?
+        UA_Client_connect(client, "opc.tcp://localhost:4840") :
+        UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t endpointCount = 0;
@@ -165,7 +167,9 @@ END_TEST
 START_TEST(Client_findServers_connected) {
     /* Connect first, then findServers on same URL — should succeed */
     UA_Client *client = UA_Client_newForUnitTest();
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = _i == 0 ?
+        UA_Client_connect(client, "opc.tcp://localhost:4840") :
+        UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t serverCount = 0;
@@ -206,43 +210,40 @@ START_TEST(Client_findServersOnNetwork) {
 }
 END_TEST
 
-START_TEST(Client_findServersOnNetwork_badUrl_connected) {
+START_TEST(Client_discovery_badUrl_connected) {
+    const char *urls[] = {
+        "opc.tcp://invalidhost:9999",
+        "opc.tcp://localhost:4840/other",
+        "opc.tcp://localhost:484"
+    };
     UA_Client *client = UA_Client_newForUnitTest();
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
 
-    size_t serverOnNetworkSize = 123;
-    UA_ServerOnNetwork *servers = (UA_ServerOnNetwork*)(uintptr_t)0x1;
-    retval = UA_Client_findServersOnNetwork(client, "opc.tcp://invalidhost:9999",
-                                            0, 0, 0, NULL,
-                                            &serverOnNetworkSize, &servers);
-    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(serverOnNetworkSize, 0);
+    /* A different host, a longer URL and a shorter prefix must all be
+     * rejected before sending a request on the existing connection. */
+    size_t size = 123;
+    UA_EndpointDescription *endpoints = (UA_EndpointDescription*)(uintptr_t)0x1;
+    ck_assert_uint_eq(UA_Client_getEndpoints(client, urls[_i], &size, &endpoints),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(size, 0);
+    ck_assert_ptr_eq(endpoints, NULL);
+
+    size = 123;
+    UA_ApplicationDescription *servers = (UA_ApplicationDescription*)(uintptr_t)0x1;
+    ck_assert_uint_eq(UA_Client_findServers(client, urls[_i], 0, NULL, 0, NULL,
+                                           &size, &servers),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(size, 0);
     ck_assert_ptr_eq(servers, NULL);
 
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-}
-END_TEST
-
-START_TEST(Client_getEndpoints_badUrl_connected) {
-    UA_Client *client = UA_Client_newForUnitTest();
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    size_t endpointCount = 0;
-    UA_EndpointDescription *endpoints = NULL;
-    retval = UA_Client_getEndpoints(client, "opc.tcp://invalidhost:9999",
-                                    &endpointCount, &endpoints);
-    if(retval == UA_STATUSCODE_GOOD) {
-        ck_assert(endpointCount > 0);
-        ck_assert_ptr_ne(endpoints, NULL);
-        UA_Array_delete(endpoints, endpointCount,
-                        &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    } else {
-        ck_assert_uint_eq(endpointCount, 0);
-        ck_assert_ptr_eq(endpoints, NULL);
-    }
+    size = 123;
+    UA_ServerOnNetwork *network = (UA_ServerOnNetwork*)(uintptr_t)0x1;
+    ck_assert_uint_eq(UA_Client_findServersOnNetwork(client, urls[_i], 0, 0, 0, NULL,
+                                                    &size, &network),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(size, 0);
+    ck_assert_ptr_eq(network, NULL);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -288,13 +289,12 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_connect_keepsTransportAcrossDiscovery);
     tcase_add_test(tc_client, Client_getEndpoints);
     tcase_add_test(tc_client, Client_findServers);
-    tcase_add_test(tc_client, Client_getEndpoints_connected);
-    tcase_add_test(tc_client, Client_findServers_connected);
+    tcase_add_loop_test(tc_client, Client_getEndpoints_connected, 0, 2);
+    tcase_add_loop_test(tc_client, Client_findServers_connected, 0, 2);
     tcase_add_test(tc_client, Client_findServersOnNetwork);
-    tcase_add_test(tc_client, Client_findServersOnNetwork_badUrl_connected);
+    tcase_add_loop_test(tc_client, Client_discovery_badUrl_connected, 0, 3);
     tcase_add_test(tc_client, Client_findServersOnNetwork_paged);
     tcase_add_test(tc_client, Client_findServersOnNetwork_disconnected);
-    tcase_add_test(tc_client, Client_getEndpoints_badUrl_connected);
     suite_add_tcase(s,tc_client);
     return s;
 }
