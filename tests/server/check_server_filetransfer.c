@@ -3635,7 +3635,10 @@ START_TEST(localWriteOnlyFile) {
     char path[256];
     snprintf(path, sizeof(path), "%s/w.bin", scratchDir);
     writeLocalFile(path, "abc");
-    ck_assert_int_eq(chmod(path, 0200), 0);
+    /* Keep permission changes tied to the same file throughout the test. */
+    FILE *permissionsFile = fopen(path, "rb");
+    ck_assert_ptr_nonnull(permissionsFile);
+    ck_assert_int_eq(fchmod(fileno(permissionsFile), 0200), 0);
     UA_FileTransferBackend b;
     ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(UA_STRING(scratchDir), &b),
                       UA_STATUSCODE_GOOD);
@@ -3659,14 +3662,15 @@ START_TEST(localWriteOnlyFile) {
     ck_assert_uint_eq(b.file.setPosition(&b.file, h, 0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.write(&b.file, h, UA_BYTESTRING("Q")), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.close(&b.file, h), UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(chmod(path, 0600), 0);
+    ck_assert_int_eq(fchmod(fileno(permissionsFile), 0600), 0);
     checkLocalFile(path, "QYcZ");
-    ck_assert_int_eq(chmod(path, 0200), 0);
+    ck_assert_int_eq(fchmod(fileno(permissionsFile), 0200), 0);
     ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_WRITE |
                                   UA_OPENFILEMODE_ERASEEXISTING, &h), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.close(&b.file, h), UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(chmod(path, 0600), 0);
+    ck_assert_int_eq(fchmod(fileno(permissionsFile), 0600), 0);
     checkLocalFile(path, "");
+    ck_assert_int_eq(fclose(permissionsFile), 0);
     b.file.clear(&b.file);
     removeTree(scratchDir);
 } END_TEST
