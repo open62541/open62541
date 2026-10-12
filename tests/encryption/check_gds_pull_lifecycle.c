@@ -854,6 +854,16 @@ newRequester(const char *endpointUrl, size_t pendingSize,
     return requester;
 }
 
+/* Change the cycle timeout of the requester before the server is started. The
+ * driver reads its params when it is started. */
+static void
+setCycleTimeout(UA_UInt32 cycleTimeout) {
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params,
+                                               UA_QUALIFIEDNAME(0, "cycle-timeout"),
+                                               &cycleTimeout, &UA_TYPES[UA_TYPES_UINT32]),
+                      UA_STATUSCODE_GOOD);
+}
+
 /* Replace the requester of the fixture before the server is started */
 static void
 replaceRequester(const char *endpointUrl, size_t pendingSize,
@@ -1143,9 +1153,12 @@ START_TEST(restoredPendingRequestIsFinishedWithoutNewRequest) {
 } END_TEST
 
 /* Without a reachable CertificateManager the cycle ends without any request
- * and the driver keeps running until the server shuts down. */
+ * and the driver keeps running until the server shuts down. Depending on the
+ * host, the connection attempt is refused or hangs until the cycle times
+ * out. */
 START_TEST(unreachableCertificateManager) {
     replaceRequester(UNUSED_ENDPOINT, 0, NULL);
+    setCycleTimeout(2000);
 
     startup();
     ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
@@ -1154,6 +1167,20 @@ START_TEST(unreachableCertificateManager) {
     ck_assert_uint_eq(countNotifications(UA_GDSPULL_CYCLE_FINISHED), 1);
     ck_assert_uint_eq(notificationsSize, 2);
     ck_assert_uint_eq(snapshot().getCertificateStatus, 0);
+
+    shutdownRequester();
+} END_TEST
+
+/* A cycle that does not finish in time is aborted while the connection is
+ * still being opened. The next cycle starts as usual. */
+START_TEST(cycleTimeoutAbortsCycle) {
+    setCycleTimeout(1);
+
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CYCLE_STARTED), 2);
+    ck_assert_uint_eq(snapshot().getCertificateGroups, 0);
 
     shutdownRequester();
 } END_TEST
@@ -1297,6 +1324,7 @@ main(void) {
     tcase_add_test(tc, rejectedRequestIsReplacedInNextCycle);
     tcase_add_test(tc, restoredPendingRequestIsFinishedWithoutNewRequest);
     tcase_add_test(tc, unreachableCertificateManager);
+    tcase_add_test(tc, cycleTimeoutAbortsCycle);
     tcase_add_test(tc, stopDuringCycleAndReplaceRequester);
     tcase_add_test(tc, unchangedTrustListIsNotDownloadedAgain);
     tcase_add_test(tc, changedTrustListIsDownloadedAgain);
