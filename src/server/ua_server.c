@@ -1307,6 +1307,14 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     UA_UInt32 timeout = (waitInternal) ? UA_MAXTIMEOUT : 0;
     el->run(el, timeout);
 
+    /* External shutdown can require several iterations and work performed by
+     * the caller between them. Keep the EventLoop running for its other users. */
+    lockServer(server);
+    if(server->config.externalEventLoop &&
+       server->state == UA_LIFECYCLESTATE_STOPPING && testStoppedCondition(server))
+        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+    unlockServer(server);
+
     /* Return the time until the next scheduled callback */
     UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime nextTimeout = (el->nextTimer(el) - now) / UA_DATETIME_MSEC;
@@ -1332,6 +1340,13 @@ UA_Server_run_shutdown(UA_Server *server) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     lockServer(server);
+
+    /* Recheck an externally driven shutdown without stopping the drivers again. */
+    if(server->config.externalEventLoop && server->state == UA_LIFECYCLESTATE_STOPPING) {
+        UA_StatusCode res = finishShutdown(server);
+        unlockServer(server);
+        return res;
+    }
 
     if(server->state != UA_LIFECYCLESTATE_STARTED) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,

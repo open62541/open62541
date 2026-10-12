@@ -136,19 +136,24 @@ UA_Server_runUntilInterrupt(UA_Server *server);
 UA_EXPORT UA_StatusCode
 UA_Server_run_startup(UA_Server *server);
 
-/* Executes a single iteration of the server's main loop.
+/* Executes a single iteration of the server's main loop. Completes an
+ * externally driven shutdown once all drivers have stopped, without stopping
+ * the external EventLoop.
  *
  * @param server The server object.
  * @param waitInternal Should we wait for messages in the networklayer?
  *        Otherwise, the timeouts for the networklayers are set to zero.
- *        The default max wait time is 200ms.
+ *        The default max wait time is 500ms.
  * @return Returns how long we can wait until the next scheduled
  *         callback (in ms) */
 UA_EXPORT UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /* The epilogue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt) */
+ * UA_Server_run or UA_Server_runUntilInterrupt).
+ * With an external EventLoop, this initiates shutdown without waiting for the
+ * drivers to stop. While the server is STOPPING, drive the EventLoop and call
+ * this function again to check completion. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
 
