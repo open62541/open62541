@@ -142,6 +142,32 @@ START_TEST(Client_findServers) {
 }
 END_TEST
 
+START_TEST(Client_findServers_withoutEndpoints) {
+    /* Discovery must work even when no session endpoint is offered. */
+    lockServer(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    for(size_t i = 0; i < config->endpointsSize; i++)
+        UA_EndpointDescription_clear(&config->endpoints[i]);
+    UA_free(config->endpoints);
+    config->endpoints = NULL;
+    config->endpointsSize = 0;
+    unlockServer(server);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    size_t serverCount = 0;
+    UA_ApplicationDescription *servers = NULL;
+    UA_StatusCode retval = UA_Client_findServers(client,
+                                "opc.tcp://localhost:4840",
+                                0, NULL, 0, NULL,
+                                &serverCount, &servers);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(serverCount > 0);
+    UA_Array_delete(servers, serverCount,
+                    &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_getEndpoints_connected) {
     /* Connect first, then getEndpoints on same URL — should succeed */
     UA_Client *client = UA_Client_newForUnitTest();
@@ -288,6 +314,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_connect_keepsTransportAcrossDiscovery);
     tcase_add_test(tc_client, Client_getEndpoints);
     tcase_add_test(tc_client, Client_findServers);
+    tcase_add_test(tc_client, Client_findServers_withoutEndpoints);
     tcase_add_test(tc_client, Client_getEndpoints_connected);
     tcase_add_test(tc_client, Client_findServers_connected);
     tcase_add_test(tc_client, Client_findServersOnNetwork);
