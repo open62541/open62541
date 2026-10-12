@@ -59,6 +59,17 @@ findFTEntry(FileTransferDriver *ftd, const UA_NodeId *nodeId) {
 }
 
 static void
+unbindObjectContext(UA_Server *server, FTEntry *node) {
+    if(node->contextBound) {
+        void *context = NULL;
+        if(UA_Server_getNodeContext(server, node->nodeId, &context) == UA_STATUSCODE_GOOD &&
+           context == &node->driver->driver)
+            UA_Server_setNodeContext(server, node->nodeId, node->savedObjectContext);
+        node->contextBound = false;
+    }
+}
+
+static void
 removeFTEntry(FileTransferDriver *ftd, FTEntry *node) {
     UA_assert(!ZIP_ROOT(&node->children));
     UA_assert(node->subtreeHandleCount == 0);
@@ -66,13 +77,7 @@ removeFTEntry(FileTransferDriver *ftd, FTEntry *node) {
         ZIP_REMOVE(FTChildrenByName, &node->parent->children, node);
     ZIP_REMOVE(FTEntriesById, &ftd->entriesByNodeId, node);
     ftd->entryCount--;
-    if(node->contextBound) {
-        void *context = NULL;
-        UA_Server *server = ftd->driver.server;
-        if(UA_Server_getNodeContext(server, node->nodeId, &context) == UA_STATUSCODE_GOOD &&
-           context == &ftd->driver)
-            UA_Server_setNodeContext(server, node->nodeId, node->savedObjectContext);
-    }
+    unbindObjectContext(ftd->driver.server, node);
     releaseFileNode(ftd->driver.server, node);
     if(ftd->root == node)
         ftd->root = NULL;
@@ -179,9 +184,9 @@ UA_StatusCode
 bindObjectContext(UA_Server *server, FTEntry *node) {
     if(node->contextBound)
         return UA_STATUSCODE_GOOD;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(!node->created)
-        res = UA_Server_getNodeContext(server, node->nodeId, &node->savedObjectContext);
+    /* Constructors may also set a context on driver-created Objects. */
+    UA_StatusCode res =
+        UA_Server_getNodeContext(server, node->nodeId, &node->savedObjectContext);
     if(res == UA_STATUSCODE_GOOD)
         res = UA_Server_setNodeContext(server, node->nodeId, &node->driver->driver);
     if(res == UA_STATUSCODE_GOOD)
@@ -825,7 +830,7 @@ mirrorObject(UA_Server *server, FTEntry *dirNode,
         res = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(nsIndex, 0),
                                       dirNode->nodeId, UA_NS0ID(ORGANIZES), browseName,
                                       info ? UA_NS0ID(FILETYPE) : UA_NS0ID(FILEDIRECTORYTYPE),
-                                      attr, &ftd->driver, &newNodeId);
+                                      attr, NULL, &newNodeId);
     } else if(res == UA_STATUSCODE_GOOD) {
         if(findEntryOwner(server, &newNodeId) || findFTEntry(ftd, &newNodeId))
             res = UA_STATUSCODE_BADNODEIDEXISTS;
@@ -911,37 +916,51 @@ detachReusedObject(UA_Server *server, FileTransferDriver *ftd,
     UA_BrowseResult_clear(&br);
 }
 
-/* Detach reused Objects and release all Property callbacks before deleting
- * any Object: both Objects and Properties may have extra model parents. */
+typedef struct {
+    UA_Server *server;
+    FTEntry *root;
+    UA_Boolean deleteReused;
+} SubtreeReleaseContext;
+
+/* Restore all Object contexts before any deletion, including recursive
+ * deletion through extra model references, can invoke a destructor. */
 static void *
-prepareSubtreeRelease(void *context, FTEntry *node) {
-    FTEntry *root = (FTEntry*)context;
-    UA_Server *server = node->driver->driver.server;
-    if(!node->created)
-        detachReusedObject(server, node->driver, node, root);
-    releaseFileNode(server, node);
-    ZIP_ITER(FTChildrenByName, &node->children, prepareSubtreeRelease, root);
+restoreSubtreeContexts(void *context, FTEntry *node) {
+    unbindObjectContext((UA_Server*)context, node);
+    ZIP_ITER(FTChildrenByName, &node->children, restoreSubtreeContexts, context);
     return NULL;
 }
 
-static void releaseSubtree(UA_Server *server, FTEntry *node);
+/* Detach reused Objects that should survive, and release all Property
+ * callbacks before deleting Objects with potentially shared children. */
+static void *
+prepareSubtreeRelease(void *context, FTEntry *node) {
+    SubtreeReleaseContext *ctx = (SubtreeReleaseContext*)context;
+    if(!node->created && !ctx->deleteReused)
+        detachReusedObject(ctx->server, node->driver, node, ctx->root);
+    releaseFileNode(ctx->server, node);
+    ZIP_ITER(FTChildrenByName, &node->children, prepareSubtreeRelease, context);
+    return NULL;
+}
+
+static void releaseSubtree(SubtreeReleaseContext *ctx, FTEntry *node);
 
 /* The iteration keeps the neighbours of a released child. The child does not
  * unlink itself, the parent drops its whole child index afterwards. */
 static void *
 releaseChild(void *context, FTEntry *child) {
     child->parent = NULL;
-    releaseSubtree((UA_Server*)context, child);
+    releaseSubtree((SubtreeReleaseContext*)context, child);
     return NULL;
 }
 
 static void
-releaseSubtree(UA_Server *server, FTEntry *node) {
-    ZIP_ITER(FTChildrenByName, &node->children, releaseChild, server);
+releaseSubtree(SubtreeReleaseContext *ctx, FTEntry *node) {
+    ZIP_ITER(FTChildrenByName, &node->children, releaseChild, ctx);
     ZIP_INIT(&node->children);
-    unbindObjectMethods(server, node);
-    if(node->created)
-        UA_Server_deleteNode(server, node->nodeId, true);
+    unbindObjectMethods(ctx->server, node);
+    if(node->created || ctx->deleteReused)
+        UA_Server_deleteNode(ctx->server, node->nodeId, true);
     removeFTEntry(node->driver, node);
 }
 
@@ -949,19 +968,16 @@ releaseSubtree(UA_Server *server, FTEntry *node) {
  * Objects are deleted; reused Objects recover their application bindings. */
 void
 removeSubtree(UA_Server *server, FTEntry *subtreeRoot) {
-    prepareSubtreeRelease(subtreeRoot, subtreeRoot);
-    releaseSubtree(server, subtreeRoot);
-}
-
-static void *
-markCreated(void *context, FTEntry *node) {
-    node->created = true;
-    ZIP_ITER(FTChildrenByName, &node->children, markCreated, NULL);
-    return NULL;
+    SubtreeReleaseContext ctx = {server, subtreeRoot, false};
+    restoreSubtreeContexts(server, subtreeRoot);
+    prepareSubtreeRelease(&ctx, subtreeRoot);
+    releaseSubtree(&ctx, subtreeRoot);
 }
 
 void
 deleteSubtree(UA_Server *server, FTEntry *subtreeRoot) {
-    markCreated(NULL, subtreeRoot);
-    removeSubtree(server, subtreeRoot);
+    SubtreeReleaseContext ctx = {server, subtreeRoot, true};
+    restoreSubtreeContexts(server, subtreeRoot);
+    prepareSubtreeRelease(&ctx, subtreeRoot);
+    releaseSubtree(&ctx, subtreeRoot);
 }

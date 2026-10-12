@@ -3527,6 +3527,106 @@ checkLocalFile(const char *path, const char *expected) {
     ck_assert_str_eq(buf, expected);
 }
 
+static UA_StatusCode (*metadataListDirectory)(UA_FileTransferBackend*, const UA_String,
+                                             UA_FileTransferListCallback, void*);
+static size_t metadataListingCalls;
+static size_t metadataFaultCall;
+static UA_Boolean metadataMissingTarget;
+static char metadataDirectory[256];
+static char metadataTarget[256];
+static char metadataHiddenTarget[256];
+
+/* Cause an actual stat() failure only while listing docs. Enumeration itself
+ * remains possible. Restore access before any later source deletion. */
+static UA_StatusCode
+listWithMetadataFailure(UA_FileTransferBackend *b, const UA_String path,
+                        UA_FileTransferListCallback cb, void *listContext) {
+    UA_String docs = UA_STRING("docs");
+    UA_Boolean fail = UA_String_equal(&path, &docs) &&
+        ++metadataListingCalls == metadataFaultCall;
+    if(fail) {
+        if(metadataMissingTarget)
+            ck_assert_int_eq(rename(metadataTarget, metadataHiddenTarget), 0);
+        else
+            ck_assert_int_eq(chmod(metadataDirectory, 0400), 0);
+    }
+    UA_StatusCode res = metadataListDirectory(b, path, cb, listContext);
+    if(fail) {
+        if(metadataMissingTarget)
+            ck_assert_int_eq(rename(metadataHiddenTarget, metadataTarget), 0);
+        else
+            ck_assert_int_eq(chmod(metadataDirectory, 0700), 0);
+    }
+    return res;
+}
+
+static void
+ignoreListedEntry(void *listContext, const UA_FileTransferFileInfo *info) {
+}
+
+/* Metadata errors cannot produce a successful partial listing. In a move,
+ * copying must fail before the source is deleted. The dangling-link case
+ * also runs as root, where permission changes do not prevent stat(). */
+START_TEST(localMetadataFailureKeepsMoveSource) {
+    for(unsigned missing = 0; missing < 2; missing++) {
+        if(!missing && geteuid() == 0)
+            continue;
+        makeScratchDir();
+        char source[256], destination[256], file[256], moved[256];
+        snprintf(source, sizeof(source), "%s/source", scratchDir);
+        snprintf(destination, sizeof(destination), "%s/destination", scratchDir);
+        snprintf(metadataDirectory, sizeof(metadataDirectory), "%s/source/docs", scratchDir);
+        snprintf(file, sizeof(file), "%s/source/docs/important.txt", scratchDir);
+        snprintf(moved, sizeof(moved), "%s/destination/moved", scratchDir);
+        snprintf(metadataTarget, sizeof(metadataTarget), "%s/target", scratchDir);
+        snprintf(metadataHiddenTarget, sizeof(metadataHiddenTarget), "%s/hidden", scratchDir);
+        ck_assert_int_eq(mkdir(source, 0700), 0);
+        ck_assert_int_eq(mkdir(destination, 0700), 0);
+        ck_assert_int_eq(mkdir(metadataDirectory, 0700), 0);
+        metadataMissingTarget = (missing != 0);
+        if(metadataMissingTarget) {
+            writeLocalFile(metadataTarget, "keep me");
+            ck_assert_int_eq(symlink(metadataTarget, file), 0);
+        } else {
+            writeLocalFile(file, "keep me");
+        }
+        UA_FileTransferBackend src, dst;
+        ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(UA_STRING(source), &src),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_FileTransferBackend_localDirectory(UA_STRING(destination), &dst),
+                          UA_STATUSCODE_GOOD);
+        metadataListDirectory = src.listDirectory;
+        src.listDirectory = listWithMetadataFailure;
+        metadataFaultCall = 0;
+        UA_NodeId srcId = mountNamedMem(src, "Source", NULL);
+        UA_NodeId dstId = mountNamedMem(dst, "Destination", NULL);
+        UA_NodeId docs = resolveChild(server_ft, srcId, "docs");
+        UA_StatusCode expected = missing ? UA_STATUSCODE_BADNOTFOUND :
+            UA_STATUSCODE_BADUSERACCESSDENIED;
+
+        metadataListingCalls = 0;
+        metadataFaultCall = 1;
+        ck_assert_uint_eq(src.listDirectory(&src, UA_STRING("docs"), ignoreListedEntry, NULL),
+                          expected);
+        metadataListingCalls = 0;
+        metadataFaultCall = 2; /* Preflight succeeds, the copy's listing fails */
+        UA_NodeId result = callMoveOrCopy(srcId, docs, dstId, false, "moved", expected);
+        metadataFaultCall = 0;
+        ck_assert_uint_ge(metadataListingCalls, 2);
+        checkLocalFile(file, "keep me");
+        ck_assert_int_ne(access(moved, F_OK), 0);
+        UA_NodeClass cls;
+        ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, docs, &cls), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(testRemove(driverForRoot(srcId), srcId), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(testRemove(driverForRoot(dstId), dstId), UA_STATUSCODE_GOOD);
+        UA_NodeId_clear(&result);
+        UA_NodeId_clear(&docs);
+        UA_NodeId_clear(&srcId);
+        UA_NodeId_clear(&dstId);
+        removeTree(scratchDir);
+    }
+} END_TEST
+
 /* Writing needs no read access to the file (Part 20, 4.2.2) */
 START_TEST(localWriteOnlyFile) {
     if(geteuid() == 0)
@@ -5301,6 +5401,204 @@ START_TEST(reuseDerivedPropertyDataTypes) {
     UA_NodeId_clear(&alias);
 } END_TEST
 
+typedef struct {
+    UA_NodeId nodeId;
+    void *context;
+    UA_Boolean typed;
+    size_t typeDestructions;
+    size_t globalDestructions;
+} ObjectLifecycleRecord;
+
+static ObjectLifecycleRecord objectLifecycleRecords[4];
+static size_t objectLifecycleRecordsSize;
+
+static void *
+recordObjectContext(const UA_NodeId *nodeId, UA_Boolean typed) {
+    ck_assert_uint_lt(objectLifecycleRecordsSize, 4);
+    ObjectLifecycleRecord *r = &objectLifecycleRecords[objectLifecycleRecordsSize++];
+    memset(r, 0, sizeof(*r));
+    ck_assert_uint_eq(UA_NodeId_copy(nodeId, &r->nodeId), UA_STATUSCODE_GOOD);
+    r->typed = typed;
+    r->context = UA_malloc(1);
+    ck_assert_ptr_nonnull(r->context);
+    return r->context;
+}
+
+static UA_StatusCode
+objectContextConstructor(UA_Server *server, const UA_NodeId *sessionId,
+                         void *sessionContext, const UA_NodeId *typeId,
+                         void *typeContext, const UA_NodeId *nodeId, void **nodeContext) {
+    *nodeContext = recordObjectContext(nodeId, true);
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+objectContextDestructor(UA_Server *server, const UA_NodeId *sessionId,
+                        void *sessionContext, const UA_NodeId *typeId,
+                        void *typeContext, const UA_NodeId *nodeId, void **nodeContext) {
+    for(size_t i = 0; i < objectLifecycleRecordsSize; i++) {
+        ObjectLifecycleRecord *r = &objectLifecycleRecords[i];
+        if(!UA_NodeId_equal(nodeId, &r->nodeId))
+            continue;
+        ck_assert_uint_eq(r->typeDestructions++, 0);
+        ck_assert_ptr_eq(*nodeContext, r->context);
+        UA_free(*nodeContext);
+        *nodeContext = NULL;
+        r->context = NULL;
+        return;
+    }
+    ck_abort_msg("Destructor called for an unknown Object");
+}
+
+static void
+globalObjectContextDestructor(UA_Server *server, const UA_NodeId *sessionId,
+                              void *sessionContext, const UA_NodeId *nodeId,
+                              void *nodeContext) {
+    for(size_t i = 0; i < objectLifecycleRecordsSize; i++) {
+        ObjectLifecycleRecord *r = &objectLifecycleRecords[i];
+        if(!UA_NodeId_equal(nodeId, &r->nodeId))
+            continue;
+        ck_assert_uint_eq(r->globalDestructions++, 0);
+        ck_assert_uint_eq(r->typeDestructions, r->typed ? 1 : 0);
+        ck_assert_ptr_eq(nodeContext, r->context);
+        UA_free(nodeContext); /* NULL if the type destructor already freed it */
+        r->context = NULL;
+    }
+}
+
+static UA_NodeId
+typeWithObjectContext(UA_NodeId base, char *name) {
+    UA_NodeId type;
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server_ft, UA_NODEID_NUMERIC(1, 0),
+        base, UA_NS0ID(HASSUBTYPE), UA_QUALIFIEDNAME(1, name),
+        UA_ObjectTypeAttributes_default, NULL, &type), UA_STATUSCODE_GOOD);
+    UA_NodeTypeLifecycle lifecycle;
+    memset(&lifecycle, 0, sizeof(lifecycle));
+    lifecycle.constructor = objectContextConstructor;
+    lifecycle.destructor = objectContextDestructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server_ft, type, lifecycle),
+                      UA_STATUSCODE_GOOD);
+    return type;
+}
+
+static void
+checkObjectDestructions(void) {
+    for(size_t i = 0; i < objectLifecycleRecordsSize; i++) {
+        ObjectLifecycleRecord *r = &objectLifecycleRecords[i];
+        ck_assert_uint_eq(r->globalDestructions, 1);
+        ck_assert_ptr_null(r->context);
+        UA_NodeId_clear(&r->nodeId);
+    }
+    objectLifecycleRecordsSize = 0;
+}
+
+/* Delete, both kinds of move and ordinary release must preserve application
+ * contexts for type/global destructors, including mixed-ownership subtrees. */
+START_TEST(reusedObjectsRestoreDestructorContexts) {
+    UA_NodeId fileType = typeWithObjectContext(UA_NS0ID(FILETYPE), "OwnedFile");
+    UA_NodeId dirType = typeWithObjectContext(UA_NS0ID(FILEDIRECTORYTYPE), "OwnedDirectory");
+    static UA_GlobalNodeLifecycle lifecycle;
+    memset(&lifecycle, 0, sizeof(lifecycle));
+    lifecycle.destructor = globalObjectContextDestructor;
+    UA_GlobalNodeLifecycle *previous = UA_Server_getConfig(server_ft)->nodeLifecycle;
+    UA_Server_getConfig(server_ft)->nodeLifecycle = &lifecycle;
+
+    for(unsigned operation = 0; operation < 4; operation++) {
+        UA_NodeId root = modelObject(UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(FILEDIRECTORYTYPE),
+                                     1, "ExistingFS");
+        ck_assert_uint_eq(UA_Server_setNodeContext(server_ft, root,
+            recordObjectContext(&root, false)), UA_STATUSCODE_GOOD);
+        UA_NodeId docs = modelObject(root, dirType, 1, "docs");
+        UA_NodeId file = modelObject(docs, fileType, 1, "a.txt");
+        UA_FileTransferBackend backend = memBackendWithTree();
+        UA_FileTransferNodeDescription description;
+        memset(&description, 0, sizeof(description));
+        description.nodeId = root;
+        UA_Driver *driver;
+        ck_assert_uint_eq(UA_FileTransferDriver_newDirectory(server_ft, &backend,
+            &description, NULL, &driver), UA_STATUSCODE_GOOD);
+        registerTestDriver(driver);
+        UA_NodeId created = resolveChild(server_ft, docs, "sub");
+        UA_NodeId target = UA_NODEID_NULL;
+        if(operation == 0) {
+            callDelete(root, docs, UA_STATUSCODE_GOOD);
+        } else if(operation < 3) {
+            if(operation == 1) {
+                target = callCreateDirectory(root, "target", UA_STATUSCODE_GOOD);
+            } else {
+                UA_FileTransferBackend destination;
+                ck_assert_uint_eq(memBackend(&destination), UA_STATUSCODE_GOOD);
+                target = mountNamedMem(destination, "Destination", NULL);
+            }
+            UA_NodeId moved = callMoveOrCopy(root, docs, target, false, "moved",
+                                             UA_STATUSCODE_GOOD);
+            UA_NodeId movedFile = resolveChild(server_ft, moved, "a.txt");
+            UA_ByteString data = readFileContent(movedFile);
+            ck_assert_uint_eq(data.length, 9);
+            UA_ByteString_clear(&data);
+            UA_NodeId_clear(&movedFile);
+            UA_NodeId_clear(&moved);
+        }
+        if(operation < 3) {
+            ck_assert_uint_eq(objectLifecycleRecords[1].globalDestructions, 1);
+            ck_assert_uint_eq(objectLifecycleRecords[2].globalDestructions, 1);
+            UA_NodeClass cls;
+            ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, docs, &cls),
+                              UA_STATUSCODE_BADNODEIDUNKNOWN);
+            ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, file, &cls),
+                              UA_STATUSCODE_BADNODEIDUNKNOWN);
+            /* A move may recycle a deleted numeric NodeId at the destination. */
+            if(operation == 0)
+                ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, created, &cls),
+                                  UA_STATUSCODE_BADNODEIDUNKNOWN);
+        }
+        /* The surviving root still serves calls and survives driver cleanup. */
+        UA_NodeId readme = resolveChild(server_ft, root, "readme.txt");
+        UA_ByteString data = readFileContent(readme);
+        UA_ByteString_clear(&data);
+        ck_assert_uint_eq(testRemove(driver, root), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(objectLifecycleRecords[0].globalDestructions, 0);
+        ck_assert_uint_eq(UA_Server_deleteNode(server_ft, root, true), UA_STATUSCODE_GOOD);
+        checkObjectDestructions();
+        if(operation == 2)
+            ck_assert_uint_eq(testRemove(driverForRoot(target), target), UA_STATUSCODE_GOOD);
+        UA_NodeId_clear(&root);
+        UA_NodeId_clear(&docs);
+        UA_NodeId_clear(&file);
+        UA_NodeId_clear(&created);
+        UA_NodeId_clear(&target);
+        UA_NodeId_clear(&readme);
+    }
+    UA_Server_getConfig(server_ft)->nodeLifecycle = previous;
+    UA_NodeId_clear(&fileType);
+    UA_NodeId_clear(&dirType);
+} END_TEST
+
+/* Driver-created subtypes may also allocate a context during construction. */
+START_TEST(createdObjectRestoresDestructorContext) {
+    UA_NodeId type = typeWithObjectContext(UA_NS0ID(FILETYPE), "OwnedFile");
+    static UA_GlobalNodeLifecycle lifecycle;
+    memset(&lifecycle, 0, sizeof(lifecycle));
+    lifecycle.destructor = globalObjectContextDestructor;
+    UA_GlobalNodeLifecycle *previous = UA_Server_getConfig(server_ft)->nodeLifecycle;
+    UA_Server_getConfig(server_ft)->nodeLifecycle = &lifecycle;
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "data");
+    UA_FileTransferNodeDescription description;
+    memset(&description, 0, sizeof(description));
+    description.typeDefinition = type;
+    UA_Driver *driver;
+    UA_NodeId root;
+    ck_assert_uint_eq(UA_FileTransferDriver_newFile(server_ft, &backend.file,
+        UA_STRING("f.bin"), &description, &root, &driver), UA_STATUSCODE_GOOD);
+    registerTestDriver(driver);
+    ck_assert_uint_eq(testRemove(driver, root), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(objectLifecycleRecordsSize, 1);
+    checkObjectDestructions();
+    UA_Server_getConfig(server_ft)->nodeLifecycle = previous;
+    UA_NodeId_clear(&root);
+    UA_NodeId_clear(&type);
+} END_TEST
+
 /* A client Delete or move deletes the Objects of the storage entries, also
  * reused application Objects (Part 20, 4.3.5) */
 START_TEST(deleteRemovesReusedObjects) {
@@ -5754,6 +6052,8 @@ int main(void) {
     tcase_add_test(tc_lifecycle, reuseDerivedPropertyDataTypes);
     tcase_add_test(tc_lifecycle, reuseNestedDirectoryStructure);
     tcase_add_test(tc_lifecycle, deleteRemovesReusedObjects);
+    tcase_add_test(tc_lifecycle, reusedObjectsRestoreDestructorContexts);
+    tcase_add_test(tc_lifecycle, createdObjectRestoresDestructorContext);
     tcase_add_test(tc_lifecycle, reuseRejectsConflictingDriversAndTypes);
     tcase_add_test(tc_lifecycle, driverLimitsAndSessionCleanupAreIndependent);
     tcase_add_test(tc_lifecycle, crossDriverCopyUsesDestinationPolicyAndBudget);
@@ -5842,6 +6142,7 @@ int main(void) {
 # endif
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
     tcase_add_test(tc_dir, localWriteOnlyFile);
+    tcase_add_test(tc_dir, localMetadataFailureKeepsMoveSource);
 #endif
 #ifdef FT_TEST_READDIR_FAULTS
     tcase_add_test(tc_dir, localDirectoryListingErrors);

@@ -65,9 +65,9 @@ struct FTEntry {
     FileTransferDriver *driver;
     UA_String path; /* Relative to the mount root */
     UA_Boolean isDirectory;
-    UA_Boolean created;         /* Delete only Objects created by this driver */
+    UA_Boolean created;         /* Object was created by this driver */
     UA_Boolean contextBound;
-    void *savedObjectContext;  /* Restore when releasing a reused Object */
+    void *savedObjectContext;  /* Restore before releasing or deleting the Object */
     UA_Boolean zombie; /* Retained until the last open handle is closed */
     UA_Boolean methodsBound; /* Also set when all Methods use standard declarations */
     UA_NodeId *methods; /* Nonstandard Method ids; standard slots remain null */
