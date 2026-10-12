@@ -52,6 +52,9 @@ struct UA_GDSPullConfiguration {
     bool createPrivateKey;
     /* Milliseconds between the start of two workflow cycles. */
     UA_UInt32 cycleInterval;
+    /* Milliseconds after the start of a cycle at which an unfinished cycle is
+     * aborted. */
+    UA_UInt32 cycleTimeout;
 };
 
 struct UA_GDSPullGroup {
@@ -103,6 +106,7 @@ struct UA_GDSPullContext {
     UA_GDSPullStep currentStep;
     UA_UInt64 runWorkflowCallbackId;
     UA_UInt64 dispatchCallbackId;
+    UA_UInt64 cycleTimeoutCallbackId;
     /* The client must not be deleted from within its own state callback. The
      * teardown is deferred into the next EventLoop cycle. */
     UA_DelayedCallback deleteClientDc;
@@ -530,7 +534,7 @@ UA_GDSPull_requestIsGone(UA_StatusCode res) {
     case UA_STATUSCODE_BADNODEIDINVALID:
     case UA_STATUSCODE_BADNODEIDUNKNOWN:
     case UA_STATUSCODE_BADNOTFOUND:
-    case UA_STATUSCODE_BADUSERACCESSDENIED:
+    case UA_STATUSCODE_BADREQUESTNOTALLOWED:
         return true;
     default:
         return false;
@@ -1718,6 +1722,11 @@ UA_GDSPull_deleteClientCallback(void *application, void *context) {
         ctx->dispatchCallbackId = 0;
     }
 
+    if(ctx->cycleTimeoutCallbackId != 0) {
+        UA_Server_removeCallback(ctx->drv.server, ctx->cycleTimeoutCallbackId);
+        ctx->cycleTimeoutCallbackId = 0;
+    }
+
     UA_Client_delete(ctx->client);
     ctx->client = NULL;
     ctx->currentStep = UA_GDSPULLSTEP_IDLE;
@@ -1900,6 +1909,22 @@ buildClientConfig(UA_ClientConfig *cc, UA_GDSPullContext *ctx) {
     return res;
 }
 
+static void
+UA_GDSPull_cycleTimeoutCallback(UA_Server *server, void *data) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)data;
+    ctx->cycleTimeoutCallbackId = 0;
+
+    /* The cycle is already being torn down */
+    if(!ctx->client || ctx->deleteClientQueued)
+        return;
+
+    UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                   "The GDS Pull cycle did not finish within %u ms. The "
+                   "connection to the CertificateManager is closed.",
+                   (unsigned)ctx->conf.cycleTimeout);
+    UA_GDSPull_finishWorkflow(ctx->client, ctx);
+}
+
 static UA_StatusCode
 UA_GDSPull_runWorkflow(UA_Server *server, UA_GDSPullContext *ctx) {
     if(ctx->currentStep != UA_GDSPULLSTEP_IDLE) {
@@ -1921,6 +1946,18 @@ UA_GDSPull_runWorkflow(UA_Server *server, UA_GDSPullContext *ctx) {
 
     memset(&cc, 0, sizeof(cc));
 
+    /* The client has not connected yet and can be deleted right away */
+    res = UA_Server_addTimedCallback(
+        server, UA_GDSPull_cycleTimeoutCallback, ctx,
+        UA_DateTime_nowMonotonic() +
+            (UA_DateTime)ctx->conf.cycleTimeout * UA_DATETIME_MSEC,
+        &ctx->cycleTimeoutCallbackId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(ctx->client);
+        ctx->client = NULL;
+        return res;
+    }
+
     ctx->currentStep = UA_GDSPULLSTEP_CONNECT;
     notify_cycle(ctx, UA_GDSPULL_CYCLE_STARTED);
     return UA_Client_connectAsync(ctx->client, NULL);
@@ -1938,6 +1975,7 @@ UA_GDSPull_runWorkflowCallback(UA_Server *server, void *data) {
 }
 
 #define UA_GDSPULL_DEFAULT_CYCLE_INTERVAL_MS 5000
+#define UA_GDSPULL_DEFAULT_CYCLE_TIMEOUT_MS 60000
 
 /* Read the configuration from the key-value map of the generic driver. The map
  * is the wire format: it is either passed to UA_GDSPull_new() or written to
@@ -2144,6 +2182,15 @@ UA_GDSPull_readParams(UA_GDSPullContext *ctx) {
         ctx->conf.cycleInterval = *cycleInterval;
     if(ctx->conf.cycleInterval == 0)
         ctx->conf.cycleInterval = UA_GDSPULL_DEFAULT_CYCLE_INTERVAL_MS;
+
+    const UA_UInt32 *cycleTimeout =
+        (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "cycle-timeout"),
+            &UA_TYPES[UA_TYPES_UINT32]);
+    if(cycleTimeout && *cycleTimeout > 0)
+        ctx->conf.cycleTimeout = *cycleTimeout;
+    if(ctx->conf.cycleTimeout == 0)
+        ctx->conf.cycleTimeout = UA_GDSPULL_DEFAULT_CYCLE_TIMEOUT_MS;
 
     res = UA_GDSPull_readGroups(ctx, logging);
     if(res != UA_STATUSCODE_GOOD)
