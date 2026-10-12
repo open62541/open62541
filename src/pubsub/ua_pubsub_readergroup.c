@@ -378,9 +378,15 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                        UA_PubSubState_name(rg->head.state));
 
     /* Inform application about state change */
-    if(server->config.pubSubConfig.stateChangeCallback)
+    if(server->config.pubSubConfig.stateChangeCallback) {
+        const UA_NodeId identifier = rg->head.identifier;
         server->config.pubSubConfig.
-            stateChangeCallback(server, rg->head.identifier, rg->head.state, ret);
+            stateChangeCallback(server, identifier, rg->head.state, ret);
+
+        /* The callback may remove this ReaderGroup or its connection. */
+        if(UA_ReaderGroup_find(psm, identifier) != rg)
+            return ret;
+    }
 
     /* Children evaluate their state machine after the state change of the parent.
      * Keep the current child state as the target state for the child. */

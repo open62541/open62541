@@ -20,7 +20,36 @@
 
 UA_Server *server;
 UA_Boolean running;
+static UA_AccessControl exampleAccessControl;
 THREAD_HANDLE server_thread;
+
+static UA_Client *createSecureClient(void);
+
+static UA_Boolean
+allowUserExecutable(UA_Server *serverArg, UA_AccessControl *ac,
+                    const UA_NodeId *sessionId, void *sessionContext,
+                    const UA_NodeId *methodId, void *methodContext) {
+    (void)serverArg;
+    (void)ac;
+    (void)sessionId;
+    (void)sessionContext;
+    (void)methodId;
+    (void)methodContext;
+    /* Test policy: treat every test Session as SecurityAdmin. A real plugin
+     * must decide this from its authenticated Session context. */
+    return true;
+}
+
+static UA_Boolean
+allowUserExecutableOnObject(UA_Server *serverArg, UA_AccessControl *ac,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_NodeId *methodId, void *methodContext,
+                            const UA_NodeId *objectId, void *objectContext) {
+    (void)objectId;
+    (void)objectContext;
+    return allowUserExecutable(serverArg, ac, sessionId, sessionContext,
+                               methodId, methodContext);
+}
 
 THREAD_CALLBACK(serverloop) {
     while(running)
@@ -83,10 +112,66 @@ static void setup(void) {
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
             UA_STRING_ALLOC("urn:unconfigured:application");
+    /* This test application supplies its own AccessControl policy. */
+    exampleAccessControl = config->accessControl;
+    config->accessControl.getUserExecutable = allowUserExecutable;
+    config->accessControl.getUserExecutableOnObject =
+        allowUserExecutableOnObject;
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
+
+START_TEST(gds_requires_security_admin) {
+    UA_Client *client = createSecureClient();
+
+    /* Without an application-specific policy, the example plugin has no
+     * SecurityAdmin user and denies PushManagement methods. */
+    lockServer(server);
+    UA_AccessControl *ac = &UA_Server_getConfig(server)->accessControl;
+    ac->getUserExecutable = exampleAccessControl.getUserExecutable;
+    ac->getUserExecutableOnObject =
+        exampleAccessControl.getUserExecutableOnObject;
+    unlockServer(server);
+
+    UA_Boolean userExecutable = true;
+    UA_StatusCode retval = UA_Client_readUserExecutableAttribute(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES),
+        &userExecutable);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(!userExecutable);
+
+    retval = UA_Client_call(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES),
+        0, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    retval = UA_Client_call(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN),
+        0, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    retval = UA_Client_call(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN),
+        0, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    /* A custom policy can authorize the same method via the existing hooks. */
+    lockServer(server);
+    ac->getUserExecutable = allowUserExecutable;
+    ac->getUserExecutableOnObject = allowUserExecutableOnObject;
+    unlockServer(server);
+    retval = UA_Client_call(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES),
+        0, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_Client_delete(client);
+} END_TEST
 
 static UA_StatusCode
 openTrustList(UA_Client *client, UA_Byte mode, UA_Variant* fileHandler) {
@@ -907,6 +992,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
+    tcase_add_test(tc_cert, gds_requires_security_admin);
     tcase_add_test(tc_cert, gds_callback_argument_counts);
     tcase_add_test(tc_cert, read_trustlist_reject_negative_length);
     tcase_add_test(tc_cert, add_certificate_replaced_input_metadata);
