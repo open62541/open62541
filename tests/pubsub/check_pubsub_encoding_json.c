@@ -641,14 +641,15 @@ END_TEST
 START_TEST(UA_Networkmessage_rawFieldsWithMetadata) {
     UA_FieldMetaData fields[6] = {0};
     const char *names[] = {"Counter", "Random", "ActiveState", "Severity", "Time", "Samples"};
-    UA_Byte types[] = {6, 11, 21, 5, 13, 6};
+    UA_Byte types[] = {UA_NS0ID_INT32, UA_NS0ID_DOUBLE, UA_NS0ID_LOCALIZEDTEXT,
+                       UA_NS0ID_UINT16, UA_NS0ID_DATETIME, UA_NS0ID_INT32};
     for(size_t i = 0; i < 6; i++) {
         fields[i].name = UA_STRING((char*)(uintptr_t)names[i]);
         fields[i].builtInType = types[i];
         fields[i].dataType = UA_NODEID_NUMERIC(0, types[i]);
         fields[i].valueRank = UA_VALUERANK_SCALAR;
     }
-    fields[4].dataType = UA_NODEID_NUMERIC(0, 294); /* UtcTime */
+    fields[4].dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UTCTIME);
     fields[5].valueRank = 1;
     UA_DataSetMessage_EncodingMetaData metadata = {0};
     metadata.dataSetWriterId = 1;
@@ -683,8 +684,8 @@ START_TEST(UA_Networkmessage_rawInvalidFields) {
     fields[0].name = UA_STRING("A");
     fields[1].name = UA_STRING("B");
     for(size_t i = 0; i < 2; i++) {
-        fields[i].dataType = UA_NODEID_NUMERIC(0, 5);
-        fields[i].builtInType = 5;
+        fields[i].dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT16);
+        fields[i].builtInType = UA_NS0ID_UINT16;
         fields[i].valueRank = UA_VALUERANK_SCALAR;
     }
     UA_DataSetMessage_EncodingMetaData metadata = {0};
@@ -720,8 +721,8 @@ START_TEST(UA_Networkmessage_partialJsonUpdates) {
     const char *names[] = {"Counter", "Square", "Random"};
     for(size_t i = 0; i < 3; i++) {
         fields[i].name = UA_STRING((char*)(uintptr_t)names[i]);
-        fields[i].dataType = UA_NODEID_NUMERIC(0, 6);
-        fields[i].builtInType = 6;
+        fields[i].dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_INT32);
+        fields[i].builtInType = UA_NS0ID_INT32;
         fields[i].valueRank = UA_VALUERANK_SCALAR;
     }
     UA_DataSetMessage_EncodingMetaData metadata = {0};
