@@ -260,6 +260,144 @@ START_TEST(checkSharedExternalEventLoop) {
     firstConfig->externalEventLoop = false;
 } END_TEST
 
+static void
+checkLifecycleNotifications(void) {
+    ck_assert_uint_eq(receivedNotificationsCount, 3);
+    ck_assert_int_eq(receivedNotifications[0], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED);
+    ck_assert_int_eq(receivedNotifications[1], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING);
+    ck_assert_int_eq(receivedNotifications[2], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED);
+}
+
+static void
+stopExternalEventLoop(void) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_EventLoop *el = config->eventLoop;
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+    el->stop(el);
+    for(unsigned i = 0; i < 32 && el->state != UA_EVENTLOOPSTATE_STOPPED; i++)
+        ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+    /* Return ownership for the normal config cleanup, including the logger. */
+    config->externalEventLoop = false;
+}
+
+static void
+iterateShutdownServer(UA_Boolean driveEventLoop) {
+    if(!driveEventLoop) {
+        UA_Server_run_iterate(server, false);
+        return;
+    }
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    if(UA_Server_getLifecycleState(server) == UA_LIFECYCLESTATE_STOPPING)
+        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+}
+
+START_TEST(checkExternalShutdownTcp) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->externalEventLoop = true;
+    ck_assert_uint_eq(config->serverUrlsSize, 1);
+    UA_String_clear(&config->serverUrls[0]);
+    config->serverUrls[0] = UA_STRING_ALLOC("opc.tcp://127.0.0.1:0");
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(config->applicationDescription.discoveryUrlsSize, 0);
+    for(UA_Driver *drv = UA_Server_getDrivers(server); drv; drv = drv->next)
+        ck_assert_int_eq(drv->state, UA_LIFECYCLESTATE_STARTED);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPING);
+    for(unsigned i = 0; i < 32 &&
+        UA_Server_getLifecycleState(server) != UA_LIFECYCLESTATE_STOPPED; i++)
+        iterateShutdownServer((UA_Boolean)_i);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPED);
+    for(UA_Driver *drv = UA_Server_getDrivers(server); drv; drv = drv->next)
+        ck_assert_int_eq(drv->state, UA_LIFECYCLESTATE_STOPPED);
+    iterateShutdownServer((UA_Boolean)_i);
+    iterateShutdownServer((UA_Boolean)_i);
+    checkLifecycleNotifications();
+    stopExternalEventLoop();
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+    server = NULL;
+} END_TEST
+
+typedef struct {
+    UA_Driver driver;
+    UA_DelayedCallback callback;
+    UA_Boolean mayStop;
+    unsigned turns;
+    unsigned stops;
+} DelayedStopDriver;
+
+static void
+delayedDriverFinish(void *application, void *context) {
+    DelayedStopDriver *test = (DelayedStopDriver*)context;
+    UA_Server *s = (UA_Server*)application;
+    UA_EventLoop *el = UA_Server_getConfig(s)->eventLoop;
+    lockServer(s);
+    test->turns++;
+    if(test->mayStop && test->turns >= 2)
+        test->driver.state = UA_LIFECYCLESTATE_STOPPED;
+    else
+        el->addDelayedCallback(el, &test->callback);
+    unlockServer(s);
+}
+
+static void
+delayedDriverStop(UA_Driver *drv) {
+    DelayedStopDriver *test = (DelayedStopDriver*)drv;
+    test->stops++;
+    drv->state = UA_LIFECYCLESTATE_STOPPING;
+    test->callback.callback = delayedDriverFinish;
+    test->callback.application = drv->server;
+    test->callback.context = test;
+    UA_EventLoop *el = UA_Server_getConfig(drv->server)->eventLoop;
+    el->addDelayedCallback(el, &test->callback);
+}
+
+START_TEST(checkShutdownDelayedDriver) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->tcpEnabled = false;
+    config->externalEventLoop = (_i != 0);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    DelayedStopDriver test;
+    memset(&test, 0, sizeof(test));
+    test.driver.state = UA_LIFECYCLESTATE_STARTED;
+    test.driver.stop = delayedDriverStop;
+    test.mayStop = !config->externalEventLoop;
+    ck_assert_uint_eq(UA_Server_addDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+
+    if(config->externalEventLoop) {
+        ck_assert_uint_eq(test.turns, 0);
+        /* EventLoops may process delayed callbacks more than once per iteration. */
+        for(unsigned i = 0; i < 3; i++) {
+            unsigned turns = test.turns;
+            iterateShutdownServer(_i == 2);
+            ck_assert_uint_gt(test.turns, turns);
+            ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPING);
+        }
+        ck_assert_uint_eq(receivedNotificationsCount, 2);
+        /* The outer loop can process the work that permits the driver to stop. */
+        unsigned turnsBeforeStop = test.turns;
+        test.mayStop = true;
+        iterateShutdownServer(_i == 2);
+        ck_assert_uint_eq(test.turns, turnsBeforeStop + 1);
+        iterateShutdownServer(_i == 2);
+        stopExternalEventLoop();
+    } else {
+        ck_assert_uint_eq(test.turns, 2);
+        ck_assert_int_eq(config->eventLoop->state, UA_EVENTLOOPSTATE_STOPPED);
+    }
+    ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(test.stops, 1);
+    checkLifecycleNotifications();
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+    server = NULL;
+} END_TEST
+
 static size_t
 countNoneEndpointTokens(UA_UserTokenType tokenType) {
     UA_GetEndpointsRequest request;
@@ -1017,6 +1155,8 @@ int main(void) {
     tcase_add_test(tc_call, checkGetStatistics);
     tcase_add_test(tc_call, checkGetLifecycleState);
     tcase_add_test(tc_call, checkSharedExternalEventLoop);
+    tcase_add_loop_test(tc_call, checkExternalShutdownTcp, 0, 2);
+    tcase_add_loop_test(tc_call, checkShutdownDelayedDriver, 0, 3);
     tcase_add_test(tc_call, helloEndpointUrlLimit);
     tcase_add_test(tc_call, helloTrailingData);
     tcase_add_test(tc_call, checkNoneEndpointUserTokens);
