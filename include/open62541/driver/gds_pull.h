@@ -12,7 +12,7 @@
  * runs the full PullManagement workflow and installs the issued certificates. 
  * State changes and events are exposed via the callback interface.
  *
- * Build open62541 with ``UA_ENABLE_DRIVER_GDS_PULL_REQUESTER`` enabled.
+ * Build open62541 with ``UA_ENABLE_DRIVER_GDS_PULL`` enabled.
  * PullManagement additionally requires encryption and the full Namespace Zero.
  *
  * Create the driver with UA_GDSPull_new() and attach its ``drv`` member to the
