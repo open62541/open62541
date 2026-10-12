@@ -320,6 +320,15 @@ endif()
 #    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
 #endif()
 
+if(UA_ENABLE_DRIVER_GDS_RECEIVER OR UA_ENABLE_DRIVER_GDS_PULL)
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+        message(FATAL_ERROR "GDS Pull/Push-CertificateManagement needs the full Namespace Zero")
+    endif()
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "GDS Pull/Push-CertificateManagement cannot be used with disabled UA_ENABLE_ENCRYPTION")
+    endif()
+endif()
+
 # Advanced options
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 mark_as_advanced(UA_ENABLE_COVERAGE)
@@ -1417,15 +1426,6 @@ else()
     if(UA_ENABLE_DIAGNOSTICS)
         list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
         list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_diagnostics.txt)
-    endif()
-
-    if(UA_ENABLE_DRIVER_GDS_RECEIVER OR UA_ENABLE_DRIVER_GDS_PULL)
-        if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
-            message(FATAL_ERROR "GDS Pull/Push-CertificateManagement needs the full Namespace Zero")
-        endif()
-        if(NOT UA_ENABLE_ENCRYPTION)
-          message(FATAL_ERROR "GDS Pull/Push-CertificateManagement cannot be used with disabled UA_ENABLE_ENCRYPTION")
-        endif()
     endif()
 
     # The client subscription API is compiled even without server subscriptions.
