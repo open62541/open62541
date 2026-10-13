@@ -15,21 +15,39 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_atomic(uintptr_t) running;
+UA_Boolean running;
 THREAD_HANDLE server_thread;
+/* Protect fixture state even when the library's own locks are disabled. */
+static MUTEX_HANDLE fixtureMutex;
 
 THREAD_CALLBACK(serverloop) {
-    while(UA_atomic_load(&running))
-        UA_Server_run_iterate(server, true);
+    for(;;) {
+        (void)MUTEX_LOCK(fixtureMutex);
+        if(!running) {
+            (void)MUTEX_UNLOCK(fixtureMutex);
+            break;
+        }
+        UA_Server_run_iterate(server, false);
+        (void)MUTEX_UNLOCK(fixtureMutex);
+        /* Wait outside the fixture lock so the test thread can acquire it. */
+#ifdef UA_ARCHITECTURE_WIN32
+        Sleep(1);
+#else
+        struct timespec delay = {0, 1000000};
+        nanosleep(&delay, NULL);
+#endif
+    }
     return 0;
 }
 
 static void setup(void) {
-    UA_atomic_store(&running, true);
+    ck_assert(MUTEX_INIT(fixtureMutex));
+    running = true;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_Server_run_startup(server);
@@ -37,12 +55,17 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    if(!server)
+    if(!server) {
+        (void)MUTEX_DESTROY(fixtureMutex);
         return;
-    UA_atomic_store(&running, false);
+    }
+    (void)MUTEX_LOCK(fixtureMutex);
+    running = false;
+    (void)MUTEX_UNLOCK(fixtureMutex);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    (void)MUTEX_DESTROY(fixtureMutex);
 }
 
 /* Opening a new SecureChannel drives the server EventLoop through another
@@ -155,13 +178,15 @@ START_TEST(Session_deleteStoppedServerCleansSessionSynchronously) {
     ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
                       UA_STATUSCODE_GOOD);
 
+    (void)MUTEX_LOCK(fixtureMutex);
+    running = false;
+    (void)MUTEX_UNLOCK(fixtureMutex);
+    THREAD_JOIN(server_thread);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     originalDeleteCloseSession = cfg->accessControl.closeSession;
     cfg->accessControl.closeSession = observeDeleteCloseSession;
     deleteCloseSessionCalls = 0;
 
-    UA_atomic_store(&running, false);
-    THREAD_JOIN(server_thread);
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteCloseSessionCalls, 0);
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
@@ -199,8 +224,10 @@ START_TEST(Session_notificationCallback) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Configure the notification callback */
+    (void)MUTEX_LOCK(fixtureMutex);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     cfg->serviceNotificationCallback = serverNotificationCallback;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 
     /* Call a service */
     UA_Variant val;
@@ -234,10 +261,12 @@ START_TEST(Session_serviceBeginCallbackClosesCurrentSession) {
     ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
                       UA_STATUSCODE_GOOD);
 
+    (void)MUTEX_LOCK(fixtureMutex);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     cfg->serviceNotificationCallback = closeSessionServiceNotification;
     closeSessionAtServiceBeginResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
     closeSessionAtServiceBegin = true;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 
     UA_Variant value;
     UA_Variant_init(&value);
@@ -245,10 +274,13 @@ START_TEST(Session_serviceBeginCallbackClosesCurrentSession) {
         client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &value);
     UA_Variant_clear(&value);
 
-    ck_assert_uint_eq(closeSessionAtServiceBeginResult, UA_STATUSCODE_GOOD);
+    (void)MUTEX_LOCK(fixtureMutex);
+    UA_StatusCode closeResult = closeSessionAtServiceBeginResult;
+    cfg->serviceNotificationCallback = NULL;
+    (void)MUTEX_UNLOCK(fixtureMutex);
+    ck_assert_uint_eq(closeResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(result, UA_STATUSCODE_BADSESSIONCLOSED);
 
-    cfg->serviceNotificationCallback = NULL;
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -272,17 +304,21 @@ START_TEST(Session_accessControlCloseSessionIsReentrant) {
     ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
                       UA_STATUSCODE_GOOD);
 
+    (void)MUTEX_LOCK(fixtureMutex);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     originalAccessControlCloseSession = cfg->accessControl.closeSession;
     cfg->accessControl.closeSession = reentrantAccessControlCloseSession;
     reentrantAccessControlCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 
     UA_Client_disconnect(client);
     processDelayedServerCallbacks();
 
-    ck_assert_uint_eq(reentrantAccessControlCloseResult,
-                      UA_STATUSCODE_BADSESSIONIDINVALID);
+    (void)MUTEX_LOCK(fixtureMutex);
+    UA_StatusCode closeResult = reentrantAccessControlCloseResult;
     cfg->accessControl.closeSession = originalAccessControlCloseSession;
+    (void)MUTEX_UNLOCK(fixtureMutex);
+    ck_assert_uint_eq(closeResult, UA_STATUSCODE_BADSESSIONIDINVALID);
     UA_Client_delete(client);
 }
 END_TEST
@@ -308,18 +344,23 @@ START_TEST(Session_createdNotificationCloseReturnsSessionClosed) {
     ck_assert_uint_eq(UA_Client_connectSecureChannel(
         client, "opc.tcp://localhost:4840"), UA_STATUSCODE_GOOD);
 
+    (void)MUTEX_LOCK(fixtureMutex);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     cfg->sessionNotificationCallback = closeFromSessionNotification;
     closeAtSessionNotification = true;
     sessionNotificationToClose = UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED;
     sessionNotificationCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 
     UA_CreateSessionResponse response;
     UA_StatusCode result = createSessionRaw(client, &response);
-    ck_assert_uint_eq(sessionNotificationCloseResult, UA_STATUSCODE_GOOD);
+    (void)MUTEX_LOCK(fixtureMutex);
+    UA_StatusCode closeResult = sessionNotificationCloseResult;
+    cfg->sessionNotificationCallback = NULL;
+    (void)MUTEX_UNLOCK(fixtureMutex);
+    ck_assert_uint_eq(closeResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(result, UA_STATUSCODE_BADSESSIONCLOSED);
 
-    cfg->sessionNotificationCallback = NULL;
     UA_CreateSessionResponse_clear(&response);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -337,17 +378,21 @@ START_TEST(Session_activatedNotificationCloseReturnsSessionClosed) {
     UA_NodeId_copy(&createResponse.authenticationToken,
                    &client->authenticationToken);
 
+    (void)MUTEX_LOCK(fixtureMutex);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     cfg->sessionNotificationCallback = closeFromSessionNotification;
     closeAtSessionNotification = true;
     sessionNotificationToClose = UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED;
     sessionNotificationCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 
     ck_assert_uint_eq(activateSessionRaw(client),
                       UA_STATUSCODE_BADSESSIONCLOSED);
-    ck_assert_uint_eq(sessionNotificationCloseResult, UA_STATUSCODE_GOOD);
-
+    (void)MUTEX_LOCK(fixtureMutex);
+    UA_StatusCode closeResult = sessionNotificationCloseResult;
     cfg->sessionNotificationCallback = NULL;
+    (void)MUTEX_UNLOCK(fixtureMutex);
+    ck_assert_uint_eq(closeResult, UA_STATUSCODE_GOOD);
     UA_CreateSessionResponse_clear(&createResponse);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -385,16 +430,20 @@ START_TEST(Session_accessControlActivateCloseReturnsSessionClosed) {
     UA_NodeId_copy(&createResponse.authenticationToken,
                    &client->authenticationToken);
 
+    (void)MUTEX_LOCK(fixtureMutex);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     originalAccessControlActivateSession = cfg->accessControl.activateSession;
     cfg->accessControl.activateSession = closeFromAccessControlActivateSession;
     accessControlActivateCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 
     ck_assert_uint_eq(activateSessionRaw(client),
                       UA_STATUSCODE_BADSESSIONCLOSED);
-    ck_assert_uint_eq(accessControlActivateCloseResult, UA_STATUSCODE_GOOD);
-
+    (void)MUTEX_LOCK(fixtureMutex);
+    UA_StatusCode closeResult = accessControlActivateCloseResult;
     cfg->accessControl.activateSession = originalAccessControlActivateSession;
+    (void)MUTEX_UNLOCK(fixtureMutex);
+    ck_assert_uint_eq(closeResult, UA_STATUSCODE_GOOD);
     UA_CreateSessionResponse_clear(&createResponse);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -442,6 +491,7 @@ START_TEST(Session_accessControlCloseStopsMultiReadAndDefersContextClose) {
     ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
                       UA_STATUSCODE_GOOD);
 
+    (void)MUTEX_LOCK(fixtureMutex);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     originalAccessControlGetUserAccessLevel =
         cfg->accessControl.getUserAccessLevel;
@@ -454,6 +504,7 @@ START_TEST(Session_accessControlCloseStopsMultiReadAndDefersContextClose) {
     userAccessLevelCalls = 0;
     deferredAccessControlCloseCalls = 0;
     userAccessLevelCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
@@ -468,19 +519,22 @@ START_TEST(Session_accessControlCloseStopsMultiReadAndDefersContextClose) {
     request.nodesToReadSize = 2;
 
     UA_ReadResponse response = UA_Client_Service_read(client, request);
-    ck_assert_uint_eq(userAccessLevelCloseResult, UA_STATUSCODE_GOOD);
-    ck_assert(accessControlCloseWasDeferred);
-    ck_assert_uint_eq(userAccessLevelCalls, 1);
+    processDelayedServerCallbacks();
+    (void)MUTEX_LOCK(fixtureMutex);
+    UA_StatusCode closeResult = userAccessLevelCloseResult;
+    UA_Boolean wasDeferred = accessControlCloseWasDeferred;
+    size_t accessCalls = userAccessLevelCalls;
+    size_t closeCalls = deferredAccessControlCloseCalls;
+    cfg->accessControl.getUserAccessLevel = originalAccessControlGetUserAccessLevel;
+    cfg->accessControl.closeSession = originalDeferredAccessControlCloseSession;
+    (void)MUTEX_UNLOCK(fixtureMutex);
+    ck_assert_uint_eq(closeResult, UA_STATUSCODE_GOOD);
+    ck_assert(wasDeferred);
+    ck_assert_uint_eq(accessCalls, 1);
     ck_assert_uint_eq(response.responseHeader.serviceResult,
                       UA_STATUSCODE_BADSESSIONCLOSED);
 
-    processDelayedServerCallbacks();
-    ck_assert_uint_eq(deferredAccessControlCloseCalls, 1);
-
-    cfg->accessControl.getUserAccessLevel =
-        originalAccessControlGetUserAccessLevel;
-    cfg->accessControl.closeSession =
-        originalDeferredAccessControlCloseSession;
+    ck_assert_uint_eq(closeCalls, 1);
     request.nodesToRead = NULL;
     request.nodesToReadSize = 0;
     UA_ReadResponse_clear(&response);

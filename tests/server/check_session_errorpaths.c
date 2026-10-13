@@ -30,21 +30,39 @@
 #include <check.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "thread_wrapper.h"
 
 static UA_Server *server;
-static UA_atomic(uintptr_t) running;
+static UA_Boolean running;
 static THREAD_HANDLE server_thread;
+/* Protect callback installation even in single-threaded library builds. */
+static MUTEX_HANDLE fixtureMutex;
 
 THREAD_CALLBACK(serverloop) {
-    while(UA_atomic_load(&running))
-        UA_Server_run_iterate(server, true);
+    for(;;) {
+        (void)MUTEX_LOCK(fixtureMutex);
+        if(!running) {
+            (void)MUTEX_UNLOCK(fixtureMutex);
+            break;
+        }
+        UA_Server_run_iterate(server, false);
+        (void)MUTEX_UNLOCK(fixtureMutex);
+        /* Wait outside the fixture lock so the test thread can acquire it. */
+#ifdef UA_ARCHITECTURE_WIN32
+        Sleep(1);
+#else
+        struct timespec delay = {0, 1000000};
+        nanosleep(&delay, NULL);
+#endif
+    }
     return 0;
 }
 
 static void setup(void) {
-    UA_atomic_store(&running, true);
+    ck_assert(MUTEX_INIT(fixtureMutex));
+    running = true;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     /* Cap the number of sessions so the over-limit path is reachable
@@ -56,10 +74,13 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    UA_atomic_store(&running, false);
+    (void)MUTEX_LOCK(fixtureMutex);
+    running = false;
+    (void)MUTEX_UNLOCK(fixtureMutex);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    (void)MUTEX_DESTROY(fixtureMutex);
 }
 
 /* ==== Helpers ==== */
@@ -299,21 +320,24 @@ START_TEST(Session_activateWithBadToken) {
 /* If a session-notification callback is set, it must fire for create
  * and close. We install a callback, run a full lifecycle, and check
  * that the callback saw the expected notification types. */
-static int sessionCbCount;
-static UA_ApplicationNotificationType sessionCbTypes[8];
+static UA_Boolean sessionCreated, sessionClosed;
 
 static void
 sessionNotifyCb(UA_Server *srv, UA_ApplicationNotificationType type,
                 const UA_KeyValueMap payload) {
     (void)srv; (void)payload;
-    if(sessionCbCount < 8)
-        sessionCbTypes[sessionCbCount++] = type;
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED)
+        sessionCreated = true;
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED)
+        sessionClosed = true;
 }
 
 START_TEST(Session_notificationCallback_fires) {
+    (void)MUTEX_LOCK(fixtureMutex);
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
-    sessionCbCount = 0;
+    sessionCreated = sessionClosed = false;
     cfg->sessionNotificationCallback = sessionNotifyCb;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 
     UA_Client *client = UA_Client_newForUnitTest();
     ck_assert_uint_eq(UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840"),
@@ -325,16 +349,21 @@ START_TEST(Session_notificationCallback_fires) {
     ck_assert_uint_eq(activateSession(client), UA_STATUSCODE_GOOD);
     closeSession(client);
 
-    /* At least two notifications should have fired: session-created and
-     * session-closed. We don't assert exact ordering, just that both
-     * types appear. */
-    ck_assert_int_ge(sessionCbCount, 2);
+    /* CloseSession can reply before its delayed close notification runs. */
     UA_Boolean sawCreate = false, sawClose = false;
-    for(int i = 0; i < sessionCbCount; i++) {
-        if(sessionCbTypes[i] == UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED)
-            sawCreate = true;
-        if(sessionCbTypes[i] == UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED)
-            sawClose = true;
+    for(unsigned i = 0; i < 1000; i++) {
+        (void)MUTEX_LOCK(fixtureMutex);
+        sawCreate = sessionCreated;
+        sawClose = sessionClosed;
+        (void)MUTEX_UNLOCK(fixtureMutex);
+        if(sawClose)
+            break;
+#ifdef UA_ARCHITECTURE_WIN32
+        Sleep(10);
+#else
+        struct timespec delay = {0, 10000000};
+        nanosleep(&delay, NULL);
+#endif
     }
     ck_assert(sawCreate);
     ck_assert(sawClose);
@@ -342,7 +371,9 @@ START_TEST(Session_notificationCallback_fires) {
     UA_CreateSessionResponse_clear(&res);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+    (void)MUTEX_LOCK(fixtureMutex);
     cfg->sessionNotificationCallback = NULL;
+    (void)MUTEX_UNLOCK(fixtureMutex);
 } END_TEST
 
 /* Service_CloseSession with deleteSubscriptions=false must close the

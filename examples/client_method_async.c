@@ -20,7 +20,7 @@ methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
         retval = response->results[i].statusCode;
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                        "CallRequest Response - %u failed",
+                        "CallRequest Response - %lu failed",
                         (unsigned long)i);
             continue;
         }
@@ -53,7 +53,7 @@ main(int argc, char *argv[]) {
     stringValue = UA_STRING("World 2");
     UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
     UA_Client_call_async(client, UA_NS0ID(OBJECTSFOLDER),
-                         UA_NODEID_NUMERIC(1, 62542), 1, &input,
+                         UA_NODEID_NUMERIC(1, 62541), 1, &input,
                          methodCalled, NULL, NULL);
 
     /* Run the client until ctrl-c */
