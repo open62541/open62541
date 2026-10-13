@@ -913,6 +913,7 @@ UA_Driver * UA_BinaryProtocolManager_new(void);
 UA_Driver * UA_WebSocketProtocolManager_new(void);
 UA_Driver * UA_HttpProtocolManager_new(void);
 UA_StatusCode UA_HttpProtocolManager_validateConfig(UA_Driver *drv);
+UA_Boolean UA_HttpProtocolManager_isListening(const UA_Driver *drv);
 
 UA_StatusCode registerSecureChannel(UA_Server *server,
                                     UA_SecureChannel *channel);
@@ -928,6 +929,7 @@ UA_StatusCode sendHttpServiceResponse(UA_Server *server,
                                       const UA_DataType *payloadType);
 
 UA_Driver * UA_ReverseBinaryProtocolManager_new(void);
+UA_Boolean UA_ReverseBinaryProtocolManager_hasReverseConnects(const UA_Driver *drv);
 
 UA_StatusCode
 processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,

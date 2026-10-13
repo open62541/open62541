@@ -1035,6 +1035,15 @@ static void stopHttp(UA_Driver *drv) {
     finishHttpStopIfDrained(hpm);
 }
 
+/* startHttp opens all listeners or none. A disabled transport is started
+ * without a ConnectionManager. */
+UA_Boolean
+UA_HttpProtocolManager_isListening(const UA_Driver *drv) {
+    const UA_HttpProtocolManager *hpm = (const UA_HttpProtocolManager *)drv;
+    return drv->state == UA_LIFECYCLESTATE_STARTED &&
+        hpm->connectionManager != NULL;
+}
+
 static UA_StatusCode freeHttp(UA_Driver *drv) {
     if(drv->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINTERNALERROR;

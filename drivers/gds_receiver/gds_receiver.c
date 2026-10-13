@@ -1849,10 +1849,17 @@ UA_GDSReceiver_start(UA_Driver *drv) {
             return res;
 #ifdef UA_ENABLE_RBAC
         /* Restrict the GDS methods to the SecurityAdmin role. Runs after the
-         * ns0 GDS nodes have been created so the permissions can be applied. */
+         * ns0 GDS nodes have been created so the permissions can be applied.
+         * The AccessControl plugin can restrict the methods as well. So a
+         * failure is only logged. */
         res = initGDSRolePermissions(drv->server);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
+            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                           "Could not restrict the PushManagement methods to "
+                           "the SecurityAdmin role (%s). Only the AccessControl "
+                           "restricts them.", UA_StatusCode_name(res));
+        }
 #endif
         ctx->initialized = true;
     }
