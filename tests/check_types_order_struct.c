@@ -118,7 +118,8 @@ static UA_DataType OptArrayType = {
 typedef enum {
     UA_UNISWITCH_NONE = 0,
     UA_UNISWITCH_OPTIONA = 1,
-    UA_UNISWITCH_OPTIONB = 2
+    UA_UNISWITCH_OPTIONB = 2,
+    UA_UNISWITCH_OPTIONC = 3
 } UA_UniSwitch;
 
 typedef struct {
@@ -126,10 +127,14 @@ typedef struct {
     union {
         UA_Double optionA;
         UA_String optionB;
+        struct {
+            size_t valuesSize;
+            UA_String *values;
+        } optionC;
     } fields;
 } Uni;
 
-static UA_DataTypeMember Uni_members[2] = {
+static UA_DataTypeMember Uni_members[3] = {
     {
         UA_TYPENAME("optionA")
         &UA_TYPES[UA_TYPES_DOUBLE],
@@ -143,6 +148,13 @@ static UA_DataTypeMember Uni_members[2] = {
         offsetof(Uni, fields.optionB),
         false,
         false
+    },
+    {
+        UA_TYPENAME("optionC")
+        &UA_TYPES[UA_TYPES_STRING],
+        offsetof(Uni, fields.optionC.valuesSize),
+        true,
+        false
     }
 };
 
@@ -155,7 +167,7 @@ static UA_DataType UniType = {
     UA_DATATYPEKIND_UNION,
     false,
     false,
-    2,
+    3,
     Uni_members
 };
 
@@ -291,6 +303,23 @@ START_TEST(diagInfo_empty_equal) {
     UA_DiagnosticInfo_init(&a);
     UA_DiagnosticInfo_init(&b);
     ck_assert_int_eq(UA_order(&a, &b, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]), UA_ORDER_EQ);
+} END_TEST
+
+START_TEST(diagInfo_optionalFieldPresence) {
+    UA_DiagnosticInfo absent, present;
+    UA_DiagnosticInfo_init(&absent);
+    UA_DiagnosticInfo_init(&present);
+    switch(_i) {
+    case 0: present.hasNamespaceUri = true; break;
+    case 1: present.hasLocalizedText = true; break;
+    case 2: present.hasLocale = true; break;
+    case 3: present.hasInnerStatusCode = true; break;
+    case 4: present.hasInnerDiagnosticInfo = true; break;
+    }
+    ck_assert_int_eq(UA_order(&absent, &present, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]),
+                     UA_ORDER_LESS);
+    ck_assert_int_eq(UA_order(&present, &absent, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]),
+                     UA_ORDER_MORE);
 } END_TEST
 
 START_TEST(diagInfo_symbolicId_differ) {
@@ -443,6 +472,17 @@ START_TEST(dataValue_empty_equal) {
     ck_assert_int_eq(UA_order(&a, &b, &UA_TYPES[UA_TYPES_DATAVALUE]), UA_ORDER_EQ);
 } END_TEST
 
+START_TEST(dataValue_sourceTimestampPresence) {
+    UA_DataValue absent, present;
+    UA_DataValue_init(&absent);
+    UA_DataValue_init(&present);
+    present.hasSourceTimestamp = true;
+    ck_assert_int_eq(UA_order(&absent, &present, &UA_TYPES[UA_TYPES_DATAVALUE]),
+                     UA_ORDER_LESS);
+    ck_assert_int_eq(UA_order(&present, &absent, &UA_TYPES[UA_TYPES_DATAVALUE]),
+                     UA_ORDER_MORE);
+} END_TEST
+
 START_TEST(dataValue_hasValue_differ) {
     UA_DataValue a, b;
     UA_DataValue_init(&a);
@@ -559,6 +599,17 @@ START_TEST(extObj_nobody_equal) {
     UA_ExtensionObject_init(&a);
     UA_ExtensionObject_init(&b);
     /* Default encoding is NOBODY */
+    ck_assert_int_eq(UA_order(&a, &b, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]), UA_ORDER_EQ);
+} END_TEST
+
+START_TEST(extensionObject_borrowedValuesOrder) {
+    UA_Int32 first = 10, second = 20;
+    UA_ExtensionObject a, b;
+    UA_ExtensionObject_setValueNoDelete(&a, &first, &UA_TYPES[UA_TYPES_INT32]);
+    UA_ExtensionObject_setValueNoDelete(&b, &second, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_int_eq(UA_order(&a, &b, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]), UA_ORDER_LESS);
+    ck_assert_int_eq(UA_order(&b, &a, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]), UA_ORDER_MORE);
+    second = first;
     ck_assert_int_eq(UA_order(&a, &b, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]), UA_ORDER_EQ);
 } END_TEST
 
@@ -818,6 +869,110 @@ START_TEST(union_same_switch_optionB_differ) {
     a.fields.optionB = UA_STRING("aaa");
     b.fields.optionB = UA_STRING("zzz");
     ck_assert_int_eq(UA_order(&a, &b, &UniType), UA_ORDER_LESS);
+} END_TEST
+
+START_TEST(union_arrayOrder) {
+    UA_String first[] = {UA_STRING_STATIC("same"), UA_STRING_STATIC("beta")};
+    UA_String second[] = {UA_STRING_STATIC("same"), UA_STRING_STATIC("beta")};
+    Uni a, b;
+    memset(&a, 0, sizeof(a));
+    memset(&b, 0, sizeof(b));
+    a.switchField = b.switchField = UA_UNISWITCH_OPTIONC;
+    a.fields.optionC.valuesSize = b.fields.optionC.valuesSize = 2;
+    a.fields.optionC.values = first;
+    b.fields.optionC.values = second;
+    UA_Order expected = UA_ORDER_EQ;
+    if(_i == 1) {
+        second[1] = UA_STRING("zeta");
+        expected = UA_ORDER_LESS;
+    } else if(_i == 2) {
+        b.fields.optionC.valuesSize = 1;
+        expected = UA_ORDER_MORE;
+    } else if(_i == 3) {
+        a.fields.optionC.valuesSize = b.fields.optionC.valuesSize = 0;
+        a.fields.optionC.values = NULL;
+        b.fields.optionC.values = (UA_String*)UA_EMPTY_ARRAY_SENTINEL;
+    }
+    ck_assert_int_eq(UA_order(&a, &b, &UniType), expected);
+    UA_Order reverse = (expected == UA_ORDER_LESS) ? UA_ORDER_MORE :
+        (expected == UA_ORDER_MORE) ? UA_ORDER_LESS : UA_ORDER_EQ;
+    ck_assert_int_eq(UA_order(&b, &a, &UniType), reverse);
+} END_TEST
+
+START_TEST(copy_arrayMemberSizeOverflow) {
+    UA_String value = UA_STRING("value");
+    UA_Float number = 1.0f;
+    if(_i == 2) {
+        Uni source, copied;
+        memset(&source, 0, sizeof(source));
+        source.switchField = UA_UNISWITCH_OPTIONC;
+        source.fields.optionC.valuesSize = SIZE_MAX;
+        source.fields.optionC.values = &value;
+        UA_StatusCode res = UA_copy(&source, &copied, &UniType);
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFMEMORY);
+        ck_assert_uint_eq(copied.switchField, UA_UNISWITCH_NONE);
+        ck_assert_uint_eq(copied.fields.optionC.valuesSize, 0);
+        ck_assert_ptr_null(copied.fields.optionC.values);
+        ck_assert_uint_eq(source.fields.optionC.valuesSize, SIZE_MAX);
+        UA_clear(&copied, &UniType);
+        return;
+    }
+
+    OptArray source, copied;
+    memset(&source, 0, sizeof(source));
+    source.description = UA_STRING("copied before the overflowing array");
+    if(_i == 0) {
+        source.bSize = SIZE_MAX;
+        source.b = &value;
+    } else {
+        source.cSize = SIZE_MAX;
+        source.c = &number;
+    }
+    UA_StatusCode res = UA_copy(&source, &copied, &OptArrayType);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_null(copied.description.data);
+    ck_assert_uint_eq(copied.description.length, 0);
+    ck_assert_uint_eq(copied.bSize, 0);
+    ck_assert_ptr_null(copied.b);
+    ck_assert_uint_eq(copied.cSize, 0);
+    ck_assert_ptr_null(copied.c);
+    ck_assert_uint_eq((_i == 0) ? source.bSize : source.cSize, SIZE_MAX);
+    UA_clear(&copied, &OptArrayType);
+} END_TEST
+
+START_TEST(copy_arrayPartialFailure) {
+    OptArray source[2];
+    memset(source, 0, sizeof(source));
+    source[0].description = UA_STRING("first");
+    source[1].description = UA_STRING("second");
+    UA_String value = UA_STRING("value");
+    source[1].bSize = SIZE_MAX;
+    source[1].b = &value;
+    void *copied = NULL;
+    UA_StatusCode res = UA_Array_copy(source, 2, &copied, &OptArrayType);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_null(copied);
+    ck_assert_mem_eq(source[0].description.data, "first", 5);
+    ck_assert_mem_eq(source[1].description.data, "second", 6);
+    ck_assert_uint_eq(source[1].bSize, SIZE_MAX);
+} END_TEST
+
+START_TEST(appendCopy_failurePreservesArray) {
+    OptArray source;
+    memset(&source, 0, sizeof(source));
+    source.description = UA_STRING("owned by caller");
+    UA_String value = UA_STRING("value");
+    void *array = NULL;
+    size_t length = (_i == 0) ? 0 : SIZE_MAX;
+    if(_i == 0) {
+        source.bSize = SIZE_MAX; /* Failure while copying the element. */
+        source.b = &value;
+    }
+    UA_StatusCode res = UA_Array_appendCopy(&array, &length, &source, &OptArrayType);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_null(array);
+    ck_assert_uint_eq(length, (_i == 0) ? 0 : SIZE_MAX);
+    ck_assert_mem_eq(source.description.data, "owned by caller", 15);
 } END_TEST
 
 /* ========================================================================
@@ -1113,6 +1268,33 @@ START_TEST(getStructMember_later_field) {
     ck_assert(offset > 0);
     ck_assert(!isArray);
 } END_TEST
+
+START_TEST(getStructMember_afterArrayAndOptionalFields) {
+    size_t offset = SIZE_MAX;
+    const UA_DataType *memberType = NULL;
+    UA_Boolean isArray = false;
+    UA_Boolean found;
+    if(_i == 0) {
+        found = UA_DataType_getStructMember(&OptType, "d", &offset, &memberType, &isArray);
+        ck_assert(found);
+        ck_assert_uint_eq(offset, offsetof(Opt, d));
+        ck_assert_ptr_eq(memberType, &UA_TYPES[UA_TYPES_STRING]);
+        ck_assert(!isArray);
+    } else if(_i == 1) {
+        found = UA_DataType_getStructMember(&OptArrayType, "c", &offset, &memberType, &isArray);
+        ck_assert(found);
+        ck_assert_uint_eq(offset, offsetof(OptArray, cSize));
+        ck_assert_ptr_eq(memberType, &UA_TYPES[UA_TYPES_FLOAT]);
+        ck_assert(isArray);
+    } else {
+        found = UA_DataType_getStructMember(&OptArrayType, "missing", &offset,
+                                           &memberType, &isArray);
+        ck_assert(!found);
+        ck_assert_uint_eq(offset, SIZE_MAX);
+        ck_assert_ptr_null(memberType);
+        ck_assert(!isArray);
+    }
+} END_TEST
 #endif
 
 /* ========================================================================
@@ -1240,6 +1422,15 @@ START_TEST(order_readvalueid_structure) {
     ck_assert_int_eq(UA_order(&a, &a, &UA_TYPES[UA_TYPES_READVALUEID]), UA_ORDER_EQ);
 } END_TEST
 
+START_TEST(expandedNodeId_serverIndexPrecedesNodeId) {
+    UA_ExpandedNodeId a = UA_EXPANDEDNODEID_NUMERIC(0, 100);
+    UA_ExpandedNodeId b = UA_EXPANDEDNODEID_NUMERIC(0, 1);
+    a.serverIndex = 1;
+    b.serverIndex = 2;
+    ck_assert_int_eq(UA_ExpandedNodeId_order(&a, &b), UA_ORDER_LESS);
+    ck_assert_int_eq(UA_ExpandedNodeId_order(&b, &a), UA_ORDER_MORE);
+} END_TEST
+
 /* ========================================================================
  * Suite definition
  * ======================================================================== */
@@ -1262,6 +1453,7 @@ static Suite *testSuite_types_order2(void) {
 
     TCase *tc_diag = tcase_create("DiagnosticInfoOrder");
     tcase_add_test(tc_diag, diagInfo_empty_equal);
+    tcase_add_loop_test(tc_diag, diagInfo_optionalFieldPresence, 0, 5);
     tcase_add_test(tc_diag, diagInfo_symbolicId_differ);
     tcase_add_test(tc_diag, diagInfo_symbolicId_has_vs_not);
     tcase_add_test(tc_diag, diagInfo_namespaceUri_differ);
@@ -1278,6 +1470,7 @@ static Suite *testSuite_types_order2(void) {
 
     TCase *tc_dv = tcase_create("DataValueOrder");
     tcase_add_test(tc_dv, dataValue_empty_equal);
+    tcase_add_test(tc_dv, dataValue_sourceTimestampPresence);
     tcase_add_test(tc_dv, dataValue_hasValue_differ);
     tcase_add_test(tc_dv, dataValue_status_differ);
     tcase_add_test(tc_dv, dataValue_hasStatus_differ);
@@ -1291,6 +1484,7 @@ static Suite *testSuite_types_order2(void) {
     suite_add_tcase(s, tc_dv);
 
     TCase *tc_eo = tcase_create("ExtensionObjectOrder");
+    tcase_add_test(tc_eo, extensionObject_borrowedValuesOrder);
     tcase_add_test(tc_eo, extObj_nobody_equal);
     tcase_add_test(tc_eo, extObj_encoding_differ);
     tcase_add_test(tc_eo, extObj_encoded_bytestring_differ);
@@ -1319,7 +1513,14 @@ static Suite *testSuite_types_order2(void) {
     tcase_add_test(tc_union, union_same_switch_optionA_differ);
     tcase_add_test(tc_union, union_same_switch_equal);
     tcase_add_test(tc_union, union_same_switch_optionB_differ);
+    tcase_add_loop_test(tc_union, union_arrayOrder, 0, 4);
     suite_add_tcase(s, tc_union);
+
+    TCase *tc_copy = tcase_create("ArrayCopyErrors");
+    tcase_add_loop_test(tc_copy, copy_arrayMemberSizeOverflow, 0, 3);
+    tcase_add_test(tc_copy, copy_arrayPartialFailure);
+    tcase_add_loop_test(tc_copy, appendCopy_failurePreservesArray, 0, 2);
+    suite_add_tcase(s, tc_copy);
 
     TCase *tc_copyrange = tcase_create("VariantCopyRange");
     tcase_add_test(tc_copyrange, copyRange_1d_basic);
@@ -1352,6 +1553,7 @@ static Suite *testSuite_types_order2(void) {
     tcase_add_test(tc_member, getStructMember_array_field);
     tcase_add_test(tc_member, getStructMember_non_struct);
     tcase_add_test(tc_member, getStructMember_later_field);
+    tcase_add_loop_test(tc_member, getStructMember_afterArrayAndOptionalFields, 0, 3);
     suite_add_tcase(s, tc_member);
 #endif
 
@@ -1369,6 +1571,7 @@ static Suite *testSuite_types_order2(void) {
 
     TCase *tc_extra = tcase_create("ExtraEdgeCases");
     tcase_add_test(tc_extra, order_readvalueid_structure);
+    tcase_add_test(tc_extra, expandedNodeId_serverIndexPrecedesNodeId);
     suite_add_tcase(s, tc_extra);
 
     return s;
