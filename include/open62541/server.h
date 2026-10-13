@@ -136,9 +136,7 @@ UA_Server_runUntilInterrupt(UA_Server *server);
 UA_EXPORT UA_StatusCode
 UA_Server_run_startup(UA_Server *server);
 
-/* Executes a single iteration of the server's main loop. Completes an
- * externally driven shutdown once all drivers have stopped, without stopping
- * the external EventLoop.
+/* Executes a single iteration of the server's main loop.
  *
  * @param server The server object.
  * @param waitInternal Should we wait for messages in the networklayer?
@@ -151,11 +149,36 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /* The epilogue part of UA_Server_run (no need to use if you call
  * UA_Server_run or UA_Server_runUntilInterrupt).
- * With an external EventLoop, this initiates shutdown without waiting for the
- * drivers to stop. While the server is STOPPING, drive the EventLoop and call
- * this function again to check completion. */
+ *
+ * Runs the EventLoop until the server is fully stopped. An external EventLoop
+ * is left running for its other users; an owned EventLoop is stopped as well.
+ * Calling this on an already stopped server succeeds without further action.
+ * Use UA_Server_run_shutdown_async if shutdown requires application work
+ * between EventLoop iterations or is initiated from an EventLoop callback.
+ *
+ * @param server The server object.
+ * @return GOOD once the server is STOPPED, or an EventLoop error if shutdown
+ *         could not be completed. Returns BADINVALIDARGUMENT for NULL. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
+
+/* Initiates asynchronous shutdown and advances it on subsequent calls, without
+ * running the EventLoop. While the server is STOPPING, the caller must drive
+ * the EventLoop (directly or via UA_Server_run_iterate) and call this function
+ * again to complete shutdown.
+ *
+ * Use UA_Server_getLifecycleState to read the current state, or the configured
+ * lifecycle notification callbacks to observe state transitions.
+ *
+ * An external EventLoop is left running; an owned EventLoop is stopped once
+ * all drivers have stopped.
+ * Repeated calls do not repeat stop requests or lifecycle notifications.
+ *
+ * @param server The server object. NULL is treated as already stopped.
+ * @return The lifecycle state after this shutdown step: STOPPING while shutdown
+ *         is in progress, or STOPPED if the server is fully stopped. */
+UA_EXPORT UA_LifecycleState
+UA_Server_run_shutdown_async(UA_Server *server);
 
 /**
  * Timed Callbacks
