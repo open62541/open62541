@@ -122,7 +122,12 @@ START_TEST(localTimeOffset) {
     char *saved = old ? strdup(old) : NULL;
     ck_assert(!hadTimezone || saved);
     const char *zones[] = {"UTC0", "EST5", "IST-5:30", "NPT-5:45", "PLUS-14", "MINUS12"};
+#ifdef UA_LOCAL_TIME_IS_UTC
+    /* The configured timezone is ignored */
+    const UA_Int64 offsets[] = {0, 0, 0, 0, 0, 0};
+#else
     const UA_Int64 offsets[] = {0, -18000, 19800, 20700, 50400, -43200};
+#endif
     for(size_t i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
         ck_assert_int_eq(setenv("TZ", zones[i], 1), 0);
         tzset();

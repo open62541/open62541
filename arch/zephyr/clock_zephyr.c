@@ -29,6 +29,9 @@ UA_DateTime_now(void) {
  * https://stackoverflow.com/questions/13804095/get-the-time-zone-gmt-offset-in-c */
 UA_Int64
 UA_DateTime_localTimeUtcOffset(void) {
+#ifdef UA_LOCAL_TIME_IS_UTC
+    return 0;
+#else
     time_t rawtime = time(NULL);
     struct tm gbuf;
     struct tm *ptm = gmtime_r(&rawtime, &gbuf);
@@ -36,6 +39,7 @@ UA_DateTime_localTimeUtcOffset(void) {
     ptm->tm_isdst = -1;
     time_t gmt = mktime(ptm);
     return (UA_Int64)(difftime(rawtime, gmt) * UA_DATETIME_SEC);
+#endif
 }
 
 UA_DateTime
