@@ -2144,6 +2144,208 @@ START_TEST(Service_DeleteNodes_maxNodesPerNodeManagement_exceeded) {
     UA_DeleteNodesResponse_clear(&response);
 } END_TEST
 
+static struct {
+    unsigned mode, generated;
+    unsigned globalConstructed[2], typeConstructed[2];
+    unsigned globalDestroyed[2], typeDestroyed[2];
+} rollback;
+static UA_GlobalNodeLifecycle rollbackLifecycle;
+
+static int
+rollbackNodeIndex(const UA_NodeId *nodeId) {
+    UA_NodeId parent = UA_NODEID_NUMERIC(1, 50810);
+    UA_NodeId child = UA_NODEID_STRING(1, "rollback-child");
+    if(UA_NodeId_equal(nodeId, &parent))
+        return 0;
+    return UA_NodeId_equal(nodeId, &child) ? 1 : -1;
+}
+
+static UA_StatusCode
+rollbackChildId(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                const UA_NodeId *source, const UA_NodeId *parent,
+                const UA_NodeId *referenceType, UA_NodeId *target) {
+    ck_assert_ptr_eq(s, server);
+    UA_NodeId expectedSource = UA_NODEID_NUMERIC(1, 50802);
+    UA_NodeId expectedReference = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    ck_assert(UA_NodeId_equal(source, &expectedSource));
+    ck_assert(UA_NodeId_equal(referenceType, &expectedReference));
+    ck_assert_int_eq(rollbackNodeIndex(parent), 0);
+    rollback.generated++;
+    *target = UA_NODEID_STRING_ALLOC(1, "rollback-child");
+    ck_assert_ptr_nonnull(target->identifier.string.data);
+    return rollback.mode == 0 ? UA_STATUSCODE_BADUSERACCESSDENIED : UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+rollbackGlobalConstructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *nodeId, void **context) {
+    int index = rollbackNodeIndex(nodeId);
+    if(index < 0)
+        return UA_STATUSCODE_GOOD;
+    rollback.globalConstructed[index]++;
+    if(rollback.mode == 3 && index == 0)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    ck_assert_ptr_null(*context);
+    unsigned *owned = (unsigned *)UA_malloc(sizeof(unsigned));
+    ck_assert_ptr_nonnull(owned);
+    *owned = (unsigned)index;
+    *context = owned;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+rollbackGlobalDestructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                         const UA_NodeId *nodeId, void *context) {
+    int index = rollbackNodeIndex(nodeId);
+    if(index < 0 || !context)
+        return;
+    ck_assert_uint_eq(*(unsigned *)context, (unsigned)index);
+    rollback.globalDestroyed[index]++;
+    UA_free(context);
+}
+
+static UA_StatusCode
+rollbackTypeConstructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                        const UA_NodeId *typeId, void *typeContext,
+                        const UA_NodeId *nodeId, void **context) {
+    int index = rollbackNodeIndex(nodeId);
+    if(index < 0)
+        return UA_STATUSCODE_GOOD;
+    ck_assert_ptr_nonnull(*context);
+    ck_assert_uint_eq(*(unsigned *)*context, (unsigned)index);
+    UA_NodeId expectedType = UA_NODEID_NUMERIC(1, index == 0 ? 50800 : 50801);
+    ck_assert(UA_NodeId_equal(typeId, &expectedType));
+    rollback.typeConstructed[index]++;
+    if((rollback.mode == 1 && index == 0) || (rollback.mode == 4 && index == 1))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    if(rollback.mode == 2 && index == 0) {
+        /* The node disappears during the application callback. Finalizing its
+         * context must fail and unwind both completed constructors. */
+        ck_assert_uint_eq(UA_Server_deleteNode(s, *nodeId, true), UA_STATUSCODE_GOOD);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+rollbackTypeDestructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *typeId, void *typeContext,
+                       const UA_NodeId *nodeId, void **context) {
+    int index = rollbackNodeIndex(nodeId);
+    if(index < 0 || !*context)
+        return;
+    ck_assert_uint_eq(*(unsigned *)*context, (unsigned)index);
+    rollback.typeDestroyed[index]++;
+}
+
+static void
+setupConstructionRollback(void) {
+    server = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(server);
+    memset(&rollback, 0, sizeof(rollback));
+    UA_NodeId objectType = UA_NODEID_NUMERIC(1, 50800);
+    UA_NodeId variableType = UA_NODEID_NUMERIC(1, 50801);
+    UA_NodeId declaration = UA_NODEID_NUMERIC(1, 50802);
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server, objectType,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "RollbackType"),
+        UA_ObjectTypeAttributes_default, NULL, NULL), UA_STATUSCODE_GOOD);
+    UA_VariableTypeAttributes typeAttr = UA_VariableTypeAttributes_default;
+    typeAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    typeAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Int32 number = 42;
+    UA_Variant_setScalar(&typeAttr.value, &number, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_Server_addVariableTypeNode(server, variableType,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "RollbackValueType"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), typeAttr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = typeAttr.dataType;
+    attr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&attr.value, &number, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, declaration, objectType,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(1, "Value"),
+        variableType, attr, NULL, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addReference(server, declaration,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true), UA_STATUSCODE_GOOD);
+    UA_NodeTypeLifecycle typeLifecycle = {0};
+    typeLifecycle.constructor = rollbackTypeConstructor;
+    typeLifecycle.destructor = rollbackTypeDestructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, objectType, typeLifecycle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, variableType, typeLifecycle),
+                      UA_STATUSCODE_GOOD);
+    memset(&rollbackLifecycle, 0, sizeof(rollbackLifecycle));
+    rollbackLifecycle.generateChildNodeId = rollbackChildId;
+    rollbackLifecycle.constructor = rollbackGlobalConstructor;
+    rollbackLifecycle.destructor = rollbackGlobalDestructor;
+    UA_Server_getConfig(server)->nodeLifecycle = &rollbackLifecycle;
+}
+
+static UA_StatusCode
+addRollbackObject(void) {
+    return UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 50810),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Rollback instance"),
+        UA_NODEID_NUMERIC(1, 50800), UA_ObjectAttributes_default, NULL, NULL);
+}
+
+START_TEST(NodeConstructionFailureCleansUpAndAllowsRetry) {
+    rollback.mode = (unsigned)_i;
+    UA_StatusCode expected = _i == 2 ? UA_STATUSCODE_BADNODEIDUNKNOWN :
+        UA_STATUSCODE_BADUSERACCESSDENIED;
+    ck_assert_uint_eq(addRollbackObject(), expected);
+    ck_assert_uint_eq(rollback.generated, 1);
+    static const unsigned globals[5][2] = {{0, 0}, {1, 1}, {1, 1}, {0, 1}, {0, 1}};
+    static const unsigned locals[5][2] = {{0, 0}, {0, 1}, {1, 1}, {0, 1}, {0, 0}};
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_uint_eq(rollback.globalDestroyed[i], globals[_i][i]);
+        ck_assert_uint_eq(rollback.typeDestroyed[i], locals[_i][i]);
+    }
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NODEID_NUMERIC(1, 50810), &nodeClass),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NODEID_STRING(1, "rollback-child"), &nodeClass),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NODEID_NUMERIC(1, 50802), &nodeClass),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeClass, UA_NODECLASS_VARIABLE);
+
+    /* Retry the same identifiers after removing the failure. The declaration
+     * and mandatory reference must still produce an intact child. */
+    memset(&rollback, 0, sizeof(rollback));
+    rollback.mode = 5;
+    ck_assert_uint_eq(addRollbackObject(), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rollback.generated, 1);
+    UA_QualifiedName path = UA_QUALIFIEDNAME(1, "Value");
+    UA_BrowsePathResult child = UA_Server_browseSimplifiedBrowsePath(
+        server, UA_NODEID_NUMERIC(1, 50810), 1, &path);
+    ck_assert_uint_eq(child.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(child.targetsSize, 1);
+    UA_NodeId expectedChild = UA_NODEID_STRING(1, "rollback-child");
+    ck_assert(UA_NodeId_equal(&child.targets[0].targetId.nodeId, &expectedChild));
+    UA_BrowsePathResult_clear(&child);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(server, expectedChild, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_INT32]));
+    ck_assert_int_eq(*(UA_Int32 *)value.data, 42);
+    UA_Variant_clear(&value);
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_uint_eq(rollback.globalConstructed[i], 1);
+        ck_assert_uint_eq(rollback.typeConstructed[i], 1);
+        ck_assert_uint_eq(rollback.globalDestroyed[i], 0);
+        ck_assert_uint_eq(rollback.typeDestroyed[i], 0);
+    }
+    ck_assert_uint_eq(UA_Server_deleteNode(server, UA_NODEID_NUMERIC(1, 50810), true), UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_uint_eq(rollback.globalDestroyed[i], 1);
+        ck_assert_uint_eq(rollback.typeDestroyed[i], 1);
+    }
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, expectedChild, &nodeClass), UA_STATUSCODE_BADNODEIDUNKNOWN);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("services_nodemanagement");
 
@@ -2221,6 +2423,11 @@ int main(void) {
     tcase_add_test(tc_ext, Context_GetNodeContext_UnknownNodeId);
     tcase_add_test(tc_ext, FindChildByBrowsename_NotFound);
     suite_add_tcase(s, tc_ext);
+
+    TCase *tc_rollback = tcase_create("Node construction rollback");
+    tcase_add_checked_fixture(tc_rollback, setupConstructionRollback, teardown);
+    tcase_add_loop_test(tc_rollback, NodeConstructionFailureCleansUpAndAllowsRetry, 0, 5);
+    suite_add_tcase(s, tc_rollback);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

@@ -435,6 +435,7 @@ endif()
 ua_add_test(server/check_nodestore.c)
 
 if(UA_ENABLE_HISTORIZING)
+    ua_add_test(server/check_services_history.c)
     ua_add_test(server/check_server_historical_data.c)
     ua_add_test(server/check_server_historical_data_circular.c)
 endif()
