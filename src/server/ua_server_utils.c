@@ -835,6 +835,37 @@ notifyApplication(UA_Server *server, UA_ApplicationNotificationType type,
 /* Certificate Validation */
 /**************************/
 
+#ifdef UA_ENABLE_AUDITING
+/* Map the status code of the certificate validation to the audit event type. */
+static UA_ApplicationNotificationType
+certificateAuditType(UA_StatusCode res) {
+    switch(res) {
+    case UA_STATUSCODE_BADCERTIFICATEINVALID:
+    case UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE:
+    case UA_STATUSCODE_BADCERTIFICATEPOLICYCHECKFAILED:
+        return UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_INVALID;
+    case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
+        return UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_UNTRUSTED;
+    case UA_STATUSCODE_BADCERTIFICATETIMEINVALID:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID:
+        return UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_EXPIRED;
+    case UA_STATUSCODE_BADCERTIFICATEHOSTNAMEINVALID:
+    case UA_STATUSCODE_BADCERTIFICATEURIINVALID:
+        return UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_DATAMISMATCH;
+    case UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED:
+        return UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_MISMATCH;
+    case UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN:
+    case UA_STATUSCODE_BADCERTIFICATEREVOKED:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED:
+        return UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_REVOKED;
+    default:
+        return UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE;
+    }
+}
+#endif
+
 UA_StatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     const UA_SecurityPolicy *securityPolicy,
@@ -944,8 +975,7 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
  errout:
 #ifdef UA_ENABLE_AUDITING
     /* Create the audit event */
-    auditCertificateEvent(server,
-                          UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE,
+    auditCertificateEvent(server, certificateAuditType(res),
                           channel, session, logPrefix, res, certificate, UA_STRING(""));
 #endif
 
