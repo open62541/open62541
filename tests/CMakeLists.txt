@@ -395,6 +395,7 @@ ua_add_test(server/check_services_nodemanagement.c)
 ua_add_test(server/check_discovery_coverage.c)
 ua_add_test(server/check_server_callbacks.c)
 ua_add_test(server/check_server_http_protocol.c)
+ua_add_test(server/check_server_websocket_protocol.c)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     ua_add_test(server/check_server_password.c EXTRALIBS -lcrypt)
