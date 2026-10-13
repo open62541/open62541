@@ -693,6 +693,9 @@ endif()
 # The AEAD ECC policies (AesGcm / ChaChaPoly) are implemented only in the
 # OpenSSL backend, so their tests are OpenSSL-only.
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    ua_add_test(encryption/check_openssl_aead.c)
+    target_include_directories(check_openssl_aead PRIVATE
+                               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
     ua_add_test(encryption/check_encryption_eccnistp256_aesgcm.c)
     ua_add_test(encryption/check_encryption_eccnistp256_chachapoly.c)
 endif()

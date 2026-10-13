@@ -1070,6 +1070,200 @@ START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
     EVP_PKEY_free(remoteKp);
 } END_TEST
 
+static int xdhKeyTypes[] = {EVP_PKEY_X25519, EVP_PKEY_X448};
+static const size_t xdhKeyLengths[] = {32, 56};
+
+static UA_StatusCode
+generateXdhKey(size_t curve, EVP_PKEY **key, UA_ByteString *publicKey) {
+    if(curve == 0)
+        return UA_OpenSSL_X25519_GenerateKey(key, publicKey);
+    return UA_OpenSSL_X448_GenerateKey(key, publicKey);
+}
+
+static EVP_PKEY *
+makeXdhKey(size_t curve, UA_ByteString *publicKey) {
+    EVP_PKEY *key = NULL;
+    ck_assert_uint_eq(generateXdhKey(curve, &key, publicKey), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(key, NULL);
+    ck_assert_uint_eq(publicKey->length, xdhKeyLengths[curve]);
+    UA_Byte exported[56];
+    size_t length = sizeof(exported);
+    ck_assert_int_eq(EVP_PKEY_get_raw_public_key(key, exported, &length), 1);
+    ck_assert_uint_eq(length, publicKey->length);
+    ck_assert_mem_eq(exported, publicKey->data, length);
+    return key;
+}
+
+START_TEST(SecureChannel_XDH_clientServerAgreement) {
+    size_t curve = (size_t)_i;
+    UA_Byte clientBytes[56], serverBytes[56];
+    UA_ByteString clientPublic = {sizeof(clientBytes), clientBytes};
+    UA_ByteString serverPublic = {sizeof(serverBytes), serverBytes};
+    EVP_PKEY *clientKey = makeXdhKey(curve, &clientPublic);
+    EVP_PKEY *serverKey = makeXdhKey(curve, &serverPublic);
+    UA_Byte keyBytes[6][64] = {{0}};
+    UA_ByteString keys[6];
+    for(size_t i = 0; i < 6; i++) {
+        keys[i].length = sizeof(keyBytes[i]);
+        keys[i].data = keyBytes[i];
+    }
+
+    /* A sender's local keys must match the receiver's remote keys. */
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
+        UA_APPLICATIONTYPE_SERVER, serverKey, &clientPublic, &serverPublic, &keys[0]),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, clientKey, &clientPublic, &serverPublic, &keys[1]),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&keys[0], &keys[1]));
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, clientKey, &serverPublic, &clientPublic, &keys[2]),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
+        UA_APPLICATIONTYPE_SERVER, serverKey, &serverPublic, &clientPublic, &keys[3]),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&keys[2], &keys[3]));
+    ck_assert(!UA_ByteString_equal(&keys[0], &keys[2]));
+
+    /* The existing helper uses this output prefix to request session keys. */
+    for(size_t i = 4; i < 6; i++) {
+        keyBytes[i][0] = 3;
+        keyBytes[i][1] = 3;
+        keyBytes[i][2] = 4;
+    }
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, clientKey, &serverPublic, &clientPublic, &keys[4]),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
+        UA_APPLICATIONTYPE_SERVER, serverKey, &serverPublic, &clientPublic, &keys[5]),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&keys[4], &keys[5]));
+    ck_assert(!UA_ByteString_equal(&keys[4], &keys[0]));
+    ck_assert(!UA_ByteString_equal(&keys[4], &keys[2]));
+    EVP_PKEY_free(clientKey);
+    EVP_PKEY_free(serverKey);
+} END_TEST
+
+START_TEST(SecureChannel_XDH_chainedRenewals) {
+    size_t curve = (size_t)_i;
+    size_t keyLength = xdhKeyLengths[curve];
+    UA_Byte previous[56];
+    memset(previous, 0xa5, sizeof(previous));
+    for(size_t renewal = 0; renewal < 2; renewal++) {
+        UA_Byte clientBytes[56], serverBytes[56];
+        UA_ByteString clientPublic = {sizeof(clientBytes), clientBytes};
+        UA_ByteString serverPublic = {sizeof(serverBytes), serverBytes};
+        EVP_PKEY *clientKey = makeXdhKey(curve, &clientPublic);
+        EVP_PKEY *serverKey = makeXdhKey(curve, &serverPublic);
+
+        /* Obtain the raw shared secret independently of the UA derivation helper. */
+        EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(clientKey, NULL);
+        ck_assert_ptr_ne(ctx, NULL);
+        ck_assert_int_eq(EVP_PKEY_derive_init(ctx), 1);
+        ck_assert_int_eq(EVP_PKEY_derive_set_peer(ctx, serverKey), 1);
+        UA_Byte shared[56];
+        size_t sharedLength = sizeof(shared);
+        ck_assert_int_eq(EVP_PKEY_derive(ctx, shared, &sharedLength), 1);
+        ck_assert_uint_eq(sharedLength, keyLength);
+        EVP_PKEY_CTX_free(ctx);
+
+        UA_Byte serverSlot[112], clientSlot[112];
+        memcpy(serverSlot, previous, keyLength);
+        memcpy(serverSlot + keyLength, clientPublic.data, keyLength);
+        memcpy(clientSlot, serverSlot, 2 * keyLength);
+        UA_ByteString serverSecret = {2 * keyLength, serverSlot};
+        UA_ByteString clientSecret = {2 * keyLength, clientSlot};
+        UA_Byte serverOutput[64] = {0}, clientOutput[64] = {0};
+        UA_ByteString serverKeys = {sizeof(serverOutput), serverOutput};
+        UA_ByteString clientKeys = {sizeof(clientOutput), clientOutput};
+        ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
+            UA_APPLICATIONTYPE_SERVER, serverKey, &serverSecret, &serverPublic, &serverKeys),
+            UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
+            UA_APPLICATIONTYPE_CLIENT, clientKey, &clientSecret, &serverPublic, &clientKeys),
+            UA_STATUSCODE_GOOD);
+        ck_assert(UA_ByteString_equal(&serverKeys, &clientKeys));
+        ck_assert(UA_ByteString_equal(&serverSecret, &clientSecret));
+        ck_assert_mem_eq(serverSlot + keyLength, clientPublic.data, keyLength);
+        /* Part 6 section 6.8.1: IKM_n = IKM_(n-1) XOR sharedSecret_n. */
+        for(size_t i = 0; i < keyLength; i++)
+            ck_assert_uint_eq(serverSlot[i], (UA_Byte)(previous[i] ^ shared[i]));
+        memcpy(previous, serverSlot, keyLength);
+        EVP_PKEY_free(clientKey);
+        EVP_PKEY_free(serverKey);
+    }
+} END_TEST
+
+START_TEST(SecureChannel_XDH_rejectsInvalidInputs) {
+    size_t curve = (size_t)_i / 5;
+    size_t scenario = (size_t)_i % 5;
+    UA_Byte localBytes[56], remoteBytes[56], prefixedBytes[57];
+    UA_ByteString local = {sizeof(localBytes), localBytes};
+    UA_ByteString remote = {sizeof(remoteBytes), remoteBytes};
+    EVP_PKEY *localKey = makeXdhKey(curve, &local);
+    EVP_PKEY *remoteKey = makeXdhKey(curve, &remote);
+    const char *hash = "SHA256";
+    if(scenario == 0) {
+        local = remote; /* Neither input identifies the local key. */
+    } else if(scenario == 1) {
+        remote.length--;
+    } else if(scenario == 2) {
+        memset(remote.data, 0, remote.length); /* Invalid all-zero shared secret. */
+    } else if(scenario == 3) {
+        prefixedBytes[0] = 0xa5;
+        memcpy(prefixedBytes + 1, local.data, local.length);
+        local.data = prefixedBytes;
+        local.length++; /* Accumulator length must equal the shared-secret length. */
+    } else {
+        hash = "not-a-digest";
+    }
+    UA_Byte output[64], original[64];
+    memset(output, 0xa5, sizeof(output));
+    memcpy(original, output, sizeof(output));
+    UA_ByteString out = {sizeof(output), output};
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], hash,
+        UA_APPLICATIONTYPE_CLIENT, localKey, &local, &remote, &out),
+        UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(out.length, sizeof(output));
+    ck_assert_ptr_eq(out.data, output);
+    ck_assert_mem_eq(output, original, sizeof(output));
+    if(scenario == 3) {
+        ck_assert_uint_eq(prefixedBytes[0], 0xa5);
+        ck_assert_mem_eq(prefixedBytes + 1, localBytes, xdhKeyLengths[curve]);
+    }
+    EVP_PKEY_free(localKey);
+    EVP_PKEY_free(remoteKey);
+} END_TEST
+
+START_TEST(SecureChannel_XDH_rejectsNonRawLocalKey) {
+    EVP_PKEY *key = EVP_PKEY_new();
+    ck_assert_ptr_ne(key, NULL);
+    UA_Byte keyBytes[56] = {0}, output[64] = {0};
+    UA_ByteString publicKey = {xdhKeyLengths[_i], keyBytes};
+    UA_ByteString out = {sizeof(output), output};
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[_i], "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, key, &publicKey, &publicKey, &out),
+        UA_STATUSCODE_BADINTERNALERROR);
+    for(size_t i = 0; i < sizeof(output); i++)
+        ck_assert_uint_eq(output[i], 0);
+    EVP_PKEY_free(key);
+} END_TEST
+
+START_TEST(SecureChannel_XDH_rejectsShortPublicBuffer) {
+    UA_Byte buffer[56];
+    memset(buffer, 0xa5, sizeof(buffer));
+    size_t length = xdhKeyLengths[_i] - 1;
+    UA_ByteString publicKey = {length, buffer};
+    EVP_PKEY *key = NULL;
+    ck_assert_uint_eq(generateXdhKey((size_t)_i, &key, &publicKey),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(publicKey.length, length);
+    ck_assert_ptr_eq(publicKey.data, buffer);
+    for(size_t i = 0; i < sizeof(buffer); i++)
+        ck_assert_uint_eq(buffer[i], 0xa5);
+    EVP_PKEY_free(key);
+} END_TEST
+
 #endif /* UA_ENABLE_ENCRYPTION_OPENSSL && !LIBRESSL_VERSION_NUMBER */
 
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
@@ -1223,6 +1417,14 @@ testSuite_SecureChannel(void) {
     TCase *tc_ikmChaining = tcase_create("v1.05.07 IKM chaining on renewal");
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_prependChainsOnRenewal);
     suite_add_tcase(s, tc_ikmChaining);
+
+    TCase *tc_xdh = tcase_create("XDH key derivation");
+    tcase_add_loop_test(tc_xdh, SecureChannel_XDH_clientServerAgreement, 0, 2);
+    tcase_add_loop_test(tc_xdh, SecureChannel_XDH_chainedRenewals, 0, 2);
+    tcase_add_loop_test(tc_xdh, SecureChannel_XDH_rejectsInvalidInputs, 0, 10);
+    tcase_add_loop_test(tc_xdh, SecureChannel_XDH_rejectsNonRawLocalKey, 0, 2);
+    tcase_add_loop_test(tc_xdh, SecureChannel_XDH_rejectsShortPublicBuffer, 0, 2);
+    suite_add_tcase(s, tc_xdh);
 #endif
 
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
