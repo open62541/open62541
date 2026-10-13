@@ -298,45 +298,28 @@ testStoppedCondition(UA_Server *server) {
     return true;
 }
 
-/* Drain a shutdown already initiated by stopDrivers. The caller holds the
+/* Check completion without iterating the EventLoop. The caller holds the
  * server lock. */
-static UA_StatusCode
+static void
 finishShutdown(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    if(!testStoppedCondition(server))
+        return;
+
     /* Only stop the EventLoop if it is coupled to the server lifecycle. */
-    if(server->config.externalEventLoop) {
-        if(testStoppedCondition(server))
-            setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
-        return UA_STATUSCODE_GOOD;
+    if(!server->config.externalEventLoop) {
+        UA_EventLoop *el = server->config.eventLoop;
+        if(el->state == UA_EVENTLOOPSTATE_STARTED)
+            el->stop(el);
+        if(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+           el->state != UA_EVENTLOOPSTATE_FRESH)
+            return;
     }
-
-    /* Iterate the EventLoop until all drivers have stopped. */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_EventLoop *el = server->config.eventLoop;
-    while(!testStoppedCondition(server) && res == UA_STATUSCODE_GOOD) {
-        unlockServer(server);
-        res = el->run(el, 100);
-        lockServer(server);
-    }
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* Stop the EventLoop. Iterate until stopped. */
-    if(el->state == UA_EVENTLOOPSTATE_STARTED)
-        el->stop(el);
-    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
-          el->state != UA_EVENTLOOPSTATE_FRESH && res == UA_STATUSCODE_GOOD) {
-        unlockServer(server);
-        res = el->run(el, 100);
-        lockServer(server);
-    }
-    if(res == UA_STATUSCODE_GOOD)
-        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
-    return res;
+    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
 }
 
-/* Stop the server components and drain the shutdown. Also undoes a failed
- * startup. */
-static UA_StatusCode
+/* Initiate shutdown, including after a failed startup. */
+static void
 stopServer(UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -355,8 +338,6 @@ stopServer(UA_Server *server) {
     }
 
     stopDrivers(server);
-
-    return finishShutdown(server);
 }
 
 /********************/
@@ -1270,8 +1251,8 @@ UA_Server_run_startup(UA_Server *server) {
         goto undo;
     }
 
-    /* Set the server to STARTED. From here on, only use
-     * UA_Server_run_shutdown(server) to stop the server. */
+    /* Set the server to STARTED. From here on, use the shutdown APIs to stop
+     * the server. */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STARTED);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -1285,7 +1266,11 @@ UA_Server_run_startup(UA_Server *server) {
     return UA_STATUSCODE_GOOD;
 
  undo:
-    if(stopServer(server) != UA_STATUSCODE_GOOD)
+    stopServer(server);
+    unlockServer(server);
+    UA_StatusCode shutdownRes = UA_Server_run_shutdown(server);
+    lockServer(server);
+    if(shutdownRes != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                      "Could not stop the server after the failed startup");
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -1326,23 +1311,39 @@ testShutdownCondition(UA_Server *server) {
     return (el->dateTime_now(el) > server->endTime);
 }
 
-UA_StatusCode
-UA_Server_run_shutdown(UA_Server *server) {
-    if(server == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+UA_LifecycleState
+UA_Server_run_shutdown_async(UA_Server *server) {
+    if(!server)
+        return UA_LIFECYCLESTATE_STOPPED;
 
     lockServer(server);
-
-    if(server->state != UA_LIFECYCLESTATE_STARTED) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "The server is not started, cannot be shut down");
-        unlockServer(server);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode res = stopServer(server);
+    if(server->state == UA_LIFECYCLESTATE_STARTED)
+        stopServer(server);
+    if(server->state == UA_LIFECYCLESTATE_STOPPING)
+        finishShutdown(server);
+    UA_LifecycleState state = server->state;
     unlockServer(server);
-    return res;
+    return state;
+}
+
+UA_StatusCode
+UA_Server_run_shutdown(UA_Server *server) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_Server_run_shutdown_async(server);
+    UA_EventLoop *el = server->config.eventLoop;
+    while(UA_Server_getLifecycleState(server) != UA_LIFECYCLESTATE_STOPPED) {
+        UA_StatusCode res = el->run(el, 100);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+
+        lockServer(server);
+        if(server->state == UA_LIFECYCLESTATE_STOPPING)
+            finishShutdown(server);
+        unlockServer(server);
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
