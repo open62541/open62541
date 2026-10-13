@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Blocking and asynchronous server shutdown
+
+`UA_Server_run_shutdown` now waits for shutdown to complete even with an external
+EventLoop, which is left running for its other users. Use the new
+`UA_Server_run_shutdown_async` to initiate and advance nonblocking shutdown:
+drive the EventLoop and repeat the call while the server is STOPPING. Both
+functions are idempotent; `UA_Server_run_iterate` alone no longer completes shutdown.
+
 ### The server startup fails without a server socket
 
 `UA_Server_run_startup` (and so `UA_Server_run` and
