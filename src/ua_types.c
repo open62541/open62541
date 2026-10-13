@@ -128,6 +128,9 @@ UA_StatusCode
 UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(t2, t1, sizeof(UA_DataType));
+    t2->typeId = UA_NODEID_NULL;
+    t2->binaryEncodingId = UA_NODEID_NULL;
+    t2->xmlEncodingId = UA_NODEID_NULL;
     t2->members = NULL;
     t2->membersSize = 0;
 
@@ -143,6 +146,16 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
     *(void**)(uintptr_t)&t2->typeName = t2Name;
 #endif
 
+    /* Copy the node IDs */
+    res = UA_NodeId_copy(&t1->typeId, &t2->typeId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+    res = UA_NodeId_copy(&t1->binaryEncodingId, &t2->binaryEncodingId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+    res = UA_NodeId_copy(&t1->xmlEncodingId, &t2->xmlEncodingId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
     /* Copy the members */
     if(t1->membersSize > 0) {
