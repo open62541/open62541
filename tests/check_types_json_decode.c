@@ -29,6 +29,58 @@ appendRepeated(UA_ByteString *dst, const UA_String fragment, size_t count) {
         ck_assert_uint_eq(UA_String_append(dst, fragment), UA_STATUSCODE_GOOD);
 }
 
+static const struct {
+    const char *json;
+    size_t typeIndex;
+} invalidIntegerJson[] = {
+    {"-129", UA_TYPES_SBYTE},
+    {"128", UA_TYPES_SBYTE},
+    {"-1", UA_TYPES_BYTE},
+    {"256", UA_TYPES_BYTE},
+    {"-32769", UA_TYPES_INT16},
+    {"32768", UA_TYPES_INT16},
+    {"-1", UA_TYPES_UINT16},
+    {"65536", UA_TYPES_UINT16},
+    {"-2147483649", UA_TYPES_INT32},
+    {"2147483648", UA_TYPES_INT32},
+    {"-1", UA_TYPES_UINT32},
+    {"4294967296", UA_TYPES_UINT32},
+    {"true", UA_TYPES_SBYTE},
+    {"true", UA_TYPES_BYTE},
+    {"true", UA_TYPES_INT16},
+    {"true", UA_TYPES_UINT16},
+    {"true", UA_TYPES_INT32},
+    {"true", UA_TYPES_UINT32},
+    {"\"12x\"", UA_TYPES_INT64},
+    {"\"12x\"", UA_TYPES_UINT64},
+    {"\"12.5\"", UA_TYPES_INT64},
+    {"\"12.5\"", UA_TYPES_UINT64}
+};
+
+START_TEST(json_decode_integer_rejects_invalid_input) {
+    const UA_DataType *type = &UA_TYPES[invalidIntegerJson[_i].typeIndex];
+    void *dst = UA_new(type);
+    ck_assert_ptr_nonnull(dst);
+    memset(dst, 0xA5, type->memSize);
+    UA_StatusCode res = decode(invalidIntegerJson[_i].json, dst, type);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    const UA_Byte zero[sizeof(UA_UInt64)] = {0};
+    ck_assert_uint_le(type->memSize, sizeof(zero));
+    ck_assert(memcmp(dst, zero, type->memSize) == 0);
+    UA_delete(dst, type);
+} END_TEST
+
+START_TEST(json_decode_integer_string_trailing_whitespace) {
+    UA_Int64 signedValue = 0;
+    UA_StatusCode res = decode("\"-12 \"", &signedValue, &UA_TYPES[UA_TYPES_INT64]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(signedValue, -12);
+    UA_UInt64 unsignedValue = 0;
+    res = decode("\"12 \"", &unsignedValue, &UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(unsignedValue, 12);
+} END_TEST
+
 START_TEST(json_decode_enum_compact_and_verbose) {
     UA_Int32 value = UA_APPLICATIONTYPE_SERVER;
 
@@ -1306,6 +1358,9 @@ int main(void) {
     Suite *s = suite_create("JSON Decode Ext");
 
     TCase *tc_modes = tcase_create("CompactAndVerbose");
+    tcase_add_loop_test(tc_modes, json_decode_integer_rejects_invalid_input, 0,
+                        (int)(sizeof(invalidIntegerJson) / sizeof(invalidIntegerJson[0])));
+    tcase_add_test(tc_modes, json_decode_integer_string_trailing_whitespace);
     tcase_add_test(tc_modes, json_decode_enum_compact_and_verbose);
     tcase_add_test(tc_modes, json_decode_enum_rejects_invalid_verbose_values);
     tcase_add_test(tc_modes, json_decode_mixed_compact_and_verbose);

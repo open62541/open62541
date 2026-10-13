@@ -865,6 +865,40 @@ START_TEST(json_optional_structure_compact_decode) {
     UA_clear(&decoded, &jsonCustomTypes[0]);
 } END_TEST
 
+START_TEST(json_optional_structure_explicit_null) {
+    const char *jsonCases[] = {
+        "{\"Required\":7,\"Optional\":null,\"OptionalValues\":null}",
+        "{\"EncodingMask\":3,\"Required\":7,\"Optional\":null,\"OptionalValues\":null}"
+    };
+    UA_ByteString encoded = UA_BYTESTRING((char*)(uintptr_t)jsonCases[_i]);
+    JsonOptionalStructure decoded;
+    UA_StatusCode res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[0], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(decoded.required, 7);
+    /* Explicit null retains field presence with a default scalar or an empty
+     * array. An absent field instead leaves a NULL pointer. */
+    ck_assert_ptr_nonnull(decoded.optional);
+    ck_assert_float_eq(*decoded.optional, 0.0f);
+    ck_assert_uint_eq(decoded.optionalValuesSize, 0);
+    ck_assert_ptr_eq(decoded.optionalValues, UA_EMPTY_ARRAY_SENTINEL);
+    UA_clear(&decoded, &jsonCustomTypes[0]);
+} END_TEST
+
+START_TEST(json_optional_structure_null_conflicts_with_mask) {
+    const char *jsonCases[] = {
+        "{\"EncodingMask\":0,\"Optional\":null}",
+        "{\"EncodingMask\":0,\"OptionalValues\":null}"
+    };
+    UA_ByteString encoded = UA_BYTESTRING((char*)(uintptr_t)jsonCases[_i]);
+    JsonOptionalStructure decoded;
+    UA_StatusCode res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[0], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_null(decoded.optional);
+    ck_assert_ptr_null(decoded.optionalValues);
+    ck_assert_uint_eq(decoded.optionalValuesSize, 0);
+    UA_clear(&decoded, &jsonCustomTypes[0]);
+} END_TEST
+
 START_TEST(json_optional_structure_compact_roundtrip) {
     UA_Float optional = 1.5f;
     UA_Int32 optionalValues[2] = {3, 4};
@@ -1586,6 +1620,8 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_complex, json_encode_variant_rejects_invalid_matrix);
     tcase_add_test(tc_complex, json_optional_structure_roundtrip);
     tcase_add_test(tc_complex, json_optional_structure_compact_decode);
+    tcase_add_loop_test(tc_complex, json_optional_structure_explicit_null, 0, 2);
+    tcase_add_loop_test(tc_complex, json_optional_structure_null_conflicts_with_mask, 0, 2);
     tcase_add_test(tc_complex, json_optional_structure_compact_roundtrip);
     tcase_add_test(tc_complex, json_optional_structure_rejects_bad_mask);
     tcase_add_test(tc_complex, json_union_roundtrip);
