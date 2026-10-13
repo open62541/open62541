@@ -103,6 +103,114 @@ START_TEST(LoadFromFile_HttpListenAddress) {
 } END_TEST
 #endif
 
+static const struct {
+    const char *json;
+    UA_StatusCode status;
+} invalidConfigurations[] = {
+    {"", UA_STATUSCODE_BADDECODINGERROR},
+    {"{}", UA_STATUSCODE_BADDECODINGERROR},
+    {"[]", UA_STATUSCODE_BADDECODINGERROR},
+    {"null", UA_STATUSCODE_BADDECODINGERROR},
+    {"{tcpEnabled:", UA_STATUSCODE_BADDECODINGERROR},
+    {"{shutdownDelay:true}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{maxSecureChannels:65536}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{maxNodesPerRead:-1}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{maxAsyncOperationQueueSize:'18446744073709551616'}",
+     UA_STATUSCODE_BADDECODINGERROR},
+    {"{verifyRequestTimestamp:-1}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{tcpEnabled:1}", UA_STATUSCODE_BADTYPEMISMATCH},
+    {"{serverUrls:['opc.tcp://example.invalid:4840',7]}",
+     UA_STATUSCODE_BADDECODINGERROR},
+    {"{buildInfo:{buildDate:'not-a-date'}}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{applicationDescription:{applicationType:'Unknown'}}", UA_STATUSCODE_BAD},
+    {"{applicationDescription:{applicationType:-1}}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{applicationDescription:{applicationName:{locale:7}}}",
+     UA_STATUSCODE_BADDECODINGERROR},
+    {"{tcp:{tcpBufSize:-1}}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{http:{timeout:65536}}", UA_STATUSCODE_BADDECODINGERROR},
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    {"{subscriptions:{publishingIntervalLimits:{min:false}}}",
+     UA_STATUSCODE_BADDECODINGERROR},
+    {"{subscriptions:{lifeTimeCountLimits:{max:-1}}}",
+     UA_STATUSCODE_BADDECODINGERROR},
+    {"{subscriptions:{enableRetransmissionQueue:1}}", UA_STATUSCODE_BADTYPEMISMATCH},
+#endif
+#ifdef UA_ENABLE_PUBSUB
+    {"{pubsub:{enableDeltaFrames:1}}", UA_STATUSCODE_BADTYPEMISMATCH},
+#endif
+#ifdef UA_ENABLE_HISTORIZING
+    {"{historizing:{accessHistoryDataCapability:1}}", UA_STATUSCODE_BADTYPEMISMATCH},
+#endif
+};
+
+START_TEST(LoadFromFile_InvalidConfigurationClearsResources) {
+    UA_ByteString json = UA_STRING((char*)(uintptr_t)invalidConfigurations[_i].json);
+    UA_ServerConfig config;
+    UA_StatusCode res = UA_ServerConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, invalidConfigurations[_i].status);
+
+    /* The loader owns cleanup on failure, including partially parsed fields. */
+    ck_assert_ptr_null(config.eventLoop);
+    ck_assert_ptr_null(config.logging);
+    ck_assert_ptr_null(config.serverUrls);
+    ck_assert_uint_eq(config.serverUrlsSize, 0);
+    ck_assert_ptr_null(config.buildInfo.productUri.data);
+    ck_assert_ptr_null(config.applicationDescription.applicationName.locale.data);
+    ck_assert_ptr_null(config.securityPolicies);
+    ck_assert_uint_eq(config.securityPoliciesSize, 0);
+} END_TEST
+
+START_TEST(NewFromFile_InvalidConfiguration) {
+    UA_ByteString json = UA_STRING("{tcpEnabled:1}");
+    ck_assert_ptr_null(UA_Server_newFromFile(json));
+} END_TEST
+
+START_TEST(LoadFromFile_ApplicationTypeNamesAndNumbers) {
+    static const struct {
+        const char *json;
+        UA_ApplicationType expected;
+    } cases[] = {
+        {"{applicationDescription:{applicationType:'Server'}}",
+         UA_APPLICATIONTYPE_SERVER},
+        {"{applicationDescription:{applicationType:'Client'}}",
+         UA_APPLICATIONTYPE_CLIENT},
+        {"{applicationDescription:{applicationType:'ClientAndServer'}}",
+         UA_APPLICATIONTYPE_CLIENTANDSERVER},
+        {"{applicationDescription:{applicationType:'DiscoveryServer'}}",
+         UA_APPLICATIONTYPE_DISCOVERYSERVER},
+        {"{applicationDescription:{applicationType:2}}",
+         UA_APPLICATIONTYPE_CLIENTANDSERVER},
+        {"{applicationDescription:{applicationType:3}}",
+         UA_APPLICATIONTYPE_DISCOVERYSERVER}
+    };
+    UA_ByteString json = UA_STRING((char*)(uintptr_t)cases[_i].json);
+    UA_ServerConfig config;
+    UA_StatusCode res = UA_ServerConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.applicationDescription.applicationType, cases[_i].expected);
+    UA_ServerConfig_clear(&config);
+} END_TEST
+
+START_TEST(LoadFromFile_HttpConfiguration) {
+    UA_ByteString json = UA_STRING(
+        "{httpEnabled:true,httpAllowUnencrypted:false,"
+        "http:{listenAddress:'127.0.0.1',maxMsgSize:4096,"
+        "maxDecompressedMsgSize:8192,timeout:30,privateKeyPassword:'test-password'}}");
+    UA_ServerConfig config;
+    UA_StatusCode res = UA_ServerConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(config.httpEnabled);
+    ck_assert(!config.httpAllowUnencrypted);
+    ck_assert_uint_eq(config.httpMaxMsgSize, 4096);
+    ck_assert_uint_eq(config.httpMaxDecompressedMsgSize, 8192);
+    ck_assert_uint_eq(config.httpTimeout, 30);
+    UA_String address = UA_STRING("127.0.0.1");
+    UA_String password = UA_STRING("test-password");
+    ck_assert(UA_String_equal(&config.httpListenAddress, &address));
+    ck_assert(UA_String_equal(&config.httpPrivateKeyPassword, &password));
+    UA_ServerConfig_clear(&config);
+} END_TEST
+
 static Suite *testSuite_ServerConfigJson(void) {
     Suite *s = suite_create("Server config from JSON5 file");
 
@@ -114,6 +222,14 @@ static Suite *testSuite_ServerConfigJson(void) {
     tcase_add_test(tc, LoadFromFile_HttpListenAddress);
 #endif
     suite_add_tcase(s, tc);
+
+    TCase *tc_validation = tcase_create("Configuration validation");
+    tcase_add_loop_test(tc_validation, LoadFromFile_InvalidConfigurationClearsResources,
+                       0, sizeof(invalidConfigurations) / sizeof(invalidConfigurations[0]));
+    tcase_add_test(tc_validation, NewFromFile_InvalidConfiguration);
+    tcase_add_loop_test(tc_validation, LoadFromFile_ApplicationTypeNamesAndNumbers, 0, 6);
+    tcase_add_test(tc_validation, LoadFromFile_HttpConfiguration);
+    suite_add_tcase(s, tc_validation);
 
     return s;
 }
