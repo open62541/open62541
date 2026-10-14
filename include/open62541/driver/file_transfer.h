@@ -69,6 +69,8 @@ typedef struct {
     /* NUL-terminated UTF-8 basename; empty for a directory root */
     char name[UA_FILETRANSFER_FILENAME_MAX + 1];
     UA_UInt64 size;             /* Size in bytes (files only) */
+    UA_Boolean sizeUnknown;     /* The Size Property then reports
+                                 * Bad_NotSupported (Part 20, 4.2.1) */
     UA_DateTime lastModified;   /* Last modification time */
     UA_Boolean isDirectory;
     UA_FileAccessRights accessRights; /* Storage-level permissions. Backend
