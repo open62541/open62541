@@ -79,12 +79,14 @@ typedef struct {
 } UA_FileTransferFileInfo;
 
 /* The caller of an open. The driver passes the Session of the Method call for
- * Open, CreateFile and the copies of MoveOrCopy. Direct calls of the
- * application pass NULL. */
+ * Open, CreateFile, the copies of MoveOrCopy and
+ * UA_FileTransferDriver_openHandle(). Direct calls of the application pass
+ * NULL. */
 typedef struct {
     UA_Server *server;
     const UA_NodeId *sessionId;
     void *sessionContext;
+    void *openContext; /* Of UA_FileTransferDriver_openHandle(), else NULL */
 } UA_FileTransferOpenContext;
 
 typedef struct UA_FileTransferFileBackend UA_FileTransferFileBackend;
@@ -329,6 +331,23 @@ UA_FileTransferDriver_closeHandle(UA_Driver *driver,
                                   const UA_NodeId fileNodeId,
                                   const UA_NodeId *sessionId,
                                   UA_UInt32 fileHandle);
+
+/* Subtype Methods that open the file with their own arguments, e.g.
+ * OpenWithMasks of a TrustList (Part 12), create the FileHandle with
+ * openHandle. openContext reaches the backend open, e.g. for the masks. The
+ * checks and results of the Open Method apply; a stopped driver returns
+ * Bad_InvalidState and a node that is not a file of the driver
+ * Bad_InvalidArgument. The handle belongs to the Session like one from Open:
+ * it counts in OpenCount and the handle limits and closes with the Session.
+ * Return fileHandle to the client, or close it with closeHandle if the Method
+ * fails afterwards. backendHandle is optional. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_openHandle(UA_Driver *driver,
+                                 const UA_NodeId fileNodeId,
+                                 const UA_NodeId *sessionId,
+                                 void *sessionContext, UA_Byte mode,
+                                 void *openContext, UA_UInt32 *fileHandle,
+                                 UA_UInt32 *backendHandle);
 
 /**
  * Local Backends

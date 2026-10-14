@@ -4118,6 +4118,7 @@ static struct {
     UA_Boolean hasContext;
     UA_NodeId sessionId;
     void *sessionContext;
+    void *openContext;
     UA_String path;
     UA_Byte mode;
     UA_StatusCode result;
@@ -4134,6 +4135,7 @@ recordingOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mode,
         ck_assert_uint_eq(UA_NodeId_copy(context->sessionId, &recordedOpen.sessionId),
                           UA_STATUSCODE_GOOD);
         recordedOpen.sessionContext = context->sessionContext;
+        recordedOpen.openContext = context->openContext;
     }
     UA_String_clear(&recordedOpen.path);
     ck_assert_uint_eq(UA_String_copy(&path, &recordedOpen.path), UA_STATUSCODE_GOOD);
@@ -5119,6 +5121,157 @@ START_TEST(subtypeMethodUsesFileHandle) {
     UA_NodeId_clear(&file);
 } END_TEST
 
+/* A subtype Method that opens the file with its own argument, like
+ * OpenWithMasks of a TrustList (Part 12) */
+static UA_Driver *openingDriver;
+static UA_UInt32 openingBackendHandle;
+static int openingContext;
+
+static UA_StatusCode
+openWithArgumentCallback(UA_Server *server, const UA_NodeId *sessionId,
+                         void *sessionContext, const UA_NodeId *methodId,
+                         void *methodContext, const UA_NodeId *objectId,
+                         void *objectContext, size_t inputSize,
+                         const UA_Variant *input, size_t outputSize,
+                         UA_Variant *output) {
+    if(inputSize != 1 || outputSize != 1 ||
+       !UA_Variant_hasScalarType(input, &UA_TYPES[UA_TYPES_BYTE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_UInt32 fileHandle = 0;
+    UA_StatusCode res = UA_FileTransferDriver_openHandle(
+        openingDriver, *objectId, sessionId, sessionContext,
+        *(UA_Byte*)input->data, &openingContext, &fileHandle, &openingBackendHandle);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = UA_Variant_setScalarCopy(output, &fileHandle, &UA_TYPES[UA_TYPES_UINT32]);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_FileTransferDriver_closeHandle(openingDriver, *objectId, sessionId,
+                                          fileHandle);
+    return res;
+}
+
+static UA_UInt32
+callOpenWithArgument(const UA_NodeId file, UA_Byte mode, UA_StatusCode expected) {
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &mode, &UA_TYPES[UA_TYPES_BYTE]);
+    UA_CallMethodResult result = callObjectMethod(file, "OpenWithArgument", 1, &input);
+    ck_assert_uint_eq(result.statusCode, expected);
+    UA_UInt32 handle = 0;
+    if(expected == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(result.outputArgumentsSize, 1);
+        handle = *(UA_UInt32*)result.outputArguments[0].data;
+    }
+    UA_CallMethodResult_clear(&result);
+    return handle;
+}
+
+START_TEST(openHandleFromSubtypeMethod) {
+    resetRecordedOpen();
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    backend.file.open = recordingOpen;
+    UA_NodeId file = addTestFileBackend(backend, "Opening", NULL);
+    openingDriver = driverForRoot(file);
+    UA_MethodAttributes attr = UA_MethodAttributes_default;
+    attr.executable = true;
+    attr.userExecutable = true;
+    UA_Argument inArg, outArg;
+    UA_Argument_init(&inArg);
+    inArg.name = UA_STRING("Mode");
+    inArg.dataType = UA_TYPES[UA_TYPES_BYTE].typeId;
+    inArg.valueRank = UA_VALUERANK_SCALAR;
+    UA_Argument_init(&outArg);
+    outArg.name = UA_STRING("FileHandle");
+    outArg.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    outArg.valueRank = UA_VALUERANK_SCALAR;
+    ck_assert_uint_eq(UA_Server_addMethodNode(server_ft, UA_NODEID_NULL, file,
+                          UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(0, "OpenWithArgument"),
+                          attr, openWithArgumentCallback, 1, &inArg, 1, &outArg,
+                          NULL, NULL), UA_STATUSCODE_GOOD);
+
+    /* The handle works with the standard Methods and counts as open */
+    UA_UInt32 h = callOpenWithArgument(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(h, 0);
+    ck_assert_uint_eq(recordedOpen.calls, 1);
+    ck_assert_ptr_eq(recordedOpen.openContext, &openingContext);
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    UA_UInt32 backendHandle = 0;
+    ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(openingDriver, file,
+                          &server_ft->adminSession.sessionId, h, NULL, &backendHandle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(backendHandle, openingBackendHandle);
+    UA_ByteString data = callRead(file, h, 100, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING("content");
+    ck_assert(UA_ByteString_equal(&data, &expected));
+    UA_ByteString_clear(&data);
+
+    /* The checks of Open apply */
+    callOpenWithArgument(file, UA_OPENFILEMODE_WRITE, UA_STATUSCODE_BADNOTWRITABLE);
+    callOpenWithArgument(file, UA_OPENFILEMODE_APPEND, UA_STATUSCODE_BADINVALIDARGUMENT);
+    recordedOpen.result = UA_STATUSCODE_BADNOTSUPPORTED;
+    callOpenWithArgument(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_BADNOTSUPPORTED);
+    recordedOpen.result = UA_STATUSCODE_GOOD;
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readOpenCount(file), 0);
+
+    /* The handle closes with its Session */
+    h = callOpenWithArgument(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    UA_KeyValueMap payload = UA_KEYVALUEMAP_NULL;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&payload, UA_QUALIFIEDNAME(0, "session-id"),
+                          &server_ft->adminSession.sessionId, &UA_TYPES[UA_TYPES_NODEID]),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server_ft);
+    notifyApplication(server_ft, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED, payload);
+    unlockServer(server_ft);
+    UA_KeyValueMap_clear(&payload);
+    ck_assert_uint_eq(readOpenCount(file), 0);
+    callClose(file, h, UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_NodeId_clear(&file);
+    resetRecordedOpen();
+} END_TEST
+
+START_TEST(openHandleChecks) {
+    UA_NodeId file = addTestFile("Opening", "content", NULL);
+    UA_Driver *driver = driverForRoot(file);
+    const UA_NodeId *session = &server_ft->adminSession.sessionId;
+    UA_UInt32 h = 0;
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(NULL, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, file, NULL, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, NULL, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, UA_NS0ID(OBJECTSFOLDER),
+                          session, NULL, UA_OPENFILEMODE_READ, NULL, &h, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_Driver unrelated;
+    memset(&unrelated, 0, sizeof(unrelated));
+    unrelated.server = server_ft;
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(&unrelated, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Without the Method callback; the backend handle is optional */
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    ck_assert_uint_eq(UA_FileTransferDriver_closeHandle(driver, file, session, h),
+                      UA_STATUSCODE_GOOD);
+
+    /* A stopped driver has no handles */
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+
+    /* Directories have no content */
+    UA_NodeId fsId = mountTree(NULL);
+    UA_NodeId docs = resolveChild(server_ft, fsId, "docs");
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driverForRoot(fsId), docs, session,
+                          NULL, UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADNOTFOUND);
+    UA_NodeId_clear(&docs);
+} END_TEST
+
 START_TEST(constructorFailureLeavesBackendAndOutputs) {
     backendClearCount = 0;
     UA_FileTransferBackend backend = memBackendWithFile("f.bin", "data");
@@ -6079,13 +6232,13 @@ START_TEST(indexedDirectoryAndSessionCleanup) {
         for(size_t i = 0; i < 8; i++) {
             FTHandle *opened = NULL;
             ck_assert_uint_eq(openFileHandle(server_ft, file, &sessions[s], NULL,
-                UA_OPENFILEMODE_READ, &opened), UA_STATUSCODE_GOOD);
+                UA_OPENFILEMODE_READ, NULL, &opened), UA_STATUSCODE_GOOD);
             handles[s][i] = opened->handle;
             ck_assert_ptr_null(findFTHandle(ftd, &sessions[1 - s], handles[s][i]));
         }
         FTHandle *rejected = NULL;
         ck_assert_uint_eq(openFileHandle(server_ft, file, &sessions[s], NULL,
-            UA_OPENFILEMODE_READ, &rejected), UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+            UA_OPENFILEMODE_READ, NULL, &rejected), UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
         ck_assert_ptr_null(rejected);
     }
     unlockServer(server_ft);
@@ -6209,6 +6362,8 @@ int main(void) {
     tcase_add_test(tc_file, readAtEndReturnsEmptyByteString);
     tcase_add_test(tc_file, fileBadHandles);
     tcase_add_test(tc_file, subtypeMethodUsesFileHandle);
+    tcase_add_test(tc_file, openHandleFromSubtypeMethod);
+    tcase_add_test(tc_file, openHandleChecks);
     tcase_add_test(tc_file, fileReadOnlyMount);
     tcase_add_test(tc_file, fileHandleLimits);
     tcase_add_test(tc_file, removeFileClosesHandles);

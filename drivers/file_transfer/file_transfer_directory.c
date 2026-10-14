@@ -691,7 +691,7 @@ createFileMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     FTHandle *h = NULL;
     if(requestFileOpen) {
         res = openFileHandle(server, newNode, sessionId, sessionContext,
-                             UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE, &h);
+                             UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE, NULL, &h);
         if(res != UA_STATUSCODE_GOOD) {
             ftd->backend.remove(&ftd->backend, newNode->path);
             removeSubtree(server, newNode);
