@@ -112,8 +112,9 @@ gdsTrustListOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mo
         return UA_STATUSCODE_BADNOTFOUND;
     if(ctx->drv.state != UA_LIFECYCLESTATE_STARTED)
         return UA_STATUSCODE_BADINVALIDSTATE;
+    /* A TrustList is read or replaced completely (Part 12, 7.8.2.2) */
     if(mode != UA_OPENFILEMODE_READ && mode != GDS_TRUSTLIST_WRITEMODE)
-        return UA_STATUSCODE_BADINVALIDSTATE;
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* Only an Open for writing from the Session of the transaction continues
      * it (Part 12, 7.8.2.2), unless ApplyChanges is already queued */
