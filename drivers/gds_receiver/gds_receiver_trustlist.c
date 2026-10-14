@@ -171,8 +171,6 @@ gdsTrustListOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mo
         /* Writing starts a transaction. A failed open closes the handle again,
          * which ends the transaction without changes. */
         res = UA_GDSTransaction_init(transaction, ctx->drv.server, *sessionId);
-        if(res == UA_STATUSCODE_GOOD)
-            res = UA_GDSReceiver_watchTransaction(ctx);
     }
     if(res != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&h->data);
