@@ -566,6 +566,28 @@ START_TEST(writeChunkFollowsMaxTrustListSize) {
     ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* Only Read and Write + EraseExisting open a TrustList (Part 12, 7.8.2.2).
+ * The driver rejects invalid bit combinations before (Part 20, 4.2.2). */
+START_TEST(openModes) {
+    UA_Byte unsupported[4] = {UA_OPENFILEMODE_WRITE,
+                              UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE,
+                              UA_OPENFILEMODE_READ | WRITEMODE,
+                              UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_APPEND};
+    for(size_t i = 0; i < 4; i++)
+        openList(&appList, admin(), unsupported[i], UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_Byte invalid[4] = {0, UA_OPENFILEMODE_ERASEEXISTING,
+                          UA_OPENFILEMODE_READ | UA_OPENFILEMODE_ERASEEXISTING, 0x10};
+    for(size_t i = 0; i < 4; i++)
+        openList(&appList, admin(), invalid[i], UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(openCount(&appList), 0);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_UInt32 h = openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
+    h = openList(&appList, admin(), WRITEMODE, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
+} END_TEST
+
 static size_t
 fileTransferDrivers(void) {
     size_t count = 0;
@@ -722,6 +744,7 @@ int main(void) {
     tcase_add_test(tc, transactionOfAnotherSession);
     tcase_add_test(tc, transactionKeptWhileWriting);
     tcase_add_test(tc, writeChunkFollowsMaxTrustListSize);
+    tcase_add_test(tc, openModes);
     tcase_add_test(tc, fileDriversFollowReceiver);
     tcase_add_test(tc, receiverAddedAtRuntime);
     tcase_add_test(tc, receiverStartRollsBack);
