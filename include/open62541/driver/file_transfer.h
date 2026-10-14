@@ -152,8 +152,10 @@ struct UA_FileTransferBackend {
     /* File operations; first member to allow casting b back to this struct */
     UA_FileTransferFileBackend file;
 
-    /* Enumerate entries at path. Unreadable metadata may be skipped. An
-     * enumeration error discards the listing. Never truncate overlong names;
+    /* Enumerate entries at path. Return an error if enumeration or reading
+     * entry metadata fails, including when an entry disappears during the
+     * listing. An error discards the entire listing; a successful incomplete
+     * listing could lose data during a move. Never truncate overlong names;
      * return Bad_EncodingLimitsExceeded instead. */
     UA_StatusCode (*listDirectory)(UA_FileTransferBackend *b, const UA_String path,
                                    UA_FileTransferListCallback cb, void *listContext);
@@ -186,7 +188,8 @@ struct UA_FileTransferBackend {
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
  *
  * Set ``driver->params`` before UA_Server_addDriver(). Parameters are read on
- * each start; all keys use namespace 0.
+ * each start; all keys use namespace 0. A known key with another type than
+ * listed fails the start with Bad_InvalidArgument.
  *
  * 0:read-only [Boolean]
  *    Disable writes and directory mutations (default: false).
@@ -251,10 +254,16 @@ typedef struct {
  * roots are bound on first start. Freeing removes driver-created nodes and
  * restores reused Objects' contexts and Properties' values, sources and contexts.
  * Reused Objects also survive disappearance of their storage entry.
+ * Delete and successful moves delete reused Objects at the source as well.
+ * Before deleting an Object, its context from construction or reuse is restored
+ * for the application lifecycle destructors.
  * While started, drivers supply the standard Methods, including shared
  * Namespace Zero Method nodes and copies inherited by subtypes. Other
  * Methods of subtypes stay with the application, see
- * UA_FileTransferDriver_getHandleInfo().
+ * UA_FileTransferDriver_getHandleInfo(). The drivers own these Method nodes:
+ * the first start replaces callbacks set by the application, the last stop
+ * removes them. FileType Objects of the application that are served without a
+ * driver need their own Method nodes.
  *
  * On success, the backend struct is copied and its context becomes owned by
  * the driver. On failure, created nodes are removed, *outDriver is NULL and

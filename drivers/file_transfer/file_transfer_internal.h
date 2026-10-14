@@ -65,9 +65,9 @@ struct FTEntry {
     FileTransferDriver *driver;
     UA_String path; /* Relative to the mount root */
     UA_Boolean isDirectory;
-    UA_Boolean created;         /* Delete only Objects created by this driver */
+    UA_Boolean created;         /* Object was created by this driver */
     UA_Boolean contextBound;
-    void *savedObjectContext;  /* Restore when releasing a reused Object */
+    void *savedObjectContext;  /* Restore before releasing or deleting the Object */
     UA_Boolean zombie; /* Retained until the last open handle is closed */
     UA_Boolean methodsBound; /* Also set when all Methods use standard declarations */
     UA_NodeId *methods; /* Nonstandard Method ids; standard slots remain null */
@@ -137,6 +137,9 @@ UA_Boolean isBelow(const FTEntry *node, const FTEntry *root);
 /* Release bindings and remove driver-created Objects, including the root.
  * Reused Objects survive; callers must close all subtree handles first. */
 void removeSubtree(UA_Server *server, FTEntry *subtreeRoot);
+/* A client deleted or moved the storage entries. Their Objects are deleted,
+ * also reused ones (Part 20, 4.3.5). */
+void deleteSubtree(UA_Server *server, FTEntry *subtreeRoot);
 
 /* Validate an untrusted context against registered, started drivers before
  * resolving the Object. NodeId-only lookup is for cross-driver destinations. */
@@ -177,6 +180,7 @@ extern const FTMethod fileDirectoryTypeMethods[4];
 /* Query the backend with a zero-initialized FileInfo. */
 UA_StatusCode backendGetInfo(UA_FileTransferFileBackend *backend,
                              const UA_String path, UA_FileTransferFileInfo *info);
+/* Rights of the entry, none if a managed ancestor denies traversal */
 UA_StatusCode getFTAccessRights(UA_Server *server, const FTEntry *node,
                                 const UA_NodeId *sessionId, void *sessionContext,
                                 UA_FileAccessRights *outRights);

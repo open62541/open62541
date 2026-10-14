@@ -65,11 +65,25 @@ accessRights(UA_Server *server, const FTEntry *node,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Like Open, the Writable Properties need traversal of the managed ancestors */
 UA_StatusCode
 getFTAccessRights(UA_Server *server, const FTEntry *node,
                 const UA_NodeId *sessionId, void *sessionContext,
                 UA_FileAccessRights *outRights) {
-    return accessRights(server, node, sessionId, sessionContext, false, outRights);
+    UA_StatusCode res = accessRights(server, node, sessionId, sessionContext,
+                                     false, outRights);
+    for(const FTEntry *parent = node->parent;
+        res == UA_STATUSCODE_GOOD && parent; parent = parent->parent) {
+        UA_FileAccessRights rights = 0;
+        res = accessRights(server, parent, sessionId, sessionContext, false, &rights);
+        if(res == UA_STATUSCODE_GOOD && !(rights & UA_FILEACCESS_TRAVERSE)) {
+            *outRights = 0;
+            break;
+        }
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        *outRights = 0;
+    return res;
 }
 
 /* Check the Object and traverse permission on its managed ancestor directories.
