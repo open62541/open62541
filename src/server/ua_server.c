@@ -290,6 +290,11 @@ stopDrivers(UA_Server *server) {
 
 static UA_Boolean
 testStoppedCondition(UA_Server *server) {
+    /* Session teardown uses delayed EventLoop callbacks. Do not stop the
+     * EventLoop while any Session is still live or awaiting cleanup. */
+    if(server->sessionCount > 0 || server->sessionCleanupPending > 0)
+        return false;
+
     /* Check if there are remaining drivers that did not fully stop */
     for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
         if(drv->state != UA_LIFECYCLESTATE_STOPPED)
@@ -338,6 +343,13 @@ stopServer(UA_Server *server) {
     }
 
     stopDrivers(server);
+
+    /* No new Sessions can be created after entering STOPPING. Close the
+     * remaining Sessions now so their delayed cleanup can run before the
+     * EventLoop stops. */
+    session_list_entry *entry;
+    while((entry = LIST_FIRST(&server->sessions)))
+        UA_Session_remove(server, &entry->session, UA_SHUTDOWNREASON_CLOSE);
 }
 
 /********************/
@@ -358,9 +370,14 @@ UA_Server_delete(UA_Server *server) {
 
     lockServer(server);
 
-    session_list_entry *current, *temp;
-    LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
-        UA_Session_remove(server, &current->session, UA_SHUTDOWNREASON_CLOSE);
+    /* All Session cleanup must complete during shutdown, before the EventLoop
+     * and its delayed callbacks are destroyed. */
+    if(LIST_FIRST(&server->sessions) != NULL ||
+       server->sessionCleanupPending != 0) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Cannot delete the server while Session cleanup is pending");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
