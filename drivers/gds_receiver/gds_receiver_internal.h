@@ -72,6 +72,7 @@ typedef struct {
     UA_UInt32 nextHandle;
     size_t handlesSize;  /* OpenCount */
     LIST_HEAD(, UA_GDSTrustListHandle) handles;
+    UA_Boolean activityTimeoutCreated; /* The receiver added the Property */
 } UA_GDSTrustList;
 
 #define UA_GDSRECEIVER_TRUSTLISTS 2

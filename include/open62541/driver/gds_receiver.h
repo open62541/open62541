@@ -38,6 +38,15 @@
  * MaxByteStringLength of the TrustLists, so that a TrustList fits into one
  * Write.
  *
+ * Set ``drv.params`` before the start; all keys use namespace 0.
+ *
+ * 0:activity-timeout [Double]
+ *    Close a TrustList without a Method call for longer than this many
+ *    milliseconds and discard its changes (default: 60000, Part 12, 7.8.2.1).
+ *    Published as the ActivityTimeout Property of the TrustLists. 0 disables
+ *    it and removes the Property the receiver added; otherwise at least
+ *    0.0001. Another type fails the start with Bad_InvalidArgument.
+ *
  * Create the driver with UA_GDSReceiver_new() and attach its ``drv`` member to
  * the server with UA_Server_addDriver() before calling
  * UA_Server_run_startup(). A server can have at most one GDS Receiver driver.

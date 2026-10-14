@@ -21,16 +21,22 @@ static const struct {
     UA_UInt32 groupId;
     UA_UInt32 lastModifiedTimeId;
     UA_UInt32 maxByteStringLengthId;
+    UA_UInt32 activityTimeoutId;
 } gdsTrustListNodes[UA_GDSRECEIVER_TRUSTLISTS] = {
     {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST,
      UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP,
      UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_LASTMODIFIEDTIME,
-     UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_MAXBYTESTRINGLENGTH},
+     UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_MAXBYTESTRINGLENGTH,
+     UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ACTIVITYTIMEOUT},
     {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST,
      UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP,
      UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_LASTMODIFIEDTIME,
-     UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_MAXBYTESTRINGLENGTH}
+     UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_MAXBYTESTRINGLENGTH,
+     UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_ACTIVITYTIMEOUT}
 };
+
+/* The default of Part 12, 7.8.2.1 */
+#define GDS_TRUSTLIST_ACTIVITYTIMEOUT_DEFAULT 60000.0
 
 void
 UA_GDSReceiver_initTrustLists(UA_GDSReceiverContext *ctx) {
@@ -342,8 +348,38 @@ gdsTrustListAddProperty(UA_Server *server, const UA_NodeId objectId,
     return res;
 }
 
+/* An idle TrustList is closed after the ActivityTimeout, the Property shows
+ * it. Without a timeout, the Property is removed again. */
 static UA_StatusCode
-gdsTrustListStartDriver(UA_GDSTrustList *tl, size_t index) {
+gdsTrustListSetActivityTimeout(UA_GDSTrustList *tl, size_t index,
+                               UA_Double timeout) {
+    UA_Server *server = tl->receiver->drv.server;
+    UA_NodeId id = UA_NODEID_NUMERIC(0, gdsTrustListNodes[index].activityTimeoutId);
+    UA_NodeClass nodeClass;
+    UA_Boolean exists =
+        (UA_Server_readNodeClass(server, id, &nodeClass) == UA_STATUSCODE_GOOD);
+    if(timeout == 0.0) {
+        if(exists && tl->activityTimeoutCreated)
+            UA_Server_deleteNode(server, id, true);
+        tl->activityTimeoutCreated = false;
+        return UA_STATUSCODE_GOOD;
+    }
+    if(!exists) {
+        UA_StatusCode res =
+            gdsTrustListAddProperty(server, tl->objectId, id.identifier.numeric,
+                                    "ActivityTimeout", &timeout,
+                                    &UA_TYPES[UA_TYPES_DURATION]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        tl->activityTimeoutCreated = true;
+    }
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &timeout, &UA_TYPES[UA_TYPES_DURATION]);
+    return UA_Server_writeValue(server, id, value);
+}
+
+static UA_StatusCode
+gdsTrustListStartDriver(UA_GDSTrustList *tl, size_t index, UA_Double timeout) {
     UA_Server *server = tl->receiver->drv.server;
     UA_DateTime lastModified = tl->lastUpdateTime;
     UA_UInt32 maxLength = 0;
@@ -385,6 +421,9 @@ gdsTrustListStartDriver(UA_GDSTrustList *tl, size_t index) {
         res = UA_KeyValueMap_setScalar(&drv->params, UA_QUALIFIEDNAME(0, "max-read-length"),
                                        &sc->maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
     if(res == UA_STATUSCODE_GOOD)
+        res = UA_KeyValueMap_setScalar(&drv->params, UA_QUALIFIEDNAME(0, "activity-timeout"),
+                                       &timeout, &UA_TYPES[UA_TYPES_DOUBLE]);
+    if(res == UA_STATUSCODE_GOOD)
         res = UA_Server_addDriver(server, drv);
     if(res != UA_STATUSCODE_GOOD) {
         drv->free(drv);
@@ -396,14 +435,24 @@ gdsTrustListStartDriver(UA_GDSTrustList *tl, size_t index) {
      * drivers add during their start */
     if(drv->state != UA_LIFECYCLESTATE_STARTED)
         res = drv->start(drv);
+    if(res == UA_STATUSCODE_GOOD)
+        res = gdsTrustListSetActivityTimeout(tl, index, timeout);
     return res;
 }
 
 UA_StatusCode
 UA_GDSReceiver_startTrustLists(UA_GDSReceiverContext *ctx) {
+    UA_Double timeout = GDS_TRUSTLIST_ACTIVITYTIMEOUT_DEFAULT;
+    const UA_Variant *param =
+        UA_KeyValueMap_get(&ctx->drv.params, UA_QUALIFIEDNAME(0, "activity-timeout"));
+    if(param) {
+        if(!UA_Variant_hasScalarType(param, &UA_TYPES[UA_TYPES_DOUBLE]))
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        timeout = *(const UA_Double*)param->data;
+    }
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < UA_GDSRECEIVER_TRUSTLISTS && res == UA_STATUSCODE_GOOD; i++)
-        res = gdsTrustListStartDriver(&ctx->trustLists[i], i);
+        res = gdsTrustListStartDriver(&ctx->trustLists[i], i, timeout);
     if(res != UA_STATUSCODE_GOOD)
         UA_GDSReceiver_stopTrustLists(ctx);
     return res;

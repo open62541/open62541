@@ -13,6 +13,7 @@
 
 #include <check.h>
 #include "test_helpers.h"
+#include "testing_clock.h"
 #include "certificates.h"
 
 /* The TrustList Objects of the GDS receiver are served by file transfer
@@ -27,7 +28,7 @@ typedef struct {
     UA_UInt32 object, open, close, read, write, getPosition, setPosition,
         openWithMasks, closeAndUpdate, addCertificate, removeCertificate,
         openCount, size, writable, lastModifiedTime, lastUpdateTime,
-        maxByteStringLength;
+        maxByteStringLength, activityTimeout;
 } TrustListIds;
 
 #define TRUSTLISTIDS(GROUP) {                                            \
@@ -38,7 +39,8 @@ typedef struct {
     GROUPID(GROUP, _ADDCERTIFICATE), GROUPID(GROUP, _REMOVECERTIFICATE),  \
     GROUPID(GROUP, _OPENCOUNT), GROUPID(GROUP, _SIZE),                    \
     GROUPID(GROUP, _WRITABLE), GROUPID(GROUP, _LASTMODIFIEDTIME),         \
-    GROUPID(GROUP, _LASTUPDATETIME), GROUPID(GROUP, _MAXBYTESTRINGLENGTH)}
+    GROUPID(GROUP, _LASTUPDATETIME), GROUPID(GROUP, _MAXBYTESTRINGLENGTH), \
+    GROUPID(GROUP, _ACTIVITYTIMEOUT)}
 
 static const TrustListIds appList = TRUSTLISTIDS(DEFAULTAPPLICATIONGROUP);
 static const TrustListIds userList = TRUSTLISTIDS(DEFAULTUSERTOKENGROUP);
@@ -653,6 +655,99 @@ fileTransferDrivers(void) {
     return count;
 }
 
+static void
+advanceClock(UA_UInt32 ms) {
+    UA_fakeSleep(ms);
+    UA_Server_run_iterate(server, false);
+}
+
+static UA_StatusCode
+readActivityTimeout(const TrustListIds *tl, UA_Double *timeout) {
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode res =
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(0, tl->activityTimeout), &value);
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DURATION]));
+        *timeout = *(UA_Double*)value.data;
+    }
+    UA_Variant_clear(&value);
+    return res;
+}
+
+static UA_StatusCode
+restartReceiver(const void *timeout, const UA_DataType *type) {
+    lockServer(server);
+    receiver->drv.stop(&receiver->drv);
+    unlockServer(server);
+    UA_QualifiedName key = UA_QUALIFIEDNAME(0, "activity-timeout");
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&receiver->drv.params, key, timeout, type),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    UA_StatusCode res = receiver->drv.start(&receiver->drv);
+    unlockServer(server);
+    return res;
+}
+
+/* An idle TrustList closes after the ActivityTimeout and discards its changes
+ * (Part 12, 7.8.2.1) */
+START_TEST(activityTimeoutClosesTrustList) {
+    UA_Double timeout = 0;
+    ck_assert_uint_eq(readActivityTimeout(&appList, &timeout), UA_STATUSCODE_GOOD);
+    ck_assert(timeout == 60000.0);
+    UA_UInt32 h = openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    advanceClock(50000);
+    UA_ByteString chunk;
+    ck_assert_uint_eq(readChunk(&appList, admin(), h, 10, &chunk), UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&chunk);
+    advanceClock(50000);
+    ck_assert_uint_eq(openCount(&appList), 1);
+    advanceClock(120001);
+    ck_assert_uint_eq(openCount(&appList), 0);
+
+    /* An idle write ends its transaction */
+    h = openList(&appList, admin(), WRITEMODE, UA_STATUSCODE_GOOD);
+    advanceClock(120001);
+    ck_assert_uint_eq(openCount(&appList), 0);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_BADNOTHINGTODO);
+    h = openList(&appList, &otherSession, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeList(&appList, &otherSession, h), UA_STATUSCODE_GOOD);
+
+    /* The parameter of the receiver */
+    UA_Double shortTimeout = 100;
+    ck_assert_uint_eq(restartReceiver(&shortTimeout, &UA_TYPES[UA_TYPES_DOUBLE]),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readActivityTimeout(&userList, &timeout), UA_STATUSCODE_GOOD);
+    ck_assert(timeout == 100.0);
+    h = openList(&userList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    advanceClock(201);
+    ck_assert_uint_eq(openCount(&userList), 0);
+
+    /* 0 disables it and removes the Property */
+    UA_Double disabled = 0;
+    ck_assert_uint_eq(restartReceiver(&disabled, &UA_TYPES[UA_TYPES_DOUBLE]),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readActivityTimeout(&appList, &timeout),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    h = openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    advanceClock(10 * 60 * 1000);
+    ck_assert_uint_eq(openCount(&appList), 1);
+    ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
+
+    /* Invalid values and another type fail the start */
+    UA_Double negative = -1;
+    ck_assert_uint_eq(restartReceiver(&negative, &UA_TYPES[UA_TYPES_DOUBLE]),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(receiver->drv.state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(fileTransferDrivers(), 0);
+    UA_UInt32 wrongType = 100;
+    ck_assert_uint_eq(restartReceiver(&wrongType, &UA_TYPES[UA_TYPES_UINT32]),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(restartReceiver(&shortTimeout, &UA_TYPES[UA_TYPES_DOUBLE]),
+                      UA_STATUSCODE_GOOD);
+} END_TEST
+
+
 /* The receiver registers the file transfer drivers while it is started */
 START_TEST(fileDriversFollowReceiver) {
     ck_assert_uint_eq(fileTransferDrivers(), 2);
@@ -800,6 +895,7 @@ int main(void) {
     tcase_add_test(tc, writeChunkFollowsMaxTrustListSize);
     tcase_add_test(tc, openModes);
     tcase_add_test(tc, sessionCloseDiscardsTransaction);
+    tcase_add_test(tc, activityTimeoutClosesTrustList);
     tcase_add_test(tc, fileDriversFollowReceiver);
     tcase_add_test(tc, receiverAddedAtRuntime);
     tcase_add_test(tc, receiverStartRollsBack);
