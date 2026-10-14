@@ -23,8 +23,20 @@
  * revalidated or closed after an update.
  *
  * Build open62541 with ``UA_ENABLE_DRIVER_GDS_RECEIVER`` enabled.
- * PushManagement additionally requires encryption and the full Namespace
- * Zero.
+ * PushManagement additionally requires encryption, the Method service set
+ * and the full Namespace Zero.
+ *
+ * Two file transfer drivers, registered while the receiver is started, serve
+ * the TrustList Objects of the DefaultApplicationGroup and the
+ * DefaultUserTokenGroup with the FileType Methods and Properties. Like every
+ * file transfer driver, they also serve the FileType Methods of Namespace
+ * Zero. A file transfer driver of the application on a TrustList Object makes
+ * the start fail with Bad_NodeIdExists. A TrustList opened for reading returns
+ * the encoded TrustListDataType at the time of the Open. A TrustList opened
+ * for writing is applied with CloseAndUpdate and discarded with Close
+ * (Part 12, 7.8.2). A MaxTrustListSize above 1 MiB raises the
+ * MaxByteStringLength of the TrustLists, so that a TrustList fits into one
+ * Write.
  *
  * Create the driver with UA_GDSReceiver_new() and attach its ``drv`` member to
  * the server with UA_Server_addDriver() before calling
