@@ -53,7 +53,7 @@ sfPosition(UA_UInt32 handle) {
 
 static UA_StatusCode
 sfOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mode,
-       UA_UInt32 *handle) {
+       const UA_FileTransferOpenContext *context, UA_UInt32 *handle) {
     for(size_t i = 0; i < SF_MAXOPEN; i++) {
         if(sfFiles[i].used)
             continue;
