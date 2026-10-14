@@ -339,10 +339,10 @@ START_TEST(trustListServedByFileDrivers) {
     UA_Variant_clear(&value);
 } END_TEST
 
-/* Each handle reads the TrustList at the time of its Open */
+/* Each handle reads the lists of its masks at the time of its Open */
 START_TEST(snapshotsAtOpen) {
-    UA_UInt32 masks[3] = {UA_TRUSTLISTMASKS_ALL, UA_TRUSTLISTMASKS_ALL,
-                          UA_TRUSTLISTMASKS_ALL};
+    UA_UInt32 masks[3] = {UA_TRUSTLISTMASKS_ALL, UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES,
+                          UA_TRUSTLISTMASKS_ISSUERCERTIFICATES};
     UA_UInt32 handles[3];
     handles[0] = openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
     for(size_t i = 1; i < 3; i++)
@@ -376,13 +376,18 @@ START_TEST(snapshotsAtOpen) {
             UA_ByteString_clear(&chunk);
         }
     }
-    size_t trusted[3] = {2, 2, 2};
-    size_t issuers[3] = {2, 2, 2};
+    size_t trusted[3] = {2, 2, 0};
+    size_t issuers[3] = {2, 0, 2};
     for(size_t i = 0; i < 3; i++) {
         UA_TrustListDataType list;
         decodeList(data[i], &list);
+        ck_assert_uint_eq(list.specifiedLists, masks[i]);
         ck_assert_uint_eq(list.trustedCertificatesSize, trusted[i]);
         ck_assert_uint_eq(list.issuerCertificatesSize, issuers[i]);
+        if(i > 0) {
+            ck_assert_uint_eq(list.trustedCrlsSize, 0);
+            ck_assert_uint_eq(list.issuerCrlsSize, 0);
+        }
         UA_TrustListDataType_clear(&list);
         UA_ByteString_clear(&data[i]);
         ck_assert_uint_eq(closeList(&appList, admin(), handles[i]), UA_STATUSCODE_GOOD);
