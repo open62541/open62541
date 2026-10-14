@@ -1374,6 +1374,43 @@ START_TEST(fileProperties) {
     UA_NodeId_clear(&fileId);
 } END_TEST
 
+static UA_StatusCode
+unknownSizeGetInfo(UA_FileTransferFileBackend *b, const UA_String path,
+                   UA_FileTransferFileInfo *info) {
+    UA_StatusCode res = memGetInfo(b, path, info);
+    info->sizeUnknown = true;
+    return res;
+}
+
+/* Part 20, 4.2.1: a size the server cannot determine reads as Bad_NotSupported */
+START_TEST(fileSizeUnknown) {
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    backend.file.getInfo = unknownSizeGetInfo;
+    UA_NodeId file = addTestFileBackend(backend, "UnknownSize", NULL);
+    UA_NodeId sizeId = resolveChild(server_ft, file, "Size");
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(server_ft, sizeId, &value),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_Variant_clear(&value);
+    UA_NodeId_clear(&sizeId);
+
+    /* The content and the other Properties are not affected */
+    readProperty(file, "LastModifiedTime", &value);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME]));
+    UA_Variant_clear(&value);
+    UA_UInt32 h = callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    UA_ByteString data = callRead(file, h, 100, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING("content");
+    ck_assert(UA_ByteString_equal(&data, &expected));
+    UA_ByteString_clear(&data);
+    data = callRead(file, h, 100, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 0);
+    UA_ByteString_clear(&data);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+} END_TEST
+
 START_TEST(fileMaxByteStringLength) {
     /* The default driver exposes the default max-read-length (1 MByte) */
     UA_NodeId fileId = addTestFile("MbslFile", "data", NULL);
@@ -6367,6 +6404,7 @@ int main(void) {
     tcase_add_test(tc_file, fileReadOnlyMount);
     tcase_add_test(tc_file, fileHandleLimits);
     tcase_add_test(tc_file, removeFileClosesHandles);
+    tcase_add_test(tc_file, fileSizeUnknown);
     tcase_add_test(tc_file, fileMaxByteStringLength);
     tcase_add_test(tc_file, fileWriteRespectsMaxByteStringLength);
     tcase_add_test(tc_file, readOnlyBackendNeedsNoWriteCallbacks);
