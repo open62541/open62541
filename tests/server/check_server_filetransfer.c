@@ -5427,6 +5427,111 @@ START_TEST(directoryLifetimeAndAutomaticRefresh) {
     UA_NodeId_clear(&file);
 } END_TEST
 
+static void
+setActivityTimeout(UA_Driver *driver, UA_Double timeout) {
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "activity-timeout"), &timeout,
+                          &UA_TYPES[UA_TYPES_DOUBLE]), UA_STATUSCODE_GOOD);
+}
+
+static void
+advanceClock(UA_UInt32 ms) {
+    UA_fakeSleep(ms);
+    UA_Server_run_iterate(server_ft, false);
+}
+
+/* Handles without a Method call for longer than the activity-timeout close
+ * like with Close */
+START_TEST(activityTimeoutClosesIdleHandles) {
+    UA_Server_getConfig(server_ft)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server_ft), UA_STATUSCODE_GOOD);
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    UA_NodeId file;
+    UA_Driver *driver = newTestFile(server_ft, &backend.file, "Timed", &file);
+    setActivityTimeout(driver, 100);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+
+    /* Method calls keep the handle open */
+    UA_UInt32 h = callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 4; i++) {
+        advanceClock(60);
+        callGetPosition(file, h);
+    }
+    /* So do the calls of subtype Methods */
+    const UA_NodeId *session = &server_ft->adminSession.sessionId;
+    for(size_t i = 0; i < 3; i++) {
+        advanceClock(60);
+        ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(driver, file, session,
+                              h, NULL, NULL), UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(readOpenCount(file), 1);
+
+    /* An idle handle closes within twice the timeout */
+    advanceClock(201);
+    ck_assert_uint_eq(readOpenCount(file), 0);
+    callClose(file, h, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Without the parameter, the handles stay open */
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_KeyValueMap_remove(&driver->params,
+                          UA_QUALIFIEDNAME(0, "activity-timeout")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    h = callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    advanceClock(10 * 60 * 1000);
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+} END_TEST
+
+/* Closing an idle handle also removes a vanished file it kept */
+START_TEST(activityTimeoutClosesZombies) {
+    UA_Server_getConfig(server_ft)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server_ft), UA_STATUSCODE_GOOD);
+    UA_FileTransferBackend backend = memBackendWithTree();
+    UA_NodeId root;
+    UA_Driver *driver = newTestDirectory(server_ft, &backend, &root);
+    UA_Double interval = 0;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "refresh-interval"), &interval,
+                          &UA_TYPES[UA_TYPES_DOUBLE]), UA_STATUSCODE_GOOD);
+    setActivityTimeout(driver, 100);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    UA_NodeId docs = resolveChild(server_ft, root, "docs");
+    UA_NodeId file = resolveChild(server_ft, docs, "a.txt");
+    callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(backend.remove(&backend, UA_STRING("docs/a.txt")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(testRefresh(driver, root), UA_STATUSCODE_GOOD);
+    ck_assert(tryResolveChild(server_ft, docs, "a.txt", NULL));
+    advanceClock(201);
+    ck_assert(!tryResolveChild(server_ft, docs, "a.txt", NULL));
+    ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    UA_NodeId_clear(&docs);
+    UA_NodeId_clear(&root);
+} END_TEST
+
+START_TEST(activityTimeoutParameter) {
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    UA_Driver *driver = newTestFile(server_ft, &backend.file, "Timed", NULL);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    /* Negative, NaN, infinite and sub-tick timeouts are rejected */
+    UA_Double zero = 0.0;
+    UA_Double invalid[4] = {-1, zero / zero, 1.0 / zero, 0.00001};
+    for(size_t i = 0; i < 4; i++) {
+        setActivityTimeout(driver, invalid[i]);
+        ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    }
+    UA_UInt32 wrong = 100;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "activity-timeout"), &wrong,
+                          &UA_TYPES[UA_TYPES_UINT32]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    setActivityTimeout(driver, 0);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+} END_TEST
+
 /* A negative refresh interval is rejected. 0 disables the periodic refresh;
  * the application reconciles on demand. */
 /* A known parameter with the wrong type fails the start instead of being
@@ -6366,6 +6471,9 @@ int main(void) {
     tcase_add_test(tc_lifecycle, failedRegistrationRetainsObjects);
     tcase_add_test(tc_lifecycle, directoryLifetimeAndAutomaticRefresh);
     tcase_add_test(tc_lifecycle, disabledPeriodicRefresh);
+    tcase_add_test(tc_lifecycle, activityTimeoutClosesIdleHandles);
+    tcase_add_test(tc_lifecycle, activityTimeoutClosesZombies);
+    tcase_add_test(tc_lifecycle, activityTimeoutParameter);
     tcase_add_test(tc_lifecycle, driverParametersRequireTheirTypes);
     tcase_add_test(tc_lifecycle, directoryBackendCastsFileBackend);
     tcase_add_test(tc_lifecycle, defaultNodeDescriptions);
