@@ -251,7 +251,7 @@ resolveHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
 UA_StatusCode
 openFileHandle(UA_Server *server, FTEntry *node,
                const UA_NodeId *sessionId, void *sessionContext, UA_Byte mode,
-               UA_UInt32 *outHandle) {
+               FTHandle **outHandle) {
     FileTransferDriver *ftd = node->driver;
     /* Validate the mode bit combination */
     if((mode & ~UA_FILETRANSFER_OPENMODE_ALLBITS) ||
@@ -287,8 +287,9 @@ openFileHandle(UA_Server *server, FTEntry *node,
         return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     UA_FileTransferFileBackend *b = &node->driver->backend.file;
+    UA_FileTransferOpenContext context = {server, sessionId, sessionContext};
     UA_UInt32 backendHandle = 0;
-    res = b->open(b, node->path, mode, &backendHandle);
+    res = b->open(b, node->path, mode, &context, &backendHandle);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -316,7 +317,7 @@ openFileHandle(UA_Server *server, FTEntry *node,
     if(writeBit)
         node->openForWrite = true;
 
-    *outHandle = h->handle;
+    *outHandle = h;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -329,7 +330,6 @@ openMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     FTEntry *node = resolveFTEntry(server, objectId, objectContext);
     if(!node)
         return UA_STATUSCODE_BADNOTSUPPORTED;
-    FileTransferDriver *ftd = node->driver;
 
     if(node->isDirectory || node->zombie)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -341,19 +341,16 @@ openMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Open takes a Byte bit mask, not the generated 32-bit UA_OpenFileMode. */
     UA_Byte mode = *(UA_Byte*)input[0].data;
 
-    UA_UInt32 handle = 0;
-    res = openFileHandle(server, node, sessionId, sessionContext, mode, &handle);
+    FTHandle *h = NULL;
+    res = openFileHandle(server, node, sessionId, sessionContext, mode, &h);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* The client cannot close a handle it does not receive */
-    res = UA_Variant_setScalarCopy(&output[0], &handle,
+    res = UA_Variant_setScalarCopy(&output[0], &h->handle,
                                    &UA_TYPES[UA_TYPES_UINT32]);
-    if(res != UA_STATUSCODE_GOOD) {
-        FTHandle *h = findFTHandle(ftd, sessionId, handle);
-        if(h)
-            closeFTHandle(server, h);
-    }
+    if(res != UA_STATUSCODE_GOOD)
+        closeFTHandle(server, h);
     return res;
 }
 

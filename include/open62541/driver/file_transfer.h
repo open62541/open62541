@@ -78,6 +78,15 @@ typedef struct {
                                 * leaves an existing one unchanged. */
 } UA_FileTransferFileInfo;
 
+/* The caller of an open. The driver passes the Session of the Method call for
+ * Open, CreateFile and the copies of MoveOrCopy. Direct calls of the
+ * application pass NULL. */
+typedef struct {
+    UA_Server *server;
+    const UA_NodeId *sessionId;
+    void *sessionContext;
+} UA_FileTransferOpenContext;
+
 typedef struct UA_FileTransferFileBackend UA_FileTransferFileBackend;
 struct UA_FileTransferFileBackend {
     /* Backend-owned storage and handle state */
@@ -85,9 +94,14 @@ struct UA_FileTransferFileBackend {
 
     /* Open a file. mode is a UA_Byte bit mask of UA_OPENFILEMODE_* flags,
      * validated by the driver. Append starts at EOF; otherwise start at zero.
-     * EraseExisting truncates the file. Return an independent handle. */
+     * EraseExisting truncates the file. Return an independent handle.
+     * context is the caller or NULL. For a Method call, the driver has checked
+     * the mode, the locking (Part 20, 4.2.2), the access rights and the handle
+     * limits before, and the result is returned to the client, e.g.
+     * Bad_NotSupported for a mode the file does not offer. */
     UA_StatusCode (*open)(UA_FileTransferFileBackend *b, const UA_String path,
-                          UA_Byte mode, UA_UInt32 *handle);
+                          UA_Byte mode, const UA_FileTransferOpenContext *context,
+                          UA_UInt32 *handle);
 
     /* Close the handle and flush buffered writes. Report flush errors here;
      * a destination close error also fails a driver-managed copy. */
