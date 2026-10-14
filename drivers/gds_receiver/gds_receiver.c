@@ -14,7 +14,6 @@
 #include <open62541/driver/file_transfer.h>
 
 #define UA_SHA1_LENGTH 20
-#define CHECKACTIVESESSIONINTERVAL 10000 /* 10sec */
 #define GDS_RECEIVER_MAX_ENDPOINTS 32
 #define STATIC_NS0ID(ID) {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
 
@@ -250,51 +249,6 @@ UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
     return UA_GDSReceiver_applyChanges(ctx);
 }
 
-/* This callback is triggered at regular intervals as long as a transaction is
- * ongoing. If its Session is no longer active, the transaction is cancelled.
- * The file transfer drivers close the TrustList handles of the Session. */
-static void
-checkSessionActive(UA_Server *server, void *data) {
-    UA_ServerConfig *sc = UA_Server_getConfig(server);
-    UA_EventLoop *el = sc->eventLoop;
-    el->lock(el);
-
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)data;
-    UA_GDSTransaction *transaction = &ctx->transaction;
-    UA_Boolean removingCallback = true;
-    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
-        /* Check if the session is still active */
-        UA_Variant tmp;
-        UA_StatusCode res =
-            UA_Server_getSessionAttribute(server, &transaction->sessionId,
-                                          UA_QUALIFIEDNAME(0, "sessionName"), &tmp);
-        if(res != UA_STATUSCODE_GOOD && !transaction->applyChangesQueued) {
-            UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
-                "Session with an open transaction has ended. "
-                "The transaction has been discarded.");
-            UA_GDSTransaction_clear(transaction);
-        } else {
-            removingCallback = false;
-        }
-    }
-
-    if(removingCallback) {
-        UA_Server_removeCallback(server, ctx->checkSessionCallbackId);
-        ctx->checkSessionCallbackId = 0;
-    }
-
-    el->unlock(el);
-}
-
-UA_StatusCode
-UA_GDSReceiver_watchTransaction(UA_GDSReceiverContext *ctx) {
-    if(ctx->checkSessionCallbackId != 0)
-        return UA_STATUSCODE_GOOD;
-    return UA_Server_addRepeatedCallback(ctx->drv.server, checkSessionActive,
-                                         ctx, CHECKACTIVESESSIONINTERVAL,
-                                         &ctx->checkSessionCallbackId);
-}
-
 UA_StatusCode
 UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
                                       UA_GDSTrustList *tl,
@@ -450,10 +404,6 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
-
-    retval = UA_GDSReceiver_watchTransaction(ctx);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
 
     if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
@@ -1264,11 +1214,27 @@ cleanup:
 }
 
 static void
-secureChannelNotificationCallback(UA_Driver *drv,
-                                  UA_ApplicationNotificationType type,
-                                  const UA_KeyValueMap payload) {
+receiverNotificationCallback(UA_Driver *drv,
+                             UA_ApplicationNotificationType type,
+                             const UA_KeyValueMap payload) {
     UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
-    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED) {
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED) {
+        /* A closed or abandoned Session discards its transaction (Part 12,
+         * 7.10.9). The file transfer drivers close its TrustList handles. */
+        const UA_NodeId *sessionId = (const UA_NodeId*)
+            UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "session-id"),
+                                     &UA_TYPES[UA_TYPES_NODEID]);
+        UA_GDSTransaction *transaction = &ctx->transaction;
+        if(!sessionId || transaction->state != UA_GDSTRANSACTIONSTATE_PENDING ||
+           transaction->applyChangesQueued ||
+           !UA_NodeId_equal(&transaction->sessionId, sessionId))
+            return;
+        UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
+        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
+                    "Session with an open transaction has ended. "
+                    "The transaction has been discarded.");
+        UA_GDSTransaction_clear(transaction);
+    } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED) {
         UA_UInt32 channelId = *(const UA_UInt32*)
             UA_KeyValueMap_getScalar(&payload,
                                      UA_QUALIFIEDNAME(0, "securechannel-id"),
@@ -1364,10 +1330,6 @@ UA_GDSReceiver_stop(UA_Driver *drv) {
         clearNS0PushManagement(ctx);
         ctx->initialized = false;
     }
-    if(ctx->checkSessionCallbackId != 0) {
-        UA_Server_removeCallback(drv->server, ctx->checkSessionCallbackId);
-        ctx->checkSessionCallbackId = 0;
-    }
     if(ctx->pendingDelayedCallbacks > 0)
         drv->state = UA_LIFECYCLESTATE_STOPPING;
     else
@@ -1387,7 +1349,6 @@ UA_GDSReceiver_free(UA_Driver *drv) {
     }
 
     UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
-    ctx->checkSessionCallbackId = 0;
     UA_GDSReceiver_stopTrustLists(ctx);
     UA_GDSTransaction_clear(&ctx->transaction);
 
@@ -1416,8 +1377,9 @@ UA_GDSReceiver_new(void) {
     ctx->drv.stop = UA_GDSReceiver_stop;
     ctx->drv.free = UA_GDSReceiver_free;
 
-    ctx->drv.notificationCallback = secureChannelNotificationCallback;
-    ctx->drv.notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL;
+    ctx->drv.notificationCallback = receiverNotificationCallback;
+    ctx->drv.notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL |
+        UA_APPLICATIONNOTIFICATIONTYPE_SESSION;
     UA_GDSReceiver_initTrustLists(ctx);
 
     return (UA_GDSReceiver*)ctx;

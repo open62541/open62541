@@ -82,7 +82,6 @@ struct UA_GDSReceiverContext {
     UA_GDSTransaction transaction;
     UA_GDSTrustList trustLists[UA_GDSRECEIVER_TRUSTLISTS];
     LIST_HEAD(, ChannelMetadata) secureChannels;
-    UA_UInt64 checkSessionCallbackId;
     size_t pendingDelayedCallbacks;
 };
 
@@ -92,10 +91,6 @@ UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server,
 
 void
 UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
-
-/* Discard the transaction once its Session is gone */
-UA_StatusCode
-UA_GDSReceiver_watchTransaction(UA_GDSReceiverContext *ctx);
 
 void
 UA_GDSReceiver_initTrustLists(UA_GDSReceiverContext *ctx);
