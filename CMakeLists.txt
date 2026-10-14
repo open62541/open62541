@@ -160,6 +160,10 @@ mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 # Drivers
 option(UA_ENABLE_DRIVER_GDS_RECEIVER "Enable the GDS Receiver driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_GDS_RECEIVER)
+if(UA_ENABLE_DRIVER_GDS_RECEIVER AND NOT UA_ENABLE_METHODCALLS)
+    # The file transfer driver serves the TrustLists
+    message(FATAL_ERROR "The GDS Receiver driver requires UA_ENABLE_METHODCALLS.")
+endif()
 option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
 set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
@@ -1010,7 +1014,8 @@ if(UA_ENABLE_DRIVER_GDS_RECEIVER)
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_internal.h)
     list(APPEND lib_sources
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver.c
-         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_ns0.c)
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_ns0.c
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_trustlist.c)
 endif()
 
 if(UA_ENABLE_RBAC)
