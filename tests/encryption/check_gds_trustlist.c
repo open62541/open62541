@@ -593,6 +593,55 @@ START_TEST(openModes) {
     ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
 } END_TEST
 
+static void
+closeSession(const UA_NodeId *session) {
+    UA_KeyValueMap payload = UA_KEYVALUEMAP_NULL;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&payload, UA_QUALIFIEDNAME(0, "session-id"),
+                          (void*)(uintptr_t)session, &UA_TYPES[UA_TYPES_NODEID]),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    notifyApplication(server, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED, payload);
+    unlockServer(server);
+    UA_KeyValueMap_clear(&payload);
+}
+
+/* A closed or abandoned Session discards its open TrustLists and its
+ * transaction (Part 12, 7.10.9) */
+START_TEST(sessionCloseDiscardsTransaction) {
+    UA_UInt32 h = openList(&appList, &otherSession, WRITEMODE, UA_STATUSCODE_GOOD);
+    UA_ByteString encoded = encodeTrusted(intermediateCa());
+    ck_assert_uint_eq(writeList(&appList, &otherSession, h, encoded), UA_STATUSCODE_GOOD);
+    closeSession(&otherSession);
+    ck_assert_uint_eq(openCount(&appList), 0);
+    ck_assert_uint_eq(applyChanges(&otherSession), UA_STATUSCODE_BADNOTHINGTODO);
+
+    /* Also with a staged TrustList */
+    h = openList(&appList, &otherSession, WRITEMODE, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(writeList(&appList, &otherSession, h, encoded), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeAndUpdate(&appList, &otherSession, h), UA_STATUSCODE_GOOD);
+    closeSession(admin());
+    openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_BADTRANSACTIONPENDING);
+    closeSession(&otherSession);
+    h = openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(&otherSession), UA_STATUSCODE_BADNOTHINGTODO);
+    ck_assert_uint_eq(trustedCount(&UA_Server_getConfig(server)->secureChannelPKI), 2);
+
+    /* A queued ApplyChanges completes */
+    h = openList(&appList, &otherSession, WRITEMODE, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(writeList(&appList, &otherSession, h, encoded), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeAndUpdate(&appList, &otherSession, h), UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&encoded);
+    ck_assert_uint_eq(callAs(&otherSession, UA_NS0ID_SERVERCONFIGURATION,
+                             UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES, 0, NULL, 0, NULL),
+                      UA_STATUSCODE_GOOD);
+    closeSession(&otherSession);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(trustedCount(&UA_Server_getConfig(server)->secureChannelPKI), 1);
+    h = openList(&appList, admin(), WRITEMODE, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
+} END_TEST
+
 static size_t
 fileTransferDrivers(void) {
     size_t count = 0;
@@ -750,6 +799,7 @@ int main(void) {
     tcase_add_test(tc, transactionKeptWhileWriting);
     tcase_add_test(tc, writeChunkFollowsMaxTrustListSize);
     tcase_add_test(tc, openModes);
+    tcase_add_test(tc, sessionCloseDiscardsTransaction);
     tcase_add_test(tc, fileDriversFollowReceiver);
     tcase_add_test(tc, receiverAddedAtRuntime);
     tcase_add_test(tc, receiverStartRollsBack);
