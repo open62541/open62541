@@ -316,6 +316,40 @@ START_TEST(getStrValidSurrogatePairStillWorks) {
     free(buf);
 } END_TEST
 
+/* A high surrogate followed by a backslash that does not begin a "\u" escape is
+ * not a valid pair and must be rejected, not decoded. */
+START_TEST(getStrSurrogateBackslashWithoutUIsRejected) {
+    const char *json = "{'a':\"\\uD800\\q1234\"}";
+    cj5_token tokens[16];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 16, NULL);
+    ck_assert_int_eq(r.error, CJ5_ERROR_NONE);
+
+    unsigned int idx = 2;
+    char *buf = (char*)malloc(tokens[idx].size + 1);
+    unsigned int outlen = 0;
+    cj5_error_code err = cj5_get_str(&r, idx, buf, &outlen);
+    ck_assert_int_eq(err, CJ5_ERROR_INVALID);
+    ck_assert_uint_eq(strlen(buf), outlen);
+    free(buf);
+} END_TEST
+
+/* A high surrogate whose continuation has a 'u' in the second position but no
+ * leading backslash is likewise not a valid pair and must be rejected. */
+START_TEST(getStrSurrogateUWithoutBackslashIsRejected) {
+    const char *json = "{'a':\"\\uD800Xu1234\"}";
+    cj5_token tokens[16];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 16, NULL);
+    ck_assert_int_eq(r.error, CJ5_ERROR_NONE);
+
+    unsigned int idx = 2;
+    char *buf = (char*)malloc(tokens[idx].size + 1);
+    unsigned int outlen = 0;
+    cj5_error_code err = cj5_get_str(&r, idx, buf, &outlen);
+    ck_assert_int_eq(err, CJ5_ERROR_INVALID);
+    ck_assert_uint_eq(strlen(buf), outlen);
+    free(buf);
+} END_TEST
+
 /* Additional coverage tests */
 
 START_TEST(parseTokenOverflow) {
@@ -574,6 +608,8 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_get_str, getStrTruncatedSurrogateIsTerminated);
     tcase_add_test(tc_get_str, getStrUnpairedLowSurrogateIsTerminated);
     tcase_add_test(tc_get_str, getStrSurrogateBadContinuationIsTerminated);
+    tcase_add_test(tc_get_str, getStrSurrogateBackslashWithoutUIsRejected);
+    tcase_add_test(tc_get_str, getStrSurrogateUWithoutBackslashIsRejected);
     tcase_add_test(tc_get_str, getStrWrongTokenTypeIsTerminated);
     tcase_add_test(tc_get_str, getStrValidSurrogatePairStillWorks);
 

@@ -688,7 +688,7 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
                     error = CJ5_ERROR_INVALID;
                     goto done;
                 }
-                if(pos[1] != '\\' && pos[2] != 'u') {
+                if(pos[1] != '\\' || pos[2] != 'u') {
                     error = CJ5_ERROR_INVALID;
                     goto done;
                 }
