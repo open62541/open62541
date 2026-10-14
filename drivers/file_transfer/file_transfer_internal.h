@@ -192,7 +192,8 @@ FTHandle *findFTHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
 /* mode combines UA_OPENFILEMODE_* flags in the protocol's Byte representation. */
 UA_StatusCode openFileHandle(UA_Server *server, FTEntry *node,
                              const UA_NodeId *sessionId, void *sessionContext,
-                             UA_Byte mode, FTHandle **outHandle);
+                             UA_Byte mode, void *openContext,
+                             FTHandle **outHandle);
 UA_StatusCode closeFTHandle(UA_Server *server, FTHandle *handle);
 void closeDriverHandles(UA_Server *server, FileTransferDriver *ftd);
 void closeSessionHandles(UA_Server *server, FileTransferDriver *ftd,

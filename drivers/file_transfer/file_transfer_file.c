@@ -246,12 +246,12 @@ resolveHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Open a file and register the handle. Shared between the Open Method and
- * CreateFile with requestFileOpen. */
+/* Open a file and register the handle. Shared between the Open Method,
+ * CreateFile with requestFileOpen and UA_FileTransferDriver_openHandle(). */
 UA_StatusCode
 openFileHandle(UA_Server *server, FTEntry *node,
                const UA_NodeId *sessionId, void *sessionContext, UA_Byte mode,
-               FTHandle **outHandle) {
+               void *openContext, FTHandle **outHandle) {
     FileTransferDriver *ftd = node->driver;
     /* Validate the mode bit combination */
     if((mode & ~UA_FILETRANSFER_OPENMODE_ALLBITS) ||
@@ -287,7 +287,8 @@ openFileHandle(UA_Server *server, FTEntry *node,
         return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     UA_FileTransferFileBackend *b = &node->driver->backend.file;
-    UA_FileTransferOpenContext context = {server, sessionId, sessionContext};
+    UA_FileTransferOpenContext context = {server, sessionId, sessionContext,
+                                          openContext};
     UA_UInt32 backendHandle = 0;
     res = b->open(b, node->path, mode, &context, &backendHandle);
     if(res != UA_STATUSCODE_GOOD)
@@ -342,7 +343,7 @@ openMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_Byte mode = *(UA_Byte*)input[0].data;
 
     FTHandle *h = NULL;
-    res = openFileHandle(server, node, sessionId, sessionContext, mode, &h);
+    res = openFileHandle(server, node, sessionId, sessionContext, mode, NULL, &h);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 

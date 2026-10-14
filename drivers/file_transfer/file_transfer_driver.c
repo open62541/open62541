@@ -551,6 +551,37 @@ UA_FileTransferDriver_closeHandle(UA_Driver *driver, const UA_NodeId fileNodeId,
 }
 
 UA_StatusCode
+UA_FileTransferDriver_openHandle(UA_Driver *driver, const UA_NodeId fileNodeId,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 UA_Byte mode, void *openContext,
+                                 UA_UInt32 *fileHandle, UA_UInt32 *backendHandle) {
+    if(!driver || !driver->server || !isFileTransferDriver(driver) ||
+       !sessionId || !fileHandle)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    FTEntry *node = findFTEntry((FileTransferDriver*)driver, &fileNodeId);
+    FTHandle *h = NULL;
+    UA_StatusCode res;
+    if(driver->state != UA_LIFECYCLESTATE_STARTED)
+        res = UA_STATUSCODE_BADINVALIDSTATE;
+    else if(!node)
+        res = UA_STATUSCODE_BADINVALIDARGUMENT;
+    else if(node->isDirectory || node->zombie)
+        res = UA_STATUSCODE_BADNOTFOUND;
+    else
+        res = openFileHandle(driver->server, node, sessionId, sessionContext,
+                             mode, openContext, &h);
+    if(res == UA_STATUSCODE_GOOD) {
+        *fileHandle = h->handle;
+        if(backendHandle)
+            *backendHandle = h->backendHandle;
+    }
+    el->unlock(el);
+    return res;
+}
+
+UA_StatusCode
 UA_FileTransferDriver_newDirectory(UA_Server *server,
                                    const UA_FileTransferBackend *backend,
                                    const UA_FileTransferNodeDescription *description,
