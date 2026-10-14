@@ -327,6 +327,30 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
 
+START_TEST(ReadDisplayNameWithTwoByteLocale) {
+    UA_LocaleId *localeIds = (UA_LocaleId*)UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert(localeIds != NULL);
+    localeIds[0] = UA_STRING_ALLOC("de");
+    localeIds[1] = UA_STRING_ALLOC("fr");
+    localeIds[2] = UA_STRING_ALLOC("it");
+    server->adminSession.localeIds = localeIds;
+    server->adminSession.localeIdsSize = 3;
+
+    UA_LocalizedText germanDisplayName = UA_LOCALIZEDTEXT("de-DE", "die Antwort");
+    UA_StatusCode retval = UA_Server_writeDisplayName(
+        server, UA_NODEID_STRING(1, "the.answer"), germanDisplayName);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText displayName;
+    UA_LocalizedText_init(&displayName);
+    retval = UA_Server_readDisplayName(server, UA_NODEID_STRING(1, "the.answer"),
+                                       &displayName);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&displayName.locale, &germanDisplayName.locale));
+    ck_assert(UA_String_equal(&displayName.text, &germanDisplayName.text));
+    UA_LocalizedText_clear(&displayName);
+} END_TEST
+
 START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
@@ -1680,6 +1704,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeClassWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeBrowseNameWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDisplayNameWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadDisplayNameWithTwoByteLocale);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDescriptionWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeWriteMaskWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserWriteMaskWithoutTimestamp);
