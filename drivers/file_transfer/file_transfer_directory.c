@@ -747,7 +747,7 @@ deleteMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         return res;
     }
 
-    removeSubtree(server, target);
+    deleteSubtree(server, target);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -875,7 +875,7 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         /* Within one backend a move is an atomic rename */
         res = dstB->rename(dstB, source->path, destPath);
         if(res == UA_STATUSCODE_GOOD)
-            removeSubtree(server, source); /* Invalidates source */
+            deleteSubtree(server, source); /* Invalidates source */
     } else {
         /* A copy, or a move to another mount: copy to the target backend and
          * delete from the source backend. A file that cannot be deleted is
@@ -886,7 +886,7 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         if(res == UA_STATUSCODE_GOOD && !createCopy) {
             deleteRes = deleteBackendTree(srcB, source->path, isDir, &access);
             if(deleteRes == UA_STATUSCODE_GOOD) {
-                removeSubtree(server, source); /* Invalidates source */
+                deleteSubtree(server, source); /* Invalidates source */
             } else if(!isDir) {
                 dstB->remove(dstB, destPath);
                 res = deleteRes;

@@ -24,7 +24,6 @@
 # include <io.h>
 # include <stdio.h>
 # include <sys/stat.h>
-# include "tr_dirent.h"
 # include "mp_printf.h"
 
 /* A UTF-16 code unit takes at most three UTF-8 bytes */
@@ -36,12 +35,12 @@
 # define ftTell _ftelli64
 typedef __int64 FtOffset;
 typedef struct _stat64 FtStat;
-typedef wchar_t FtChar;
+typedef WCHAR FtChar;
 
 /* Convert the UTF-8 path to UTF-16. A path that cannot be converted is
  * reported as too long. */
 static UA_Boolean
-ftWiden(const char *path, wchar_t *out) {
+ftWiden(const char *path, WCHAR *out) {
     if(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1,
                            out, MAX_PATH) > 0)
         return true;
@@ -51,7 +50,7 @@ ftWiden(const char *path, wchar_t *out) {
 
 static int
 ftStat(const char *path, FtStat *st) {
-    wchar_t wpath[MAX_PATH];
+    WCHAR wpath[MAX_PATH];
     return ftWiden(path, wpath) ? _wstat64(wpath, st) : -1;
 }
 
@@ -59,7 +58,7 @@ ftStat(const char *path, FtStat *st) {
  * _wrmdir/_wremove removes the link itself. */
 static UA_Boolean
 ftIsLink(const char *path) {
-    wchar_t wpath[MAX_PATH];
+    WCHAR wpath[MAX_PATH];
     if(!ftWiden(path, wpath))
         return false;
     DWORD attr = GetFileAttributesW(wpath);
@@ -69,13 +68,45 @@ ftIsLink(const char *path) {
 
 static FILE *
 ftOpen(const char *path, const FtChar *mode) {
-    wchar_t wpath[MAX_PATH];
+    WCHAR wpath[MAX_PATH];
     return ftWiden(path, wpath) ? _wfopen(wpath, mode) : NULL;
+}
+
+/* An existing file for writing without read access and without truncation,
+ * which no fopen mode provides */
+static FILE *
+ftOpenWriteOnly(const char *path) {
+    WCHAR wpath[MAX_PATH];
+    if(!ftWiden(path, wpath))
+        return NULL;
+    int fd = _wopen(wpath, _O_WRONLY | _O_BINARY);
+    if(fd < 0)
+        return NULL;
+    FILE *fp = _fdopen(fd, "wb");
+    if(!fp) {
+        int err = errno;
+        _close(fd);
+        errno = err;
+    }
+    return fp;
+}
+
+/* Errors of FindFirstFileW/FindNextFileW */
+static UA_StatusCode
+ftWinErrorToStatusCode(DWORD err) {
+    switch(err) {
+    case ERROR_FILE_NOT_FOUND:
+    case ERROR_PATH_NOT_FOUND:
+    case ERROR_DIRECTORY: return UA_STATUSCODE_BADNOTFOUND;
+    case ERROR_ACCESS_DENIED: return UA_STATUSCODE_BADUSERACCESSDENIED;
+    case ERROR_NOT_ENOUGH_MEMORY: return UA_STATUSCODE_BADOUTOFMEMORY;
+    default: return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
 }
 
 static int
 ftCreateExclusive(const char *path) {
-    wchar_t wpath[MAX_PATH];
+    WCHAR wpath[MAX_PATH];
     if(!ftWiden(path, wpath))
         return -1;
     int fd = _wopen(wpath, _O_WRONLY | _O_CREAT | _O_EXCL | _O_BINARY,
@@ -88,14 +119,14 @@ ftCreateExclusive(const char *path) {
 
 static int
 ftMkdir(const char *path) {
-    wchar_t wpath[MAX_PATH];
+    WCHAR wpath[MAX_PATH];
     return ftWiden(path, wpath) ? _wmkdir(wpath) : -1;
 }
 
 /* _wremove removes a file, _wrmdir a directory or a junction */
 static int
 ftRemoveEntry(const char *path) {
-    wchar_t wpath[MAX_PATH];
+    WCHAR wpath[MAX_PATH];
     if(!ftWiden(path, wpath))
         return -1;
     if(_wremove(wpath) == 0)
@@ -111,8 +142,8 @@ ftRemoveEntry(const char *path) {
 /* Without MOVEFILE_REPLACE_EXISTING, an existing entry is never replaced */
 static int
 ftRenameNoReplace(const char *from, const char *to) {
-    wchar_t wfrom[MAX_PATH];
-    wchar_t wto[MAX_PATH];
+    WCHAR wfrom[MAX_PATH];
+    WCHAR wto[MAX_PATH];
     if(!ftWiden(from, wfrom) || !ftWiden(to, wto))
         return -1;
     if(MoveFileExW(wfrom, wto, 0))
@@ -131,7 +162,7 @@ ftRenameNoReplace(const char *from, const char *to) {
 
 static UA_FileAccessRights
 ftAccessRights(const char *path, UA_Boolean isDirectory) {
-    wchar_t wpath[MAX_PATH];
+    WCHAR wpath[MAX_PATH];
     if(!ftWiden(path, wpath))
         return 0;
     UA_FileAccessRights rights = 0;
@@ -237,6 +268,22 @@ ftCreateExclusive(const char *path) {
         return -1;
     close(fd);
     return 0;
+}
+
+/* An existing file for writing without read access and without truncation,
+ * which no fopen mode provides. fdopen with "w" does not truncate. */
+static FILE *
+ftOpenWriteOnly(const char *path) {
+    int fd = open(path, O_WRONLY);
+    if(fd < 0)
+        return NULL;
+    FILE *fp = fdopen(fd, "wb");
+    if(!fp) {
+        int err = errno;
+        close(fd);
+        errno = err;
+    }
+    return fp;
 }
 
 static UA_Boolean
@@ -424,20 +471,22 @@ localFsOpen(UA_FileTransferFileBackend *b, const UA_String path,
     UA_Boolean eraseBit = (mode & UA_OPENFILEMODE_ERASEEXISTING) != 0;
     UA_Boolean appendBit = (mode & UA_OPENFILEMODE_APPEND) != 0;
 
-    /* "r+b" opens an existing file for writing without truncation. "wb" /
-     * "w+b" truncate for the EraseExisting semantics. The driver already
-     * validates the mode bit combinations. */
-    const FtChar *fmode;
-    if(writeBit)
-        fmode = eraseBit ? (readBit ? FT_MODE("w+b") : FT_MODE("wb")) :
-            FT_MODE("r+b");
-    else if(readBit)
-        fmode = FT_MODE("rb");
-    else
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
+    /* "r+b" opens an existing file for reading and writing without
+     * truncation. Writing alone must not need read access (Part 20, 4.2.2).
+     * "wb" / "w+b" truncate for the EraseExisting semantics. The driver
+     * already validates the mode bit combinations. */
     errno = 0;
-    FILE *fp = ftOpen(localPath, fmode);
+    FILE *fp;
+    if(writeBit && !readBit && !eraseBit) {
+        fp = ftOpenWriteOnly(localPath);
+    } else if(writeBit) {
+        fp = ftOpen(localPath, eraseBit ? (readBit ? FT_MODE("w+b") : FT_MODE("wb")) :
+                    FT_MODE("r+b"));
+    } else if(readBit) {
+        fp = ftOpen(localPath, FT_MODE("rb"));
+    } else {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
     if(!fp)
         return errnoToStatusCode(errno);
 
@@ -667,7 +716,7 @@ listEntry(const char *dirPath, const char *name,
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     FtStat st;
     if(ftStat(entryPath, &st) != 0)
-        return UA_STATUSCODE_GOOD;
+        return errnoToStatusCode(errno);
     if(FT_ISDIR(st.st_mode) && ftIsLink(entryPath))
         return UA_STATUSCODE_GOOD;
     if(!FT_ISDIR(st.st_mode) && !FT_ISREG(st.st_mode))
@@ -689,37 +738,54 @@ localFsListDirectory(UA_FileTransferBackend *b, const UA_String path,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* An enumeration error must not look like the end of the directory. The
+     * driver drops incomplete listings; a copy treated as complete would let
+     * a move delete source entries that were never copied. */
 #if defined(UA_ARCHITECTURE_WIN32)
-    /* The names are converted back to UTF-8 */
-    wchar_t wpath[MAX_PATH];
-    if(!ftWiden(localPath, wpath))
+    /* FindNextFileW reports the end as ERROR_NO_MORE_FILES. The names are
+     * converted back to UTF-8. */
+    WCHAR pattern[MAX_PATH + 2];
+    if(!ftWiden(localPath, pattern))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    errno = 0;
-    _WDIR *dir = _wopendir(wpath);
-    if(!dir)
-        return errnoToStatusCode(errno);
-    struct _wdirent *entry;
-    while((entry = _wreaddir(dir)) != NULL) {
+    size_t patternLength = wcslen(pattern);
+    pattern[patternLength] = L'\\';
+    pattern[patternLength + 1] = L'*';
+    pattern[patternLength + 2] = 0;
+    WIN32_FIND_DATAW data;
+    HANDLE find = FindFirstFileW(pattern, &data);
+    if(find == INVALID_HANDLE_VALUE)
+        return ftWinErrorToStatusCode(GetLastError());
+    while(res == UA_STATUSCODE_GOOD) {
         char name[FT_PATH_MAX];
-        if(WideCharToMultiByte(CP_UTF8, 0, entry->d_name, -1, name,
+        if(WideCharToMultiByte(CP_UTF8, 0, data.cFileName, -1, name,
                                (int)sizeof(name), NULL, NULL) > 0)
             res = listEntry(localPath, name, cb, listContext);
         else
             res = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-        if(res != UA_STATUSCODE_GOOD)
+        if(res == UA_STATUSCODE_GOOD && !FindNextFileW(find, &data)) {
+            DWORD err = GetLastError();
+            if(err != ERROR_NO_MORE_FILES)
+                res = ftWinErrorToStatusCode(err);
             break;
+        }
     }
-    _wclosedir(dir);
+    FindClose(find);
 #else
+    /* readdir() returns NULL at the end and on errors; only errors set errno.
+     * The entry processing changes errno, so it is reset before each call. */
     errno = 0;
     DIR *dir = opendir(localPath);
     if(!dir)
         return errnoToStatusCode(errno);
-    struct dirent *entry;
-    while((entry = readdir(dir)) != NULL) {
-        res = listEntry(localPath, entry->d_name, cb, listContext);
-        if(res != UA_STATUSCODE_GOOD)
+    while(res == UA_STATUSCODE_GOOD) {
+        errno = 0;
+        struct dirent *entry = readdir(dir);
+        if(!entry) {
+            if(errno != 0)
+                res = errnoToStatusCode(errno);
             break;
+        }
+        res = listEntry(localPath, entry->d_name, cb, listContext);
     }
     closedir(dir);
 #endif
