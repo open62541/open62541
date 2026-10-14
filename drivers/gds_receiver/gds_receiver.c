@@ -1351,6 +1351,7 @@ UA_GDSReceiver_free(UA_Driver *drv) {
     UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
     UA_GDSReceiver_stopTrustLists(ctx);
     UA_GDSTransaction_clear(&ctx->transaction);
+    UA_KeyValueMap_clear(&drv->params);
 
     /* Free SecureChannel Metadata */
     ChannelMetadata *cm, *cm_tmp;
