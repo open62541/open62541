@@ -449,7 +449,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
 
     /* Update the service statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
-    if(session) {
+    if(session && session->state != UA_SESSIONSTATE_CLOSED) {
         session->diagnostics.totalRequestCount.totalCount++;
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
             session->diagnostics.totalRequestCount.errorCount++;

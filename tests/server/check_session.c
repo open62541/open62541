@@ -150,7 +150,7 @@ observeDeleteCloseSession(UA_Server *server_, UA_AccessControl *ac,
     originalDeleteCloseSession(server_, ac, sessionId, sessionContext);
 }
 
-START_TEST(Session_deleteStoppedServerCleansSessionSynchronously) {
+START_TEST(Session_shutdownCleansSessionBeforeStopped) {
     UA_Client *client = UA_Client_newForUnitTest();
     ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
                       UA_STATUSCODE_GOOD);
@@ -162,8 +162,9 @@ START_TEST(Session_deleteStoppedServerCleansSessionSynchronously) {
 
     UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
-    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteCloseSessionCalls, 0);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteCloseSessionCalls, 1);
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
     server = NULL;
     ck_assert_uint_eq(deleteCloseSessionCalls, 1);
@@ -1028,7 +1029,7 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
     tcase_add_test(tc_session, Session_notificationCallback);
     tcase_add_test(tc_session,
-                   Session_deleteStoppedServerCleansSessionSynchronously);
+                   Session_shutdownCleansSessionBeforeStopped);
     tcase_add_test(tc_session, Session_serviceBeginCallbackClosesCurrentSession);
     tcase_add_test(tc_session, Session_accessControlCloseSessionIsReentrant);
     tcase_add_test(tc_session, Session_createdNotificationCloseReturnsSessionClosed);

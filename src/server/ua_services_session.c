@@ -87,6 +87,8 @@ cleanupSessionEntryCallback(void *application /* UA_Server */,
     session_list_entry *entry = (session_list_entry*)context;
     lockServer(server);
     cleanupSessionEntry(server, entry);
+    UA_assert(server->sessionCleanupPending > 0);
+    server->sessionCleanupPending--;
     unlockServer(server);
 }
 
@@ -178,16 +180,10 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     /* Notify the application */
     notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
 
-    /* There cannot be callbacks still using the Session once the Server is
-     * stopped. In particular, UA_Server_delete should not enqueue work into an
-     * EventLoop that it is about to delete. */
-    if(server->state == UA_LIFECYCLESTATE_STOPPED) {
-        cleanupSessionEntry(server, sentry);
-        return;
-    }
-
     /* Destructively tear down and free the Session after the currently
-     * scheduled jobs have completed. */
+     * scheduled jobs have completed. Shutdown waits for this callback before
+     * stopping the EventLoop. */
+    server->sessionCleanupPending++;
     sentry->cleanupCallback.callback = cleanupSessionEntryCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.context = sentry;
@@ -465,6 +461,10 @@ UA_StatusCode
 UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
                   const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    if(server->state == UA_LIFECYCLESTATE_STOPPING ||
+       server->state == UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADSHUTDOWN;
 
     if(server->config.maxSessions != 0 &&
        server->sessionCount >= server->config.maxSessions) {

@@ -68,6 +68,13 @@ struct FuzzServer {
         if(!cm)
             return;
 
+        /* The harness supplies its own open channel without starting the
+         * transport drivers. Run the EventLoop for delayed Session cleanup. */
+        UA_EventLoop *el = server->config.eventLoop;
+        if(el->start(el) != UA_STATUSCODE_GOOD)
+            return;
+        server->state = UA_LIFECYCLESTATE_STARTED;
+
         /* Keep the server socket and protocol manager for the fuzz process. */
         serverNetworkCallback(cm, 1, bpm, &listenerContext,
                               UA_CONNECTIONSTATE_ESTABLISHED,
@@ -80,8 +87,18 @@ struct FuzzServer {
             serverNetworkCallback(cm, 1, bpm, &listenerContext,
                                   UA_CONNECTIONSTATE_CLOSING,
                                   &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-        if(server)
+        if(server) {
+            UA_EventLoop *el = server->config.eventLoop;
+            if(server->state == UA_LIFECYCLESTATE_STARTED) {
+                while(server->sessionCleanupPending > 0)
+                    el->run(el, 0);
+                el->stop(el);
+                while(el->state == UA_EVENTLOOPSTATE_STOPPING)
+                    el->run(el, 0);
+            }
+            server->state = UA_LIFECYCLESTATE_STOPPED;
             UA_Server_delete(server);
+        }
         if(cm)
             cm->eventSource.free(&cm->eventSource);
     }
