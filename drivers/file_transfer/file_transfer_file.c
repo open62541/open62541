@@ -175,6 +175,13 @@ newHandleId(FileTransferDriver *ftd) {
     return ftd->nextHandle;
 }
 
+/* A Method call on the handle restarts its activity-timeout */
+void
+touchFTHandle(UA_Server *server, FTHandle *h) {
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    h->lastActivity = el->dateTime_nowMonotonic(el);
+}
+
 /* Close the backend handle and release the handle. Removes zombie nodes once
  * their last handle is closed. */
 UA_StatusCode
@@ -225,6 +232,29 @@ closeSessionHandles(UA_Server *server, FileTransferDriver *ftd,
         closeFTHandle(server, h);
 }
 
+static void *
+findIdleHandle(void *context, FTHandle *h) {
+    return h->lastActivity <= *(UA_DateTime*)context ? h : NULL;
+}
+
+/* Close the handles without a Method call within the activity-timeout like
+ * Close. The search starts again after each removal. */
+void
+sweepIdleHandles(UA_Server *server, void *driver) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime limit = el->dateTime_nowMonotonic(el) -
+        (UA_DateTime)(ftd->config.activityTimeout * UA_DATETIME_MSEC);
+    FTHandle *h;
+    while((h = (FTHandle*)ZIP_ITER(FTHandlesById, &ftd->handlesById,
+                                   findIdleHandle, &limit))) {
+        UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                    "FileTransfer: Closing the idle FileHandle %u of %N",
+                    (unsigned)h->handle, h->file->nodeId);
+        closeFTHandle(server, h);
+    }
+}
+
 /**************************************
  * FileType Method Callbacks
  **************************************/
@@ -242,6 +272,7 @@ resolveHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
     FTHandle *h = findFTHandle(ftd, sessionId, handleId);
     if(!h || !UA_NodeId_equal(&h->file->nodeId, objectId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    touchFTHandle(ftd->driver.server, h);
     *outHandle = h;
     return UA_STATUSCODE_GOOD;
 }
@@ -310,6 +341,7 @@ openFileHandle(UA_Server *server, FTEntry *node,
     h->file = node;
     h->mode = mode;
     h->backendHandle = backendHandle;
+    touchFTHandle(server, h);
     ZIP_INSERT(FTHandlesById, &ftd->handlesById, h);
     ZIP_INSERT(FTHandlesBySession, &ftd->handlesBySession, h);
 

@@ -233,6 +233,12 @@ struct UA_FileTransferBackend {
  * 0:max-open-handles-per-file [UInt16]
  *    Open-handle limit per file (default: 16). Either handle limit makes
  *    Open return Bad_ResourceUnavailable when reached.
+ * 0:activity-timeout [Double]
+ *    Close handles without a Method call for longer than this many
+ *    milliseconds like Close, e.g. for the ActivityTimeout of a TrustList
+ *    (Part 12, 7.8.2.1). The FileType Methods, openHandle and getHandleInfo
+ *    count as calls. Idle handles are closed within twice the timeout. 0
+ *    disables it (default); otherwise at least 0.0001.
  * 0:max-read-length [UInt32]
  *    Maximum bytes per Read or Write (default, also when zero: 1048576).
  *    Published as MaxByteStringLength. Reads are capped at this length;
