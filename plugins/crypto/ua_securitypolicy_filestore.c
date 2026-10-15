@@ -77,6 +77,8 @@ createCertName(const UA_ByteString *certificate, char *fileNameBuf, size_t fileN
     UA_String thumbprint = UA_STRING_NULL;
     thumbprint.length = 40;
     thumbprint.data = (UA_Byte*)UA_calloc(thumbprint.length, sizeof(UA_Byte));
+    if(!thumbprint.data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_String subjectName = UA_STRING_NULL;
 
@@ -91,6 +93,13 @@ createCertName(const UA_ByteString *certificate, char *fileNameBuf, size_t fileN
 
     char *thumbprintBuffer = (char*)UA_calloc(1, thumbprint.length + 1);
     char *subjectNameBuffer = (char*)UA_calloc(1, subjectName.length + 1);
+    if(!thumbprintBuffer || !subjectNameBuffer) {
+        UA_free(thumbprintBuffer);
+        UA_free(subjectNameBuffer);
+        UA_String_clear(&thumbprint);
+        UA_String_clear(&subjectName);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     memcpy(thumbprintBuffer, thumbprint.data, thumbprint.length);
     memcpy(subjectNameBuffer, subjectName.data, subjectName.length);
