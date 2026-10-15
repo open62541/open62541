@@ -42,6 +42,9 @@ typedef struct {
     UA_Boolean        activated;
     void             *sessionHandle; /* pointer assigned in userland-callback */
     UA_NodeId         sessionId;
+    UA_UserTokenType  userTokenType; /* Type of the activated user identity */
+    UA_String         clientUserId;  /* Identifies the activated user. Empty for
+                                      * anonymous and issued tokens. */
     UA_UInt32         maxRequestMessageSize;
     UA_UInt32         maxResponseMessageSize;
     UA_Double         timeout; /* in ms */
