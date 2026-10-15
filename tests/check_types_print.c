@@ -569,6 +569,18 @@ START_TEST(string_format_test) {
     UA_String_clear(&s);
 } END_TEST
 
+START_TEST(nodeId_print_exactBufferWithoutEscaping) {
+    UA_NodeId id = UA_NODEID_STRING(0, "a/b %");
+    UA_String expected = UA_STRING("s=a/b %");
+    UA_Byte buffer[8];
+    memset(buffer, 0x5a, sizeof(buffer));
+    UA_String output = {expected.length, buffer};
+    ck_assert_uint_eq(UA_NodeId_print(&id, &output), UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&output, &expected));
+    ck_assert_ptr_eq(output.data, buffer);
+    ck_assert_uint_eq(buffer[expected.length], 0x5a);
+} END_TEST
+
 /* === Suite === */
 static Suite *testSuite_typesExtra3(void) {
     TCase *tc_find = tcase_create("FindDataType");
@@ -602,6 +614,7 @@ static Suite *testSuite_typesExtra3(void) {
 #ifdef UA_TYPES_ATTRIBUTEOPERAND
     tcase_add_test(tc_print, attributeOperand_print_escapedPathAndRange);
 #endif
+    tcase_add_test(tc_print, nodeId_print_exactBufferWithoutEscaping);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     tcase_add_test(tc_print, print_int32);
     tcase_add_test(tc_print, print_string);
