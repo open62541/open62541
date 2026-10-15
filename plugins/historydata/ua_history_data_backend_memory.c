@@ -212,6 +212,8 @@ serverSetHistoryData_backend_memory(UA_Server *server,
         timestamp = UA_DateTime_now();
     }
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
+    if (!newItem)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
     size_t index = getDateTimeMatch_backend_memory(server,
@@ -396,9 +398,11 @@ copyDataValues_backend_memory(UA_Server *server,
         *providedValues = counter;
 
     if ((!reverse && (endIndex-startIndex-skip+1) > counter) || (reverse && (startIndex-endIndex-skip+1) > counter)) {
-        outContinuationPoint->length = sizeof(size_t);
         size_t t = sizeof(size_t);
         outContinuationPoint->data = (UA_Byte*)UA_malloc(t);
+        if (!outContinuationPoint->data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        outContinuationPoint->length = sizeof(size_t);
         *((size_t*)(outContinuationPoint->data)) = skip + counter;
     }
 
@@ -438,6 +442,8 @@ insertDataValue_backend_memory(UA_Server *server,
         item->storeSize = newStoreSize;
     }
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
+    if (!newItem)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
     if (item->storeEnd > 0 && index < item->storeEnd) {
@@ -590,6 +596,10 @@ UA_HistoryDataBackend_Memory(size_t initialNodeIdStoreSize, size_t initialDataSt
     if (!ctx)
         return result;
     ctx->dataStore = (UA_NodeIdStoreContextItem_backend_memory*)UA_calloc(initialNodeIdStoreSize, sizeof(UA_NodeIdStoreContextItem_backend_memory));
+    if (!ctx->dataStore) {
+        UA_free(ctx);
+        return result;
+    }
     ctx->initialStoreSize = initialDataStoreSize;
     ctx->storeSize = initialNodeIdStoreSize;
     ctx->storeEnd = 0;
