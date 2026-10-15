@@ -467,6 +467,39 @@ START_TEST(certificate_generation_email_san) {
 END_TEST
 #endif
 
+START_TEST(certificate_generation_rejects_invalid_san) {
+    static const char *const invalidNames[] = {
+        "missing-separator", "UNKNOWN:value", "IP:300.1.1.1", ""
+    };
+    UA_String subject = UA_STRING("CN=localhost");
+    /* A valid entry first also exercises cleanup of the partially built list. */
+    UA_String names[] = {UA_STRING("URI:urn:test.generated"),
+                         UA_STRING((char*)(uintptr_t)invalidNames[_i])};
+    UA_KeyValueMap params = UA_KEYVALUEMAP_NULL;
+    UA_UInt16 keyLength = 2048;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(
+        &params, UA_QUALIFIEDNAME(0, "key-size-bits"), &keyLength,
+        &UA_TYPES[UA_TYPES_UINT16]), UA_STATUSCODE_GOOD);
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    UA_String keyType = UA_STRING("EC");
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(
+        &params, UA_QUALIFIEDNAME(0, "key-type"), &keyType,
+        &UA_TYPES[UA_TYPES_STRING]), UA_STATUSCODE_GOOD);
+#endif
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_StatusCode status = UA_CreateCertificate(
+        UA_Log_Stdout, &subject, 1, names, 2, UA_CERTIFICATEFORMAT_DER,
+        &params, &privateKey, &certificate);
+    UA_KeyValueMap_clear(&params);
+    ck_assert_uint_eq(status, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_ptr_null(privateKey.data);
+    ck_assert_uint_eq(privateKey.length, 0);
+    ck_assert_ptr_null(certificate.data);
+    ck_assert_uint_eq(certificate.length, 0);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Create Certificate");
     TCase *tc_cert = tcase_create("Certificate Create");
@@ -492,6 +525,9 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_loop_test(tc_options, certificate_generation_eddsa, 0, 4);
 #endif
     suite_add_tcase(s, tc_options);
+    TCase *tc_san = tcase_create("Invalid subject alternative names");
+    tcase_add_loop_test(tc_san, certificate_generation_rejects_invalid_san, 0, 4);
+    suite_add_tcase(s, tc_san);
     return s;
 }
 
