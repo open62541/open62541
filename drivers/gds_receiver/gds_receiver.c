@@ -104,6 +104,21 @@ getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
     return NULL;
 }
 
+/* AddCertificate and RemoveCertificate cannot be called while the TrustList is
+ * open. */
+static UA_StatusCode
+checkTrustListClosed(UA_FileInfo *fileInfo) {
+    UA_FileContext *fileContext;
+    LIST_FOREACH(fileContext, &fileInfo->fileContext, listEntry) {
+        if(fileContext->openFileMode ==
+           (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+            return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+    if(fileInfo->openCount > 0)
+        return UA_STATUSCODE_BADNOTWRITABLE;
+    return UA_STATUSCODE_GOOD;
+}
+
 /********************/
 /* GDS Transaction  */
 /********************/
@@ -669,6 +684,18 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
+    /* This method cannot be called if the containing TrustList Object is open */
+    UA_FileInfo *fileInfo =
+        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+    if(!fileInfo)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode res = checkTrustListClosed(fileInfo);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    if(UA_GDSReceiver_transactionPending(ctx))
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+
     /* CA certificates cannot be added using this method because it does not
      * support adding CRLs */
     if(UA_CertificateUtils_checkCA(certificate) == UA_STATUSCODE_GOOD) {
@@ -678,21 +705,13 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    /* This method cannot be called if the containing TrustList Object is open */
-    UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(fileInfo->openCount > 0)
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
     trustList.trustedCertificates = certificate;
     trustList.trustedCertificatesSize = 1;
 
-    UA_StatusCode res = certGroup->addToTrustList(certGroup, &trustList);
+    res = certGroup->addToTrustList(certGroup, &trustList);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -805,21 +824,22 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
-    UA_GDSTransaction *transaction = &ctx->transaction;
-    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
-        return UA_STATUSCODE_BADTRANSACTIONPENDING;
-
     /* This Method cannot be called if the containing TrustList Object is open */
     UA_FileInfo *fileInfo =
         UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(fileInfo->openCount > 0)
-        return UA_STATUSCODE_BADINVALIDSTATE;
+    UA_StatusCode retval = checkTrustListClosed(fileInfo);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_GDSTransaction *transaction = &ctx->transaction;
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     /* When a certificate is removed, a transaction is created which is then
      * executed directly. No apply changes is required */
-    UA_StatusCode retval = UA_GDSTransaction_init(transaction, server, *sessionId);
+    retval = UA_GDSTransaction_init(transaction, server, *sessionId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
