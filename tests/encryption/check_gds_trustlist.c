@@ -417,12 +417,13 @@ START_TEST(closeDiscardsWrittenData) {
     ck_assert_uint_eq(trustedCount(&UA_Server_getConfig(server)->secureChannelPKI), 2);
 } END_TEST
 
-/* AddCertificate and RemoveCertificate are refused while the TrustList is open */
+/* AddCertificate and RemoveCertificate are refused while the TrustList is open
+ * for reading (Part 12, 7.8.2.6 and 7.8.2.7) */
 START_TEST(certificateMethodsWhileOpen) {
     UA_UInt32 h = openWithMasks(&appList, admin(), UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES,
                                 UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(addCertificate(&appList), UA_STATUSCODE_BADINVALIDSTATE);
-    ck_assert_uint_eq(removeCertificate(&appList), UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(addCertificate(&appList), UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_uint_eq(removeCertificate(&appList), UA_STATUSCODE_BADNOTWRITABLE);
     /* Another TrustList is not affected */
     ck_assert_uint_eq(addCertificate(&userList), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
