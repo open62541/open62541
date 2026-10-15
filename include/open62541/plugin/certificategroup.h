@@ -43,6 +43,9 @@ struct UA_CertificateGroup {
      * automatically. */
     const UA_Logger *logging;
 
+    /* Copies the lists selected by trustList->specifiedLists. The other lists
+     * stay empty. On return, specifiedLists names the lists that were copied.
+     * Set specifiedLists to UA_TRUSTLISTMASKS_ALL to get all lists. */
     UA_StatusCode (*getTrustList)(UA_CertificateGroup *certGroup,
                                   UA_TrustListDataType *trustList);
 

@@ -77,7 +77,25 @@ MemoryCertStore_getTrustList(UA_CertificateGroup *certGroup, UA_TrustListDataTyp
     }
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
-    return UA_TrustListDataType_copy(&context->trustList, trustList);
+    UA_TrustListDataType masked = context->trustList;
+    masked.specifiedLists = trustList->specifiedLists & UA_TRUSTLISTMASKS_ALL;
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES)) {
+        masked.trustedCertificatesSize = 0;
+        masked.trustedCertificates = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS)) {
+        masked.trustedCrlsSize = 0;
+        masked.trustedCrls = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES)) {
+        masked.issuerCertificatesSize = 0;
+        masked.issuerCertificates = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS)) {
+        masked.issuerCrlsSize = 0;
+        masked.issuerCrls = NULL;
+    }
+    return UA_TrustListDataType_copy(&masked, trustList);
 }
 
 static UA_StatusCode
