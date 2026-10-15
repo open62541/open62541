@@ -1018,6 +1018,84 @@ START_TEST(Server_HistorizingRandomIndexBackend)
 }
 END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+static UA_Boolean failHistoryDataAllocation;
+static UA_Boolean historyReadBackendCalled;
+
+static void *
+historyDataTestCalloc(size_t nelem, size_t elsize) {
+    if(failHistoryDataAllocation && nelem == 1 &&
+       elsize == UA_TYPES[UA_TYPES_HISTORYDATA].memSize) {
+        failHistoryDataAllocation = false;
+        return NULL;
+    }
+    return calloc(nelem, elsize);
+}
+
+static void
+historyReadTestBackend(UA_Server *hdbServer, void *hdbContext,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_RequestHeader *requestHeader,
+                       const UA_ReadRawModifiedDetails *historyReadDetails,
+                       UA_TimestampsToReturn timestampsToReturn,
+                       UA_Boolean releaseContinuationPoints,
+                       size_t nodesToReadSize,
+                       const UA_HistoryReadValueId *nodesToRead,
+                       UA_HistoryReadResponse *response,
+                       UA_HistoryData * const * const historyData) {
+    historyReadBackendCalled = true;
+}
+
+START_TEST(Server_HistorizingReadHistoryDataOutOfMemory) {
+    UA_ReadRawModifiedDetails details;
+    UA_ReadRawModifiedDetails_init(&details);
+
+    UA_HistoryReadValueId valueId;
+    UA_HistoryReadValueId_init(&valueId);
+    valueId.nodeId = outNodeId;
+
+    UA_HistoryReadRequest request;
+    UA_HistoryReadRequest_init(&request);
+    request.historyReadDetails.encoding = UA_EXTENSIONOBJECT_DECODED;
+    request.historyReadDetails.content.decoded.type =
+        &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
+    request.historyReadDetails.content.decoded.data = &details;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.nodesToReadSize = 1;
+    request.nodesToRead = &valueId;
+
+    UA_HistoryReadResponse response;
+    UA_HistoryReadResponse_init(&response);
+
+    /* The singletons are thread-local. Only the allocations of the test thread
+     * are affected, not those of the server thread. */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    void (*readRaw)(UA_Server*, void*, const UA_NodeId*, void*,
+                    const UA_RequestHeader*, const UA_ReadRawModifiedDetails*,
+                    UA_TimestampsToReturn, UA_Boolean, size_t,
+                    const UA_HistoryReadValueId*, UA_HistoryReadResponse*,
+                    UA_HistoryData * const * const) =
+        config->historyDatabase.readRaw;
+    void *(*callocFunc)(size_t, size_t) = UA_callocSingleton;
+    config->historyDatabase.readRaw = historyReadTestBackend;
+    UA_callocSingleton = historyDataTestCalloc;
+    failHistoryDataAllocation = true;
+    historyReadBackendCalled = false;
+    UA_LOCK(&server->serviceMutex);
+    Service_HistoryRead(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_callocSingleton = callocFunc;
+    config->historyDatabase.readRaw = readRaw;
+
+    ck_assert(!failHistoryDataAllocation);
+    ck_assert(!historyReadBackendCalled);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADOUTOFMEMORY);
+    UA_HistoryReadResponse_clear(&response);
+}
+END_TEST
+#endif /* UA_ENABLE_MALLOC_SINGLETON */
+
 #endif /*UA_ENABLE_HISTORIZING*/
 
 static Suite* testSuite_Client(void)
@@ -1035,6 +1113,9 @@ static Suite* testSuite_Client(void)
     tcase_add_test(tc_server, Server_HistorizingUpdateInsert);
     tcase_add_test(tc_server, Server_HistorizingUpdateReplace);
     tcase_add_test(tc_server, Server_HistorizingUpdateUpdate);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    tcase_add_test(tc_server, Server_HistorizingReadHistoryDataOutOfMemory);
+#endif
 #endif /* UA_ENABLE_HISTORIZING */
     suite_add_tcase(s, tc_server);
 
