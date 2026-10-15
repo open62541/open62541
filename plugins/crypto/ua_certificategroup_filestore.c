@@ -137,6 +137,8 @@ getCertFileName(const char *path, const char *fileExt,
     UA_String thumbprint = UA_STRING_NULL;
     thumbprint.length = 40;
     thumbprint.data = (UA_Byte*)UA_calloc(thumbprint.length, sizeof(UA_Byte));
+    if(!thumbprint.data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_String subjectName = UA_STRING_NULL;
 
@@ -151,6 +153,13 @@ getCertFileName(const char *path, const char *fileExt,
 
     char *thumbprintBuffer = (char*)UA_malloc(thumbprint.length + 1);
     char *subjectNameBuffer = (char*)UA_malloc(subjectName.length + 1);
+    if(!thumbprintBuffer || !subjectNameBuffer) {
+        UA_free(thumbprintBuffer);
+        UA_free(subjectNameBuffer);
+        UA_String_clear(&thumbprint);
+        UA_String_clear(&subjectName);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     memcpy(thumbprintBuffer, thumbprint.data, thumbprint.length);
     thumbprintBuffer[thumbprint.length] = '\0';
@@ -768,6 +777,10 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
     }
 
     context->store = (UA_CertificateGroup*)UA_calloc(1, sizeof(UA_CertificateGroup));
+    if(!context->store) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
     retval = UA_CertificateGroup_Memorystore(context->store, certificateGroupId, NULL, logger, params);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_APPLICATION,
