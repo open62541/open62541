@@ -45,6 +45,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_NodeId_clear(&session->header.authenticationToken);
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
+    UA_String_clear(&session->clientUserId);
     UA_ByteString_clear(&session->serverNonce);
     struct ContinuationPoint *cp, *next = session->continuationPoints;
     while((cp = next)) {
