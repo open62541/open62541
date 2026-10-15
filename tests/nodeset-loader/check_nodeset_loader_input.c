@@ -506,6 +506,28 @@ START_TEST(Server_rejectNegativeUnsignedInitialValue) {
 }
 END_TEST
 
+START_TEST(Server_rejectMalformedInitialValue) {
+    /* A malformed supplied value must not become a default value, even when
+     * defaults are allowed for variables that omit their initial value. */
+    UA_Server_getConfig(server)->allowEmptyVariables = UA_RULEHANDLING_DEFAULT;
+    static const char *const nodes[] = {
+        ("<UAVariable NodeId=\"ns=1;i=1\" BrowseName=\"1:InvalidValue\" DataType=\"i=6\">"
+         "<Value><Int32>12x</Int32></Value><References>"
+         "<Reference ReferenceType=\"i=35\" IsForward=\"false\">i=85</Reference>"
+         "<Reference ReferenceType=\"i=40\">i=63</Reference>"
+         "</References></UAVariable>"),
+        ("<UAVariableType NodeId=\"ns=1;i=1\" BrowseName=\"1:InvalidValue\" DataType=\"i=6\">"
+         "<Value><Int32>12x</Int32></Value><References>"
+         "<Reference ReferenceType=\"i=45\" IsForward=\"false\">i=63</Reference>"
+         "</References></UAVariableType>")
+    };
+    UA_UInt16 nsIndex = loadValidationNodes(nodes[_i]);
+    UA_NodeClass nodeClass = UA_NODECLASS_UNSPECIFIED;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server,
+        UA_NODEID_NUMERIC(nsIndex, 1), &nodeClass), UA_STATUSCODE_BADNODEIDUNKNOWN);
+}
+END_TEST
+
 static Suite *
 testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Loader");
@@ -528,6 +550,7 @@ testSuite_Client(void) {
     tcase_add_test(tc_validation, Server_rejectUnresolvableDataTypeDefinitions);
     tcase_add_loop_test(tc_validation, Server_validateDataTypeFieldLimits, 0, 4);
     tcase_add_loop_test(tc_validation, Server_rejectNegativeUnsignedInitialValue, 0, 2);
+    tcase_add_loop_test(tc_validation, Server_rejectMalformedInitialValue, 0, 2);
     suite_add_tcase(s, tc_validation);
     return s;
 }
