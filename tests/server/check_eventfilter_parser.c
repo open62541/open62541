@@ -6,6 +6,7 @@
 #include "open62541/plugin/log_stdout.h"
 #include "ua_eventfilter_parser.h"
 #include "check.h"
+#include <stdlib.h>
 
 static UA_EventFilter filter;
 
@@ -240,6 +241,102 @@ START_TEST(Case_19) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+/* Let the n-th allocation fail. The parser must return an error (the result is
+ * not silently wrong), not crash and not leak. */
+static size_t allocCount;
+static size_t failAllocAt;
+static long liveAllocations;
+
+static UA_Boolean
+shouldFail(void) {
+    allocCount++;
+    return (failAllocAt > 0 && allocCount == failAllocAt);
+}
+
+static void *
+testMalloc(size_t size) {
+    if(shouldFail())
+        return NULL;
+    void *p = malloc(size);
+    if(p)
+        liveAllocations++;
+    return p;
+}
+
+static void *
+testCalloc(size_t nelem, size_t elsize) {
+    if(shouldFail())
+        return NULL;
+    void *p = calloc(nelem, elsize);
+    if(p)
+        liveAllocations++;
+    return p;
+}
+
+static void *
+testRealloc(void *ptr, size_t size) {
+    if(shouldFail())
+        return NULL;
+    void *p = realloc(ptr, size);
+    if(p && !ptr)
+        liveAllocations++;
+    return p;
+}
+
+static void
+testFree(void *ptr) {
+    if(ptr)
+        liveAllocations--;
+    free(ptr);
+}
+
+static UA_StatusCode
+parseWithAllocationFailure(const char *inp, size_t failAt) {
+    allocCount = 0;
+    failAllocAt = failAt;
+    liveAllocations = 0;
+    UA_mallocSingleton = testMalloc;
+    UA_callocSingleton = testCalloc;
+    UA_reallocSingleton = testRealloc;
+    UA_freeSingleton = testFree;
+
+    UA_EventFilter f;
+    UA_EventFilter_init(&f);
+    UA_StatusCode res = UA_EventFilter_parse(&f, UA_STRING((char*)(uintptr_t)inp), NULL);
+    UA_EventFilter_clear(&f);
+
+    UA_mallocSingleton = malloc;
+    UA_callocSingleton = calloc;
+    UA_reallocSingleton = realloc;
+    UA_freeSingleton = free;
+    return res;
+}
+
+START_TEST(Case_allocation_failure) {
+    /* Named operands, JSON and typed literals, SimpleAttributeOperands,
+     * operators with several children and operand definitions */
+    const char *inp =
+        "SELECT /Message, $sel "
+        "WHERE $a AND /Value == {\"UaType\": 3,\"Value\": [1,2,1,5],\"Dimension\": [2,2]} "
+        "AND OFTYPE ns=1;i=5001 AND /Severity INLIST [UINT32 5, 7] "
+        "FOR $a := /Severity BETWEEN [1,2], $sel := /Time";
+
+    /* Count the allocations */
+    UA_StatusCode res = parseWithAllocationFailure(inp, 0);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(liveAllocations, 0);
+    size_t total = allocCount;
+    ck_assert(total > 0);
+
+    for(size_t i = 1; i <= total; i++) {
+        res = parseWithAllocationFailure(inp, i);
+        ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(liveAllocations, 0);
+    }
+} END_TEST
+#endif /* UA_ENABLE_MALLOC_SINGLETON */
+
 /* ==== pos2lines line/column counter ==== */
 
 START_TEST(pos2lines_newlineAdvancesLine) {
@@ -314,6 +411,9 @@ int main(void) {
     tcase_add_test(tc_call, Case_17);
     tcase_add_test(tc_call, Case_18);
     tcase_add_test(tc_call, Case_19);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    tcase_add_test(tc_call, Case_allocation_failure);
+#endif
     tcase_add_test(tc_call, pos2lines_newlineAdvancesLine);
     suite_add_tcase(s, tc_call);
 

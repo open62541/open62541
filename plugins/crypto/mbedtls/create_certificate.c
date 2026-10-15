@@ -37,6 +37,17 @@ typedef struct mbedtls_write_san_list{
     struct mbedtls_write_san_list* next;
 } mbedtls_write_san_list;
 
+static void
+clearSanList(mbedtls_write_san_list *head) {
+    while(head) {
+        mbedtls_write_san_list *next = head->next;
+        if(head->node.type == MBEDTLS_X509_SAN_IP_ADDRESS)
+            mbedtls_free(head->node.host);
+        mbedtls_free(head);
+        head = next;
+    }
+}
+
 static size_t mbedtls_get_san_list_deep(const mbedtls_write_san_list* sanlist);
 
 int mbedtls_x509write_crt_set_subject_alt_name(mbedtls_x509write_cert *ctx, const mbedtls_write_san_list* sanlist);
@@ -247,6 +258,11 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     for(size_t i = 0; i < subjectAltNameSize; i++) {
         /* Copy and null-terminate */
         char *subAlt = (char *)UA_malloc(subjectAltName[i].length + 1);
+        if(!subAlt) {
+            errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+            clearSanList(head);
+            goto cleanup;
+        }
         memcpy(subAlt, subjectAltName[i].data, subjectAltName[i].length);
         subAlt[subjectAltName[i].length] = 0;
 
@@ -270,6 +286,12 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         size_t sanValueLength = subjectAltName[i].length - strlen(sanType) - 1;
 
         cur_tmp = (mbedtls_write_san_list*)mbedtls_calloc(1, sizeof(mbedtls_write_san_list));
+        if(!cur_tmp) {
+            UA_free(subAlt);
+            errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+            clearSanList(head);
+            goto cleanup;
+        }
         cur_tmp->next = NULL;
         cur_tmp->node.host = sanValue;
         cur_tmp->node.hostlen = sanValueLength;
@@ -399,9 +421,18 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     mbedtls_asn1_sequence *ext_key_usage;
     ext_key_usage = (mbedtls_asn1_sequence *)mbedtls_calloc(1, sizeof(mbedtls_asn1_sequence));
+    if(!ext_key_usage) {
+        errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
     ext_key_usage->buf.tag = MBEDTLS_ASN1_OID;
     SET_OID(ext_key_usage->buf, MBEDTLS_OID_SERVER_AUTH);
     ext_key_usage->next = (mbedtls_asn1_sequence *)mbedtls_calloc(1, sizeof(mbedtls_asn1_sequence));
+    if(!ext_key_usage->next) {
+        mbedtls_free(ext_key_usage);
+        errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
     ext_key_usage->next->buf.tag = MBEDTLS_ASN1_OID;
     SET_OID(ext_key_usage->next->buf, MBEDTLS_OID_CLIENT_AUTH);
 
