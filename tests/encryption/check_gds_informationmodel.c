@@ -19,6 +19,11 @@
 #include "test_helpers.h"
 #include "certificates.h"
 
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+#include "mp_printf.h"
+#define TEST_PATH_MAX 256
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
 UA_Server *server;
 UA_GDSReceiver *receiver;
 UA_atomic(uintptr_t) running;
@@ -29,6 +34,8 @@ THREAD_CALLBACK(serverloop) {
         UA_Server_run_iterate(server, true);
     return 0;
 }
+
+static void startServerWithReceiver(void);
 
 static void setup(void) {
     UA_atomic_store(&running, true);
@@ -80,6 +87,50 @@ static void setup(void) {
                                                           revocationList, revocationListSize);
     ck_assert(server != NULL);
 
+    startServerWithReceiver();
+}
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+/* Same TrustList as setup, but kept in a filestore */
+static void setupFilestore(void) {
+    UA_atomic_store(&running, true);
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+
+    char storePathDir[TEST_PATH_MAX];
+    getcwd(storePathDir, TEST_PATH_MAX - 32);
+    mp_snprintf(storePathDir, TEST_PATH_MAX, "%s/pki-gds-informationmodel",
+                storePathDir);
+    server = UA_Server_newForUnitTestWithSecurityPolicies_Filestore(4840, &certificate,
+                                                                    &privateKey,
+                                                                    UA_STRING(storePathDir));
+    ck_assert(server != NULL);
+
+    /* Replace the files left over from previous test cases */
+    UA_ByteString cas[2] = {
+        {INTERMEDIATE_CERT_DER_LENGTH, INTERMEDIATE_CERT_DER_DATA},
+        {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA}};
+    UA_ByteString crls[2] = {
+        {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA},
+        {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA}};
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    trustList.trustedCertificates = cas;
+    trustList.trustedCertificatesSize = 2;
+    trustList.trustedCrls = crls;
+    trustList.trustedCrlsSize = 2;
+    trustList.issuerCertificates = cas;
+    trustList.issuerCertificatesSize = 2;
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    UA_StatusCode res = certGroup->setTrustList(certGroup, &trustList);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    startServerWithReceiver();
+}
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
+static void startServerWithReceiver(void) {
     receiver = UA_GDSReceiver_new();
     ck_assert_ptr_nonnull(receiver);
     UA_StatusCode res = UA_Server_addDriver(server, &receiver->drv);
@@ -414,6 +465,38 @@ createSecureClient(void) {
     return client;
 }
 
+/* Helper: read and decode the TrustList opened with OpenWithMasks */
+static void
+readTrustListWithMask(UA_Client *client, UA_UInt32 mask,
+                      UA_TrustListDataType *trustList) {
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_StatusCode retval = openTrustListWithMask(client, mask, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+
+    UA_Variant data;
+    UA_Variant_init(&data);
+    retval = readTrustList(client, fd, 65535, &data);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_decodeBinary((UA_ByteString*)data.data, trustList,
+                             &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&data);
+    UA_Variant_clear(&fileHandler);
+}
+
+static void
+assertMaskedList(const UA_ByteString *list, size_t listSize, UA_Boolean selected,
+                 const UA_ByteString *all, size_t allSize) {
+    ck_assert_uint_eq(listSize, selected ? allSize : 0);
+    for(size_t i = 0; i < listSize; i++)
+        ck_assert(UA_ByteString_equal(&list[i], &all[i]));
+}
+
 /* Helper: call AddCertificate on the DefaultApplicationGroup TrustList */
 static UA_StatusCode
 callAddCertificate(UA_Client *client, UA_ByteString *cert, UA_Boolean isTrusted) {
@@ -600,8 +683,118 @@ START_TEST(add_certificate_reject_issuer) {
 }
 END_TEST
 
-/* Test: AddCertificate is rejected while TrustList is open */
-START_TEST(add_certificate_reject_while_open) {
+/* Helper: is the certificate in the TrustedCertificates of the
+ * DefaultApplicationGroup? */
+static UA_Boolean
+isTrustedCertificate(const UA_ByteString *cert) {
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->getTrustList(certGroup, &trustList);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Boolean found = UA_TrustListDataType_contains(&trustList, cert,
+                                                     UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES);
+    UA_TrustListDataType_clear(&trustList);
+    return found;
+}
+
+/* Helper: verify a certificate with the DefaultApplicationGroup */
+static UA_StatusCode
+verifyCertificate(const UA_ByteString *cert) {
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->verifyCertificate(certGroup, cert);
+    unlockServer(server);
+    return retval;
+}
+
+/* Part 12 §7.8.2.6: AddCertificate rejects a certificate that does not parse
+ * with Bad_CertificateInvalid. The certificate is not added to the TrustList
+ * and certificates are still verified afterwards. */
+START_TEST(add_certificate_reject_malformed) {
+    UA_Client *client = createSecureClient();
+
+    /* A truncated certificate does not parse */
+    UA_ByteString malformed = {CERT_DER_LENGTH / 2, CERT_DER_DATA};
+    UA_StatusCode retval = callAddCertificate(client, &malformed, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert(!isTrustedCertificate(&malformed));
+
+    UA_ByteString cert = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    ck_assert_uint_eq(verifyCertificate(&cert), UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.8.2.6: AddCertificate rejects a certificate whose issuer CA is not
+ * in the TrustList. Building the certificate chain fails first, so the
+ * StatusCode is Bad_CertificateChainIncomplete (Part 4, Table 100), not
+ * Bad_CertificateUntrusted. Bad_CertificateUntrusted belongs to the Trust List
+ * Check, which comes after the Build Certificate Chain step. */
+START_TEST(add_certificate_reject_unknown_issuer) {
+    UA_Client *client = createSecureClient();
+
+    /* Remove the CA certificates from the TrustList */
+    UA_TrustListDataType noCas;
+    UA_TrustListDataType_init(&noCas);
+    noCas.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES |
+        UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->setTrustList(certGroup, &noCas);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString cert = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    ck_assert_uint_eq(verifyCertificate(&cert), UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+
+    retval = callAddCertificate(client, &cert, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    ck_assert(!isTrustedCertificate(&cert));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.8.2.6: AddCertificate rejects a certificate that is in the CRL of
+ * its issuer CA with Bad_CertificateRevoked */
+START_TEST(add_certificate_reject_revoked) {
+    UA_Client *client = createSecureClient();
+
+    /* Add the CRL of the intermediate CA that revokes the certificate */
+    UA_ByteString revokingCrl = {INTERMEDIATE_CRL_PEM_LENGTH, INTERMEDIATE_CRL_PEM_DATA};
+    UA_TrustListDataType crls;
+    UA_TrustListDataType_init(&crls);
+    crls.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    crls.trustedCrls = &revokingCrl;
+    crls.trustedCrlsSize = 1;
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->addToTrustList(certGroup, &crls);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString cert = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    ck_assert_uint_eq(verifyCertificate(&cert), UA_STATUSCODE_BADCERTIFICATEREVOKED);
+
+    retval = callAddCertificate(client, &cert, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEREVOKED);
+    ck_assert(!isTrustedCertificate(&cert));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.8.2.6: AddCertificate returns Bad_NotWritable while the
+ * TrustList is open for reading */
+START_TEST(add_certificate_reject_while_open_read) {
     UA_Client *client = createSecureClient();
 
     /* Open the TrustList for reading */
@@ -618,11 +811,46 @@ START_TEST(add_certificate_reject_while_open) {
 
     UA_Boolean isTrusted = true;
     retval = callAddCertificate(client, &cert, isTrusted);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTWRITABLE);
 
     /* Close the TrustList */
     UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
     retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant_clear(&fileHandler);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.8.2.6: AddCertificate returns Bad_InvalidState while the
+ * TrustList is open for writing and CloseAndUpdate has not been called */
+START_TEST(add_certificate_reject_while_open_write) {
+    UA_Client *client = createSecureClient();
+
+    /* Open the TrustList for writing */
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_Byte mode = UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING;
+    UA_StatusCode retval = openTrustList(client, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Try to add — should fail because the list is open */
+    UA_ByteString cert;
+    cert.length = APPLICATION_CERT_DER_LENGTH;
+    cert.data = APPLICATION_CERT_DER_DATA;
+
+    UA_Boolean isTrusted = true;
+    retval = callAddCertificate(client, &cert, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+
+    /* Close without changes ends the transaction. The certificate can be
+     * added afterwards. */
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+    retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = callAddCertificate(client, &cert, isTrusted);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant_clear(&fileHandler);
@@ -676,8 +904,9 @@ START_TEST(remove_certificate_not_found) {
 }
 END_TEST
 
-/* Test: RemoveCertificate is rejected while TrustList is open */
-START_TEST(remove_certificate_reject_while_open) {
+/* Part 12 §7.8.2.7: RemoveCertificate returns Bad_NotWritable while the
+ * TrustList is open for reading */
+START_TEST(remove_certificate_reject_while_open_read) {
     UA_Client *client = createSecureClient();
 
     /* First add a certificate so there's something to try removing */
@@ -706,11 +935,59 @@ START_TEST(remove_certificate_reject_while_open) {
 
     /* Try to remove — should fail because the list is open */
     retval = callRemoveCertificate(client, &thumbprint, isTrusted);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTWRITABLE);
 
     /* Close the TrustList */
     UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
     retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant_clear(&fileHandler);
+    UA_String_clear(&thumbprint);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.8.2.7: RemoveCertificate returns Bad_InvalidState while the
+ * TrustList is open for writing and CloseAndUpdate has not been called */
+START_TEST(remove_certificate_reject_while_open_write) {
+    UA_Client *client = createSecureClient();
+
+    /* First add a certificate so there's something to try removing */
+    UA_ByteString cert;
+    cert.length = APPLICATION_CERT_DER_LENGTH;
+    cert.data = APPLICATION_CERT_DER_DATA;
+
+    UA_Boolean isTrusted = true;
+    UA_StatusCode retval = callAddCertificate(client, &cert, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Compute its thumbprint */
+    UA_String thumbprint = UA_STRING_NULL;
+    thumbprint.length = 40;
+    thumbprint.data = (UA_Byte*)UA_malloc(thumbprint.length);
+    ck_assert(thumbprint.data != NULL);
+    retval = UA_CertificateUtils_getThumbprint(&cert, &thumbprint);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Open the TrustList for writing */
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_Byte mode = UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING;
+    retval = openTrustList(client, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Try to remove — should fail because the list is open */
+    retval = callRemoveCertificate(client, &thumbprint, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+
+    /* Close without changes ends the transaction. The certificate can be
+     * removed afterwards. */
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+    retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = callRemoveCertificate(client, &thumbprint, isTrusted);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant_clear(&fileHandler);
@@ -753,6 +1030,67 @@ START_TEST(remove_certificate_failure_clears_transaction) {
     retval = callAddCertificate(client, &cert, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Test: RemoveCertificate with IsTrustedCertificate=false removes the CRLs of
+ * the issuer CA from the issuer CRLs */
+START_TEST(remove_issuer_certificate_removes_issuer_crls) {
+    UA_Client *client = createSecureClient();
+
+    /* The default configuration puts all CRLs into the TrustedCrls. Move the
+     * CRL of the intermediate CA to the IssuerCrls. */
+    UA_ByteString intermediateCa = {INTERMEDIATE_CERT_DER_LENGTH,
+                                    INTERMEDIATE_CERT_DER_DATA};
+    UA_ByteString intermediateCaCrl = {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH,
+                                       INTERMEDIATE_EMPTY_CRL_PEM_DATA};
+    UA_TrustListDataType trustedCrls;
+    UA_TrustListDataType_init(&trustedCrls);
+    trustedCrls.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    trustedCrls.trustedCrls = &intermediateCaCrl;
+    trustedCrls.trustedCrlsSize = 1;
+    UA_TrustListDataType issuerCrls;
+    UA_TrustListDataType_init(&issuerCrls);
+    issuerCrls.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCRLS;
+    issuerCrls.issuerCrls = &intermediateCaCrl;
+    issuerCrls.issuerCrlsSize = 1;
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->removeFromTrustList(certGroup, &trustedCrls);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = certGroup->addToTrustList(certGroup, &issuerCrls);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte thumbprintBuf[40]; /* SHA1 = 20 bytes = 40 hex chars */
+    UA_String thumbprint = {sizeof(thumbprintBuf), thumbprintBuf};
+    retval = UA_CertificateUtils_getThumbprint(&intermediateCa, &thumbprint);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = callRemoveCertificate(client, &thumbprint, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    lockServer(server);
+    retval = certGroup->getTrustList(certGroup, &trustList);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The CA and its CRL are removed from the issuer lists */
+    ck_assert(!UA_TrustListDataType_contains(&trustList, &intermediateCa,
+                                             UA_TRUSTLISTMASKS_ISSUERCERTIFICATES));
+    ck_assert(!UA_TrustListDataType_contains(&trustList, &intermediateCaCrl,
+                                             UA_TRUSTLISTMASKS_ISSUERCRLS));
+
+    /* The trusted lists are not changed */
+    ck_assert(UA_TrustListDataType_contains(&trustList, &intermediateCa,
+                                            UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES));
+
+    UA_TrustListDataType_clear(&trustList);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -957,6 +1295,44 @@ START_TEST(open_continues_transaction) {
 }
 END_TEST
 
+/* Part 12 §7.8.2.6, §7.8.2.7: AddCertificate and RemoveCertificate return
+ * Bad_TransactionPending while a transaction is pending and the TrustList is
+ * closed */
+START_TEST(add_remove_certificate_reject_transaction_pending) {
+    UA_Client *client = createSecureClient();
+
+    /* First add a certificate so there's something to try removing */
+    UA_ByteString cert;
+    cert.length = APPLICATION_CERT_DER_LENGTH;
+    cert.data = APPLICATION_CERT_DER_DATA;
+
+    UA_Boolean isTrusted = true;
+    UA_StatusCode retval = callAddCertificate(client, &cert, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Compute its thumbprint */
+    UA_String thumbprint = UA_STRING_NULL;
+    thumbprint.length = 40;
+    thumbprint.data = (UA_Byte*)UA_malloc(thumbprint.length);
+    ck_assert(thumbprint.data != NULL);
+    retval = UA_CertificateUtils_getThumbprint(&cert, &thumbprint);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* UpdateCertificate starts the transaction */
+    retval = callUpdateCertificate(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = callAddCertificate(client, &cert, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTRANSACTIONPENDING);
+    retval = callRemoveCertificate(client, &thumbprint, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTRANSACTIONPENDING);
+
+    UA_String_clear(&thumbprint);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(read_trustlist_reject_negative_length) {
     UA_Client *client = createSecureClient();
 
@@ -996,6 +1372,58 @@ START_TEST(read_trustlist_reject_negative_length) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant_clear(&fileHandler);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Test: OpenWithMasks returns only the lists selected by the mask */
+START_TEST(open_trustlist_with_mask) {
+    /* The default configuration puts all CRLs into the TrustedCrls */
+    UA_ByteString intermediateCaCrl = {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH,
+                                       INTERMEDIATE_EMPTY_CRL_PEM_DATA};
+    UA_TrustListDataType issuerCrls;
+    UA_TrustListDataType_init(&issuerCrls);
+    issuerCrls.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCRLS;
+    issuerCrls.issuerCrls = &intermediateCaCrl;
+    issuerCrls.issuerCrlsSize = 1;
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->addToTrustList(certGroup, &issuerCrls);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client *client = createSecureClient();
+
+    UA_TrustListDataType all;
+    UA_TrustListDataType_init(&all);
+    readTrustListWithMask(client, UA_TRUSTLISTMASKS_ALL, &all);
+    ck_assert_uint_ne(all.trustedCertificatesSize, 0);
+    ck_assert_uint_ne(all.trustedCrlsSize, 0);
+    ck_assert_uint_ne(all.issuerCertificatesSize, 0);
+    ck_assert_uint_ne(all.issuerCrlsSize, 0);
+
+    for(UA_UInt32 mask = 0; mask <= UA_TRUSTLISTMASKS_ALL; mask++) {
+        UA_TrustListDataType trustList;
+        UA_TrustListDataType_init(&trustList);
+        readTrustListWithMask(client, mask, &trustList);
+        ck_assert_uint_eq(trustList.specifiedLists, mask);
+        assertMaskedList(trustList.trustedCertificates, trustList.trustedCertificatesSize,
+                         (mask & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) != 0,
+                         all.trustedCertificates, all.trustedCertificatesSize);
+        assertMaskedList(trustList.trustedCrls, trustList.trustedCrlsSize,
+                         (mask & UA_TRUSTLISTMASKS_TRUSTEDCRLS) != 0,
+                         all.trustedCrls, all.trustedCrlsSize);
+        assertMaskedList(trustList.issuerCertificates, trustList.issuerCertificatesSize,
+                         (mask & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) != 0,
+                         all.issuerCertificates, all.issuerCertificatesSize);
+        assertMaskedList(trustList.issuerCrls, trustList.issuerCrlsSize,
+                         (mask & UA_TRUSTLISTMASKS_ISSUERCRLS) != 0,
+                         all.issuerCrls, all.issuerCrlsSize);
+        UA_TrustListDataType_clear(&trustList);
+    }
+
+    UA_TrustListDataType_clear(&all);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -1173,6 +1601,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
+    tcase_add_test(tc_cert, open_trustlist_with_mask);
     tcase_add_test(tc_cert, apply_changes_without_transaction);
     tcase_add_test(tc_cert, open_continues_transaction);
     tcase_add_test(tc_cert, gds_callback_argument_counts);
@@ -1182,13 +1611,32 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, add_certificate_success);
     tcase_add_test(tc_cert, add_certificate_reject_ca);
     tcase_add_test(tc_cert, add_certificate_reject_issuer);
-    tcase_add_test(tc_cert, add_certificate_reject_while_open);
+    tcase_add_test(tc_cert, add_certificate_reject_malformed);
+    tcase_add_test(tc_cert, add_certificate_reject_unknown_issuer);
+    tcase_add_test(tc_cert, add_certificate_reject_revoked);
+    tcase_add_test(tc_cert, add_certificate_reject_while_open_read);
+    tcase_add_test(tc_cert, add_certificate_reject_while_open_write);
     tcase_add_test(tc_cert, remove_certificate_success);
     tcase_add_test(tc_cert, remove_certificate_not_found);
-    tcase_add_test(tc_cert, remove_certificate_reject_while_open);
+    tcase_add_test(tc_cert, remove_certificate_reject_while_open_read);
+    tcase_add_test(tc_cert, remove_certificate_reject_while_open_write);
     tcase_add_test(tc_cert, remove_certificate_failure_clears_transaction);
+    tcase_add_test(tc_cert, remove_issuer_certificate_removes_issuer_crls);
+    tcase_add_test(tc_cert, add_remove_certificate_reject_transaction_pending);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+    TCase *tc_cert_filestore = tcase_create("GDS TrustList Informationmodel Methods Filestore");
+    tcase_add_checked_fixture(tc_cert_filestore, setupFilestore, teardown);
+#ifdef UA_ENABLE_ENCRYPTION
+    tcase_add_test(tc_cert_filestore, add_certificate_success);
+    tcase_add_test(tc_cert_filestore, add_certificate_reject_malformed);
+    tcase_add_test(tc_cert_filestore, add_certificate_reject_unknown_issuer);
+    tcase_add_test(tc_cert_filestore, add_certificate_reject_revoked);
+#endif /* UA_ENABLE_ENCRYPTION */
+    suite_add_tcase(s,tc_cert_filestore);
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
     return s;
 }
 
