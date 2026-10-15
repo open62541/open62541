@@ -248,41 +248,62 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
 #endif
 
     UA_Boolean processed = false;
-    UA_NetworkMessage nm;
-    memset(&nm, 0, sizeof(UA_NetworkMessage));
-
-    /* Decode the NetworkMessage with the first matching ReaderGroup */
-    UA_ReaderGroup *rg;
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+
+    /* Count the ReaderGroups that can receive the message */
+    UA_ReaderGroup *rg;
+    size_t activeGroups = 0;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        if(rg->head.state == UA_PUBSUBSTATE_OPERATIONAL ||
+           rg->head.state == UA_PUBSUBSTATE_PREOPERATIONAL)
+            activeGroups++;
+    }
+
+    /* The decryption is done in-place. If several ReaderGroups (with possibly
+     * different security settings) decode the message, then each of them gets
+     * a private copy. Otherwise the message of one ReaderGroup could be garbled
+     * for the next one. */
+    UA_ByteString copy = UA_BYTESTRING_NULL;
+    if(activeGroups > 1) {
+        res = UA_ByteString_allocBuffer(&copy, msg.length);
+        if(res != UA_STATUSCODE_GOOD)
+            goto finish;
+    }
+
+    /* Every ReaderGroup verifies and decodes the message with its own security
+     * settings. The message is processed only by the ReaderGroup that has
+     * accepted it. */
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
+
+        UA_ByteString buf = msg;
+        if(copy.length > 0) {
+            memcpy(copy.data, msg.data, msg.length);
+            buf = copy;
+        }
+
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(UA_NetworkMessage));
         if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-            res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, msg, &nm);
+            res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buf, &nm);
         } else {
 #ifdef UA_ENABLE_JSON_ENCODING
-            res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, msg, &nm);
+            res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, buf, &nm);
 #else
             res = UA_STATUSCODE_BADNOTSUPPORTED;
             UA_LOG_WARNING_PUBSUB(psm->logging, c, "JSON support is not activated");
 #endif
         }
-        if(res == UA_STATUSCODE_GOOD)
-            break;
-    }
-
-    if(res != UA_STATUSCODE_GOOD)
-        goto finish;
-
-    /* Process the received message for all ReaderGroups */
-    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        if(res != UA_STATUSCODE_GOOD)
             continue;
+
         processed |= UA_ReaderGroup_process(psm, rg, &nm);
+        UA_NetworkMessage_clear(&nm);
     }
-    UA_NetworkMessage_clear(&nm);
+
+    UA_ByteString_clear(&copy);
 
  finish:
     if(!processed) {
