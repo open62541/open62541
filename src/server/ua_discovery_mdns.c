@@ -327,16 +327,31 @@ setTxt(UA_DiscoveryManager *dm, const struct resource *r,
         }
 
         /* set capabilities */
-        entry->serverOnNetwork.serverCapabilitiesSize = capsCount;
         entry->serverOnNetwork.serverCapabilities =
             (UA_String *) UA_Array_new(capsCount, &UA_TYPES[UA_TYPES_STRING]);
+        if(!entry->serverOnNetwork.serverCapabilities) {
+            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "Cannot alloc memory for mDNS capabilities");
+            xht_free(x);
+            return;
+        }
+        entry->serverOnNetwork.serverCapabilitiesSize = capsCount;
 
         for(size_t i = 0; i < capsCount; i++) {
             char *nextStr = strchr(caps, ',');
             size_t len = nextStr ? (size_t) (nextStr - caps) : strlen(caps);
-            entry->serverOnNetwork.serverCapabilities[i].length = len;
-            /* todo: malloc may fail: return a statuscode */
             entry->serverOnNetwork.serverCapabilities[i].data = (UA_Byte*)UA_malloc(len);
+            if(!entry->serverOnNetwork.serverCapabilities[i].data) {
+                UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+                             "Cannot alloc memory for mDNS capabilities");
+                UA_Array_delete(entry->serverOnNetwork.serverCapabilities,
+                                capsCount, &UA_TYPES[UA_TYPES_STRING]);
+                entry->serverOnNetwork.serverCapabilities = NULL;
+                entry->serverOnNetwork.serverCapabilitiesSize = 0;
+                xht_free(x);
+                return;
+            }
+            entry->serverOnNetwork.serverCapabilities[i].length = len;
             memcpy(entry->serverOnNetwork.serverCapabilities[i].data, caps, len);
             if(nextStr)
                 caps = nextStr + 1;
@@ -501,8 +516,15 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
     char *caps = NULL;
     if(capsLen) {
         /* freed when xht_free is called */
-        /* todo: malloc may fail: return a statuscode */
         caps = (char*)UA_malloc(sizeof(char) * capsLen);
+        if(!caps) {
+            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "Cannot alloc memory for txt capabilities");
+            if(allocPath)
+                UA_free(allocPath);
+            xht_free(h);
+            return;
+        }
         size_t idx = 0;
         for(size_t i = 0; i < capabilitiesSize; i++) {
             memcpy(caps + idx, (const char *) capabilites[i].data, capabilites[i].length);

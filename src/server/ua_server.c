@@ -1018,6 +1018,11 @@ UA_Server_updateCertificate(UA_Server *server,
     }
 
     UpdateCertInfo *certInfo = (UpdateCertInfo*)UA_calloc(1, sizeof(UpdateCertInfo));
+    if(!certInfo) {
+        UA_free(dc);
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     certInfo->server = server;
     UA_NodeId_copy(&certificateTypeId, &(certInfo->certificateTypeId));
 
