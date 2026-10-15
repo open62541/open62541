@@ -323,6 +323,33 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
                                     &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
+/* Verify the certificate in a copy of the CertificateGroup. The copy keeps
+ * failed certificates out of the rejected list of the CertificateGroup. */
+static UA_StatusCode
+verifyInTrustListCopy(UA_CertificateGroup *certGroup,
+                      const UA_ByteString *certificate) {
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    UA_StatusCode res = certGroup->getTrustList(certGroup, &trustList);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return res;
+    }
+
+    UA_CertificateGroup copy;
+    memset(&copy, 0, sizeof(UA_CertificateGroup));
+    res = UA_CertificateGroup_Memorystore(&copy, &certGroup->certificateGroupId,
+                                          &trustList, certGroup->logging, NULL);
+    UA_TrustListDataType_clear(&trustList);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    res = copy.verifyCertificate(&copy, certificate);
+    copy.clear(&copy);
+    return res;
+}
+
 /* TODO: Handle isTrustedCertificate */
 UA_StatusCode
 UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
@@ -352,6 +379,27 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
                      "The certificate could not be added because it is a CA certificate. "
                      "CA certificates must be added using the FileType methods.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    res = verifyInTrustListCopy(certGroup, certificate);
+    if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
+        /* The chain is complete, but no certificate in it is trusted. Adding
+         * the certificate makes it trusted. */
+        res = UA_STATUSCODE_GOOD;
+    } else if(res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
+              res == UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID) {
+        /* Suppressible errors are ignored. The validity period is checked
+         * after all other steps, so the other steps passed. */
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "AddCertificate: Ignoring the suppressible error %s",
+                       UA_StatusCode_name(res));
+        res = UA_STATUSCODE_GOOD;
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "AddCertificate: The certificate is not valid (%s)",
+                     UA_StatusCode_name(res));
+        return res;
     }
 
     UA_TrustListDataType trustList;
