@@ -512,7 +512,7 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
             continue;
 
         retval = certGroup->getCertificateCrls(certGroup, &certificate,
-                                               isTrustedCertificate,
+                                               *isTrustedCertificate,
                                                &crls, &crlsSize);
 
         /* Tolerate "Bad_NoMatch" to support removing CA certificates that do
