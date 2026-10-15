@@ -1194,9 +1194,9 @@ processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
 }
 
 UA_StatusCode
-UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
+UA_Server_processNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                                 UA_NetworkMessage* msg) {
-    if(!msg || !connection)
+    if(!msg || !readerGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* To Do The condition pMsg->dataSetClassIdEnabled
@@ -1210,15 +1210,12 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connecti
 
     /* There can be several readers listening for the same network message */
     UA_Boolean processed = false;
-    UA_ReaderGroup *readerGroup;
     UA_DataSetReader *reader;
-    LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
-        LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-            UA_StatusCode retval = checkReaderIdentifier(server, msg, reader);
-            if(retval == UA_STATUSCODE_GOOD) {
-                processed = true;
-                processMessageWithReader(server, readerGroup, reader, msg);
-            }
+    LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
+        UA_StatusCode retval = checkReaderIdentifier(server, msg, reader);
+        if(retval == UA_STATUSCODE_GOOD) {
+            processed = true;
+            processMessageWithReader(server, readerGroup, reader, msg);
         }
     }
 
@@ -1262,7 +1259,7 @@ static void UA_DataSetMessage_freeDecodedPayload(UA_DataSetMessage *dsm) {
 
 UA_StatusCode
 decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
-                     UA_NetworkMessage *nm, UA_PubSubConnection *connection) {
+                     UA_NetworkMessage *nm, UA_ReaderGroup *readerGroup) {
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(buffer->data, buffer->length);
 #endif
@@ -1272,47 +1269,29 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
                           &server->config.logger, UA_LOGCATEGORY_SERVER,
                           "PubSub receive. decoding headers failed");
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    UA_Boolean processed = false;
-    UA_ReaderGroup *readerGroup;
+    /* Only messages for a DataSetReader of this ReaderGroup are of interest */
+    UA_Boolean found = false;
     UA_DataSetReader *reader;
-
-    /* Choose a correct readergroup for decrypt/verify this message
-     * (there could be multiple) */
-    LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
-        LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-            UA_StatusCode retval = checkReaderIdentifier(server, nm, reader);
-            if(retval == UA_STATUSCODE_GOOD) {
-                processed = true;
-                rv = verifyAndDecryptNetworkMessage(&server->config.logger, buffer, pos,
-                                                    nm, readerGroup);
-                UA_CHECK_STATUS_WARN(rv, return rv,
-                                     &server->config.logger, UA_LOGCATEGORY_SERVER,
-                                     "Subscribe failed. verify and decrypt network message failed.");
-
-#ifdef UA_DEBUG_DUMP_PKGS
-                UA_dump_hex_pkg(buffer->data, buffer->length);
-#endif
-                /* break out of all loops when first verify & decrypt was successful */
-                goto loops_exit;
-            }
+    LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
+        if(checkReaderIdentifier(server, nm, reader) == UA_STATUSCODE_GOOD) {
+            found = true;
+            break;
         }
     }
+    if(!found)
+        return UA_STATUSCODE_BADNOTFOUND;
 
-loops_exit:
-    if(!processed) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Dataset reader not found. Check PublisherId, "
-                    "WriterGroupId and DatasetWriterId");
-        /* Possible multicast scenario: there are multiple connections (with one
-         * or more ReaderGroups) within a multicast group every connection
-         * receives all network messages, even if some of them are not meant for
-         * the connection currently processed -> therefore it is ok if the
-         * connection does not have a DataSetReader for every received network
-         * message. We must not return an error here, but continue with the
-         * buffer decoding and see if we have a matching DataSetReader for the
-         * next network message. */
-    }
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Verify and decrypt with the security settings of this ReaderGroup */
+    rv = verifyAndDecryptNetworkMessage(&server->config.logger, buffer, pos,
+                                        nm, readerGroup);
+    UA_CHECK_STATUS_WARN(rv, return rv,
+                         &server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Subscribe failed. verify and decrypt network message failed.");
+
+#ifdef UA_DEBUG_DUMP_PKGS
+    UA_dump_hex_pkg(buffer->data, buffer->length);
+#endif
 #endif
 
     rv = UA_NetworkMessage_decodePayload(buffer, pos, nm);
@@ -1329,23 +1308,69 @@ UA_StatusCode
 decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                                UA_PubSubConnection *connection,
                                UA_ByteString *buffer) {
-    UA_NetworkMessage nm;
-    memset(&nm, 0, sizeof(UA_NetworkMessage));
-    size_t currentPosition = 0;
+    /* Several ReaderGroups with different security settings can share the
+     * connection. Every ReaderGroup verifies and decrypts the message with its
+     * own settings. The message is only processed by the DataSetReaders of the
+     * ReaderGroups that accepted it. */
+    UA_Boolean processed = false;
+    UA_StatusCode res = UA_STATUSCODE_GOOD; /* The first error */
+    UA_ReaderGroup *rg;
+    LIST_FOREACH(rg, &connection->readerGroups, listEntry) {
+        /* Decrypting works in-place. Don't let the ReaderGroups with a
+         * security mode modify the buffer of the other ReaderGroups. Without a
+         * security mode the buffer is not modified. */
+        UA_ByteString *rgBuffer = buffer;
+        UA_ByteString bufferCopy = UA_BYTESTRING_NULL;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+        if(rg->config.securityMode != UA_MESSAGESECURITYMODE_NONE) {
+            UA_StatusCode copyRes = UA_ByteString_copy(buffer, &bufferCopy);
+            if(copyRes != UA_STATUSCODE_GOOD)
+                return copyRes;
+            rgBuffer = &bufferCopy;
+        }
+#endif
 
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    rv = decodeNetworkMessage(server, buffer, &currentPosition, &nm, connection);
-    UA_CHECK_STATUS_WARN(rv, goto cleanup, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Subscribe failed. verify, decrypt and decode network message failed.");
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(UA_NetworkMessage));
+        size_t currentPosition = 0;
+        UA_StatusCode rv =
+            decodeNetworkMessage(server, rgBuffer, &currentPosition, &nm, rg);
+        if(rv == UA_STATUSCODE_GOOD) {
+            rv = UA_Server_processNetworkMessage(server, rg, &nm);
+            // TODO: check what action to perform on error (nothing?)
+            UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger,
+                                 UA_LOGCATEGORY_SERVER,
+                                 "Subscribe failed. process network message failed.");
+            if(rv == UA_STATUSCODE_GOOD)
+                processed = true;
+        } else if(rv != UA_STATUSCODE_BADNOTFOUND) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Subscribe failed. verify, decrypt and decode "
+                           "network message failed.");
+        }
+        if(rv != UA_STATUSCODE_GOOD && rv != UA_STATUSCODE_BADNOTFOUND &&
+           res == UA_STATUSCODE_GOOD)
+            res = rv;
 
-    rv = UA_Server_processNetworkMessage(server, connection, &nm);
-    // TODO: check what action to perform on error (nothing?)
-    UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Subscribe failed. process network message failed.");
+        UA_NetworkMessage_clear(&nm);
+        UA_ByteString_clear(&bufferCopy);
+    }
 
-cleanup:
-    UA_NetworkMessage_clear(&nm);
-    return rv;
+    if(processed)
+        return UA_STATUSCODE_GOOD;
+
+    if(res == UA_STATUSCODE_GOOD) {
+        /* Possible multicast scenario: there are multiple connections (with one
+         * or more ReaderGroups) within a multicast group every connection
+         * receives all network messages, even if some of them are not meant for
+         * the connection currently processed -> therefore it is ok if the
+         * connection does not have a DataSetReader for every received network
+         * message. We must not return an error here. */
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Dataset reader not found. Check PublisherId, "
+                    "WriterGroupId and DatasetWriterId");
+    }
+    return res;
 }
 
 static
