@@ -329,8 +329,8 @@ memHandle(UA_FileTransferFileBackend *b, UA_UInt32 handle) {
 }
 
 static UA_StatusCode
-memOpen(UA_FileTransferFileBackend *b, const UA_String path,
-        UA_Byte mode, UA_UInt32 *handle) {
+memOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mode,
+        const UA_FileTransferOpenContext *context, UA_UInt32 *handle) {
     MemBackendContext *ctx = (MemBackendContext*)b->context;
     MemEntry *e = memFind(ctx, path);
     if(!e || e->isDir)
@@ -683,7 +683,7 @@ runBackendContract(UA_FileTransferBackend *b) {
                       UA_STATUSCODE_BADBROWSENAMEDUPLICATED);
 
     /* Write content */
-    res = f->open(f, UA_STRING("hello.txt"), UA_OPENFILEMODE_WRITE, &fc);
+    res = f->open(f, UA_STRING("hello.txt"), UA_OPENFILEMODE_WRITE, NULL, &fc);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(f->write(f, fc, UA_BYTESTRING("Hello World")),
                       UA_STATUSCODE_GOOD);
@@ -704,7 +704,7 @@ runBackendContract(UA_FileTransferBackend *b) {
                       UA_STATUSCODE_BADNOTFOUND);
 
     /* Read in chunks until the end of the file */
-    res = f->open(f, UA_STRING("hello.txt"), UA_OPENFILEMODE_READ, &fc);
+    res = f->open(f, UA_STRING("hello.txt"), UA_OPENFILEMODE_READ, NULL, &fc);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(f->read(f, fc, 5, &out), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(out.length, 5);
@@ -733,7 +733,7 @@ runBackendContract(UA_FileTransferBackend *b) {
 
     /* EraseExisting truncates */
     res = f->open(f, UA_STRING("hello.txt"),
-                      UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING, &fc);
+                      UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING, NULL, &fc);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(f->write(f, fc, UA_BYTESTRING("Hi")), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(f->close(f, fc), UA_STATUSCODE_GOOD);
@@ -743,7 +743,7 @@ runBackendContract(UA_FileTransferBackend *b) {
 
     /* Append positions at the end */
     res = f->open(f, UA_STRING("hello.txt"),
-                      UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_APPEND, &fc);
+                      UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_APPEND, NULL, &fc);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(f->getPosition(f, fc, &pos), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(pos, 2);
@@ -754,19 +754,19 @@ runBackendContract(UA_FileTransferBackend *b) {
     ck_assert_uint_eq(info.size, 3);
 
     /* Empty write is a no-op */
-    res = f->open(f, UA_STRING("hello.txt"), UA_OPENFILEMODE_WRITE, &fc);
+    res = f->open(f, UA_STRING("hello.txt"), UA_OPENFILEMODE_WRITE, NULL, &fc);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(f->write(f, fc, UA_BYTESTRING_NULL), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(f->close(f, fc), UA_STATUSCODE_GOOD);
 
     /* Invalid open modes and missing files */
-    ck_assert_uint_eq(f->open(f, UA_STRING("hello.txt"), 0, &fc),
+    ck_assert_uint_eq(f->open(f, UA_STRING("hello.txt"), 0, NULL, &fc),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert_uint_eq(f->open(f, UA_STRING("missing"),
-                                  UA_OPENFILEMODE_READ, &fc),
+                                  UA_OPENFILEMODE_READ, NULL, &fc),
                       UA_STATUSCODE_BADNOTFOUND);
     ck_assert_uint_eq(f->open(f, UA_STRING("missing"),
-                                  UA_OPENFILEMODE_WRITE, &fc),
+                                  UA_OPENFILEMODE_WRITE, NULL, &fc),
                       UA_STATUSCODE_BADNOTFOUND);
 
     /* Listing */
@@ -971,7 +971,7 @@ START_TEST(localDirectoryBackendSandbox) {
     UA_UInt32 fc = 0;
     for(size_t i = 0; i < 8; i++) {
         UA_String p = UA_STRING((char*)(uintptr_t)badPaths[i]);
-        ck_assert_uint_eq(b.file.open(&b.file, p, UA_OPENFILEMODE_READ, &fc),
+        ck_assert_uint_eq(b.file.open(&b.file, p, UA_OPENFILEMODE_READ, NULL, &fc),
                           UA_STATUSCODE_BADINVALIDARGUMENT);
         ck_assert_uint_eq(createEntry(&b, p, false), UA_STATUSCODE_BADINVALIDARGUMENT);
         ck_assert_uint_eq(createEntry(&b, p, true),
@@ -1015,7 +1015,7 @@ START_TEST(localDirectoryUtf8Names) {
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createEntry(&b, path, false), UA_STATUSCODE_GOOD);
     UA_UInt32 fc = 0;
-    ck_assert_uint_eq(b.file.open(&b.file, path, UA_OPENFILEMODE_WRITE, &fc),
+    ck_assert_uint_eq(b.file.open(&b.file, path, UA_OPENFILEMODE_WRITE, NULL, &fc),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.write(&b.file, fc, UA_BYTESTRING("utf8")),
                       UA_STATUSCODE_GOOD);
@@ -1060,7 +1060,7 @@ START_TEST(localDirectoryUtf8Names) {
     ck_assert_str_eq(info.name, name);
     ck_assert_str_eq(info.mimeType, "text/plain");
     ck_assert_uint_eq(info.size, 4);
-    ck_assert_uint_eq(file.open(&file, UA_STRING_NULL, UA_OPENFILEMODE_READ, &fc),
+    ck_assert_uint_eq(file.open(&file, UA_STRING_NULL, UA_OPENFILEMODE_READ, NULL, &fc),
                       UA_STATUSCODE_GOOD);
     UA_ByteString content;
     ck_assert_uint_eq(file.read(&file, fc, 10, &content), UA_STATUSCODE_GOOD);
@@ -1181,7 +1181,7 @@ memBackendWithFile(const char *name, const char *content) {
     ck_assert_uint_eq(createEntry(&b, path, false), UA_STATUSCODE_GOOD);
     if(content && strlen(content) > 0) {
         UA_UInt32 fc = 0;
-        ck_assert_uint_eq(b.file.open(&b.file, path, UA_OPENFILEMODE_WRITE, &fc),
+        ck_assert_uint_eq(b.file.open(&b.file, path, UA_OPENFILEMODE_WRITE, NULL, &fc),
                           UA_STATUSCODE_GOOD);
         UA_ByteString data = UA_BYTESTRING((char*)(uintptr_t)content);
         ck_assert_uint_eq(b.file.write(&b.file, fc, data), UA_STATUSCODE_GOOD);
@@ -1372,6 +1372,43 @@ START_TEST(fileProperties) {
     ck_assert_uint_eq(testRemove(driverForRoot(fileId), fileId),
                       UA_STATUSCODE_GOOD);
     UA_NodeId_clear(&fileId);
+} END_TEST
+
+static UA_StatusCode
+unknownSizeGetInfo(UA_FileTransferFileBackend *b, const UA_String path,
+                   UA_FileTransferFileInfo *info) {
+    UA_StatusCode res = memGetInfo(b, path, info);
+    info->sizeUnknown = true;
+    return res;
+}
+
+/* Part 20, 4.2.1: a size the server cannot determine reads as Bad_NotSupported */
+START_TEST(fileSizeUnknown) {
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    backend.file.getInfo = unknownSizeGetInfo;
+    UA_NodeId file = addTestFileBackend(backend, "UnknownSize", NULL);
+    UA_NodeId sizeId = resolveChild(server_ft, file, "Size");
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(server_ft, sizeId, &value),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_Variant_clear(&value);
+    UA_NodeId_clear(&sizeId);
+
+    /* The content and the other Properties are not affected */
+    readProperty(file, "LastModifiedTime", &value);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME]));
+    UA_Variant_clear(&value);
+    UA_UInt32 h = callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    UA_ByteString data = callRead(file, h, 100, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING("content");
+    ck_assert(UA_ByteString_equal(&data, &expected));
+    UA_ByteString_clear(&data);
+    data = callRead(file, h, 100, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 0);
+    UA_ByteString_clear(&data);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
 } END_TEST
 
 START_TEST(fileMaxByteStringLength) {
@@ -1750,7 +1787,7 @@ memBackendWithTree(void) {
     ck_assert_uint_eq(createEntry(&b, UA_STRING("docs/sub/b.txt"), false), UA_STATUSCODE_GOOD);
     UA_UInt32 fc = 0;
     ck_assert_uint_eq(b.file.open(&b.file, UA_STRING("docs/a.txt"),
-                                  UA_OPENFILEMODE_WRITE, &fc),
+                                  UA_OPENFILEMODE_WRITE, NULL, &fc),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.write(&b.file, fc, UA_BYTESTRING("content-a")),
                       UA_STATUSCODE_GOOD);
@@ -2088,7 +2125,7 @@ writeMemFile(UA_FileTransferBackend *b, const char *name, const char *content) {
     UA_String path = UA_STRING((char*)(uintptr_t)name);
     ck_assert_uint_eq(createEntry(b, path, false), UA_STATUSCODE_GOOD);
     UA_UInt32 fc = 0;
-    ck_assert_uint_eq(b->file.open(&b->file, path, UA_OPENFILEMODE_WRITE, &fc),
+    ck_assert_uint_eq(b->file.open(&b->file, path, UA_OPENFILEMODE_WRITE, NULL, &fc),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b->file.write(&b->file, fc,
                                     UA_BYTESTRING((char*)(uintptr_t)content)),
@@ -2446,7 +2483,7 @@ START_TEST(localFileMount) {
     UA_FileTransferFileInfo info;
     for(size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
         UA_String path = UA_STRING((char*)(uintptr_t)paths[i]);
-        ck_assert_uint_eq(backend.open(&backend, path, UA_OPENFILEMODE_READ, &handle),
+        ck_assert_uint_eq(backend.open(&backend, path, UA_OPENFILEMODE_READ, NULL, &handle),
                           UA_STATUSCODE_BADINVALIDARGUMENT);
         ck_assert_uint_eq(backend.getInfo(&backend, path, &info), UA_STATUSCODE_BADINVALIDARGUMENT);
     }
@@ -2702,8 +2739,8 @@ static struct {
 } minimalFiles[MINIMAL_MAXOPEN];
 
 static UA_StatusCode
-minimalOpen(UA_FileTransferFileBackend *b, const UA_String path,
-            UA_Byte mode, UA_UInt32 *handle) {
+minimalOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mode,
+            const UA_FileTransferOpenContext *context, UA_UInt32 *handle) {
     if(mode & UA_OPENFILEMODE_WRITE)
         return UA_STATUSCODE_BADNOTWRITABLE;
     for(size_t i = 0; i < MINIMAL_MAXOPEN; i++) {
@@ -3112,6 +3149,7 @@ static UA_StatusCode (*memCreateFn)(UA_FileTransferBackend *b, const UA_String p
                                       const UA_FileTransferFileInfo *info);
 static UA_StatusCode (*memOpenFn)(UA_FileTransferFileBackend *b,
                                   const UA_String path, UA_Byte mode,
+                                  const UA_FileTransferOpenContext *context,
                                   UA_UInt32 *handle);
 
 static UA_Boolean
@@ -3135,9 +3173,9 @@ failingCreate(UA_FileTransferBackend *b, const UA_String path,
 
 static UA_StatusCode
 failingOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mode,
-            UA_UInt32 *handle) {
+            const UA_FileTransferOpenContext *context, UA_UInt32 *handle) {
     return isFailingPath(path) ? UA_STATUSCODE_BADUSERACCESSDENIED :
-        memOpenFn(b, path, mode, handle);
+        memOpenFn(b, path, mode, context, handle);
 }
 
 /* A move to another mount that cannot delete the source keeps the data. A
@@ -3649,15 +3687,15 @@ START_TEST(localWriteOnlyFile) {
     ck_assert_uint_eq(info.accessRights, UA_FILEACCESS_WRITE);
 
     UA_UInt32 h = 0;
-    ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_READ, &h),
+    ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_READ, NULL, &h),
                       UA_STATUSCODE_BADUSERACCESSDENIED);
-    ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_WRITE, &h),
+    ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_WRITE, NULL, &h),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.write(&b.file, h, UA_BYTESTRING("XY")), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.close(&b.file, h), UA_STATUSCODE_GOOD);
     /* Append starts at the end; SetPosition still moves the next write */
     ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_WRITE |
-                                  UA_OPENFILEMODE_APPEND, &h), UA_STATUSCODE_GOOD);
+                                  UA_OPENFILEMODE_APPEND, NULL, &h), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.write(&b.file, h, UA_BYTESTRING("Z")), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.setPosition(&b.file, h, 0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.write(&b.file, h, UA_BYTESTRING("Q")), UA_STATUSCODE_GOOD);
@@ -3666,7 +3704,7 @@ START_TEST(localWriteOnlyFile) {
     checkLocalFile(path, "QYcZ");
     ck_assert_int_eq(fchmod(fileno(permissionsFile), 0200), 0);
     ck_assert_uint_eq(b.file.open(&b.file, name, UA_OPENFILEMODE_WRITE |
-                                  UA_OPENFILEMODE_ERASEEXISTING, &h), UA_STATUSCODE_GOOD);
+                                  UA_OPENFILEMODE_ERASEEXISTING, NULL, &h), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(b.file.close(&b.file, h), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(fchmod(fileno(permissionsFile), 0600), 0);
     checkLocalFile(path, "");
@@ -4109,6 +4147,131 @@ accessBackend(UA_FileTransferBackend backend, AccessPolicy *policy) {
     server_ft->adminSession.context = &accessSessionContext;
     return backend;
 }
+
+/* Records the opens of the backend and forwards them to the memory backend
+ * unless a result is preset */
+static struct {
+    size_t calls;
+    UA_Boolean hasContext;
+    UA_NodeId sessionId;
+    void *sessionContext;
+    void *openContext;
+    UA_String path;
+    UA_Byte mode;
+    UA_StatusCode result;
+} recordedOpen;
+
+static UA_StatusCode
+recordingOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mode,
+              const UA_FileTransferOpenContext *context, UA_UInt32 *handle) {
+    recordedOpen.calls++;
+    recordedOpen.hasContext = (context != NULL);
+    UA_NodeId_clear(&recordedOpen.sessionId);
+    if(context) {
+        ck_assert_ptr_eq(context->server, server_ft);
+        ck_assert_uint_eq(UA_NodeId_copy(context->sessionId, &recordedOpen.sessionId),
+                          UA_STATUSCODE_GOOD);
+        recordedOpen.sessionContext = context->sessionContext;
+        recordedOpen.openContext = context->openContext;
+    }
+    UA_String_clear(&recordedOpen.path);
+    ck_assert_uint_eq(UA_String_copy(&path, &recordedOpen.path), UA_STATUSCODE_GOOD);
+    recordedOpen.mode = mode;
+    if(recordedOpen.result != UA_STATUSCODE_GOOD)
+        return recordedOpen.result;
+    return memOpen(b, path, mode, context, handle);
+}
+
+static void
+resetRecordedOpen(void) {
+    UA_NodeId_clear(&recordedOpen.sessionId);
+    UA_String_clear(&recordedOpen.path);
+    memset(&recordedOpen, 0, sizeof(recordedOpen));
+}
+
+START_TEST(openReceivesCaller) {
+    resetRecordedOpen();
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    backend.file.open = recordingOpen;
+    server_ft->adminSession.context = &accessSessionContext;
+    UA_NodeId fileId = addTestFileBackend(backend, "SessionOpen", NULL);
+
+    UA_UInt32 h = callOpen(fileId, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(recordedOpen.calls, 1);
+    ck_assert(recordedOpen.hasContext);
+    ck_assert(UA_NodeId_equal(&recordedOpen.sessionId,
+                              &server_ft->adminSession.sessionId));
+    ck_assert_ptr_eq(recordedOpen.sessionContext, &accessSessionContext);
+    UA_String path = UA_STRING("f.bin");
+    ck_assert(UA_String_equal(&recordedOpen.path, &path));
+    ck_assert_uint_eq(recordedOpen.mode, UA_OPENFILEMODE_READ);
+    UA_ByteString data = callRead(fileId, h, 100, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING("content");
+    ck_assert(UA_ByteString_equal(&data, &expected));
+    UA_ByteString_clear(&data);
+    callClose(fileId, h, UA_STATUSCODE_GOOD);
+
+    /* The result of the backend reaches the client */
+    recordedOpen.result = UA_STATUSCODE_BADTRANSACTIONPENDING;
+    callOpen(fileId, UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING,
+             UA_STATUSCODE_BADTRANSACTIONPENDING);
+    ck_assert_uint_eq(readOpenCount(fileId), 0);
+
+    /* The mode and the locking are checked before */
+    recordedOpen.result = UA_STATUSCODE_GOOD;
+    size_t calls = recordedOpen.calls;
+    callOpen(fileId, UA_OPENFILEMODE_ERASEEXISTING, UA_STATUSCODE_BADINVALIDARGUMENT);
+    h = callOpen(fileId, UA_OPENFILEMODE_WRITE, UA_STATUSCODE_GOOD);
+    callOpen(fileId, UA_OPENFILEMODE_READ, UA_STATUSCODE_BADNOTREADABLE);
+    ck_assert_uint_eq(recordedOpen.calls, calls + 1);
+    callClose(fileId, h, UA_STATUSCODE_GOOD);
+    resetRecordedOpen();
+} END_TEST
+
+/* CreateFile and the copies of MoveOrCopy open for the caller, direct calls
+ * of the application pass no context */
+START_TEST(openInDirectories) {
+    resetRecordedOpen();
+    UA_FileTransferBackend backend = memBackendWithTree();
+    backend.file.open = recordingOpen;
+    UA_NodeId fsId = UA_NODEID_NULL;
+    ck_assert_uint_eq(testAddDirectory(UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                          UA_QUALIFIEDNAME(0, "FileSystem"), backendArg(backend),
+                          NULL, &fsId), UA_STATUSCODE_GOOD);
+    UA_UInt32 h = 0;
+    UA_NodeId fileId = callCreateFile(fsId, "new.bin", true, &h, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(recordedOpen.calls, 1);
+    ck_assert(recordedOpen.hasContext);
+    ck_assert(UA_NodeId_equal(&recordedOpen.sessionId,
+                              &server_ft->adminSession.sessionId));
+    ck_assert_uint_eq(recordedOpen.mode, UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE);
+    UA_String path = UA_STRING("new.bin");
+    ck_assert(UA_String_equal(&recordedOpen.path, &path));
+    callClose(fileId, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fileId);
+
+    UA_NodeId docsId = resolveChild(server_ft, fsId, "docs");
+    UA_NodeId aId = resolveChild(server_ft, docsId, "a.txt");
+    UA_NodeId copyId = callMoveOrCopy(docsId, aId, fsId, true, "copy.txt",
+                                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(recordedOpen.calls, 3);
+    ck_assert(recordedOpen.hasContext);
+    ck_assert(UA_NodeId_equal(&recordedOpen.sessionId,
+                              &server_ft->adminSession.sessionId));
+    ck_assert_uint_eq(recordedOpen.mode, UA_OPENFILEMODE_WRITE);
+    path = UA_STRING("copy.txt");
+    ck_assert(UA_String_equal(&recordedOpen.path, &path));
+
+    UA_UInt32 fc = 0;
+    ck_assert_uint_eq(backend.file.open(&backend.file, path, UA_OPENFILEMODE_READ,
+                                        NULL, &fc), UA_STATUSCODE_GOOD);
+    ck_assert(!recordedOpen.hasContext);
+    ck_assert_uint_eq(backend.file.close(&backend.file, fc), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&copyId);
+    UA_NodeId_clear(&aId);
+    UA_NodeId_clear(&docsId);
+    resetRecordedOpen();
+} END_TEST
 
 START_TEST(fileAccessRightsEnforced) {
     AccessPolicy policy;
@@ -4995,6 +5158,157 @@ START_TEST(subtypeMethodUsesFileHandle) {
     UA_NodeId_clear(&file);
 } END_TEST
 
+/* A subtype Method that opens the file with its own argument, like
+ * OpenWithMasks of a TrustList (Part 12) */
+static UA_Driver *openingDriver;
+static UA_UInt32 openingBackendHandle;
+static int openingContext;
+
+static UA_StatusCode
+openWithArgumentCallback(UA_Server *server, const UA_NodeId *sessionId,
+                         void *sessionContext, const UA_NodeId *methodId,
+                         void *methodContext, const UA_NodeId *objectId,
+                         void *objectContext, size_t inputSize,
+                         const UA_Variant *input, size_t outputSize,
+                         UA_Variant *output) {
+    if(inputSize != 1 || outputSize != 1 ||
+       !UA_Variant_hasScalarType(input, &UA_TYPES[UA_TYPES_BYTE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_UInt32 fileHandle = 0;
+    UA_StatusCode res = UA_FileTransferDriver_openHandle(
+        openingDriver, *objectId, sessionId, sessionContext,
+        *(UA_Byte*)input->data, &openingContext, &fileHandle, &openingBackendHandle);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = UA_Variant_setScalarCopy(output, &fileHandle, &UA_TYPES[UA_TYPES_UINT32]);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_FileTransferDriver_closeHandle(openingDriver, *objectId, sessionId,
+                                          fileHandle);
+    return res;
+}
+
+static UA_UInt32
+callOpenWithArgument(const UA_NodeId file, UA_Byte mode, UA_StatusCode expected) {
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &mode, &UA_TYPES[UA_TYPES_BYTE]);
+    UA_CallMethodResult result = callObjectMethod(file, "OpenWithArgument", 1, &input);
+    ck_assert_uint_eq(result.statusCode, expected);
+    UA_UInt32 handle = 0;
+    if(expected == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(result.outputArgumentsSize, 1);
+        handle = *(UA_UInt32*)result.outputArguments[0].data;
+    }
+    UA_CallMethodResult_clear(&result);
+    return handle;
+}
+
+START_TEST(openHandleFromSubtypeMethod) {
+    resetRecordedOpen();
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    backend.file.open = recordingOpen;
+    UA_NodeId file = addTestFileBackend(backend, "Opening", NULL);
+    openingDriver = driverForRoot(file);
+    UA_MethodAttributes attr = UA_MethodAttributes_default;
+    attr.executable = true;
+    attr.userExecutable = true;
+    UA_Argument inArg, outArg;
+    UA_Argument_init(&inArg);
+    inArg.name = UA_STRING("Mode");
+    inArg.dataType = UA_TYPES[UA_TYPES_BYTE].typeId;
+    inArg.valueRank = UA_VALUERANK_SCALAR;
+    UA_Argument_init(&outArg);
+    outArg.name = UA_STRING("FileHandle");
+    outArg.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    outArg.valueRank = UA_VALUERANK_SCALAR;
+    ck_assert_uint_eq(UA_Server_addMethodNode(server_ft, UA_NODEID_NULL, file,
+                          UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(0, "OpenWithArgument"),
+                          attr, openWithArgumentCallback, 1, &inArg, 1, &outArg,
+                          NULL, NULL), UA_STATUSCODE_GOOD);
+
+    /* The handle works with the standard Methods and counts as open */
+    UA_UInt32 h = callOpenWithArgument(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(h, 0);
+    ck_assert_uint_eq(recordedOpen.calls, 1);
+    ck_assert_ptr_eq(recordedOpen.openContext, &openingContext);
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    UA_UInt32 backendHandle = 0;
+    ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(openingDriver, file,
+                          &server_ft->adminSession.sessionId, h, NULL, &backendHandle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(backendHandle, openingBackendHandle);
+    UA_ByteString data = callRead(file, h, 100, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING("content");
+    ck_assert(UA_ByteString_equal(&data, &expected));
+    UA_ByteString_clear(&data);
+
+    /* The checks of Open apply */
+    callOpenWithArgument(file, UA_OPENFILEMODE_WRITE, UA_STATUSCODE_BADNOTWRITABLE);
+    callOpenWithArgument(file, UA_OPENFILEMODE_APPEND, UA_STATUSCODE_BADINVALIDARGUMENT);
+    recordedOpen.result = UA_STATUSCODE_BADNOTSUPPORTED;
+    callOpenWithArgument(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_BADNOTSUPPORTED);
+    recordedOpen.result = UA_STATUSCODE_GOOD;
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readOpenCount(file), 0);
+
+    /* The handle closes with its Session */
+    h = callOpenWithArgument(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    UA_KeyValueMap payload = UA_KEYVALUEMAP_NULL;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&payload, UA_QUALIFIEDNAME(0, "session-id"),
+                          &server_ft->adminSession.sessionId, &UA_TYPES[UA_TYPES_NODEID]),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server_ft);
+    notifyApplication(server_ft, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED, payload);
+    unlockServer(server_ft);
+    UA_KeyValueMap_clear(&payload);
+    ck_assert_uint_eq(readOpenCount(file), 0);
+    callClose(file, h, UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_NodeId_clear(&file);
+    resetRecordedOpen();
+} END_TEST
+
+START_TEST(openHandleChecks) {
+    UA_NodeId file = addTestFile("Opening", "content", NULL);
+    UA_Driver *driver = driverForRoot(file);
+    const UA_NodeId *session = &server_ft->adminSession.sessionId;
+    UA_UInt32 h = 0;
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(NULL, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, file, NULL, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, NULL, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, UA_NS0ID(OBJECTSFOLDER),
+                          session, NULL, UA_OPENFILEMODE_READ, NULL, &h, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_Driver unrelated;
+    memset(&unrelated, 0, sizeof(unrelated));
+    unrelated.server = server_ft;
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(&unrelated, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Without the Method callback; the backend handle is optional */
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    ck_assert_uint_eq(UA_FileTransferDriver_closeHandle(driver, file, session, h),
+                      UA_STATUSCODE_GOOD);
+
+    /* A stopped driver has no handles */
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driver, file, session, NULL,
+                          UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+
+    /* Directories have no content */
+    UA_NodeId fsId = mountTree(NULL);
+    UA_NodeId docs = resolveChild(server_ft, fsId, "docs");
+    ck_assert_uint_eq(UA_FileTransferDriver_openHandle(driverForRoot(fsId), docs, session,
+                          NULL, UA_OPENFILEMODE_READ, NULL, &h, NULL), UA_STATUSCODE_BADNOTFOUND);
+    UA_NodeId_clear(&docs);
+} END_TEST
+
 START_TEST(constructorFailureLeavesBackendAndOutputs) {
     backendClearCount = 0;
     UA_FileTransferBackend backend = memBackendWithFile("f.bin", "data");
@@ -5111,6 +5425,111 @@ START_TEST(directoryLifetimeAndAutomaticRefresh) {
     ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
     UA_NodeId_clear(&root);
     UA_NodeId_clear(&file);
+} END_TEST
+
+static void
+setActivityTimeout(UA_Driver *driver, UA_Double timeout) {
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "activity-timeout"), &timeout,
+                          &UA_TYPES[UA_TYPES_DOUBLE]), UA_STATUSCODE_GOOD);
+}
+
+static void
+advanceClock(UA_UInt32 ms) {
+    UA_fakeSleep(ms);
+    UA_Server_run_iterate(server_ft, false);
+}
+
+/* Handles without a Method call for longer than the activity-timeout close
+ * like with Close */
+START_TEST(activityTimeoutClosesIdleHandles) {
+    UA_Server_getConfig(server_ft)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server_ft), UA_STATUSCODE_GOOD);
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    UA_NodeId file;
+    UA_Driver *driver = newTestFile(server_ft, &backend.file, "Timed", &file);
+    setActivityTimeout(driver, 100);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+
+    /* Method calls keep the handle open */
+    UA_UInt32 h = callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 4; i++) {
+        advanceClock(60);
+        callGetPosition(file, h);
+    }
+    /* So do the calls of subtype Methods */
+    const UA_NodeId *session = &server_ft->adminSession.sessionId;
+    for(size_t i = 0; i < 3; i++) {
+        advanceClock(60);
+        ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(driver, file, session,
+                              h, NULL, NULL), UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(readOpenCount(file), 1);
+
+    /* An idle handle closes within twice the timeout */
+    advanceClock(201);
+    ck_assert_uint_eq(readOpenCount(file), 0);
+    callClose(file, h, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Without the parameter, the handles stay open */
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_KeyValueMap_remove(&driver->params,
+                          UA_QUALIFIEDNAME(0, "activity-timeout")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    h = callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    advanceClock(10 * 60 * 1000);
+    ck_assert_uint_eq(readOpenCount(file), 1);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+} END_TEST
+
+/* Closing an idle handle also removes a vanished file it kept */
+START_TEST(activityTimeoutClosesZombies) {
+    UA_Server_getConfig(server_ft)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server_ft), UA_STATUSCODE_GOOD);
+    UA_FileTransferBackend backend = memBackendWithTree();
+    UA_NodeId root;
+    UA_Driver *driver = newTestDirectory(server_ft, &backend, &root);
+    UA_Double interval = 0;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "refresh-interval"), &interval,
+                          &UA_TYPES[UA_TYPES_DOUBLE]), UA_STATUSCODE_GOOD);
+    setActivityTimeout(driver, 100);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    UA_NodeId docs = resolveChild(server_ft, root, "docs");
+    UA_NodeId file = resolveChild(server_ft, docs, "a.txt");
+    callOpen(file, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(backend.remove(&backend, UA_STRING("docs/a.txt")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(testRefresh(driver, root), UA_STATUSCODE_GOOD);
+    ck_assert(tryResolveChild(server_ft, docs, "a.txt", NULL));
+    advanceClock(201);
+    ck_assert(!tryResolveChild(server_ft, docs, "a.txt", NULL));
+    ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    UA_NodeId_clear(&docs);
+    UA_NodeId_clear(&root);
+} END_TEST
+
+START_TEST(activityTimeoutParameter) {
+    UA_FileTransferBackend backend = memBackendWithFile("f.bin", "content");
+    UA_Driver *driver = newTestFile(server_ft, &backend.file, "Timed", NULL);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, driver), UA_STATUSCODE_GOOD);
+    /* Negative, NaN, infinite and sub-tick timeouts are rejected */
+    UA_Double zero = 0.0;
+    UA_Double invalid[4] = {-1, zero / zero, 1.0 / zero, 0.00001};
+    for(size_t i = 0; i < 4; i++) {
+        setActivityTimeout(driver, invalid[i]);
+        ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    }
+    UA_UInt32 wrong = 100;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "activity-timeout"), &wrong,
+                          &UA_TYPES[UA_TYPES_UINT32]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    setActivityTimeout(driver, 0);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
 } END_TEST
 
 /* A negative refresh interval is rejected. 0 disables the periodic refresh;
@@ -5953,13 +6372,16 @@ START_TEST(indexedDirectoryAndSessionCleanup) {
     lockServer(server_ft);
     for(size_t s = 0; s < 2; s++) {
         for(size_t i = 0; i < 8; i++) {
+            FTHandle *opened = NULL;
             ck_assert_uint_eq(openFileHandle(server_ft, file, &sessions[s], NULL,
-                UA_OPENFILEMODE_READ, &handles[s][i]), UA_STATUSCODE_GOOD);
+                UA_OPENFILEMODE_READ, NULL, &opened), UA_STATUSCODE_GOOD);
+            handles[s][i] = opened->handle;
             ck_assert_ptr_null(findFTHandle(ftd, &sessions[1 - s], handles[s][i]));
         }
-        UA_UInt32 rejected;
+        FTHandle *rejected = NULL;
         ck_assert_uint_eq(openFileHandle(server_ft, file, &sessions[s], NULL,
-            UA_OPENFILEMODE_READ, &rejected), UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+            UA_OPENFILEMODE_READ, NULL, &rejected), UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+        ck_assert_ptr_null(rejected);
     }
     unlockServer(server_ft);
     ck_assert_uint_eq(readOpenCount(files[0]), 16);
@@ -6049,6 +6471,9 @@ int main(void) {
     tcase_add_test(tc_lifecycle, failedRegistrationRetainsObjects);
     tcase_add_test(tc_lifecycle, directoryLifetimeAndAutomaticRefresh);
     tcase_add_test(tc_lifecycle, disabledPeriodicRefresh);
+    tcase_add_test(tc_lifecycle, activityTimeoutClosesIdleHandles);
+    tcase_add_test(tc_lifecycle, activityTimeoutClosesZombies);
+    tcase_add_test(tc_lifecycle, activityTimeoutParameter);
     tcase_add_test(tc_lifecycle, driverParametersRequireTheirTypes);
     tcase_add_test(tc_lifecycle, directoryBackendCastsFileBackend);
     tcase_add_test(tc_lifecycle, defaultNodeDescriptions);
@@ -6082,14 +6507,18 @@ int main(void) {
     tcase_add_test(tc_file, readAtEndReturnsEmptyByteString);
     tcase_add_test(tc_file, fileBadHandles);
     tcase_add_test(tc_file, subtypeMethodUsesFileHandle);
+    tcase_add_test(tc_file, openHandleFromSubtypeMethod);
+    tcase_add_test(tc_file, openHandleChecks);
     tcase_add_test(tc_file, fileReadOnlyMount);
     tcase_add_test(tc_file, fileHandleLimits);
     tcase_add_test(tc_file, removeFileClosesHandles);
+    tcase_add_test(tc_file, fileSizeUnknown);
     tcase_add_test(tc_file, fileMaxByteStringLength);
     tcase_add_test(tc_file, fileWriteRespectsMaxByteStringLength);
     tcase_add_test(tc_file, readOnlyBackendNeedsNoWriteCallbacks);
     tcase_add_test(tc_file, userWritableFollowsStorage);
     tcase_add_test(tc_file, fileAccessRightsEnforced);
+    tcase_add_test(tc_file, openReceivesCaller);
 #ifndef _WIN32
     tcase_add_test(tc_file, localDirectoryAccessRightsFollowPermissions);
 #endif
@@ -6152,6 +6581,7 @@ int main(void) {
     tcase_add_test(tc_dir, localDirectoryListingErrors);
 #endif
     tcase_add_checked_fixture(tc_dir, setup, teardown);
+    tcase_add_test(tc_dir, openInDirectories);
     suite_add_tcase(s, tc_dir);
 
     TCase *tc_backend = tcase_create("Storage Backends");

@@ -367,6 +367,8 @@ readFileInfo(void *nodeContext, UA_Boolean includeSourceTimeStamp,
     UA_FileTransferFileBackend *b = &node->driver->backend.file;
     UA_FileTransferFileInfo info;
     UA_StatusCode res = backendGetInfo(b, node->path, &info);
+    if(res == UA_STATUSCODE_GOOD && field == FT_FILEINFO_SIZE && info.sizeUnknown)
+        res = UA_STATUSCODE_BADNOTSUPPORTED;
     if(res != UA_STATUSCODE_GOOD) {
         value->hasStatus = true;
         value->status = res;
