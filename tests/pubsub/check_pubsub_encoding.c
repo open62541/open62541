@@ -1340,6 +1340,111 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn2DSVariant) {
 }
 END_TEST
 
+START_TEST(UA_PubSub_Decode_DataSetMessageSizeMustFit) {
+    /* Oversized first DSM, oversized last DSM, truncated first DSM, maximal
+     * size. The Variant DSMs are two empty keyframes of three bytes each. */
+    const UA_Byte sizes[][4] = {{10, 0, 3, 0}, {3, 0, 4, 0}, {2, 0, 3, 0}, {3, 0, 0xff, 0xff}};
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x03, 0x00, 0x03, 0x00,
+                      0x01, 0x00, 0x00, 0x01, 0x00, 0x00};
+    memcpy(&data[6], sizes[_i], 4);
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_RawDataSetMessageSizeMustFit) {
+    /* Two RAW DSMs with a one-byte header and two payload bytes each. The
+     * declared size of one of them exceeds the remaining buffer. */
+    const UA_Byte sizes[][4] = {{0xff, 0xff, 3, 0}, {3, 0, 0xff, 0xff}, {3, 0, 4, 0}};
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x03, 0x00, 0x03, 0x00,
+                      0x03, 0xaa, 0xbb, 0x03, 0xcc, 0xdd};
+    memcpy(&data[6], sizes[_i], 4);
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_RawDataSetMessagesStayInBuffer) {
+    /* Valid RAW DSMs. The raw fields exclude the DSM header and must not
+     * reach past the end of the buffer. */
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x03, 0x00, 0x03, 0x00,
+                      0x03, 0xaa, 0xbb, 0x03, 0xcc, 0xdd};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, sizeof(data));
+    for(size_t i = 0; i < 2; i++) {
+        UA_ByteString *raw =
+            &m.payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields;
+        ck_assert_uint_eq(raw->length, 2);
+        ck_assert(raw->data == &data[11 + 3 * i]);
+        ck_assert(raw->data + raw->length <= data + sizeof(data));
+    }
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_SingleRawDataSetMessageStaysInBuffer) {
+    /* A single RAW DSM has no declared size. It is only known to end with the
+     * buffer. The offset must not move beyond the buffer. */
+    UA_Byte data[] = {0x01, 0x03, 0xaa, 0xbb, 0xcc};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_le(offset, buffer.length);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset) {
+    /* DSM1 uses three of its five bytes. DSM2 is not valid at its declared
+     * offset. Continuing right after DSM1 would report it as valid. */
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x05, 0x00, 0x03, 0x00,
+                      0x01, 0x00, 0x00, 0x01, 0x00,
+                      0x00, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, sizeof(data));
+    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(!m.payload.dataSetPayload.dataSetMessages[1].header.dataSetMessageValid);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored) {
+    /* The first DSM is an Event message, which cannot be decoded. The valid
+     * second DSM must not hide the error. */
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x02, 0x00, 0x03, 0x00,
+                      0x81, 0x02, 0x01, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_ne(rv, UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
@@ -1364,12 +1469,21 @@ int main(void) {
 
     TCase *tc_ende2 = tcase_create("encode_decode2DS");
     tcase_add_test(tc_ende2, UA_PubSub_EnDecode_ShallWorkOn2DSVariant);
-    
-    Suite *s = suite_create("PubSub NetworkMessage");   
+
+    TCase *tc_sizes = tcase_create("declared sizes");
+    tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_DataSetMessageSizeMustFit, 0, 4);
+    tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_RawDataSetMessageSizeMustFit, 0, 3);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_RawDataSetMessagesStayInBuffer);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_SingleRawDataSetMessageStaysInBuffer);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored);
+
+    Suite *s = suite_create("PubSub NetworkMessage");
     suite_add_tcase(s, tc_encode);
     suite_add_tcase(s, tc_decode);
     suite_add_tcase(s, tc_ende1);
     suite_add_tcase(s, tc_ende2);
+    suite_add_tcase(s, tc_sizes);
     
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
