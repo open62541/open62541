@@ -414,6 +414,38 @@ createSecureClient(void) {
     return client;
 }
 
+/* Helper: read and decode the TrustList opened with OpenWithMasks */
+static void
+readTrustListWithMask(UA_Client *client, UA_UInt32 mask,
+                      UA_TrustListDataType *trustList) {
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_StatusCode retval = openTrustListWithMask(client, mask, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+
+    UA_Variant data;
+    UA_Variant_init(&data);
+    retval = readTrustList(client, fd, 65535, &data);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_decodeBinary((UA_ByteString*)data.data, trustList,
+                             &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&data);
+    UA_Variant_clear(&fileHandler);
+}
+
+static void
+assertMaskedList(const UA_ByteString *list, size_t listSize, UA_Boolean selected,
+                 const UA_ByteString *all, size_t allSize) {
+    ck_assert_uint_eq(listSize, selected ? allSize : 0);
+    for(size_t i = 0; i < listSize; i++)
+        ck_assert(UA_ByteString_equal(&list[i], &all[i]));
+}
+
 /* Helper: call AddCertificate on the DefaultApplicationGroup TrustList */
 static UA_StatusCode
 callAddCertificate(UA_Client *client, UA_ByteString *cert, UA_Boolean isTrusted) {
@@ -1062,6 +1094,58 @@ START_TEST(read_trustlist_reject_negative_length) {
 }
 END_TEST
 
+/* Test: OpenWithMasks returns only the lists selected by the mask */
+START_TEST(open_trustlist_with_mask) {
+    /* The default configuration puts all CRLs into the TrustedCrls */
+    UA_ByteString intermediateCaCrl = {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH,
+                                       INTERMEDIATE_EMPTY_CRL_PEM_DATA};
+    UA_TrustListDataType issuerCrls;
+    UA_TrustListDataType_init(&issuerCrls);
+    issuerCrls.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCRLS;
+    issuerCrls.issuerCrls = &intermediateCaCrl;
+    issuerCrls.issuerCrlsSize = 1;
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->addToTrustList(certGroup, &issuerCrls);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client *client = createSecureClient();
+
+    UA_TrustListDataType all;
+    UA_TrustListDataType_init(&all);
+    readTrustListWithMask(client, UA_TRUSTLISTMASKS_ALL, &all);
+    ck_assert_uint_ne(all.trustedCertificatesSize, 0);
+    ck_assert_uint_ne(all.trustedCrlsSize, 0);
+    ck_assert_uint_ne(all.issuerCertificatesSize, 0);
+    ck_assert_uint_ne(all.issuerCrlsSize, 0);
+
+    for(UA_UInt32 mask = 0; mask <= UA_TRUSTLISTMASKS_ALL; mask++) {
+        UA_TrustListDataType trustList;
+        UA_TrustListDataType_init(&trustList);
+        readTrustListWithMask(client, mask, &trustList);
+        ck_assert_uint_eq(trustList.specifiedLists, mask);
+        assertMaskedList(trustList.trustedCertificates, trustList.trustedCertificatesSize,
+                         (mask & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) != 0,
+                         all.trustedCertificates, all.trustedCertificatesSize);
+        assertMaskedList(trustList.trustedCrls, trustList.trustedCrlsSize,
+                         (mask & UA_TRUSTLISTMASKS_TRUSTEDCRLS) != 0,
+                         all.trustedCrls, all.trustedCrlsSize);
+        assertMaskedList(trustList.issuerCertificates, trustList.issuerCertificatesSize,
+                         (mask & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) != 0,
+                         all.issuerCertificates, all.issuerCertificatesSize);
+        assertMaskedList(trustList.issuerCrls, trustList.issuerCrlsSize,
+                         (mask & UA_TRUSTLISTMASKS_ISSUERCRLS) != 0,
+                         all.issuerCrls, all.issuerCrlsSize);
+        UA_TrustListDataType_clear(&trustList);
+    }
+
+    UA_TrustListDataType_clear(&all);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(add_certificate_replaced_input_metadata) {
     UA_Client *client = createSecureClient();
 
@@ -1293,6 +1377,7 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
     tcase_add_test(tc_cert, trustlist_file_properties);
+    tcase_add_test(tc_cert, open_trustlist_with_mask);
     tcase_add_test(tc_cert, apply_changes_without_transaction);
     tcase_add_test(tc_cert, open_continues_transaction);
     tcase_add_test(tc_cert, gds_callback_argument_counts);
