@@ -2607,6 +2607,56 @@ START_TEST(HeartbeatWriterViaInformationModel) {
 }
 END_TEST
 
+static void
+setupLocalRemoval(void) {
+    server = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(server);
+}
+
+static void
+teardownLocalRemoval(void) {
+    UA_Server_delete(server);
+}
+
+START_TEST(RemoveDataSetReaderAcceptsNodeId) {
+    UA_NodeId connection = addPubSubConnection();
+    UA_ReaderGroupConfig group = {0};
+    group.name = UA_STRING("Removal reader group");
+    UA_NodeId groupId;
+    ck_assert_uint_eq(UA_Server_addReaderGroup(server, connection, &group, &groupId),
+                      UA_STATUSCODE_GOOD);
+    UA_DataSetReaderConfig reader = {0};
+    reader.name = UA_STRING("Removal reader");
+    reader.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    reader.publisherId.id.uint32 = 42;
+    UA_NodeId readerId;
+    ck_assert_uint_eq(UA_Server_addDataSetReader(server, groupId, &reader, &readerId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &readerId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_CallMethodRequest request = {0};
+    request.objectId = groupId;
+    request.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.outputArgumentsSize, 0);
+    UA_CallMethodResult_clear(&result);
+
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, readerId, &nodeClass),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, groupId, &nodeClass),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeClass, UA_NODECLASS_OBJECT);
+    UA_NodeId_clear(&readerId);
+    UA_NodeId_clear(&groupId);
+    UA_NodeId_clear(&connection);
+}
+END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_informationmodel_methods_connection = tcase_create("PubSub connection delete and creation using the information model methods");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
@@ -2650,6 +2700,10 @@ int main(void) {
     TCase *tc_input_contract = tcase_create("PubSub method input contracts");
     tcase_add_loop_test(tc_input_contract, AddConnectionValidatesScalarInput, 0, 3);
     suite_add_tcase(s, tc_input_contract);
+    TCase *tc_removal = tcase_create("RemoveDataSetReader input contract");
+    tcase_add_checked_fixture(tc_removal, setupLocalRemoval, teardownLocalRemoval);
+    tcase_add_test(tc_removal, RemoveDataSetReaderAcceptsNodeId);
+    suite_add_tcase(s, tc_removal);
     suite_add_tcase(s, tc_add_pubsub_informationmodel_methods_connection);
 
     SRunner *sr = srunner_create(s);
