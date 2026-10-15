@@ -246,7 +246,7 @@ handleVariableNode(NodeSet *nodeset, const NL_VariableNode *node, UA_NodeId pare
         ret = decodeVariableValue(nodeset, (const NL_Node *)node, &node->value, &attr.dataType,
                                   attr.valueRank, attr.arrayDimensionsSize, attr.arrayDimensions,
                                   &attr.value);
-        if(ret == UA_STATUSCODE_BADOUTOFMEMORY)
+        if(ret != UA_STATUSCODE_GOOD)
             goto cleanup;
 #else
         UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
@@ -328,7 +328,7 @@ handleVariableTypeNode(NodeSet *nodeset, const NL_VariableTypeNode *node, UA_Nod
         ret = decodeVariableValue(nodeset, (const NL_Node *)node, &node->value, &attr.dataType,
                                   attr.valueRank, attr.arrayDimensionsSize, attr.arrayDimensions,
                                   &attr.value);
-        if(ret == UA_STATUSCODE_BADOUTOFMEMORY)
+        if(ret != UA_STATUSCODE_GOOD)
             goto cleanup;
 #else
         UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
