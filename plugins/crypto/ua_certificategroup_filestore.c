@@ -753,6 +753,10 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
     }
 
     context->store = (UA_CertificateGroup*)UA_calloc(1, sizeof(UA_CertificateGroup));
+    if(!context->store) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
     retval = UA_CertificateGroup_Memorystore(context->store, certificateGroupId, NULL, logger, params);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_APPLICATION,
