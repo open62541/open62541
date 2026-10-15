@@ -17,6 +17,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 
+#include "client/ua_client_internal.h"
 #include "test_helpers.h"
 #include "thread_wrapper.h"
 
@@ -364,6 +365,96 @@ START_TEST(Client_guest_limited_access) {
 }
 END_TEST
 
+static UA_StatusCode
+readProtectedNode(UA_Client *client, UA_NodeId nodeId) {
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res = UA_Client_readValueAttribute(client, nodeId, &v);
+    UA_Variant_clear(&v);
+    return res;
+}
+
+static UA_StatusCode
+writeProtectedNode(UA_Client *client, UA_NodeId nodeId, UA_Int32 value) {
+    UA_Variant v;
+    UA_Variant_setScalar(&v, &value, &UA_TYPES[UA_TYPES_INT32]);
+    return UA_Client_writeValueAttribute(client, nodeId, &v);
+}
+
+/* Part 4, Section 5.6.3.2, Table 17: A NULL or empty UserIdentityToken is
+ * interpreted as Anonymous. The Session must then get the roles of an
+ * anonymous user and not the AuthenticatedUser Role. */
+START_TEST(Client_emptyIdentityToken_isAnonymous) {
+    /* Node that can only be read and written by the AuthenticatedUser Role */
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "emptyIdentityTokenNode");
+    UA_Int32 value = 1337;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, nodeId,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "emptyIdentityTokenNode"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_addRolePermissions(server, nodeId,
+                 UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER),
+                 UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                 UA_PERMISSIONTYPE_WRITE, false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* An authenticated user can read and write the node */
+    UA_Client *client = UA_Client_newForUnitTest();
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                       "guest", "guest123");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readProtectedNode(client, nodeId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(writeProtectedNode(client, nodeId, 1337),
+                      UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* An anonymous session is denied */
+    client = UA_Client_newForUnitTest();
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readProtectedNode(client, nodeId),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(writeProtectedNode(client, nodeId, 4242),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    /* Reactivate the session with an empty UserIdentityToken. This is
+     * accepted as anonymous. */
+    UA_ActivateSessionRequest asReq;
+    UA_ActivateSessionRequest_init(&asReq);
+    UA_ActivateSessionResponse asResp;
+    UA_ActivateSessionResponse_init(&asResp);
+    __UA_Client_Service(client, &asReq, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &asResp, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+    ck_assert_uint_eq(asResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ActivateSessionResponse_clear(&asResp);
+
+    /* The reactivated session is still anonymous and denied */
+    ck_assert_uint_eq(readProtectedNode(client, nodeId),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(writeProtectedNode(client, nodeId, 4242),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* The value was not changed */
+    UA_Variant v;
+    UA_Variant_init(&v);
+    retval = UA_Server_readValue(server, nodeId, &v);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32*)v.data, 1337);
+    UA_Variant_clear(&v);
+}
+END_TEST
+
 /* Test that UserWriteMask reflects RBAC permissions correctly.
  * The operator role on BuildInfo has WRITE permission, which should map
  * to WriteAttribute bits in UserWriteMask. */
@@ -467,6 +558,7 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_buildinfo_recursive_permissions);
     tcase_add_test(tc, Client_anonymous_restricted_access);
     tcase_add_test(tc, Client_guest_limited_access);
+    tcase_add_test(tc, Client_emptyIdentityToken_isAnonymous);
     tcase_add_test(tc, Client_userwritemask_reflects_rbac);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc, Client_roleSetMethod_denied);
