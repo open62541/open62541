@@ -758,6 +758,67 @@ START_TEST(remove_certificate_failure_clears_transaction) {
 }
 END_TEST
 
+/* Test: RemoveCertificate with IsTrustedCertificate=false removes the CRLs of
+ * the issuer CA from the issuer CRLs */
+START_TEST(remove_issuer_certificate_removes_issuer_crls) {
+    UA_Client *client = createSecureClient();
+
+    /* The default configuration puts all CRLs into the TrustedCrls. Move the
+     * CRL of the intermediate CA to the IssuerCrls. */
+    UA_ByteString intermediateCa = {INTERMEDIATE_CERT_DER_LENGTH,
+                                    INTERMEDIATE_CERT_DER_DATA};
+    UA_ByteString intermediateCaCrl = {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH,
+                                       INTERMEDIATE_EMPTY_CRL_PEM_DATA};
+    UA_TrustListDataType trustedCrls;
+    UA_TrustListDataType_init(&trustedCrls);
+    trustedCrls.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    trustedCrls.trustedCrls = &intermediateCaCrl;
+    trustedCrls.trustedCrlsSize = 1;
+    UA_TrustListDataType issuerCrls;
+    UA_TrustListDataType_init(&issuerCrls);
+    issuerCrls.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCRLS;
+    issuerCrls.issuerCrls = &intermediateCaCrl;
+    issuerCrls.issuerCrlsSize = 1;
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->removeFromTrustList(certGroup, &trustedCrls);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = certGroup->addToTrustList(certGroup, &issuerCrls);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte thumbprintBuf[40]; /* SHA1 = 20 bytes = 40 hex chars */
+    UA_String thumbprint = {sizeof(thumbprintBuf), thumbprintBuf};
+    retval = UA_CertificateUtils_getThumbprint(&intermediateCa, &thumbprint);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = callRemoveCertificate(client, &thumbprint, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    lockServer(server);
+    retval = certGroup->getTrustList(certGroup, &trustList);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The CA and its CRL are removed from the issuer lists */
+    ck_assert(!UA_TrustListDataType_contains(&trustList, &intermediateCa,
+                                             UA_TRUSTLISTMASKS_ISSUERCERTIFICATES));
+    ck_assert(!UA_TrustListDataType_contains(&trustList, &intermediateCaCrl,
+                                             UA_TRUSTLISTMASKS_ISSUERCRLS));
+
+    /* The trusted lists are not changed */
+    ck_assert(UA_TrustListDataType_contains(&trustList, &intermediateCa,
+                                            UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES));
+
+    UA_TrustListDataType_clear(&trustList);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(rw_trustlist) {
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -1246,6 +1307,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, remove_certificate_not_found);
     tcase_add_test(tc_cert, remove_certificate_reject_while_open);
     tcase_add_test(tc_cert, remove_certificate_failure_clears_transaction);
+    tcase_add_test(tc_cert, remove_issuer_certificate_removes_issuer_crls);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
     return s;
