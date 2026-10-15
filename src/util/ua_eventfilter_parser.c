@@ -32,6 +32,8 @@ pos2lines(const UA_ByteString content, size_t pos,
 static Operand *
 newOperand(EFParseContext *ctx) {
     Operand *op = (Operand*)UA_calloc(1, sizeof(Operand));
+    if(!op)
+        return NULL;
     LIST_INSERT_HEAD(&ctx->operands, op, entries);
     ctx->operandsSize++;
     return op;
@@ -100,6 +102,8 @@ char *
 save_string(char *str) {
     size_t strLen = strlen(str);
     char *local_str = (char*) UA_calloc(strLen + 1, sizeof(char));
+    if(!local_str)
+        return NULL;
     memcpy(local_str, str, strLen + 1);
     return local_str;
 }
@@ -107,6 +111,8 @@ save_string(char *str) {
 Operand *
 create_operand(EFParseContext *ctx, OperandType ot) {
     Operand *on = newOperand(ctx);
+    if(!on)
+        return NULL;
     on->type = ot;
     return on;
 }
@@ -114,17 +120,21 @@ create_operand(EFParseContext *ctx, OperandType ot) {
 Operand *
 create_operator(EFParseContext *ctx, UA_FilterOperator fo) {
     Operand *on = create_operand(ctx, OT_OPERATOR);
+    if(!on)
+        return NULL;
     on->operand.op.filter = fo;
     return on;
 }
 
 void
-append_operand(Operand *op, Operand *on) {
+append_operand(EFParseContext *ctx, Operand *op, Operand *on) {
     Operator *optr = &op->operand.op;
     Operand **children_tmp = (Operand **)
         UA_realloc(optr->children, (optr->childrenSize + 1) * sizeof(Operand*));
-    if(!children_tmp)
+    if(!children_tmp) {
+        ctx->error = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
+    }
     optr->children = children_tmp;
     optr->children[optr->childrenSize] = on;
     optr->childrenSize++;
@@ -185,25 +195,41 @@ getPrintable(EFParseContext *ctx) {
 static UA_StatusCode
 printOperator(EFParseContext *ctx, UA_ContentFilterElement *elm, Operator *op) {
     UA_ContentFilterElement_init(elm);
-    elm->filterOperandsSize = op->childrenSize;
     elm->filterOperands = (UA_ExtensionObject*)
         UA_calloc(op->childrenSize, sizeof(UA_ExtensionObject));
+    if(!elm->filterOperands && op->childrenSize > 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    elm->filterOperandsSize = op->childrenSize;
     elm->filterOperator = op->filter;
     for(size_t i = 0; i < op->childrenSize; i++) {
         Operand *op_i = resolveOperandRef(ctx, op->children[i], 0);
         if(op_i->type == OT_OPERATOR) {
             UA_ElementOperand *elmo = UA_ElementOperand_new();
+            if(!elmo)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             elmo->index = (UA_UInt32)op_i->operand.op.elementIndex;
             UA_ExtensionObject_setValue(&elm->filterOperands[i], elmo,
                                         &UA_TYPES[UA_TYPES_ELEMENTOPERAND]);
         } else if(op_i->type == OT_SAO) {
             UA_SimpleAttributeOperand *sao = UA_SimpleAttributeOperand_new();
-            UA_SimpleAttributeOperand_copy(&op_i->operand.sao, sao);
+            if(!sao)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            UA_StatusCode res = UA_SimpleAttributeOperand_copy(&op_i->operand.sao, sao);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_SimpleAttributeOperand_delete(sao);
+                return res;
+            }
             UA_ExtensionObject_setValue(&elm->filterOperands[i], sao,
                                         &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
         } else if(op_i->type == OT_LITERAL) {
             UA_LiteralOperand *lit = UA_LiteralOperand_new();
-            UA_Variant_copy(&op_i->operand.literal, &lit->value);
+            if(!lit)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            UA_StatusCode res = UA_Variant_copy(&op_i->operand.literal, &lit->value);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LiteralOperand_delete(lit);
+                return res;
+            }
             UA_ExtensionObject_setValue(&elm->filterOperands[i], lit,
                                         &UA_TYPES[UA_TYPES_LITERALOPERAND]);
         }
@@ -277,13 +303,17 @@ create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
     /* Allocate the elements array */
     filter->whereClause.elements = (UA_ContentFilterElement*)
         UA_Array_new(count, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
+    if(!filter->whereClause.elements)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     filter->whereClause.elementsSize = count;
 
     /* Get the next printable operator and print it */
     Operator *printable;
     while(count > 0 && (printable = getPrintable(ctx))) {
         count--;
-        res |= printOperator(ctx, &filter->whereClause.elements[count], printable);
+        res = printOperator(ctx, &filter->whereClause.elements[count], printable);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
         printable->elementIndex = count;
     }
 
