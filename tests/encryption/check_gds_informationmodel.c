@@ -632,8 +632,9 @@ START_TEST(add_certificate_reject_issuer) {
 }
 END_TEST
 
-/* Test: AddCertificate is rejected while TrustList is open */
-START_TEST(add_certificate_reject_while_open) {
+/* Part 12 §7.8.2.6: AddCertificate returns Bad_NotWritable while the
+ * TrustList is open for reading */
+START_TEST(add_certificate_reject_while_open_read) {
     UA_Client *client = createSecureClient();
 
     /* Open the TrustList for reading */
@@ -650,11 +651,46 @@ START_TEST(add_certificate_reject_while_open) {
 
     UA_Boolean isTrusted = true;
     retval = callAddCertificate(client, &cert, isTrusted);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTWRITABLE);
 
     /* Close the TrustList */
     UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
     retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant_clear(&fileHandler);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.8.2.6: AddCertificate returns Bad_InvalidState while the
+ * TrustList is open for writing and CloseAndUpdate has not been called */
+START_TEST(add_certificate_reject_while_open_write) {
+    UA_Client *client = createSecureClient();
+
+    /* Open the TrustList for writing */
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_Byte mode = UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING;
+    UA_StatusCode retval = openTrustList(client, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Try to add — should fail because the list is open */
+    UA_ByteString cert;
+    cert.length = APPLICATION_CERT_DER_LENGTH;
+    cert.data = APPLICATION_CERT_DER_DATA;
+
+    UA_Boolean isTrusted = true;
+    retval = callAddCertificate(client, &cert, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+
+    /* Close without changes ends the transaction. The certificate can be
+     * added afterwards. */
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+    retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = callAddCertificate(client, &cert, isTrusted);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant_clear(&fileHandler);
@@ -708,8 +744,9 @@ START_TEST(remove_certificate_not_found) {
 }
 END_TEST
 
-/* Test: RemoveCertificate is rejected while TrustList is open */
-START_TEST(remove_certificate_reject_while_open) {
+/* Part 12 §7.8.2.7: RemoveCertificate returns Bad_NotWritable while the
+ * TrustList is open for reading */
+START_TEST(remove_certificate_reject_while_open_read) {
     UA_Client *client = createSecureClient();
 
     /* First add a certificate so there's something to try removing */
@@ -738,11 +775,59 @@ START_TEST(remove_certificate_reject_while_open) {
 
     /* Try to remove — should fail because the list is open */
     retval = callRemoveCertificate(client, &thumbprint, isTrusted);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTWRITABLE);
 
     /* Close the TrustList */
     UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
     retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant_clear(&fileHandler);
+    UA_String_clear(&thumbprint);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.8.2.7: RemoveCertificate returns Bad_InvalidState while the
+ * TrustList is open for writing and CloseAndUpdate has not been called */
+START_TEST(remove_certificate_reject_while_open_write) {
+    UA_Client *client = createSecureClient();
+
+    /* First add a certificate so there's something to try removing */
+    UA_ByteString cert;
+    cert.length = APPLICATION_CERT_DER_LENGTH;
+    cert.data = APPLICATION_CERT_DER_DATA;
+
+    UA_Boolean isTrusted = true;
+    UA_StatusCode retval = callAddCertificate(client, &cert, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Compute its thumbprint */
+    UA_String thumbprint = UA_STRING_NULL;
+    thumbprint.length = 40;
+    thumbprint.data = (UA_Byte*)UA_malloc(thumbprint.length);
+    ck_assert(thumbprint.data != NULL);
+    retval = UA_CertificateUtils_getThumbprint(&cert, &thumbprint);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Open the TrustList for writing */
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_Byte mode = UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING;
+    retval = openTrustList(client, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Try to remove — should fail because the list is open */
+    retval = callRemoveCertificate(client, &thumbprint, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+
+    /* Close without changes ends the transaction. The certificate can be
+     * removed afterwards. */
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+    retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = callRemoveCertificate(client, &thumbprint, isTrusted);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant_clear(&fileHandler);
@@ -1045,6 +1130,44 @@ START_TEST(open_continues_transaction) {
     UA_ByteString_clear(&encTrustList);
     UA_Client_disconnect(other);
     UA_Client_delete(other);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.8.2.6, §7.8.2.7: AddCertificate and RemoveCertificate return
+ * Bad_TransactionPending while a transaction is pending and the TrustList is
+ * closed */
+START_TEST(add_remove_certificate_reject_transaction_pending) {
+    UA_Client *client = createSecureClient();
+
+    /* First add a certificate so there's something to try removing */
+    UA_ByteString cert;
+    cert.length = APPLICATION_CERT_DER_LENGTH;
+    cert.data = APPLICATION_CERT_DER_DATA;
+
+    UA_Boolean isTrusted = true;
+    UA_StatusCode retval = callAddCertificate(client, &cert, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Compute its thumbprint */
+    UA_String thumbprint = UA_STRING_NULL;
+    thumbprint.length = 40;
+    thumbprint.data = (UA_Byte*)UA_malloc(thumbprint.length);
+    ck_assert(thumbprint.data != NULL);
+    retval = UA_CertificateUtils_getThumbprint(&cert, &thumbprint);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* UpdateCertificate starts the transaction */
+    retval = callUpdateCertificate(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = callAddCertificate(client, &cert, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTRANSACTIONPENDING);
+    retval = callRemoveCertificate(client, &thumbprint, isTrusted);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTRANSACTIONPENDING);
+
+    UA_String_clear(&thumbprint);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -1387,12 +1510,15 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, add_certificate_success);
     tcase_add_test(tc_cert, add_certificate_reject_ca);
     tcase_add_test(tc_cert, add_certificate_reject_issuer);
-    tcase_add_test(tc_cert, add_certificate_reject_while_open);
+    tcase_add_test(tc_cert, add_certificate_reject_while_open_read);
+    tcase_add_test(tc_cert, add_certificate_reject_while_open_write);
     tcase_add_test(tc_cert, remove_certificate_success);
     tcase_add_test(tc_cert, remove_certificate_not_found);
-    tcase_add_test(tc_cert, remove_certificate_reject_while_open);
+    tcase_add_test(tc_cert, remove_certificate_reject_while_open_read);
+    tcase_add_test(tc_cert, remove_certificate_reject_while_open_write);
     tcase_add_test(tc_cert, remove_certificate_failure_clears_transaction);
     tcase_add_test(tc_cert, remove_issuer_certificate_removes_issuer_crls);
+    tcase_add_test(tc_cert, add_remove_certificate_reject_transaction_pending);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
     return s;

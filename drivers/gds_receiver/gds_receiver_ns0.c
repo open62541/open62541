@@ -269,14 +269,11 @@ addCertificateAction(UA_Server *server,
     if(!*isTrustedCertificate || certificate->length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
-    if(UA_GDSReceiver_transactionPending(ctx))
-        return UA_STATUSCODE_BADTRANSACTIONPENDING;
-
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     return UA_GDSReceiver_addCertificate(ctx, certGroup, certificate,
                                         isTrustedCertificate);
 }
@@ -299,14 +296,11 @@ removeCertificateAction(UA_Server *server,
     UA_String *thumbprint = (UA_String *)input[0].data;
     UA_Boolean *isTrustedCertificate = (UA_Boolean *)input[1].data;
 
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
-    if(UA_GDSReceiver_transactionPending(ctx))
-        return UA_STATUSCODE_BADTRANSACTIONPENDING;
-
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     return UA_GDSReceiver_removeCertificate(ctx, certGroup, sessionId,
                                            thumbprint, isTrustedCertificate);
 }
