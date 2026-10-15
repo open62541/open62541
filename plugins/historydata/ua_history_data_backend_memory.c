@@ -698,6 +698,8 @@ serverSetHistoryData_backend_memory_Circular(UA_Server *server,
         timestamp = UA_DateTime_now();
     }
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
+    if(!newItem)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
     if(!newItem->value.hasServerTimestamp) {
