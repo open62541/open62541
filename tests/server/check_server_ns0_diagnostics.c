@@ -670,6 +670,43 @@ START_TEST(session_diagnosticsMultipleSessions) {
     UA_Client_delete(client2);
 } END_TEST
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+/* The server-defined session object uses the server namespace, the children
+ * keep the BrowseNames of their InstanceDeclarations (Part 3, 6.4.1) */
+START_TEST(session_diagnostics_browseNames) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode res = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName bn;
+    res = UA_Server_readBrowseName(server, client->sessionId, &bn);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bn.namespaceIndex, 1);
+
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server,
+        UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY), 1, &bn);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    ck_assert(UA_NodeId_equal(&bpr.targets[0].targetId.nodeId, &client->sessionId));
+    UA_BrowsePathResult_clear(&bpr);
+    UA_QualifiedName_clear(&bn);
+
+    char *children[3] = {"SessionDiagnostics", "SessionSecurityDiagnostics",
+                         "SubscriptionDiagnosticsArray"};
+    for(size_t i = 0; i < 3; i++) {
+        UA_QualifiedName child = UA_QUALIFIEDNAME(0, children[i]);
+        bpr = UA_Server_browseSimplifiedBrowsePath(server, client->sessionId,
+                                                   1, &child);
+        ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(bpr.targetsSize, 1);
+        UA_BrowsePathResult_clear(&bpr);
+    }
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+#endif /* UA_ENABLE_DIAGNOSTICS */
+
 /* === Discovery tests (moved here for organization) === */
 START_TEST(client_findServers) {
     UA_Client *client = UA_Client_newForUnitTest();
@@ -1309,7 +1346,7 @@ START_TEST(subscription_diagnostic_entry_valueRank_scalar) {
     ck_assert(written > 0);
     ck_assert((size_t)written < sizeof(subIdStr));
 
-    UA_QualifiedName bp = UA_QUALIFIEDNAME(0, subIdStr);
+    UA_QualifiedName bp = UA_QUALIFIEDNAME(1, subIdStr);
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
         server,
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY),
@@ -1321,6 +1358,14 @@ START_TEST(subscription_diagnostic_entry_valueRank_scalar) {
     res = UA_Server_readValueRank(server, bpr.targets[0].targetId.nodeId, &valueRank);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(valueRank, UA_VALUERANK_SCALAR);
+
+    /* The children keep the ns=0 BrowseNames of the SubscriptionDiagnosticsType */
+    UA_QualifiedName child = UA_QUALIFIEDNAME(0, "SubscriptionId");
+    UA_BrowsePathResult cbpr = UA_Server_browseSimplifiedBrowsePath(
+        server, bpr.targets[0].targetId.nodeId, 1, &child);
+    ck_assert_uint_eq(cbpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cbpr.targetsSize, 1);
+    UA_BrowsePathResult_clear(&cbpr);
 
     UA_BrowsePathResult_clear(&bpr);
 
@@ -1446,6 +1491,9 @@ static Suite *testSuite_ns0Ext(void) {
     TCase *tc_sessiondiag = tcase_create("SessionDiagnostics");
     tcase_add_checked_fixture(tc_sessiondiag, setup, teardown);
     tcase_add_test(tc_sessiondiag, session_diagnosticsMultipleSessions);
+#ifdef UA_ENABLE_DIAGNOSTICS
+    tcase_add_test(tc_sessiondiag, session_diagnostics_browseNames);
+#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     TCase *tc_subdiag = tcase_create("SubDiag");
