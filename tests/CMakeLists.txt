@@ -395,6 +395,15 @@ if(UA_ENABLE_DISCOVERY)
         target_link_libraries(check_findservers_on_network ${LIBS})
         add_test_valgrind(findservers_on_network
                          ${TESTS_BINARY_DIR}/check_findservers_on_network)
+        if(UA_ENABLE_MALLOC_SINGLETON)
+            add_executable(check_discovery_mdns_alloc
+                           server/check_discovery_mdns_alloc.c
+                           $<TARGET_OBJECTS:open62541-object>
+                           $<TARGET_OBJECTS:open62541-testplugins>)
+            target_link_libraries(check_discovery_mdns_alloc ${LIBS})
+            add_test_valgrind(discovery_mdns_alloc
+                              ${TESTS_BINARY_DIR}/check_discovery_mdns_alloc)
+        endif()
     endif()
 endif()
 
