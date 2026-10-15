@@ -161,10 +161,40 @@ START_TEST(CheckKVMCountMergedComplementary) {
     }
 END_TEST
 
+START_TEST(CheckKVMClearThenSet) {
+        UA_KeyValueMap *kvm = keyValueMap_setup(10, 0, 0);
+        UA_KeyValueMap_clear(kvm);
+        ck_assert_uint_eq(kvm->mapSize, 0);
+        ck_assert(kvm->map == NULL);
+        ck_assert(UA_KeyValueMap_isEmpty(kvm));
+
+        /* Clearing an already cleared map is a no-op */
+        UA_KeyValueMap_clear(kvm);
+        ck_assert_uint_eq(kvm->mapSize, 0);
+        ck_assert(kvm->map == NULL);
+
+        /* The cleared map can be reused */
+        UA_UInt16 value = 42;
+        UA_StatusCode res =
+            UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "again"), &value,
+                                     &UA_TYPES[UA_TYPES_UINT16]);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(kvm->mapSize, 1);
+        const UA_UInt16 *v = (const UA_UInt16*)
+            UA_KeyValueMap_getScalar(kvm, UA_QUALIFIEDNAME(0, "again"),
+                                     &UA_TYPES[UA_TYPES_UINT16]);
+        ck_assert(v != NULL);
+        ck_assert_uint_eq(*v, 42);
+
+        UA_KeyValueMap_delete(kvm);
+    }
+END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test KeyValueMap Utilities");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, CheckNullArgs);
+    tcase_add_test(tc, CheckKVMClearThenSet);
     tcase_add_test(tc, CheckKVMContains);
     tcase_add_test(tc, CheckKVMCopy);
     tcase_add_test(tc, CheckKVMCountMergedIntersecting);
