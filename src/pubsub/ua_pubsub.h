@@ -95,11 +95,12 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 UA_StatusCode
 UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
 
-/* Process Network Message for a ReaderGroup. But we the ReaderGroup needs to be
- * identified first. */
+/* Process Network Message with the DataSetReaders of the ReaderGroup. The
+ * NetworkMessage has to be verified and decrypted with the security settings of
+ * this ReaderGroup before. */
 UA_StatusCode
 UA_Server_processNetworkMessage(UA_Server *server,
-                                UA_PubSubConnection *connection,
+                                UA_ReaderGroup *readerGroup,
                                 UA_NetworkMessage *msg);
 
 /**********************************************/
@@ -367,11 +368,13 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString *buffer,
                                UA_ReaderGroup *readerGroup);
 #endif
 
-/* Takes a value (and not a pointer) to the buffer. The original buffer is
-   const. Internally we may adjust the length during decryption. */
+/* Decode the NetworkMessage and verify/decrypt it with the security settings of
+ * the ReaderGroup. The buffer is decrypted in-place and its length may be
+ * adjusted. Returns BADNOTFOUND if no DataSetReader of the ReaderGroup matches
+ * the identifiers of the NetworkMessage. */
 UA_StatusCode
 decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
-                     UA_NetworkMessage *nm, UA_PubSubConnection *connection);
+                     UA_NetworkMessage *nm, UA_ReaderGroup *readerGroup);
 
 UA_StatusCode
 receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
