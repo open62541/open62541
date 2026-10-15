@@ -846,9 +846,14 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
                                             0);
     else {
         for(UA_Byte i = 0; i < count; i++) {
+            size_t dsmBegin = *offset;
             rv = UA_DataSetMessage_decodeBinary(src, offset,
                                                 &(dst->payload.dataSetPayload.dataSetMessages[i]),
                                                 dst->payload.dataSetPayload.sizes[i]);
+            UA_CHECK_STATUS(rv, return rv);
+            /* The declared size locates the next DataSetMessage */
+            if(dst->payload.dataSetPayload.sizes[i] != 0)
+                *offset = dsmBegin + dst->payload.dataSetPayload.sizes[i];
         }
     }
     UA_CHECK_STATUS(rv, return rv);
@@ -1482,6 +1487,18 @@ UA_StatusCode
 UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_DataSetMessage* dst, UA_UInt16 dsmSize) {
     size_t initialOffset = *offset;
     memset(dst, 0, sizeof(UA_DataSetMessage));
+
+    /* The declared size must fit into the remaining buffer. Confine the
+     * decoding of the header and the fields to the declared size. A size of
+     * zero means that the size is unknown. */
+    UA_ByteString bounded = *src;
+    if(initialOffset > src->length || dsmSize > src->length - initialOffset)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(dsmSize != 0) {
+        bounded.length = initialOffset + dsmSize;
+        src = &bounded;
+    }
+
     UA_StatusCode rv = UA_DataSetMessageHeader_decodeBinary(src, offset, &dst->header);
     UA_CHECK_STATUS(rv, return rv);
 
@@ -1517,15 +1534,18 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
             case UA_FIELDENCODING_RAWDATA:
             {
                 dst->data.keyFrameData.rawFields.data = &src->data[*offset];
-                dst->data.keyFrameData.rawFields.length = dsmSize;
                 if(dsmSize == 0){
                     //TODO calculate the length of the DSM-Payload for a single DSM
                     //Problem: Size is not set and MetaData information are needed.
-                    //Increase offset to avoid endless chunk loop. Needs to be fixed when
-                    //pubsub security footer and signatur is enabled.
-                    *offset += 1500;
+                    //Move the offset to the end of the buffer to avoid endless chunk
+                    //loop. Needs to be fixed when pubsub security footer and
+                    //signatur is enabled.
+                    *offset = src->length;
                 } else {
-                    *offset += (dsmSize - (*offset - initialOffset));
+                    /* The raw fields start after the DSM header */
+                    dst->data.keyFrameData.rawFields.length =
+                        dsmSize - (*offset - initialOffset);
+                    *offset = initialOffset + dsmSize;
                 }
                 break;
             }
