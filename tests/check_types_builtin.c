@@ -1343,6 +1343,35 @@ START_TEST(UA_Variant_copyShallWorkOnByteStringIndexRange) {
 }
 END_TEST
 
+START_TEST(UA_Variant_setRangeRejectsUnclampedSourceSize) {
+    UA_UInt32 initial[10] = {0};
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode res =
+        UA_Variant_setArrayCopy(&value, initial, 10,
+                                &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The range is reduced to 3:9, so a source with 13 elements must not fit */
+    UA_UInt32 source[13] = {0};
+    UA_NumericRangeDimension dimension = {3, 15};
+    UA_NumericRange range = {1, &dimension};
+    res = UA_Variant_setRangeCopy(&value, source, 13, range);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINDEXRANGEINVALID);
+
+    /* A source matching the reduced range is written */
+    UA_UInt32 fitting[7] = {1, 2, 3, 4, 5, 6, 7};
+    res = UA_Variant_setRangeCopy(&value, fitting, 7, range);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_UInt32 *data = (UA_UInt32*)value.data;
+    ck_assert_uint_eq(data[2], 0);
+    ck_assert_uint_eq(data[3], 1);
+    ck_assert_uint_eq(data[9], 7);
+
+    UA_Variant_clear(&value);
+}
+END_TEST
+
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     // given
     UA_String *srcArray = (UA_String*)UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
@@ -1590,6 +1619,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn1DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnByteStringIndexRange);
+    tcase_add_test(tc_copy, UA_Variant_setRangeRejectsUnclampedSourceSize);
 
     tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
