@@ -996,23 +996,23 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 8: /* operator ::= NOT operand */
       case 9: /* operator ::= UNARY_OP operand */ yytestcase(yyruleno==9);
-{ yylhsminor.yy0 = yymsp[-1].minor.yy0; append_operand(yylhsminor.yy0, yymsp[0].minor.yy0); }
+{ yylhsminor.yy0 = yymsp[-1].minor.yy0; append_operand(ctx, yylhsminor.yy0, yymsp[0].minor.yy0); }
   yymsp[-1].minor.yy0 = yylhsminor.yy0;
         break;
       case 10: /* operator ::= operand OR operand */
       case 11: /* operator ::= operand AND operand */ yytestcase(yyruleno==11);
       case 12: /* operator ::= operand BINARY_OP operand */ yytestcase(yyruleno==12);
-{ yylhsminor.yy0 = yymsp[-1].minor.yy0; append_operand(yylhsminor.yy0, yymsp[-2].minor.yy0), append_operand(yylhsminor.yy0, yymsp[0].minor.yy0); }
+{ yylhsminor.yy0 = yymsp[-1].minor.yy0; append_operand(ctx, yylhsminor.yy0, yymsp[-2].minor.yy0), append_operand(ctx, yylhsminor.yy0, yymsp[0].minor.yy0); }
   yymsp[-2].minor.yy0 = yylhsminor.yy0;
         break;
       case 13: /* operator ::= operand INLIST LBRACKET operandList RBRACKET */
-{ yylhsminor.yy0 = yymsp[-3].minor.yy0; append_operand(yylhsminor.yy0, yymsp[-4].minor.yy0); while(yymsp[-1].minor.yy0) { append_operand(yylhsminor.yy0, yymsp[-1].minor.yy0); yymsp[-1].minor.yy0 = yymsp[-1].minor.yy0->next; } }
+{ yylhsminor.yy0 = yymsp[-3].minor.yy0; append_operand(ctx, yylhsminor.yy0, yymsp[-4].minor.yy0); while(yymsp[-1].minor.yy0) { append_operand(ctx, yylhsminor.yy0, yymsp[-1].minor.yy0); yymsp[-1].minor.yy0 = yymsp[-1].minor.yy0->next; } }
   yy_destructor(yypParser,16,&yymsp[-2].minor);
   yy_destructor(yypParser,17,&yymsp[0].minor);
   yymsp[-4].minor.yy0 = yylhsminor.yy0;
         break;
       case 14: /* operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET */
-{ yylhsminor.yy0 = yymsp[-5].minor.yy0; append_operand(yylhsminor.yy0, yymsp[-6].minor.yy0); append_operand(yylhsminor.yy0, yymsp[-3].minor.yy0); append_operand(yylhsminor.yy0, yymsp[-1].minor.yy0); }
+{ yylhsminor.yy0 = yymsp[-5].minor.yy0; append_operand(ctx, yylhsminor.yy0, yymsp[-6].minor.yy0); append_operand(ctx, yylhsminor.yy0, yymsp[-3].minor.yy0); append_operand(ctx, yylhsminor.yy0, yymsp[-1].minor.yy0); }
   yy_destructor(yypParser,16,&yymsp[-4].minor);
   yy_destructor(yypParser,9,&yymsp[-2].minor);
   yy_destructor(yypParser,17,&yymsp[0].minor);
@@ -1024,7 +1024,7 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-2].minor.yy0 = yylhsminor.yy0;
         break;
       case 17: /* namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand */
-{ yymsp[0].minor.yy0->ref = save_string(yymsp[-2].minor.yy0->operand.ref); }
+{ yymsp[0].minor.yy0->ref = save_string(yymsp[-2].minor.yy0->operand.ref); if(!yymsp[0].minor.yy0->ref) ctx->error = UA_STATUSCODE_BADOUTOFMEMORY; }
   yy_destructor(yypParser,19,&yymsp[-1].minor);
         break;
       case 20: /* selectClause ::= SELECT selectClauseList */
@@ -1413,6 +1413,13 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
         /* Get the next token */
         size_t begin = pos;
         tokenId = UA_EventFilter_lex(content, &pos, &ctx, &token);
+
+        /* The lexer could not allocate the token */
+        if(ctx.error != UA_STATUSCODE_GOOD) {
+            res = ctx.error;
+            goto done;
+        }
+
         UA_EventFilterParse(&parser, tokenId, token, &ctx);
 
         /* Print an error if the parser could not handle the token */
@@ -1424,7 +1431,7 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
             UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_APPLICATION,
                          "Could not process token at line %u, column %u: "
                          "%.*s...", line, col, extractLen, content.data + begin);
-            res = UA_STATUSCODE_BADINTERNALERROR;
+            res = ctx.error;
             goto done;
         }
     } while(tokenId);

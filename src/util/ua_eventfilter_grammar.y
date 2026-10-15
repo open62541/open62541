@@ -55,13 +55,13 @@ operand(OP) ::= LITERAL(LIT) .              { OP = LIT; }
 operand(OP) ::= NAMEDOPERAND(NO) .          { OP = NO; }
 operand(OP) ::= LPAREN operand(O1) RPAREN . { OP = O1; }
 
-operator(OP) ::= NOT(F) operand(O1) .                   { OP = F; append_operand(OP, O1); }
-operator(OP) ::= UNARY_OP(F) operand(O1) .              { OP = F; append_operand(OP, O1); }
-operator(OP) ::= operand(O1) OR(F) operand(O2) .        { OP = F; append_operand(OP, O1), append_operand(OP, O2); }
-operator(OP) ::= operand(O1) AND(F) operand(O2) .       { OP = F; append_operand(OP, O1), append_operand(OP, O2); }
-operator(OP) ::= operand(O1) BINARY_OP(F) operand(O2) . { OP = F; append_operand(OP, O1), append_operand(OP, O2); }
-operator(OP) ::= operand(O1) INLIST(F) LBRACKET operandList(OL) RBRACKET .                { OP = F; append_operand(OP, O1); while(OL) { append_operand(OP, OL); OL = OL->next; } }
-operator(OP) ::= operand(O1) BETWEEN(F) LBRACKET operand(O2) COMMA operand(O3) RBRACKET . { OP = F; append_operand(OP, O1); append_operand(OP, O2); append_operand(OP, O3); }
+operator(OP) ::= NOT(F) operand(O1) .                   { OP = F; append_operand(ctx, OP, O1); }
+operator(OP) ::= UNARY_OP(F) operand(O1) .              { OP = F; append_operand(ctx, OP, O1); }
+operator(OP) ::= operand(O1) OR(F) operand(O2) .        { OP = F; append_operand(ctx, OP, O1), append_operand(ctx, OP, O2); }
+operator(OP) ::= operand(O1) AND(F) operand(O2) .       { OP = F; append_operand(ctx, OP, O1), append_operand(ctx, OP, O2); }
+operator(OP) ::= operand(O1) BINARY_OP(F) operand(O2) . { OP = F; append_operand(ctx, OP, O1), append_operand(ctx, OP, O2); }
+operator(OP) ::= operand(O1) INLIST(F) LBRACKET operandList(OL) RBRACKET .                { OP = F; append_operand(ctx, OP, O1); while(OL) { append_operand(ctx, OP, OL); OL = OL->next; } }
+operator(OP) ::= operand(O1) BETWEEN(F) LBRACKET operand(O2) COMMA operand(O3) RBRACKET . { OP = F; append_operand(ctx, OP, O1); append_operand(ctx, OP, O2); append_operand(ctx, OP, O3); }
 
 operandList(OL) ::= operand(O1) .                         { OL = O1; }
 operandList(OL) ::= operand(O1) COMMA operandList(LIST) . { OL = O1; O1->next = LIST; }
@@ -71,7 +71,7 @@ forClause ::= FOR namedOperandAssignmentList .
 
 namedOperandAssignmentList ::= namedOperandAssignment .
 namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment .
-namedOperandAssignment ::= NAMEDOPERAND(NAME) COLONEQUAL operand(OP) . { OP->ref = save_string(NAME->operand.ref); }
+namedOperandAssignment ::= NAMEDOPERAND(NAME) COLONEQUAL operand(OP) . { OP->ref = save_string(NAME->operand.ref); if(!OP->ref) ctx->error = UA_STATUSCODE_BADOUTOFMEMORY; }
 
 %code {
 
@@ -101,6 +101,13 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
         /* Get the next token */
         size_t begin = pos;
         tokenId = UA_EventFilter_lex(content, &pos, &ctx, &token);
+
+        /* The lexer could not allocate the token */
+        if(ctx.error != UA_STATUSCODE_GOOD) {
+            res = ctx.error;
+            goto done;
+        }
+
         UA_EventFilterParse(&parser, tokenId, token, &ctx);
 
         /* Print an error if the parser could not handle the token */
@@ -112,7 +119,7 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
             UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_APPLICATION,
                          "Could not process token at line %u, column %u: "
                          "%.*s...", line, col, extractLen, content.data + begin);
-            res = UA_STATUSCODE_BADINTERNALERROR;
+            res = ctx.error;
             goto done;
         }
     } while(tokenId);

@@ -170,13 +170,19 @@ binary_op:
 
 make_op:
     *token = create_operand(ctx, OT_OPERATOR);
+    if(!*token)
+        goto oom;
     (*token)->operand.op.filter = f;
     goto finish;
 
 namedoperand:
     *token = create_operand(ctx, OT_REF);
+    if(!*token)
+        goto oom;
     size_t nameSize = (uintptr_t)(pos - b);
     (*token)->operand.ref = (char*)UA_malloc(nameSize+1);
+    if(!(*token)->operand.ref)
+        goto oom;
     memcpy((*token)->operand.ref, b, nameSize);
     (*token)->operand.ref[nameSize] = 0;
     tokenId = EF_TOK_NAMEDOPERAND;
@@ -187,6 +193,8 @@ json:
     match.length = (uintptr_t)(end-b);
     match.data = (UA_Byte*)(uintptr_t)b;
     *token = create_operand(ctx, OT_LITERAL);
+    if(!*token)
+        goto oom;
     UA_DecodeJsonOptions options;
     memset(&options, 0, sizeof(UA_DecodeJsonOptions));
     size_t jsonOffset = 0;
@@ -202,7 +210,11 @@ lit:
     match.length = (uintptr_t)(pos-b);
     match.data = (UA_Byte*)(uintptr_t)b;
     *token = create_operand(ctx, OT_LITERAL);
+    if(!*token)
+        goto oom;
     (*token)->operand.literal.data = UA_new(lt);
+    if(!(*token)->operand.literal.data)
+        goto oom;
     (*token)->operand.literal.type = lt;
     if(lt == &UA_TYPES[UA_TYPES_NODEID]) {
         res = UA_NodeId_parse((UA_NodeId*)(*token)->operand.literal.data, match);
@@ -221,8 +233,17 @@ sao:
     match.length = (uintptr_t)(pos-b);
     match.data = (UA_Byte*)(uintptr_t)b;
     *token = create_operand(ctx, OT_SAO);
+    if(!*token)
+        goto oom;
     res = UA_SimpleAttributeOperand_parse(&(*token)->operand.sao, match);
     tokenId = (res == UA_STATUSCODE_GOOD) ? EF_TOK_SAO : 0;
+    goto finish;
+
+oom:
+    /* Don't hand a token to the parser. The caller stops when the error is
+     * set. */
+    ctx->error = UA_STATUSCODE_BADOUTOFMEMORY;
+    tokenId = 0;
 
 finish:
     if(pos > end)
