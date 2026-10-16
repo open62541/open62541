@@ -682,6 +682,76 @@ auditWriteUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *
                      channel, session, sourceNode, "Write", status, payload);
 }
 
+/* Secret arguments that are not published in the AuditUpdateMethodEvent. Bit i
+ * stands for argument i. Instances reference the ObjectType Methods unless
+ * copyMethodsOnInstances gives them copies with other NodeIds (not covered). */
+typedef struct {
+    UA_UInt32 methodId; /* in NS0 */
+    UA_UInt32 secretInputs;
+    UA_UInt32 secretOutputs;
+} SecretMethodArguments;
+
+static const SecretMethodArguments secretMethodArguments[] = {
+    /* UpdateCertificate: PrivateKey */
+    {UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE, 1u << 5, 0},
+    {UA_NS0ID_SERVERCONFIGURATIONTYPE_UPDATECERTIFICATE, 1u << 5, 0},
+    /* UpdateCredential: CredentialSecret */
+    {UA_NS0ID_KEYCREDENTIALCONFIGURATIONTYPE_UPDATECREDENTIAL, 1u << 1, 0},
+    /* AddUser: Password */
+    {UA_NS0ID_USERMANAGEMENT_ADDUSER, 1u << 1, 0},
+    {UA_NS0ID_USERMANAGEMENTTYPE_ADDUSER, 1u << 1, 0},
+    /* ModifyUser: Password */
+    {UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 1u << 2, 0},
+    {UA_NS0ID_USERMANAGEMENTTYPE_MODIFYUSER, 1u << 2, 0},
+    /* ChangePassword: OldPassword and NewPassword */
+    {UA_NS0ID_USERMANAGEMENT_CHANGEPASSWORD, (1u << 0) | (1u << 1), 0},
+    {UA_NS0ID_USERMANAGEMENTTYPE_CHANGEPASSWORD, (1u << 0) | (1u << 1), 0},
+    /* GetSecurityKeys: Keys (output) */
+    {UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS, 0, 1u << 2},
+    {UA_NS0ID_PUBSUBKEYSERVICETYPE_GETSECURITYKEYS, 0, 1u << 2},
+    /* SetSecurityKeys: CurrentKey and FutureKeys */
+    {UA_NS0ID_PUBLISHSUBSCRIBE_SETSECURITYKEYS, (1u << 3) | (1u << 4), 0},
+    {UA_NS0ID_PUBLISHSUBSCRIBETYPE_SETSECURITYKEYS, (1u << 3) | (1u << 4), 0},
+};
+
+/* None of the Methods above has more arguments */
+#define UA_AUDIT_MAXREDACTEDARGUMENTS 8
+
+static const SecretMethodArguments *
+getSecretMethodArguments(const UA_NodeId *methodNode) {
+    if(methodNode->namespaceIndex != 0 ||
+       methodNode->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return NULL;
+    size_t count = sizeof(secretMethodArguments) / sizeof(SecretMethodArguments);
+    for(size_t i = 0; i < count; i++) {
+        if(secretMethodArguments[i].methodId == methodNode->identifier.numeric)
+            return &secretMethodArguments[i];
+    }
+    return NULL;
+}
+
+/* Shallow copy with empty Variants for the secrets. An unexpectedly long
+ * argument list is not published at all. */
+static void
+redactMethodArguments(UA_UInt32 secretArguments,
+                      UA_Variant redacted[UA_AUDIT_MAXREDACTEDARGUMENTS],
+                      size_t *argumentsSize, UA_Variant **arguments) {
+    if(secretArguments == 0)
+        return;
+    if(*argumentsSize > UA_AUDIT_MAXREDACTEDARGUMENTS) {
+        *arguments = NULL;
+        *argumentsSize = 0;
+        return;
+    }
+    for(size_t i = 0; i < *argumentsSize; i++) {
+        if(secretArguments & (1u << i))
+            UA_Variant_init(&redacted[i]);
+        else
+            redacted[i] = (*arguments)[i];
+    }
+    *arguments = redacted;
+}
+
 void
 auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                        UA_Boolean status, const UA_NodeId *sourceNode,
@@ -708,6 +778,17 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     /* /StatusCodeId */
     UA_Variant_setScalar(&methodUpdatePayload[7].value, &statusCodeId,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+    /* Passwords, private keys and security keys are not published */
+    UA_Variant redactedInputs[UA_AUDIT_MAXREDACTEDARGUMENTS];
+    UA_Variant redactedOutputs[UA_AUDIT_MAXREDACTEDARGUMENTS];
+    const SecretMethodArguments *secrets = getSecretMethodArguments(methodNode);
+    if(secrets) {
+        redactMethodArguments(secrets->secretInputs, redactedInputs,
+                              &inputsSize, &inputs);
+        redactMethodArguments(secrets->secretOutputs, redactedOutputs,
+                              &outputsSize, &outputs);
+    }
 
     /* /InputArguments */
     UA_Variant_setArray(&methodUpdatePayload[8].value, inputs, inputsSize,

@@ -137,15 +137,21 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
 static UA_StatusCode
 readRolePermissions(UA_Server *server, UA_Session *session,
                     const UA_Node *node, UA_DataValue *v) {
-    /* Check if the user has ReadRolePermissions permission on this node */
-    UA_UInt32 effectivePerms = 0;
-    UA_StatusCode retval = UA_Server_getEffectivePermissions(
-        server, &session->sessionId, &node->head.nodeId, &effectivePerms);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    if(!(effectivePerms & UA_PERMISSIONTYPE_READROLEPERMISSIONS))
+    /* Check if the user has ReadRolePermissions permission on this node. The
+     * local admin user has all rights. Without a Session (detached
+     * Subscription) there are none. */
+    if(!session)
         return UA_STATUSCODE_BADUSERACCESSDENIED;
+    if(session != &server->adminSession) {
+        UA_UInt32 effectivePerms = 0;
+        UA_StatusCode res =
+            UA_Server_getEffectivePermissions(server, &session->sessionId,
+                                              &node->head.nodeId, &effectivePerms);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        if(!(effectivePerms & UA_PERMISSIONTYPE_READROLEPERMISSIONS))
+            return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
 
     /* Check if node has a valid permission index */
     if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID) {
@@ -169,7 +175,7 @@ readRolePermissions(UA_Server *server, UA_Session *session,
     if(!permissions)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rp->rolePermissionsSize; i++) {
         retval = UA_NodeId_copy(&rp->rolePermissions[i].roleId, &permissions[i].roleId);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -1911,17 +1917,20 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 /* Trigger sampling if a MonitoredItem surveils the attribute with no sampling
  * interval. This is reached after a successful attribute update from the
  * network Write service, the UA_Server_write APIs and internal writeAttribute
- * calls. Async writes enter here when Operation_Write is resumed. */
+ * calls. Async writes enter here when Operation_Write is resumed. The read
+ * uses the Session of each subscriber, not the Session of the writer. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
-triggerImmediateDataChange(UA_Server *server, UA_Session *session,
-                           UA_Node *node, const UA_WriteValue *wvalue) {
+triggerImmediateDataChange(UA_Server *server, UA_Node *node,
+                           const UA_WriteValue *wvalue) {
     UA_MonitoredItem *mon = node->head.monitoredItems;
     for(; mon != NULL; mon = mon->nodeListNext) {
         /* Zero-interval items form the list prefix. Only items with a
          * positive sampling interval follow. */
         if(mon->parameters.samplingInterval > 0.0)
             return;
+        if(UA_MonitoredItem_isDeleting(mon))
+            continue;
         switch(mon->samplingType) {
         case UA_MONITOREDITEMSAMPLINGTYPE_EVENT:
             /* EVENT also covers OPC UA Event MonitoredItems. Those monitor
@@ -1942,8 +1951,8 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
         UA_DataValue value;
         UA_DataValue_init(&value);
         UA_Boolean done =
-            Operation_ReadWithNode(server, session, node,
-                                   mon->timestampsToReturn,
+            Operation_ReadWithNode(server, UA_MonitoredItem_getSamplingSession(mon),
+                                   node, mon->timestampsToReturn,
                                    &mon->itemToMonitor, &value);
         if(!done) {
             if(server->config.asyncOperationCancelCallback)
@@ -2203,7 +2212,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 
     /* Trigger MonitoredItems with no SamplingInterval */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    triggerImmediateDataChange(server, session, node, wvalue);
+    triggerImmediateDataChange(server, node, wvalue);
 #endif
 
     return UA_STATUSCODE_GOOD;

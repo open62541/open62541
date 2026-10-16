@@ -684,6 +684,16 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
         UA_NODESTORE_RELEASE(bc->server, target);
         return NULL;
     }
+
+    /* Hide targets the Session may not browse, as TranslateBrowsePaths does */
+    if(bc->session != &bc->server->adminSession &&
+       !bc->server->config.accessControl.allowBrowseNode(
+           bc->server, &bc->server->config.accessControl,
+           &bc->session->sessionId, bc->session->context,
+           &target->head.nodeId, target->head.context)) {
+        UA_NODESTORE_RELEASE(bc->server, target);
+        return NULL;
+    }
     
     /* Reached maxrefs. Return the "abort" signal. */
     if(bc->rr.size >= cp->maxReferences) {

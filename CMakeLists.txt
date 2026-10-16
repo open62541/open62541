@@ -497,6 +497,18 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND (NOT UA_ENABLE_SUBSCRIPTIONS))
     set(UA_ENABLE_SUBSCRIPTIONS_EVENTS OFF)
 endif()
 
+# drivers/alarms_conditions.c is always compiled, but its body is only built
+# with UA_ENABLE_SUBSCRIPTIONS_EVENTS and a generated full namespace zero. It
+# then binds the ConditionType Methods (Disable, Enable, AddComment,
+# ConditionRefresh, Acknowledge, Confirm) unconditionally. Checked here, after
+# UA_ENABLE_SUBSCRIPTIONS_EVENTS got its effective value above.
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_SUBSCRIPTIONS_EVENTS AND
+   NOT UA_ENABLE_METHODCALLS)
+    message(FATAL_ERROR "UA_NAMESPACE_ZERO=FULL with UA_ENABLE_SUBSCRIPTIONS_EVENTS "
+                        "requires UA_ENABLE_METHODCALLS for the ConditionType Methods "
+                        "of the Alarms & Conditions driver")
+endif()
+
 if(UA_ENABLE_HISTORIZING AND (NOT UA_ENABLE_SUBSCRIPTIONS))
     MESSAGE(FATAL_ERROR "UA_ENABLE_HISTORIZING needs Subscriptions enabled")
 endif()
