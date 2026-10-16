@@ -1573,9 +1573,12 @@ START_TEST(acknowledgeMethodCallback_emptyEventId) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
-    /* EventId argument is left empty: data == NULL */
+    /* EventId argument is a ByteString that is empty: data == NULL. An
+     * argument without a type is already rejected by the argument type check
+     * before the method callback runs. */
     UA_Variant in[2];
-    UA_Variant_init(&in[0]);
+    UA_ByteString emptyEventId = UA_BYTESTRING_NULL;
+    UA_Variant_setScalar(&in[0], &emptyEventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "ack");
     UA_Variant_init(&in[1]);
     UA_Variant_setScalar(&in[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
