@@ -1033,6 +1033,11 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         return res;
     }
 
+    /* A fresh ConnectionManager cannot perform the validation open before
+     * server startup. Defer it until the PubSubManager becomes operational. */
+    if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_GOOD;
+
     /* Set up the connection parameters.
      * TODO: Complete the MQTT parameters. */
     UA_Boolean listen = true;
