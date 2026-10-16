@@ -214,13 +214,35 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
+/* Remove the oldest Session that has not completed ActivateSession yet. Such
+ * a Session is not yet an authenticated client and, like an un-activated
+ * Session pinning a SecureChannel, must not be allowed to exhaust the Session
+ * table and block CreateSession for everyone else. The list is ordered
+ * newest-first, so keep scanning to the end to find the oldest match. */
+static UA_Boolean
+purgeOldestUnactivatedSession(UA_Server *server) {
+    session_list_entry *sentry, *oldest = NULL;
+    LIST_FOREACH(sentry, &server->sessions, pointers) {
+        if(!sentry->session.activated)
+            oldest = sentry;
+    }
+    if(!oldest)
+        return false;
+    UA_LOG_INFO_SESSION(&server->config.logger, &oldest->session,
+                        "Session was purged since maxSessions was reached "
+                        "and the Session was not yet activated");
+    UA_Server_removeSession(server, oldest, UA_DIAGNOSTICEVENT_PURGE);
+    return true;
+}
+
 /* Creates and adds a session. But it is not yet attached to a secure channel. */
 UA_StatusCode
 UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    if(server->sessionCount >= server->config.maxSessions) {
+    if(server->sessionCount >= server->config.maxSessions &&
+       !purgeOldestUnactivatedSession(server)) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not create a Session - Server limits reached");
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
@@ -234,7 +256,7 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     /* Initialize the Session */
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
-    newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
+    newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_secureRandom());
 
     newentry->session.timeout = server->config.maxSessionTimeout;
     if(request->requestedSessionTimeout <= server->config.maxSessionTimeout &&
