@@ -895,7 +895,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
     /* Set up the response */
     response->subscriptionId = sub->subscriptionId;
-    response->moreNotifications = (sub->notificationQueueSize > 0);
+    UA_Boolean moreNotifications = (sub->state == UA_SUBSCRIPTIONSTATE_ENABLED &&
+                                    sub->notificationQueueSize > 0);
+    response->moreNotifications = moreNotifications;
     message->publishTime = el->dateTime_now(el);
 
     /* Set sequence number to message. Started at 1 which is given during
@@ -939,14 +941,14 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     sendResponse(server, sub->session->channel, pre->responseToken,
                  (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
-    /* Reset the Subscription state to NORMAL. But only if all notifications
-     * have been sent out. Otherwise keep the Subscription in the LATE state. So
-     * we immediately answer incoming Publish requests.
+    /* Reset the Subscription state to NORMAL if no notifications remain to be
+     * sent or publishing is disabled. Otherwise keep the LATE state to
+     * immediately answer incoming Publish requests.
      *
      * (We also check that session->responseQueueSize > 0 in Service_Publish. To
      * avoid answering Publish requests out of order. As we additionally may have
      * scheduled a publish callback as a delayed callback. */
-    if(sub->notificationQueueSize == 0)
+    if(!moreNotifications)
         sub->late = false;
 
     /* Reset the KeepAlive after publishing */
@@ -974,10 +976,10 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     sub->notificationsCount += (sentDCN + sentEN);
 #endif
 
-    /* Repeat sending notifications if there are more notifications to send. But
-     * only call UA_MonitoredItem_sample in the regular publish callback. */
-    UA_Boolean done = (sub->notificationQueueSize == 0);
-    if(!done && !sub->delayedCallbackRegistered) {
+    /* Continue publishing only while notifications can be sent. Retained
+     * notifications with publishing disabled must not trigger another callback
+     * that advances the keep-alive counter without a publishing cycle. */
+    if(moreNotifications && !sub->delayedCallbackRegistered) {
         sub->delayedCallbackRegistered = true;
 
         sub->delayedMoreNotifications.callback = delayedPublishNotifications;
