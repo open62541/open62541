@@ -2409,13 +2409,30 @@ START_TEST(Server_createSession_maxSessions) {
     UA_Logger *origLogger = cfg->logging;
     cfg->logging = &logger;
 
+    /* The limit is reached by activated Sessions only. An un-activated Session
+     * is purged to make room for the new Session instead of rejecting it. */
+    UA_SessionState *origStates = (UA_SessionState*)
+        UA_malloc(server->sessionCount * sizeof(UA_SessionState));
+    ck_assert_ptr_nonnull(origStates);
+    size_t sessionIdx = 0;
+    session_list_entry *sentry;
+    lockServer(server);
+    LIST_FOREACH(sentry, &server->sessions, pointers) {
+        origStates[sessionIdx++] = sentry->session.state;
+        sentry->session.state = UA_SESSIONSTATE_ACTIVATED;
+    }
+
     UA_CreateSessionRequest req;
     UA_CreateSessionRequest_init(&req);
     UA_Session *rejectedSession = NULL;
-    lockServer(server);
     UA_StatusCode retval =
         UA_Session_create(server, NULL, &req, &rejectedSession);
+
+    sessionIdx = 0;
+    LIST_FOREACH(sentry, &server->sessions, pointers)
+        sentry->session.state = origStates[sessionIdx++];
     unlockServer(server);
+    UA_free(origStates);
 
     cfg->logging = origLogger;
     cfg->maxSessions = orig;
