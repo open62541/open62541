@@ -634,6 +634,28 @@ START_TEST(binary_calcSize_null_returnsZero) {
     ck_assert_uint_eq(size, 0);
 } END_TEST
 
+START_TEST(binary_encode_calcSizeFailure_returnsStatus) {
+    /* The Decimal encoding is not implemented. UA_calcSizeBinary answers 0
+     * for that. UA_encodeBinary must report the status of the size
+     * computation instead of the BadEncodingError from encoding into an
+     * empty buffer, and leave outBuf untouched. */
+    UA_DataType decimalType = UA_TYPES[UA_TYPES_BYTE];
+    decimalType.typeKind = UA_DATATYPEKIND_DECIMAL;
+    UA_Byte val = 0;
+    UA_Variant var;
+    UA_Variant_setScalar(&var, &val, &decimalType);
+
+    size_t size = UA_calcSizeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_uint_eq(size, 0);
+
+    UA_ByteString outBuf = UA_BYTESTRING_NULL;
+    UA_StatusCode res =
+        UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT], &outBuf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    ck_assert_uint_eq(outBuf.length, 0);
+    ck_assert_ptr_null(outBuf.data);
+} END_TEST
+
 START_TEST(binary_encode_preAllocBufferTooSmall_clearsBuffer) {
     /* src/ua_types_encoding_binary.c:1720-1724:
      *   if(res == UA_STATUSCODE_GOOD) ...; else if(allocated) ...;
@@ -974,6 +996,7 @@ int main(void) {
     tcase_add_test(tc_misc, binary_encode_nullSource_rejected);
     tcase_add_test(tc_misc, binary_encode_nullType_rejected);
     tcase_add_test(tc_misc, binary_calcSize_null_returnsZero);
+    tcase_add_test(tc_misc, binary_encode_calcSizeFailure_returnsStatus);
     tcase_add_test(tc_misc, binary_encode_preAllocBufferTooSmall_clearsBuffer);
     tcase_add_test(tc_misc, binary_encode_unknownTypeKind_rejected);
     suite_add_tcase(s, tc_misc);

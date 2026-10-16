@@ -98,18 +98,31 @@ START_TEST(resolveOpaqueSubtypeAncestors) {
 END_TEST
 
 START_TEST(importPolymorphicAndRecursiveFields) {
+    /* AllowSubTypes: a Variant for BaseDataType, an ExtensionObject for the
+     * UserIdentityToken structure (Part 6 v1.05, F.13) */
     const UA_DataType *polymorphic = findType(7001);
     ck_assert_ptr_nonnull(polymorphic);
-    ck_assert_uint_eq(polymorphic->membersSize, 2);
-    ck_assert_ptr_eq(polymorphic->members[0].memberType,
-                     &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(polymorphic->membersSize, 3);
+    ck_assert_ptr_eq(polymorphic->members[0].memberType, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_ptr_eq(polymorphic->members[1].memberType, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_ptr_eq(polymorphic->members[2].memberType,
+                     &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
 
     const UA_DataType *recursive = findType(9001);
     ck_assert_ptr_nonnull(recursive);
     ck_assert_uint_eq(recursive->membersSize, 1);
     ck_assert(recursive->members[0].isArray);
     ck_assert_ptr_eq(recursive->members[0].memberType, recursive);
+}
+END_TEST
+
+START_TEST(rejectMatrixFields) {
+    /* The DataType node exists, but no UA_DataType is registered for it */
+    UA_NodeClass nodeClass;
+    UA_StatusCode res =
+        UA_Server_readNodeClass(server, UA_NODEID_NUMERIC(namespaceIndex, 7101), &nodeClass);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(findType(7101));
 }
 END_TEST
 
@@ -155,6 +168,7 @@ testSuite(void) {
     tcase_add_test(testCase, importEmptyStructures);
     tcase_add_test(testCase, resolveOpaqueSubtypeAncestors);
     tcase_add_test(testCase, importPolymorphicAndRecursiveFields);
+    tcase_add_test(testCase, rejectMatrixFields);
     tcase_add_test(testCase, readImportedUnionValues);
     suite_add_tcase(suite, testCase);
     return suite;
