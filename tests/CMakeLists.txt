@@ -388,9 +388,14 @@ if(UA_ENABLE_SUBSCRIPTIONS)
 endif()
 
 if(UA_ENABLE_DISCOVERY)
-    add_executable(check_discovery server/check_discovery.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-    target_link_libraries(check_discovery ${LIBS})
-    add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
+    # RegisterServer(2) requires an authenticated SecureChannel. The test
+    # generates its client certificate with UA_CreateCertificate, which is only
+    # available with OpenSSL/LibreSSL.
+    if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
+        add_executable(check_discovery server/check_discovery.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+        target_link_libraries(check_discovery ${LIBS})
+        add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
+    endif()
     if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT WIN32)
         add_executable(check_findservers_on_network
                        server/check_findservers_on_network.c

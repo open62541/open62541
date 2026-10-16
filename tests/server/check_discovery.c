@@ -493,11 +493,17 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_String_clear(&discoveryUrlUA);
 
-    ck_assert_uint_eq(endpointArraySize , expectedEndpointUrlsSize);
-
-    for(size_t j = 0; j < endpointArraySize && j < expectedEndpointUrlsSize; j++) {
-        UA_EndpointDescription* endpoint = &endpointArray[j];
-        ck_assert(UA_String_equal(&endpoint->endpointUrl, &expectedEndpointUrls[j]));
+    /* The LDS is configured with SecurityPolicies and offers one Endpoint per
+     * SecurityPolicy, all with the same EndpointUrl. */
+    if(expectedEndpointUrlsSize == 0) {
+        ck_assert_uint_eq(endpointArraySize, 0);
+    } else {
+        ck_assert_uint_ge(endpointArraySize, expectedEndpointUrlsSize);
+        for(size_t j = 0; j < endpointArraySize; j++) {
+            UA_EndpointDescription* endpoint = &endpointArray[j];
+            size_t e = (j < expectedEndpointUrlsSize) ? j : expectedEndpointUrlsSize - 1;
+            ck_assert(UA_String_equal(&endpoint->endpointUrl, &expectedEndpointUrls[e]));
+        }
     }
 
     UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
