@@ -79,6 +79,16 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
 UA_StatusCode
 UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfig *cc,
                            UA_NodeId *cId) {
+    /* The information model representation reads the address before the
+     * validate-connect below. Check the address type first. */
+    if(!UA_Variant_hasScalarType(&cc->address,
+                                 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "Could not create the PubSubConnection. No "
+                     "NetworkAddressUrlDataType for the address configuration");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     /* Allocate */
     UA_PubSubConnection *c = (UA_PubSubConnection*)
         UA_calloc(1, sizeof(UA_PubSubConnection));
