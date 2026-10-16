@@ -509,7 +509,7 @@ purgeFirstUascChannelWithoutSession(UA_Server *server) {
             continue;
         UA_Boolean hasActivatedSession = false;
         for(UA_Session *s = channel->sessions; s; s = s->next) {
-            if(s->activated) {
+            if(s->state == UA_SESSIONSTATE_ACTIVATED) {
                 hasActivatedSession = true;
                 break;
             }

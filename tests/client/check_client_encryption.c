@@ -207,6 +207,9 @@ START_TEST(encryption_setDefaultEncryption_whileConnected_doesNotCrash) {
     retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                                   NULL, 0, NULL, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* The (empty) trust list rejects every server certificate, accept the
+     * certificate of the test server again */
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     /* The still-open (unencrypted) channel must remain fully usable */
     UA_Variant val;

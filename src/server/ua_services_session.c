@@ -456,6 +456,28 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     return res;
 }
 
+/* Remove the oldest Session that has not completed ActivateSession yet. Such
+ * a Session is not yet an authenticated client and, like an un-activated
+ * Session pinning a SecureChannel, must not be allowed to exhaust the Session
+ * table and block CreateSession for everyone else. The list is ordered
+ * newest-first, so keep scanning to the end to find the oldest match. */
+static UA_Boolean
+purgeOldestUnactivatedSession(UA_Server *server) {
+    session_list_entry *sentry, *oldest = NULL;
+    LIST_FOREACH(sentry, &server->sessions, pointers) {
+        if(sentry->session.state == UA_SESSIONSTATE_CREATE_REQUESTED ||
+           sentry->session.state == UA_SESSIONSTATE_CREATED)
+            oldest = sentry;
+    }
+    if(!oldest)
+        return false;
+    UA_LOG_INFO_SESSION(server->config.logging, &oldest->session,
+                        "Session was purged since maxSessions was reached "
+                        "and the Session was not yet activated");
+    UA_Session_remove(server, &oldest->session, UA_SHUTDOWNREASON_PURGE);
+    return true;
+}
+
 /* Creates and adds a session. But it is not yet attached to a secure channel. */
 UA_StatusCode
 UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
@@ -467,7 +489,8 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
         return UA_STATUSCODE_BADSHUTDOWN;
 
     if(server->config.maxSessions != 0 &&
-       server->sessionCount >= server->config.maxSessions) {
+       server->sessionCount >= server->config.maxSessions &&
+       !purgeOldestUnactivatedSession(server)) {
         if(channel) {
             UA_LOG_WARNING_CHANNEL(
                 server->config.logging, channel,
