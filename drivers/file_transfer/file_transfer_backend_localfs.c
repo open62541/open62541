@@ -458,8 +458,8 @@ buildLocalPath(const LocalFileSystemContext *ctx, const UA_String relPath,
 }
 
 static UA_StatusCode
-localFsOpen(UA_FileTransferFileBackend *b, const UA_String path,
-            UA_Byte mode, UA_UInt32 *handle) {
+localFsOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mode,
+            const UA_FileTransferOpenContext *context, UA_UInt32 *handle) {
     LocalFileSystemContext *ctx = (LocalFileSystemContext*)b->context;
     char localPath[FT_PATH_MAX];
     UA_StatusCode res = buildLocalPath(ctx, path, localPath);

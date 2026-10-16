@@ -131,6 +131,14 @@ driverParam(FileTransferDriver *ftd, const char *key, const UA_DataType *type,
     return NULL;
 }
 
+/* Zero disables a timer. Otherwise the timer needs at least one DateTime tick
+ * and an Int64 tick count (rejects NaN and infinity). */
+static UA_Boolean
+validInterval(UA_Double ms) {
+    return ms == 0.0 || (ms * UA_DATETIME_MSEC >= 1.0 &&
+                         ms <= (UA_Double)UA_INT64_MAX / UA_DATETIME_MSEC);
+}
+
 static UA_StatusCode
 configureDriver(FileTransferDriver *ftd) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -174,13 +182,14 @@ configureDriver(FileTransferDriver *ftd) {
         driverParam(ftd, "refresh-interval", &UA_TYPES[UA_TYPES_DOUBLE], &res);
     if(interval)
         ftd->config.refreshInterval = *interval;
+    const UA_Double *timeout = (const UA_Double*)
+        driverParam(ftd, "activity-timeout", &UA_TYPES[UA_TYPES_DOUBLE], &res);
+    if(timeout)
+        ftd->config.activityTimeout = *timeout;
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    /* Zero disables the periodic refresh. Otherwise the timer needs at least
-     * one DateTime tick and an Int64 tick count (rejects NaN and infinity). */
-    UA_Double ri = ftd->config.refreshInterval;
-    if(ri != 0.0 && !(ri * UA_DATETIME_MSEC >= 1.0 &&
-                      ri <= (UA_Double)UA_INT64_MAX / UA_DATETIME_MSEC))
+    if(!validInterval(ftd->config.refreshInterval) ||
+       !validInterval(ftd->config.activityTimeout))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!backendComplete(&ftd->backend, !ftd->root->isDirectory, ftd->config.readOnly))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -250,6 +259,10 @@ startDriver(UA_Driver *drv) {
        ftd->config.refreshInterval > 0)
         res = UA_Server_addRepeatedCallback(drv->server, refreshCallback, ftd,
                                             ftd->config.refreshInterval, &ftd->refreshCallbackId);
+    if(res == UA_STATUSCODE_GOOD && ftd->config.activityTimeout > 0)
+        res = UA_Server_addRepeatedCallback(drv->server, sweepIdleHandles, ftd,
+                                            ftd->config.activityTimeout,
+                                            &ftd->sweepCallbackId);
     if(res != UA_STATUSCODE_GOOD)
         FileTransferDriver_stop(drv);
     return res;
@@ -282,6 +295,10 @@ FileTransferDriver_stop(UA_Driver *drv) {
     if(ftd->refreshCallbackId) {
         UA_Server_removeCallback(drv->server, ftd->refreshCallbackId);
         ftd->refreshCallbackId = 0;
+    }
+    if(ftd->sweepCallbackId) {
+        UA_Server_removeCallback(drv->server, ftd->sweepCallbackId);
+        ftd->sweepCallbackId = 0;
     }
     if(wasStarted)
         ZIP_ITER(FTEntriesById, &ftd->entriesByNodeId, unbindEntryMethods, NULL);
@@ -528,6 +545,8 @@ UA_FileTransferDriver_getHandleInfo(UA_Driver *driver, const UA_NodeId fileNodeI
     UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
     el->lock(el);
     FTHandle *h = findObjectHandle(driver, &fileNodeId, sessionId, fileHandle);
+    if(h)
+        touchFTHandle(driver->server, h);
     if(h && mode)
         *mode = h->mode;
     if(h && backendHandle)
@@ -546,6 +565,37 @@ UA_FileTransferDriver_closeHandle(UA_Driver *driver, const UA_NodeId fileNodeId,
     FTHandle *h = findObjectHandle(driver, &fileNodeId, sessionId, fileHandle);
     UA_StatusCode res = h ? closeFTHandle(driver->server, h) :
         UA_STATUSCODE_BADINVALIDARGUMENT;
+    el->unlock(el);
+    return res;
+}
+
+UA_StatusCode
+UA_FileTransferDriver_openHandle(UA_Driver *driver, const UA_NodeId fileNodeId,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 UA_Byte mode, void *openContext,
+                                 UA_UInt32 *fileHandle, UA_UInt32 *backendHandle) {
+    if(!driver || !driver->server || !isFileTransferDriver(driver) ||
+       !sessionId || !fileHandle)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    FTEntry *node = findFTEntry((FileTransferDriver*)driver, &fileNodeId);
+    FTHandle *h = NULL;
+    UA_StatusCode res;
+    if(driver->state != UA_LIFECYCLESTATE_STARTED)
+        res = UA_STATUSCODE_BADINVALIDSTATE;
+    else if(!node)
+        res = UA_STATUSCODE_BADINVALIDARGUMENT;
+    else if(node->isDirectory || node->zombie)
+        res = UA_STATUSCODE_BADNOTFOUND;
+    else
+        res = openFileHandle(driver->server, node, sessionId, sessionContext,
+                             mode, openContext, &h);
+    if(res == UA_STATUSCODE_GOOD) {
+        *fileHandle = h->handle;
+        if(backendHandle)
+            *backendHandle = h->backendHandle;
+    }
     el->unlock(el);
     return res;
 }

@@ -249,17 +249,26 @@ deleteBackendTree(UA_FileTransferBackend *b, const UA_String path,
 
 /* Copy a single file. Source and target may live in different backends. Uses
  * the backend fast-path only within one backend, otherwise streams the content
- * through read/write loops. */
+ * through read/write loops. The files are opened for the caller of the copy. */
 static UA_StatusCode
 copyBackendFile(UA_FileTransferBackend *srcB, const UA_String fromPath,
-                UA_FileTransferBackend *dstB, const UA_String toPath) {
+                UA_FileTransferBackend *dstB, const UA_String toPath,
+                const FTTreeAccess *access) {
     if(srcB == dstB && dstB->copy)
         return dstB->copy(dstB, fromPath, toPath);
 
+    UA_FileTransferOpenContext caller;
+    const UA_FileTransferOpenContext *context = NULL;
+    if(access) {
+        caller.server = access->server;
+        caller.sessionId = access->sessionId;
+        caller.sessionContext = access->sessionContext;
+        context = &caller;
+    }
     UA_FileTransferFileBackend *srcF = &srcB->file;
     UA_FileTransferFileBackend *dstF = &dstB->file;
     UA_UInt32 src = 0;
-    UA_StatusCode res = srcF->open(srcF, fromPath, UA_OPENFILEMODE_READ, &src);
+    UA_StatusCode res = srcF->open(srcF, fromPath, UA_OPENFILEMODE_READ, context, &src);
     if(res != UA_STATUSCODE_GOOD)
         return res;
     res = createBackendEntry(dstB, toPath, false);
@@ -268,7 +277,7 @@ copyBackendFile(UA_FileTransferBackend *srcB, const UA_String fromPath,
         return res;
     }
     UA_UInt32 dst = 0;
-    res = dstF->open(dstF, toPath, UA_OPENFILEMODE_WRITE, &dst);
+    res = dstF->open(dstF, toPath, UA_OPENFILEMODE_WRITE, context, &dst);
     if(res != UA_STATUSCODE_GOOD) {
         /* Remove the empty file just created so a failed open does not leave
          * a stale entry behind in the destination backend. */
@@ -311,7 +320,7 @@ copyBackendTree(UA_FileTransferBackend *srcB, const UA_String fromPath,
     if(res != UA_STATUSCODE_GOOD)
         return res;
     if(!isDir)
-        return copyBackendFile(srcB, fromPath, dstB, toPath);
+        return copyBackendFile(srcB, fromPath, dstB, toPath, access);
 
     res = createBackendEntry(dstB, toPath, true);
     if(res != UA_STATUSCODE_GOOD)
@@ -679,11 +688,10 @@ createFileMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Optionally open the new file for reading and writing. A failed open
      * removes the file again. */
-    UA_UInt32 handle = 0;
+    FTHandle *h = NULL;
     if(requestFileOpen) {
         res = openFileHandle(server, newNode, sessionId, sessionContext,
-                             UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE,
-                             &handle);
+                             UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE, NULL, &h);
         if(res != UA_STATUSCODE_GOOD) {
             ftd->backend.remove(&ftd->backend, newNode->path);
             removeSubtree(server, newNode);
@@ -692,16 +700,14 @@ createFileMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     }
 
     /* The client cannot close a handle it does not receive */
+    UA_UInt32 handle = h ? h->handle : 0;
     res = UA_Variant_setScalarCopy(&output[0], &newNode->nodeId,
                                    &UA_TYPES[UA_TYPES_NODEID]);
     if(res == UA_STATUSCODE_GOOD)
         res = UA_Variant_setScalarCopy(&output[1], &handle,
                                        &UA_TYPES[UA_TYPES_UINT32]);
-    if(res != UA_STATUSCODE_GOOD && requestFileOpen) {
-        FTHandle *h = findFTHandle(ftd, sessionId, handle);
-        if(h)
-            closeFTHandle(server, h);
-    }
+    if(res != UA_STATUSCODE_GOOD && h)
+        closeFTHandle(server, h);
     return res;
 }
 

@@ -46,6 +46,7 @@ typedef struct FTHandle {
     FTEntry *file;
     UA_Byte mode; /* UA_OPENFILEMODE_* bit mask, matching the Open Method Byte */
     UA_UInt32 backendHandle;
+    UA_DateTime lastActivity; /* Monotonic, for the activity-timeout */
 } FTHandle;
 
 ZIP_HEAD(FTEntriesById, FTEntry);
@@ -87,6 +88,7 @@ typedef struct {
     UA_UInt16 maxHandlesPerSession;
     UA_UInt16 maxHandlesPerFile;
     UA_UInt32 maxReadLength;
+    UA_Double activityTimeout;
 } FTConfig;
 
 /* One driver owns one backend and one root Object for its entire lifetime. */
@@ -96,6 +98,7 @@ struct FileTransferDriver {
     FTConfig config;
     FTEntry *root;
     UA_UInt64 refreshCallbackId;
+    UA_UInt64 sweepCallbackId;   /* Closes idle handles */
     UA_StatusCode refreshResult; /* Of the last periodic refresh */
     UA_Boolean scanReported;     /* lastScan is set; reset on start */
     FTScanSummary lastScan;      /* Of the last refresh of the root */
@@ -192,8 +195,11 @@ FTHandle *findFTHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
 /* mode combines UA_OPENFILEMODE_* flags in the protocol's Byte representation. */
 UA_StatusCode openFileHandle(UA_Server *server, FTEntry *node,
                              const UA_NodeId *sessionId, void *sessionContext,
-                             UA_Byte mode, UA_UInt32 *outHandle);
+                             UA_Byte mode, void *openContext,
+                             FTHandle **outHandle);
 UA_StatusCode closeFTHandle(UA_Server *server, FTHandle *handle);
+void touchFTHandle(UA_Server *server, FTHandle *handle);
+void sweepIdleHandles(UA_Server *server, void *driver);
 void closeDriverHandles(UA_Server *server, FileTransferDriver *ftd);
 void closeSessionHandles(UA_Server *server, FileTransferDriver *ftd,
                           const UA_NodeId *sessionId);

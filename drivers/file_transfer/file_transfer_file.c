@@ -175,6 +175,13 @@ newHandleId(FileTransferDriver *ftd) {
     return ftd->nextHandle;
 }
 
+/* A Method call on the handle restarts its activity-timeout */
+void
+touchFTHandle(UA_Server *server, FTHandle *h) {
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    h->lastActivity = el->dateTime_nowMonotonic(el);
+}
+
 /* Close the backend handle and release the handle. Removes zombie nodes once
  * their last handle is closed. */
 UA_StatusCode
@@ -225,6 +232,29 @@ closeSessionHandles(UA_Server *server, FileTransferDriver *ftd,
         closeFTHandle(server, h);
 }
 
+static void *
+findIdleHandle(void *context, FTHandle *h) {
+    return h->lastActivity <= *(UA_DateTime*)context ? h : NULL;
+}
+
+/* Close the handles without a Method call within the activity-timeout like
+ * Close. The search starts again after each removal. */
+void
+sweepIdleHandles(UA_Server *server, void *driver) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime limit = el->dateTime_nowMonotonic(el) -
+        (UA_DateTime)(ftd->config.activityTimeout * UA_DATETIME_MSEC);
+    FTHandle *h;
+    while((h = (FTHandle*)ZIP_ITER(FTHandlesById, &ftd->handlesById,
+                                   findIdleHandle, &limit))) {
+        UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                    "FileTransfer: Closing the idle FileHandle %u of %N",
+                    (unsigned)h->handle, h->file->nodeId);
+        closeFTHandle(server, h);
+    }
+}
+
 /**************************************
  * FileType Method Callbacks
  **************************************/
@@ -242,16 +272,17 @@ resolveHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
     FTHandle *h = findFTHandle(ftd, sessionId, handleId);
     if(!h || !UA_NodeId_equal(&h->file->nodeId, objectId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    touchFTHandle(ftd->driver.server, h);
     *outHandle = h;
     return UA_STATUSCODE_GOOD;
 }
 
-/* Open a file and register the handle. Shared between the Open Method and
- * CreateFile with requestFileOpen. */
+/* Open a file and register the handle. Shared between the Open Method,
+ * CreateFile with requestFileOpen and UA_FileTransferDriver_openHandle(). */
 UA_StatusCode
 openFileHandle(UA_Server *server, FTEntry *node,
                const UA_NodeId *sessionId, void *sessionContext, UA_Byte mode,
-               UA_UInt32 *outHandle) {
+               void *openContext, FTHandle **outHandle) {
     FileTransferDriver *ftd = node->driver;
     /* Validate the mode bit combination */
     if((mode & ~UA_FILETRANSFER_OPENMODE_ALLBITS) ||
@@ -287,8 +318,10 @@ openFileHandle(UA_Server *server, FTEntry *node,
         return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     UA_FileTransferFileBackend *b = &node->driver->backend.file;
+    UA_FileTransferOpenContext context = {server, sessionId, sessionContext,
+                                          openContext};
     UA_UInt32 backendHandle = 0;
-    res = b->open(b, node->path, mode, &backendHandle);
+    res = b->open(b, node->path, mode, &context, &backendHandle);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -308,6 +341,7 @@ openFileHandle(UA_Server *server, FTEntry *node,
     h->file = node;
     h->mode = mode;
     h->backendHandle = backendHandle;
+    touchFTHandle(server, h);
     ZIP_INSERT(FTHandlesById, &ftd->handlesById, h);
     ZIP_INSERT(FTHandlesBySession, &ftd->handlesBySession, h);
 
@@ -316,7 +350,7 @@ openFileHandle(UA_Server *server, FTEntry *node,
     if(writeBit)
         node->openForWrite = true;
 
-    *outHandle = h->handle;
+    *outHandle = h;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -329,7 +363,6 @@ openMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     FTEntry *node = resolveFTEntry(server, objectId, objectContext);
     if(!node)
         return UA_STATUSCODE_BADNOTSUPPORTED;
-    FileTransferDriver *ftd = node->driver;
 
     if(node->isDirectory || node->zombie)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -341,19 +374,16 @@ openMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Open takes a Byte bit mask, not the generated 32-bit UA_OpenFileMode. */
     UA_Byte mode = *(UA_Byte*)input[0].data;
 
-    UA_UInt32 handle = 0;
-    res = openFileHandle(server, node, sessionId, sessionContext, mode, &handle);
+    FTHandle *h = NULL;
+    res = openFileHandle(server, node, sessionId, sessionContext, mode, NULL, &h);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* The client cannot close a handle it does not receive */
-    res = UA_Variant_setScalarCopy(&output[0], &handle,
+    res = UA_Variant_setScalarCopy(&output[0], &h->handle,
                                    &UA_TYPES[UA_TYPES_UINT32]);
-    if(res != UA_STATUSCODE_GOOD) {
-        FTHandle *h = findFTHandle(ftd, sessionId, handle);
-        if(h)
-            closeFTHandle(server, h);
-    }
+    if(res != UA_STATUSCODE_GOOD)
+        closeFTHandle(server, h);
     return res;
 }
 

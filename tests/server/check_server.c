@@ -305,6 +305,53 @@ START_TEST(checkShutdownAlreadyStopped) {
     config->externalEventLoop = false;
 } END_TEST
 
+START_TEST(checkShutdownWaitsForSessionCleanup) {
+    UA_CreateSessionRequest request;
+    UA_CreateSessionRequest_init(&request);
+    UA_Session *session = NULL;
+
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session),
+                      UA_STATUSCODE_BADSHUTDOWN);
+    ck_assert_ptr_eq(session, NULL);
+    unlockServer(server);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(session, NULL);
+    unlockServer(server);
+
+    ck_assert_int_eq(UA_Server_run_shutdown_async(server),
+                     UA_LIFECYCLESTATE_STOPPING);
+    ck_assert_uint_eq(server->sessionCount, 0);
+    ck_assert_uint_eq(server->sessionCleanupPending, 1);
+
+    session = NULL;
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session),
+                      UA_STATUSCODE_BADSHUTDOWN);
+    ck_assert_ptr_eq(session, NULL);
+    unlockServer(server);
+    ck_assert_int_eq(UA_Server_run_shutdown_async(server),
+                     UA_LIFECYCLESTATE_STOPPING);
+
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    for(unsigned i = 0; i < 32 && server->sessionCleanupPending > 0; i++)
+        ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCleanupPending, 0);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server),
+                     UA_LIFECYCLESTATE_STOPPED);
+
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session),
+                      UA_STATUSCODE_BADSHUTDOWN);
+    ck_assert_ptr_eq(session, NULL);
+    unlockServer(server);
+} END_TEST
+
 START_TEST(checkShutdownTcp) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->externalEventLoop = (_i % 2 != 0);
@@ -1241,6 +1288,7 @@ int main(void) {
     tcase_add_test(tc_call, checkGetLifecycleState);
     tcase_add_test(tc_call, checkSharedExternalEventLoop);
     tcase_add_loop_test(tc_call, checkShutdownAlreadyStopped, 0, 2);
+    tcase_add_test(tc_call, checkShutdownWaitsForSessionCleanup);
     tcase_add_loop_test(tc_call, checkShutdownTcp, 0, 6);
     tcase_add_loop_test(tc_call, checkShutdownDelayedDriver, 0, 6);
     tcase_add_loop_test(tc_call, checkShutdownAsyncToSync, 0, 2);
