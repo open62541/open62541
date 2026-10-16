@@ -2091,13 +2091,11 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     /*Check whether the channel is encrypted according to specification*/
     session_list_entry *session_entry;
-    UA_Session *session = NULL;
     LIST_FOREACH(session_entry, &server->sessions, pointers) {
         if(UA_NodeId_equal(&session_entry->session.sessionId, sessionId)) {
             if(session_entry->session.header.channel->securityMode !=
                UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
                 return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
-            session = &session_entry->session;
         }
     }
 
@@ -2195,11 +2193,13 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     /*Check whether the channel is encrypted according to specification*/
     session_list_entry *session_entry;
+    UA_Session *session = NULL;
     LIST_FOREACH(session_entry, &server->sessions, pointers) {
         if(UA_NodeId_equal(&session_entry->session.sessionId, sessionId)) {
             if(session_entry->session.header.channel->securityMode !=
                UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
                 return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+            session = &session_entry->session;
         }
     }
 
