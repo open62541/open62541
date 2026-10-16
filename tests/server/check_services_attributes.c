@@ -227,6 +227,49 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+/* Part 4, 7.11.3: The SourceTimestamp shall be null if the Server produces a
+ * Bad status */
+START_TEST(ReadSingleAttributeValueAccessDenied) {
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&vattr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "unreadable");
+    vattr.accessLevel = UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId id = UA_NODEID_STRING(1, "unreadable");
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, id, UA_NS0ID(OBJECTSFOLDER),
+                                  UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "unreadable"),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The admin Session can read everything. Read with a regular Session. */
+    UA_CreateSessionRequest request;
+    UA_CreateSessionRequest_init(&request);
+    request.requestedSessionTimeout = 10000;
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = id;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_Session *session = NULL;
+    lockServer(server);
+    retval = UA_Session_create(server, NULL, &request, &session);
+    if(retval == UA_STATUSCODE_GOOD) {
+        Operation_Read(server, session, UA_TIMESTAMPSTORETURN_BOTH, &rvi, &dv);
+        UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
+    }
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(dv.hasStatus);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(!dv.hasValue);
+    ck_assert(dv.hasServerTimestamp);
+    ck_assert(!dv.hasSourceTimestamp);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
 /* Variables under the Server object return the current time for the timestamps */
 START_TEST(ReadSingleServerAttribute) {
     UA_fakeSleep(5000);
@@ -697,6 +740,8 @@ START_TEST(ReadSingleAttributeServerTimestampOnError) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+/* Part 4, 7.11.3: The SourceTimestamp shall be null if the Server produces a
+ * Bad status because of invalid arguments in the request */
 START_TEST(ReadSingleAttributeSourceTimestampOnValueError) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
@@ -706,7 +751,7 @@ START_TEST(ReadSingleAttributeSourceTimestampOnValueError) {
 
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
     ck_assert_int_eq(UA_STATUSCODE_BADDATAENCODINGINVALID, resp.status);
-    ck_assert(resp.hasSourceTimestamp);
+    ck_assert(!resp.hasSourceTimestamp);
     UA_DataValue_clear(&resp);
 } END_TEST
 
@@ -944,6 +989,36 @@ START_TEST(WriteSingleAttributeWriteMask) {
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Attributes that can never be written are not advertised as writable in the
+ * WriteMask and UserWriteMask */
+START_TEST(WriteMaskHidesUnwritableAttributes) {
+    UA_NodeId id = UA_NODEID_STRING(1, "the.answer");
+    UA_StatusCode retval = UA_Server_writeWriteMask(server, id, 0xFFFFFFFF);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    const UA_UInt32 unwritable = UA_WRITEMASK_NODEID | UA_WRITEMASK_NODECLASS |
+        UA_WRITEMASK_BROWSENAME | UA_WRITEMASK_USERACCESSLEVEL |
+        UA_WRITEMASK_USEREXECUTABLE | UA_WRITEMASK_USERWRITEMASK;
+    const UA_UInt32 attributeIds[2] =
+        {UA_ATTRIBUTEID_WRITEMASK, UA_ATTRIBUTEID_USERWRITEMASK};
+    for(size_t i = 0; i < 2; i++) {
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        rvi.nodeId = id;
+        rvi.attributeId = attributeIds[i];
+        UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        ck_assert_uint_eq(resp.status, UA_STATUSCODE_GOOD);
+        ck_assert(resp.hasValue);
+        ck_assert_ptr_eq(resp.value.type, &UA_TYPES[UA_TYPES_UINT32]);
+        ck_assert_uint_eq(*(UA_UInt32*)resp.value.data, 0xFFFFFFFF & ~unwritable);
+        UA_DataValue_clear(&resp);
+    }
+
+    /* The BrowseName still cannot be written */
+    retval = UA_Server_writeBrowseName(server, id, UA_QUALIFIEDNAME(1, "renamed"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 } END_TEST
 
 START_TEST(WriteSingleAttributeIsAbstract) {
@@ -1972,6 +2047,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_checked_fixture(tc_readSingleAttributes, setup, teardown);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleServerAttribute);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueAccessDenied);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRangeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeIdWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeClassWithoutTimestamp);
@@ -2023,6 +2099,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDisplayName);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDescription);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeWriteMask);
+    tcase_add_test(tc_writeSingleAttributes, WriteMaskHidesUnwritableAttributes);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeIsAbstract);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeSymmetric);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeInverseName);

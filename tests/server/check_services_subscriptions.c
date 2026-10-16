@@ -15,9 +15,11 @@
 #include <string.h>
 
 #include "ziptree.h"
+#include "ua_types_encoding_binary.h"
 
 #include "test_helpers.h"
 #include "testing_clock.h"
+#include "testing_networklayers.h"
 
 static UA_Server *server = NULL;
 static UA_Session *session = NULL;
@@ -166,6 +168,56 @@ createAuthenticatedSession(const char *userId) {
     unlockServer(server);
     
     return newSession;
+}
+
+/* A SecureChannel without a network connection lets the Session send
+ * PublishResponses. The TestConnectionManager keeps the last message. */
+static UA_SecureChannel testChannel;
+static UA_ConnectionManager *testCM;
+
+static void
+attachTestChannel(void) {
+    UA_SecureChannel_init(&testChannel);
+    testChannel.config = UA_ConnectionConfig_default;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_StatusCode res =
+        UA_SecureChannel_setSecurityPolicy(&testChannel, &config->securityPolicies[0],
+                                           &testChannel.remoteCertificate);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    testChannel.state = UA_SECURECHANNELSTATE_OPEN;
+    testCM = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_ne(testCM, NULL);
+    testChannel.connectionManager = testCM;
+    lockServer(server);
+    UA_Session_attachToSecureChannel(server, session, &testChannel);
+    unlockServer(server);
+}
+
+/* The Session must be detached or removed first */
+static void
+clearTestChannel(void) {
+    UA_SecureChannel_clear(&testChannel);
+    testCM->eventSource.free(&testCM->eventSource);
+    testCM = NULL;
+}
+
+/* Decode the last PublishResponse sent on the test channel */
+static void
+getSentPublishResponse(UA_PublishResponse *response) {
+    const UA_ByteString *msg = TestConnectionManager_getLastSent(testCM);
+    /* Skip the MessageHeader, SecureChannelId, TokenId and SequenceHeader */
+    size_t offset = 24;
+    ck_assert_uint_gt(msg->length, offset);
+    UA_NodeId typeId;
+    UA_StatusCode res = UA_decodeBinaryInternal(msg, &offset, &typeId,
+                                                &UA_TYPES[UA_TYPES_NODEID], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&typeId,
+                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE].binaryEncodingId));
+    res = UA_decodeBinaryInternal(msg, &offset, response,
+                                  &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 }
 
 static void setup(void) {
@@ -850,6 +902,7 @@ START_TEST(Server_lifeTimeCount) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 1);
     ck_assert_uint_eq(response.revisedLifetimeCount, 3);
+    UA_UInt32 firstSubscriptionId = response.subscriptionId;
     UA_CreateSubscriptionResponse_clear(&response);
 
     /* Create a second subscription */
@@ -984,7 +1037,7 @@ START_TEST(Server_lifeTimeCount) {
     }
     ck_assert_uint_eq(count, 1);
 
-    /* Sleep until the publishing interval times out. The next iteration removes
+    /* Sleep until the publishing interval times out. The next iteration closes
      * the subscription. */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
@@ -995,8 +1048,160 @@ START_TEST(Server_lifeTimeCount) {
             count++;
     }
     ck_assert_uint_eq(count, 0);
+
+    /* Both subscriptions are closed and their MonitoredItems are deleted. They
+     * wait for a Publish request to send the StatusChange (Part 4,
+     * 5.14.1.1). */
+    ck_assert_uint_eq(monitored, 0);
+    count = 0;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        ck_assert_uint_eq(sub->statusChange, UA_STATUSCODE_BADTIMEOUT);
+        ck_assert(sub->late);
+        ck_assert_uint_eq(sub->publishCallbackId, 0);
+        ck_assert_uint_eq(sub->monitoredItemsSize, 0);
+        count++;
+    }
+    ck_assert_uint_eq(count, 2);
+    lockServer(server);
+    ck_assert_ptr_eq(getSubscriptionById(server, firstSubscriptionId), NULL);
+    ck_assert_ptr_eq(getSubscriptionById(server, subscriptionId), NULL);
+    unlockServer(server);
+
+    /* Each Publish request returns the Bad_Timeout StatusChange of one of the
+     * subscriptions and removes it */
+    attachTestChannel();
+    UA_Boolean sent[2] = {false, false};
+    for(size_t i = 0; i < 2; i++) {
+        UA_PublishRequest preq;
+        UA_PublishRequest_init(&preq);
+        UA_PublishResponse presp;
+        UA_PublishResponse_init(&presp);
+        lockServer(server);
+        UA_Boolean done = Service_Publish(server, session, &preq, &presp);
+        unlockServer(server);
+        ck_assert(!done); /* The response is sent from the subscription */
+        UA_PublishResponse_clear(&presp);
+
+        UA_PublishResponse sentResp;
+        UA_PublishResponse_init(&sentResp);
+        getSentPublishResponse(&sentResp);
+        ck_assert_uint_eq(sentResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        size_t j = (sentResp.subscriptionId == firstSubscriptionId) ? 0 : 1;
+        ck_assert_uint_eq(sentResp.subscriptionId,
+                          (j == 0) ? firstSubscriptionId : subscriptionId);
+        ck_assert(!sent[j]);
+        sent[j] = true;
+        UA_NotificationMessage *nm = &sentResp.notificationMessage;
+        ck_assert_uint_eq(nm->notificationDataSize, 1);
+        ck_assert_ptr_eq(nm->notificationData[0].content.decoded.type,
+                         &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]);
+        UA_StatusChangeNotification *scn = (UA_StatusChangeNotification*)
+            nm->notificationData[0].content.decoded.data;
+        ck_assert_uint_eq(scn->status, UA_STATUSCODE_BADTIMEOUT);
+        UA_PublishResponse_clear(&sentResp);
+    }
+    ck_assert(TAILQ_EMPTY(&session->subscriptions));
+    ck_assert_uint_eq(session->responseQueueSize, 0);
+
+    /* No subscription is left */
+    UA_PublishRequest preq;
+    UA_PublishRequest_init(&preq);
+    UA_PublishResponse presp;
+    UA_PublishResponse_init(&presp);
+    lockServer(server);
+    UA_Boolean done = Service_Publish(server, session, &preq, &presp);
+    UA_Session_detachFromSecureChannel(server, session);
+    unlockServer(server);
+    ck_assert(done);
+    ck_assert_uint_eq(presp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADNOSUBSCRIPTION);
+    UA_PublishResponse_clear(&presp);
+    clearTestChannel();
 }
 END_TEST
+
+/* A subscription closed at the end of its lifetime waits for a Publish request
+ * to send the StatusChange. If the Session goes away first, the subscription
+ * is removed with it. It cannot be transferred and must not be kept as a
+ * detached subscription. */
+static void
+createExpiredSubscription(void) {
+    UA_CreateSubscriptionRequest request;
+    UA_CreateSubscriptionRequest_init(&request);
+    request.publishingEnabled = true;
+    request.requestedLifetimeCount = 3;
+    request.requestedMaxKeepAliveCount = 1;
+    UA_CreateSubscriptionResponse response;
+    UA_CreateSubscriptionResponse_init(&response);
+    lockServer(server);
+    Service_CreateSubscription(server, session, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.revisedLifetimeCount, 3);
+    subscriptionId = response.subscriptionId;
+    UA_Double publishingInterval = response.revisedPublishingInterval;
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    createMonitoredItem();
+    ck_assert_uint_eq(monitored, 1);
+
+    /* The lifetime expires in the fourth publishing interval without a
+     * Publish request */
+    for(size_t i = 0; i < 4; i++) {
+        UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+        UA_Server_run_iterate(server, false);
+    }
+
+    ck_assert_uint_eq(monitored, 0);
+    UA_Subscription *sub = TAILQ_FIRST(&session->subscriptions);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_uint_eq(sub->subscriptionId, subscriptionId);
+    ck_assert_uint_eq(sub->statusChange, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(server->subscriptionsSize, 1);
+}
+
+START_TEST(Server_expiredSubscriptionRemovedOnSessionTimeout) {
+    createExpiredSubscription();
+
+    /* Force a Session timeout */
+    lockServer(server);
+    session->validTill = UA_DateTime_nowMonotonic() - UA_DATETIME_SEC;
+    cleanupSessions(server, UA_DateTime_nowMonotonic());
+    unlockServer(server);
+    session = NULL;
+
+    /* Removed, not detached */
+    ck_assert_uint_eq(server->subscriptionsSize, 0);
+    ck_assert(LIST_EMPTY(&server->subscriptions));
+
+    createSession();
+} END_TEST
+
+START_TEST(Server_expiredSubscriptionRemovedOnCloseSession) {
+    createExpiredSubscription();
+
+    /* Close the Session and keep the subscriptions */
+    attachTestChannel();
+    UA_CloseSessionRequest request;
+    UA_CloseSessionRequest_init(&request);
+    request.requestHeader.authenticationToken = session->authenticationToken;
+    request.deleteSubscriptions = false;
+    UA_CloseSessionResponse response;
+    UA_CloseSessionResponse_init(&response);
+    lockServer(server);
+    Service_CloseSession(server, &testChannel, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_CloseSessionResponse_clear(&response);
+    session = NULL;
+    clearTestChannel();
+
+    /* Removed, not detached */
+    ck_assert_uint_eq(server->subscriptionsSize, 0);
+    ck_assert(LIST_EMPTY(&server->subscriptions));
+
+    createSession();
+} END_TEST
 
 START_TEST(Server_invalidPublishingInterval) {
     UA_Double savedPublishingIntervalLimitsMin = server->config.publishingIntervalLimits.min;
@@ -2926,6 +3131,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_deleteSubscription_callbackSeesConsistentIndex);
     tcase_add_test(tc_server, Server_publishCallback);
     tcase_add_test(tc_server, Server_lifeTimeCount);
+    tcase_add_test(tc_server, Server_expiredSubscriptionRemovedOnSessionTimeout);
+    tcase_add_test(tc_server, Server_expiredSubscriptionRemovedOnCloseSession);
     tcase_add_test(tc_server, Server_invalidPublishingInterval);
     tcase_add_test(tc_server, Server_transferSubscriptionDiagnostics);
 #ifdef UA_ENABLE_DIAGNOSTICS

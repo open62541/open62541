@@ -1078,6 +1078,8 @@ copyAllChildren(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
+        if(!UA_ExpandedNodeId_isLocal(&rd->nodeId))
+            continue;
         retval = copyChild(server, session, destination, rd);
         if(retval != UA_STATUSCODE_GOOD)
             break;

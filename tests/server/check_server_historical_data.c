@@ -631,6 +631,91 @@ START_TEST(Server_HistorizingUpdateDelete)
 }
 END_TEST
 
+static UA_Boolean historyReadEventBackendCalled;
+
+static void
+historyReadEventTestBackend(UA_Server *server, void *hdbContext,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_RequestHeader *requestHeader,
+                            const UA_ReadEventDetails *historyReadDetails,
+                            UA_TimestampsToReturn timestampsToReturn,
+                            UA_Boolean releaseContinuationPoints,
+                            size_t nodesToReadSize,
+                            const UA_HistoryReadValueId *nodesToRead,
+                            UA_HistoryReadResponse *response,
+                            UA_HistoryEvent * const * const historyData) {
+    historyReadEventBackendCalled = true;
+}
+
+static UA_StatusCode
+historyReadServiceResult(void *details, const UA_DataType *detailsType,
+                         UA_TimestampsToReturn timestampsToReturn) {
+    UA_HistoryReadValueId valueId;
+    UA_HistoryReadValueId_init(&valueId);
+    valueId.nodeId = outNodeId;
+
+    UA_HistoryReadRequest request;
+    UA_HistoryReadRequest_init(&request);
+    UA_ExtensionObject_setValue(&request.historyReadDetails, details, detailsType);
+    request.timestampsToReturn = timestampsToReturn;
+    request.nodesToReadSize = 1;
+    request.nodesToRead = &valueId;
+
+    UA_HistoryReadResponse response;
+    UA_HistoryReadResponse_init(&response);
+    lockServer(server);
+    Service_HistoryRead(server, &server->adminSession, &request, &response);
+    unlockServer(server);
+    UA_StatusCode res = response.responseHeader.serviceResult;
+    UA_HistoryReadResponse_clear(&response);
+    return res;
+}
+
+/* Part 4, 5.11.3: Service results of HistoryRead */
+START_TEST(Server_HistoryReadServiceResults) {
+    UA_ReadRawModifiedDetails details;
+    UA_ReadRawModifiedDetails_init(&details);
+    details.startTime = TIMESTAMP_FIRST;
+    details.endTime = TIMESTAMP_LAST;
+    const UA_DataType *detailsType = &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
+
+    /* The default database cannot read modified values */
+    details.isReadModified = true;
+    ck_assert_uint_eq(historyReadServiceResult(&details, detailsType,
+                                               UA_TIMESTAMPSTORETURN_BOTH),
+                      UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED);
+
+    /* TimestampsToReturn Neither (or out of range) is refused */
+    details.isReadModified = false;
+    ck_assert_uint_eq(historyReadServiceResult(&details, detailsType,
+                                               UA_TIMESTAMPSTORETURN_BOTH),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(historyReadServiceResult(&details, detailsType,
+                                               UA_TIMESTAMPSTORETURN_NEITHER),
+                      UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID);
+    ck_assert_uint_eq(historyReadServiceResult(&details, detailsType,
+                                               UA_TIMESTAMPSTORETURN_INVALID),
+                      UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID);
+
+    /* ... but ignored for Events (Part 11, 4.5) */
+    UA_ReadEventDetails eventDetails;
+    UA_ReadEventDetails_init(&eventDetails);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    lockServer(server);
+    config->historyDatabase.readEvent = historyReadEventTestBackend;
+    unlockServer(server);
+    historyReadEventBackendCalled = false;
+    UA_StatusCode res =
+        historyReadServiceResult(&eventDetails, &UA_TYPES[UA_TYPES_READEVENTDETAILS],
+                                 UA_TIMESTAMPSTORETURN_NEITHER);
+    lockServer(server);
+    config->historyDatabase.readEvent = NULL;
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(historyReadEventBackendCalled);
+}
+END_TEST
+
 #ifdef UA_ENABLE_MALLOC_SINGLETON
 START_TEST(Server_HistorizingReadHistoryDataOutOfMemory) {
     UA_ReadRawModifiedDetails details;
@@ -1176,6 +1261,7 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_HistorizingUpdateInsert);
     tcase_add_test(tc_server, Server_HistorizingUpdateReplace);
     tcase_add_test(tc_server, Server_HistorizingUpdateUpdate);
+    tcase_add_test(tc_server, Server_HistoryReadServiceResults);
     suite_add_tcase(s, tc_server);
 
 #ifdef UA_ENABLE_MALLOC_SINGLETON
