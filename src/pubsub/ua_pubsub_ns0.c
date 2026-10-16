@@ -8,7 +8,7 @@
  * Copyright (c) 2020-2022 Thomas Fischer, Siemens AG
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright (c) 2025 Fraunhofer IOSB (Author: Julius Pfrommer)
- * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
@@ -386,30 +386,14 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA: {
-            if(publishedDataSet->fieldSize == 0) {
-                value->hasValue = true;
-                UA_Variant_setArray(&value->value, UA_EMPTY_ARRAY_SENTINEL, 0,
-                                    &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
-                return UA_STATUSCODE_GOOD;
-            }
-
-            UA_PublishedVariableDataType *pvd = (UA_PublishedVariableDataType*)
-                UA_calloc(publishedDataSet->fieldSize,
-                          sizeof(UA_PublishedVariableDataType));
-            if(!pvd)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            size_t counter = 0;
-            UA_DataSetField *field;
-            TAILQ_FOREACH(field, &publishedDataSet->fields, listEntry) {
-                pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
-                pvd[counter].publishedVariable =
-                    field->config.field.variable.publishParameters.publishedVariable;
-                UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
-                               &pvd[counter].publishedVariable);
-                counter++;
-            }
+            UA_PublishedVariableDataType *pvd;
+            size_t pvdSize;
+            UA_StatusCode res =
+                UA_PublishedDataSet_getPublishedData(publishedDataSet, &pvd, &pvdSize);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
             value->hasValue = true;
-            UA_Variant_setArray(&value->value, pvd, publishedDataSet->fieldSize,
+            UA_Variant_setArray(&value->value, pvd, pvdSize,
                                 &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
             return UA_STATUSCODE_GOOD;
         }
@@ -521,6 +505,7 @@ setVariableValueSource(UA_Server *server, const UA_CallbackValueSource evs,
     return setVariableNode_callbackValueSource(server, node, evs);
 }
 
+/* The methods create the components disabled and set the states afterwards */
 static UA_StatusCode
 addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsubConnection,
                           UA_NodeId *connectionId) {
@@ -530,39 +515,13 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_NetworkAddressUrlDataType networkAddressUrl;
-    memset(&networkAddressUrl, 0, sizeof(networkAddressUrl));
-    UA_ExtensionObject *eo = &pubsubConnection->address;
-    if((eo->encoding == UA_EXTENSIONOBJECT_DECODED ||
-        eo->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
-       eo->content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
-        void *data = eo->content.decoded.data;
-        retVal =
-            UA_NetworkAddressUrlDataType_copy((UA_NetworkAddressUrlDataType *)data,
-                                              &networkAddressUrl);
-        if(retVal != UA_STATUSCODE_GOOD)
-            return retVal;
-    }
-
-    UA_PubSubConnectionConfig connectionConfig;
-    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-    connectionConfig.transportProfileUri = pubsubConnection->transportProfileUri;
-    connectionConfig.name = pubsubConnection->name;
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
-                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-
-    retVal = UA_PublisherId_fromVariant(&connectionConfig.publisherId,
-                                        &pubsubConnection->publisherId);
-    if(retVal != UA_STATUSCODE_GOOD) {
-        UA_NetworkAddressUrlDataType_clear(&networkAddressUrl);
-        return retVal;
-    }
-
-    retVal = UA_PubSubConnection_create(psm, &connectionConfig, connectionId);
-    UA_PublisherId_clear(&connectionConfig.publisherId);
-    UA_NetworkAddressUrlDataType_clear(&networkAddressUrl);
-    return retVal;
+    UA_PubSubConnectionConfig config;
+    UA_StatusCode res = UA_PubSubConnectionConfig_fromDataType(pubsubConnection, &config);
+    config.enabled = false;
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_PubSubConnection_create(psm, &config, connectionId);
+    UA_PubSubConnectionConfig_clearView(&config);
+    return res;
 }
 
 /**
@@ -579,36 +538,22 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* The native create operation owns a deep copy of this borrowed
-     * configuration. Passing the complete ExtensionObjects preserves newer
-     * transport types and their nested address/QoS settings. */
     UA_WriterGroupConfig config;
-    memset(&config, 0, sizeof(config));
-    config.name = writerGroup->name;
-    config.publishingInterval = writerGroup->publishingInterval;
-    config.writerGroupId = writerGroup->writerGroupId;
-    config.priority = writerGroup->priority;
-    config.securityMode = writerGroup->securityMode;
-    config.securityGroupId = writerGroup->securityGroupId;
-    config.groupProperties.map = writerGroup->groupProperties;
-    config.groupProperties.mapSize = writerGroup->groupPropertiesSize;
-    config.messageSettings = writerGroup->messageSettings;
-    config.transportSettings = writerGroup->transportSettings;
+    UA_StatusCode res = UA_WriterGroupConfig_fromDataType(writerGroup, &config);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    config.enabled = false;
 
-    if(UA_ExtensionObject_hasDecodedType(
-           &config.messageSettings,
-           &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
-        config.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+    /* JSON needs a broker transport. Otherwise only UADP is supported. */
+    if(config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
         if(!UA_ExtensionObject_hasDecodedType(
                &config.transportSettings,
                &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]))
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    } else if(config.messageSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY ||
-              UA_ExtensionObject_hasDecodedType(
+    } else if(config.messageSettings.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
+              !UA_ExtensionObject_hasDecodedType(
                   &config.messageSettings,
                   &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
-        config.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    } else {
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
@@ -633,27 +578,20 @@ addDataSetWriterConfig(UA_Server *server, const UA_NodeId *writerGroupId,
 
     UA_NodeId publishedDataSetId = UA_NODEID_NULL;
     if(dataSetWriter->dataSetName.length > 0) {
-        UA_PublishedDataSet *tmpPDS;
-        TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
-            if(UA_String_equal(&dataSetWriter->dataSetName, &tmpPDS->config.name)) {
-                publishedDataSetId = tmpPDS->head.identifier;
-                break;
-            }
-        }
-        if(UA_NodeId_isNull(&publishedDataSetId))
+        UA_PublishedDataSet *pds =
+            UA_PublishedDataSet_findByName(psm, dataSetWriter->dataSetName);
+        if(!pds)
             return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+        publishedDataSetId = pds->head.identifier;
     }
 
-    /* We need now a DataSetWriter within the WriterGroup. This means we must
-     * create a new DataSetWriterConfig and add call the addWriterGroup function. */
-    UA_DataSetWriterConfig dataSetWriterConfig;
-    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = dataSetWriter->name;
-    dataSetWriterConfig.dataSetWriterId = dataSetWriter->dataSetWriterId;
-    dataSetWriterConfig.keyFrameCount = dataSetWriter->keyFrameCount;
-    dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriter->dataSetFieldContentMask;
+    UA_DataSetWriterConfig config;
+    UA_StatusCode res = UA_DataSetWriterConfig_fromDataType(dataSetWriter, &config);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    config.enabled = false;
     return UA_DataSetWriter_create(psm, *writerGroupId, publishedDataSetId,
-                                   &dataSetWriterConfig, dataSetWriterId);
+                                   &config, dataSetWriterId);
 }
 
 /**
@@ -673,31 +611,12 @@ addReaderGroupConfig(UA_Server *server, UA_NodeId connectionId,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ReaderGroupConfig readerGroupConfig;
-    memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
-    UA_StatusCode retVal = UA_String_copy(&readerGroup->name,
-                                          &readerGroupConfig.name);
-    retVal |= UA_String_copy(&readerGroup->securityGroupId,
-                             &readerGroupConfig.securityGroupId);
-    retVal |= UA_ExtensionObject_copy(&readerGroup->transportSettings,
-                                      &readerGroupConfig.transportSettings);
-    readerGroupConfig.securityMode = readerGroup->securityMode;
-    readerGroupConfig.groupProperties.map = readerGroup->groupProperties;
-    readerGroupConfig.groupProperties.mapSize = readerGroup->groupPropertiesSize;
-    if(readerGroup->dataSetReadersSize > 0) {
-        UA_ExtensionObject *settings =
-            &readerGroup->dataSetReaders[0].messageSettings;
-        if(settings->encoding == UA_EXTENSIONOBJECT_DECODED &&
-           settings->content.decoded.type ==
-               &UA_TYPES[UA_TYPES_JSONDATASETREADERMESSAGEDATATYPE])
-            readerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
-    }
-    if(retVal == UA_STATUSCODE_GOOD)
-        retVal = UA_ReaderGroup_create(psm, connectionId,
-                                       &readerGroupConfig, readerGroupId);
-    readerGroupConfig.groupProperties = UA_KEYVALUEMAP_NULL;
-    UA_ReaderGroupConfig_clear(&readerGroupConfig);
-    return retVal;
+    UA_ReaderGroupConfig config;
+    UA_StatusCode res = UA_ReaderGroupConfig_fromDataType(readerGroup, &config);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    config.enabled = false;
+    return UA_ReaderGroup_create(psm, connectionId, &config, readerGroupId);
 }
 
 /**
@@ -825,64 +744,28 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_DataSetReaderConfig readerConfig;
-    memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
-
-    UA_StatusCode retVal = UA_String_copy(&dataSetReader->name,
-                                          &readerConfig.name);
-    retVal |= UA_PublisherId_fromVariant(&readerConfig.publisherId,
-                                         &dataSetReader->publisherId);
-    if(retVal == UA_STATUSCODE_GOOD)
-        readerConfig.publisherIdFilterEnabled = true;
-    readerConfig.writerGroupId = dataSetReader->writerGroupId;
-    readerConfig.dataSetWriterId = dataSetReader->dataSetWriterId;
-    readerConfig.dataSetFieldContentMask =
-        dataSetReader->dataSetFieldContentMask;
-    readerConfig.messageReceiveTimeout =
-        dataSetReader->messageReceiveTimeout;
-    retVal |= UA_ExtensionObject_copy(&dataSetReader->messageSettings,
-                                      &readerConfig.messageSettings);
-    retVal |= UA_ExtensionObject_copy(&dataSetReader->transportSettings,
-                                      &readerConfig.transportSettings);
-
-    /* Copy the complete metadata, including configuration versions, array
-     * dimensions and string bounds. */
-    retVal |= UA_DataSetMetaDataType_copy(&dataSetReader->dataSetMetaData,
-                                          &readerConfig.dataSetMetaData);
-    if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReaderConfig_clear(&readerConfig);
-        return retVal;
+    UA_DataSetReaderConfig config;
+    UA_StatusCode res = UA_DataSetReaderConfig_fromDataType(dataSetReader, &config);
+    UA_Boolean standalone = UA_ExtensionObject_hasDecodedType(
+        &dataSetReader->subscribedDataSet,
+        &UA_TYPES[UA_TYPES_STANDALONESUBSCRIBEDDATASETREFDATATYPE]);
+    if(res == UA_STATUSCODE_GOOD && standalone &&
+       UA_String_isEmpty(&config.linkedStandaloneSubscribedDataSetName))
+        res = UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_DataSetReaderConfig_clearView(&config);
+        return res;
     }
 
-    UA_ExtensionObject *subscribed = &dataSetReader->subscribedDataSet;
-    UA_Boolean standalone =
-        (subscribed->encoding == UA_EXTENSIONOBJECT_DECODED ||
-         subscribed->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
-        subscribed->content.decoded.type ==
-            &UA_TYPES[UA_TYPES_STANDALONESUBSCRIBEDDATASETREFDATATYPE];
-    if(standalone) {
-        UA_StandaloneSubscribedDataSetRefDataType *ref =
-            (UA_StandaloneSubscribedDataSetRefDataType*)subscribed->content.decoded.data;
-        retVal = UA_String_copy(&ref->dataSetName,
-                                &readerConfig.linkedStandaloneSubscribedDataSetName);
-        if(retVal != UA_STATUSCODE_GOOD || UA_String_isEmpty(&ref->dataSetName)) {
-            UA_DataSetReaderConfig_clear(&readerConfig);
-            return retVal != UA_STATUSCODE_GOOD ? retVal : UA_STATUSCODE_BADINVALIDARGUMENT;
-        }
-    }
-
-    retVal |= UA_DataSetReader_create(psm, readerGroupId,
-                                      &readerConfig, dataSetReaderId);
-    UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
-    if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReaderConfig_clear(&readerConfig);
-        return retVal;
-    }
-
-    if(!standalone)
-        retVal |= addSubscribedVariables(server, *dataSetReaderId, dataSetReader, pMetaData);
-    UA_DataSetReaderConfig_clear(&readerConfig);
-    return retVal;
+    /* The TargetVariables are added with their nodes below */
+    config.enabled = false;
+    memset(&config.subscribedDataSet, 0, sizeof(config.subscribedDataSet));
+    res = UA_DataSetReader_create(psm, readerGroupId, &config, dataSetReaderId);
+    if(res == UA_STATUSCODE_GOOD && !standalone)
+        res = addSubscribedVariables(server, *dataSetReaderId, dataSetReader,
+                                     &dataSetReader->dataSetMetaData);
+    UA_DataSetReaderConfig_clearView(&config);
+    return res;
 }
 
 /*************************************************/
@@ -2603,7 +2486,7 @@ subscribedDataSetTypeDestructor(UA_Server *server,
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
 /* Callback function that will be executed when the method "PubSub configurator
- * (replace config)" is called. */
+ * (replace config)" is called. Adds the file in one complete update. */
 static UA_StatusCode
 UA_loadPubSubConfigMethodCallback(UA_Server *server,
                                   const UA_NodeId *sessionId, void *sessionContext,
@@ -2617,8 +2500,39 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
         return res;
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
-    UA_ByteString *inputStr = (UA_ByteString*)input->data;
-    return UA_Server_loadPubSubConfigFromByteString(server, *inputStr);
+    const UA_ByteString *file = (const UA_ByteString*)input->data;
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* PubSub is stopped for the replacement. Disable the connections first. */
+    UA_Boolean started = (psm->drv.state != UA_LIFECYCLESTATE_STOPPED);
+    if(started && psm->connectionsSize > 0)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    size_t refsSize = 0;
+    UA_PubSubConfigurationRefDataType *refs = NULL;
+    res = UA_PubSubConfiguration_createReferences(
+        file, UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD, &refsSize, &refs);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    if(started)
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
+    res = UA_PubSubManager_clear(psm);
+    if(res == UA_STATUSCODE_GOOD && refsSize > 0) {
+        UA_PubSubConfigurationUpdateResult result;
+        res = UA_PubSubManager_updateConfigFile(psm, file, refsSize, refs,
+                                                true, &result);
+        for(size_t i = 0; res == UA_STATUSCODE_GOOD &&
+                i < result.referencesResultsSize; i++)
+            res = result.referencesResults[i];
+        UA_PubSubConfigurationUpdateResult_clear(&result);
+    }
+    if(started)
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
+    UA_Array_delete(refs, refsSize, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+    return res;
 }
 
 static void

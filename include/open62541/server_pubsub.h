@@ -459,6 +459,12 @@ typedef struct {
         UA_PublishedEventTemplateConfig eventTemplate;
     } config;
 
+    /* Kept for the Part 14 configuration (UA_PublishedDataSetDataType). The
+     * extension fields are not published yet. */
+    size_t dataSetFolderSize;
+    UA_String *dataSetFolder;
+    UA_KeyValueMap extensionFields;
+
     void *context; /* Context Configuration (PublishedDataSet has no state
                     * machine) */
 } UA_PublishedDataSetConfig;
@@ -759,6 +765,10 @@ typedef struct {
     } subscribedDataSet;
     UA_DataSetMetaDataType dataSetMetaData;
 
+    /* Kept for the Part 14 configuration */
+    size_t dataSetFolderSize;
+    UA_String *dataSetFolder;
+
     void *context; /* Context Configuration (SubscribedDataSet has no state
                     * machine) */
 } UA_SubscribedDataSetConfig;
@@ -811,6 +821,14 @@ typedef struct {
         /* TODO: UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
         UA_TargetVariablesDataType target;
     } subscribedDataSet;
+
+    /* Kept for the Part 14 configuration, not evaluated yet. The message
+     * processing uses the security settings of the ReaderGroup. */
+    UA_MessageSecurityMode securityMode;
+    UA_String securityGroupId;
+    size_t securityKeyServicesSize;
+    UA_EndpointDescription *securityKeyServices;
+
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
 } UA_DataSetReaderConfig;
@@ -955,22 +973,112 @@ UA_Server_updateSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
-/* Decodes the information from the ByteString. If the decoded content is a
- * PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
- * current PubSub configuration from the server. The added components are
- * enabled automatically if their enabled-flag is set in the config.
- * Child-components are enabled first.
+/**
+ * File-Based Configuration
+ * ------------------------
+ * With ``UA_ENABLE_PUBSUB_FILE_CONFIG`` the PubSub configuration is exchanged
+ * as the PubSubConfiguration file of OPC UA Part 14 v1.05 (9.1.3.7): a UA
+ * Binary encoded ExtensionObject with a ``UABinaryFileDataType`` whose body
+ * is a ``PubSubConfiguration2DataType``. Namespaces of the file that are
+ * unknown to the server are added and the NodeIds remapped.
  *
- * Note that you need to disable all components with
- * UA_Server_disableAllPubSubComponents before loading the config. */
-UA_EXPORT UA_StatusCode
-UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
-                                         const UA_ByteString buffer);
+ * - `UA_Server_readPubSubConfiguration` returns the file content.
+ * - `UA_Server_updatePubSubConfiguration` applies a file with the semantics
+ *   of the CloseAndUpdate method (9.1.3.7.6).
+ * - `UA_PubSubConfiguration_createReferences` creates the references for all
+ *   elements of a file.
+ *
+ * Interaction with the state machine:
+ *
+ * - Components that are not referenced are never touched.
+ * - An added component is enabled if its ``enabled`` flag is set. Under a
+ *   disabled parent it stays Paused until the parent is enabled.
+ * - Modify and writer/reader operations disable the component or the parent
+ *   group temporarily and restore the prior state afterwards.
+ * - The ``componentLifecycleCallback`` can veto every add/remove. The
+ *   state-change callbacks fire for all transitions.
+ *
+ * Not supported yet: SecurityGroup and PushTarget references, modify of
+ * Published/SubscribedDataSets (use remove + add in one call),
+ * SubscribedDataSetMirror and PublishedEvents elements. */
 
-/* Saves the current PubSub configuration of a server in a byteString. */
+/* Encode the current PubSub configuration as the content of the
+ * PubSubConfiguration file (Part 14 v1.05 9.1.3.7.1). The caller frees the
+ * file with UA_ByteString_clear. */
 UA_EXPORT UA_StatusCode
-UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
-                                               UA_ByteString *buffer);
+UA_Server_readPubSubConfiguration(UA_Server *server, UA_ByteString *file);
+
+/* The output arguments of the CloseAndUpdate method (Part 14 v1.05
+ * 9.1.3.7.6). Clean up with UA_PubSubConfigurationUpdateResult_clear. */
+typedef struct {
+    UA_Boolean changesApplied;
+
+    /* One status code per input reference */
+    size_t referencesResultsSize;
+    UA_StatusCode *referencesResults;
+
+    /* Names and identifiers assigned by Add/Match if the element had none */
+    size_t configurationValuesSize;
+    UA_PubSubConfigurationValueDataType *configurationValues;
+
+    /* The component per input reference (null NodeId if there is none) */
+    size_t configurationObjectsSize;
+    UA_NodeId *configurationObjects;
+} UA_PubSubConfigurationUpdateResult;
+
+UA_EXPORT void
+UA_PubSubConfigurationUpdateResult_clear(UA_PubSubConfigurationUpdateResult *result);
+
+/* Apply a PubSubConfiguration file with the semantics of the CloseAndUpdate
+ * method (Part 14 v1.05 9.1.3.7.6). The references select the elements and
+ * the operation (add/match/modify/remove).
+ *
+ * Removes run first (children before parents), then datasets, connections,
+ * groups and writers/readers, so the references can come in any order.
+ * Children apply to the component that their parent element was added,
+ * matched or modified to in this call. Otherwise the parent is found by its
+ * non-empty name. Children of a removed or failed element get Bad_NotFound.
+ * A pure Match requires a null name and Id in the element (else
+ * Bad_InvalidArgument); Add|Match uses them for the add.
+ *
+ * Top-level fields: Enabled, DataSetClasses and the ConfigurationVersion are
+ * ignored. A non-empty DefaultSecurityKeyServices replaces the entries.
+ * ConfigurationProperties are merged (a null value deletes the key). Applied
+ * changes set the ConfigurationVersion to the current time.
+ *
+ * With requireCompleteUpdate nothing changes if an element cannot be
+ * converted. If a reference fails later (e.g. missing parent, duplicate name,
+ * lifecycle veto, bad transport or message settings), the applied references
+ * are undone in reverse order without calling the componentLifecycleCallback.
+ * Removed components come back with new NodeIds and restarted sequence
+ * numbers. The failing references report their codes, the others stay Good
+ * and changesApplied is false (true if a change cannot be undone). The
+ * top-level fields are not applied.
+ *
+ * Returns Good if the update was processed (the per-reference results are in
+ * result->referencesResults), Bad_TypeMismatch for an invalid file and
+ * Bad_NothingToDo without references. */
+UA_EXPORT UA_StatusCode
+UA_Server_updatePubSubConfiguration(UA_Server *server, const UA_ByteString *file,
+                                    size_t referencesSize,
+                                    const UA_PubSubConfigurationRefDataType *references,
+                                    UA_Boolean requireCompleteUpdate,
+                                    UA_PubSubConfigurationUpdateResult *result);
+
+/* Create the references for all elements of a file, in file order, with the
+ * operation mask Add, Match, Add|Match, Modify or Remove. Match only applies
+ * to connections and groups; other elements get the remaining bits or are
+ * skipped. Free the references with UA_Array_delete and
+ * UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]. Returns Bad_TypeMismatch
+ * for an invalid file and Bad_InvalidArgument for another mask.
+ *
+ * Use Add to load a file, or Remove and Add in one complete update to replace
+ * its elements. */
+UA_EXPORT UA_StatusCode
+UA_PubSubConfiguration_createReferences(const UA_ByteString *file,
+                                        UA_PubSubConfigurationRefMask mask,
+                                        size_t *referencesSize,
+                                        UA_PubSubConfigurationRefDataType **references);
 #endif
 
 /* Legacy API */

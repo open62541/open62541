@@ -31,6 +31,15 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_PublishedDataSetConfig));
     res |= UA_String_copy(&src->name, &dst->name);
+    dst->dataSetFolder = NULL;
+    dst->dataSetFolderSize = 0;
+    res |= UA_Array_copy(src->dataSetFolder, src->dataSetFolderSize,
+                         (void**)&dst->dataSetFolder, &UA_TYPES[UA_TYPES_STRING]);
+    if(res == UA_STATUSCODE_GOOD)
+        dst->dataSetFolderSize = src->dataSetFolderSize;
+    dst->extensionFields.map = NULL;
+    dst->extensionFields.mapSize = 0;
+    res |= UA_KeyValueMap_copy(&src->extensionFields, &dst->extensionFields);
     switch(src->publishedDataSetType) {
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
             /* no additional items */
@@ -91,10 +100,42 @@ UA_PublishedDataSet_findByName(UA_PubSubManager *psm, const UA_String name) {
     return tmpPDS;
 }
 
+UA_StatusCode
+UA_PublishedDataSet_getPublishedData(const UA_PublishedDataSet *pds,
+                                     UA_PublishedVariableDataType **data,
+                                     size_t *dataSize) {
+    *dataSize = 0;
+    *data = (UA_PublishedVariableDataType*)
+        UA_Array_new(pds->fieldSize, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+    if(!*data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    size_t i = 0;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_DataSetField *dsf;
+    TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+        res |= UA_PublishedVariableDataType_copy(
+            &dsf->config.field.variable.publishParameters, &(*data)[i]);
+        i++;
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(*data, pds->fieldSize,
+                        &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+        *data = NULL;
+        return res;
+    }
+    *dataSize = pds->fieldSize;
+    return UA_STATUSCODE_GOOD;
+}
+
 void
 UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
     /* delete pds config */
     UA_String_clear(&pdsConfig->name);
+    UA_Array_delete(pdsConfig->dataSetFolder, pdsConfig->dataSetFolderSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    pdsConfig->dataSetFolder = NULL;
+    pdsConfig->dataSetFolderSize = 0;
+    UA_KeyValueMap_clear(&pdsConfig->extensionFields);
     switch (pdsConfig->publishedDataSetType){
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
             /* no additional items */
@@ -749,6 +790,12 @@ UA_SubscribedDataSetConfig_copy(const UA_SubscribedDataSetConfig *src,
     memcpy(dst, src, sizeof(UA_SubscribedDataSetConfig));
     res = UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
     res |= UA_String_copy(&src->name, &dst->name);
+    dst->dataSetFolder = NULL;
+    dst->dataSetFolderSize = 0;
+    res |= UA_Array_copy(src->dataSetFolder, src->dataSetFolderSize,
+                         (void**)&dst->dataSetFolder, &UA_TYPES[UA_TYPES_STRING]);
+    if(res == UA_STATUSCODE_GOOD)
+        dst->dataSetFolderSize = src->dataSetFolderSize;
     if(src->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         res |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
                                                &dst->subscribedDataSet.target);
@@ -762,13 +809,17 @@ void
 UA_SubscribedDataSetConfig_clear(UA_SubscribedDataSetConfig *sdsConfig) {
     UA_String_clear(&sdsConfig->name);
     UA_DataSetMetaDataType_clear(&sdsConfig->dataSetMetaData);
+    UA_Array_delete(sdsConfig->dataSetFolder, sdsConfig->dataSetFolderSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    sdsConfig->dataSetFolder = NULL;
+    sdsConfig->dataSetFolderSize = 0;
     UA_TargetVariablesDataType_clear(&sdsConfig->subscribedDataSet.target);
 }
 
-static UA_StatusCode
-addSubscribedDataSet(UA_PubSubManager *psm,
-                     const UA_SubscribedDataSetConfig *sdsConfig,
-                     UA_NodeId *sdsIdentifier) {
+UA_StatusCode
+UA_SubscribedDataSet_create(UA_PubSubManager *psm,
+                            const UA_SubscribedDataSetConfig *sdsConfig,
+                            UA_NodeId *sdsIdentifier) {
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -962,7 +1013,7 @@ UA_Server_addSubscribedDataSet(UA_Server *server,
     if(!server || !sdsConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
-    UA_StatusCode res = addSubscribedDataSet(getPSM(server), sdsConfig, sdsIdentifier);
+    UA_StatusCode res = UA_SubscribedDataSet_create(getPSM(server), sdsConfig, sdsIdentifier);
     unlockServer(server);
     return res;
 }

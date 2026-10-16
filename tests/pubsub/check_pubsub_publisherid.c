@@ -1,3 +1,10 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ */
+
 #include <open62541/plugin/log.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
@@ -11,6 +18,7 @@
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 #include "util/ua_util_internal.h"
+#include "pubsub_config_test_helpers.h"
 #endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
 
 #include <check.h>
@@ -1064,7 +1072,7 @@ START_TEST(Test_string_publisherId_file_config) {
         fastPathSubscriberDataValues[i] = 0;
     }
 
-    /* we do not use a file, but setup PubSubConfigurationDataType structure and encode it to a bytestring
+    /* we do not use a file, but setup PubSubConfiguration2DataType structure and encode it to a bytestring
         to simulate file read */
     UA_ByteString encodedConfigDataBuffer;
     UA_ByteString_init(&encodedConfigDataBuffer);
@@ -1079,8 +1087,8 @@ START_TEST(Test_string_publisherId_file_config) {
 
 {   /* we use a local scope to make sure that string PublisherId configuration works correctly
         -> e.g. deep copy of Id */
-    UA_PubSubConfigurationDataType config;
-    UA_PubSubConfigurationDataType_init(&config);
+    UA_PubSubConfiguration2DataType config;
+    UA_PubSubConfiguration2DataType_init(&config);
 
     /* PublishedDataSet config */
     config.publishedDataSetsSize = 1;
@@ -1254,7 +1262,7 @@ START_TEST(Test_string_publisherId_file_config) {
     /* encode to bytestring to simulate PubSub file config read */
     UA_UABinaryFileDataType BinaryFileData;
     UA_UABinaryFileDataType_init(&BinaryFileData);
-    UA_Variant_setScalar(&BinaryFileData.body, (void*) &config, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONDATATYPE]);
+    UA_Variant_setScalar(&BinaryFileData.body, (void*) &config, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATION2DATATYPE]);
     UA_ExtensionObject extObj;
     UA_ExtensionObject_init(&extObj);
     extObj.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -1267,11 +1275,12 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_Byte *bufferPos = encodedConfigDataBuffer.data;
     ck_assert_int_eq(UA_STATUSCODE_GOOD,
         UA_ExtensionObject_encodeBinary(&extObj, &bufferPos, bufferPos + fileSize));
-    UA_PubSubConfigurationDataType_clear(&config);
+    UA_PubSubConfiguration2DataType_clear(&config);
 }
     /* load and apply config from ByteString buffer */
    UA_Server_disableAllPubSubComponents(server);
-   ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
+   ck_assert_int_eq(UA_STATUSCODE_GOOD,
+                    UA_PubSubTest_applyConfigFile(server, &encodedConfigDataBuffer, false));
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 
