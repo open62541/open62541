@@ -372,6 +372,21 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 ((server->endTime - el->dateTime_now(el)) / UA_DATETIME_SEC);
         }
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+        /* The application sets the reason in the ShutdownReason Variable */
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        rvi.nodeId = UA_NS0ID(SERVER_SERVERSTATUS_SHUTDOWNREASON);
+        rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_DataValue reason = readWithSession(server, &server->adminSession, &rvi,
+                                              UA_TIMESTAMPSTORETURN_NEITHER);
+        if(UA_Variant_hasScalarType(&reason.value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+            statustype->shutdownReason = *(UA_LocalizedText*)reason.value.data;
+            UA_LocalizedText_init((UA_LocalizedText*)reason.value.data);
+        }
+        UA_DataValue_clear(&reason);
+#endif
+
         value->value.data = statustype;
         value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
         value->hasValue = true;

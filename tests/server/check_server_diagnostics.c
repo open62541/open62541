@@ -238,6 +238,35 @@ START_TEST(readServerStatusDuringShutdown) {
     UA_Variant_clear(&value);
 } END_TEST
 
+/* Part 5, 12.10: The ServerStatus structure has the ShutdownReason that the
+ * application set in the ShutdownReason Variable */
+START_TEST(readServerStatusShutdownReason) {
+    initiateShutdown(10);
+    UA_LocalizedText reason = UA_LOCALIZEDTEXT("en-US", "Maintenance");
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &reason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_StatusCode retval = UA_Server_writeValue(server,
+        UA_NS0ID(SERVER_SERVERSTATUS_SHUTDOWNREASON), value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_readValue(server,
+        UA_NS0ID(SERVER_SERVERSTATUS_SHUTDOWNREASON), &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    ck_assert(UA_equal(value.data, &reason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    UA_Variant_clear(&value);
+
+    retval = UA_Server_readValue(server, UA_NS0ID(SERVER_SERVERSTATUS), &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value,
+                                       &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE]));
+    UA_ServerStatusDataType *status = (UA_ServerStatusDataType*)value.data;
+    ck_assert_int_eq(status->state, UA_SERVERSTATE_SHUTDOWN);
+    ck_assert(UA_equal(&status->shutdownReason, &reason,
+                       &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    UA_Variant_clear(&value);
+} END_TEST
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static UA_ServerState lastServerState;
 static size_t serverStateNotifications;
@@ -446,6 +475,7 @@ int main(void) {
     tcase_add_test(tc_status, readServerStatusSecondsTillShutdown);
 #ifdef UA_GENERATED_NAMESPACE_ZERO
     tcase_add_test(tc_status, readServerStatusDuringShutdown);
+    tcase_add_test(tc_status, readServerStatusShutdownReason);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_status, monitorServerStateDuringShutdown);
 #endif
