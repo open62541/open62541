@@ -34,6 +34,21 @@ methodCallback(UA_Server *serverArg,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+methodCallbackBadWithOutput(UA_Server *serverArg,
+         const UA_NodeId *sessionId, void *sessionHandle,
+         const UA_NodeId *methodId, void *methodContext,
+         const UA_NodeId *objectId, void *objectContext,
+         size_t inputSize, const UA_Variant *input,
+         size_t outputSize, UA_Variant *output)
+{
+    /* Write an output value before failing */
+    UA_UInt32 value = 42;
+    if(outputSize > 0)
+        UA_Variant_setScalarCopy(&output[0], &value, &UA_TYPES[UA_TYPES_UINT32]);
+    return UA_STATUSCODE_BADUNEXPECTEDERROR;
+}
+
 static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -278,6 +293,39 @@ START_TEST(callMethodWithEmptyOutputArguments) {
 #endif
 } END_TEST
 
+START_TEST(callMethodBadResultHasNoOutputArguments) {
+    /* Part 4, 5.12.2.2: The outputArguments list shall be empty if the
+     * statusCode Severity is Bad */
+    UA_Argument outputArgument;
+    UA_Argument_init(&outputArgument);
+    outputArgument.name = UA_STRING("Output");
+    outputArgument.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    outputArgument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_MethodAttributes attr = UA_MethodAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","Bad with output");
+    attr.executable = true;
+    attr.userExecutable = true;
+    UA_StatusCode res =
+        UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "badwithoutput"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                UA_QUALIFIEDNAME(1, "Bad with output"),
+                                attr, &methodCallbackBadWithOutput,
+                                0, NULL, 1, &outputArgument, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.methodId = UA_NODEID_STRING(1, "badwithoutput");
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+
+    UA_CallMethodResult result = UA_Server_call(server, &req);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADUNEXPECTEDERROR);
+    ck_assert_uint_eq(result.outputArgumentsSize, 0);
+    UA_CallMethodResult_clear(&result);
+} END_TEST
+
 START_TEST(callObjectTypeMethodOnInstance) {
 /* Minimal nodeset does not add any method nodes we may call here */
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_SUBSCRIPTIONS)
@@ -445,6 +493,7 @@ int main(void) {
     tcase_add_test(tc_call, callMethodWithWronglyTypedArguments);
     tcase_add_test(tc_call, callMethodWithEmptyArgument);
     tcase_add_test(tc_call, callMethodWithEmptyOutputArguments);
+    tcase_add_test(tc_call, callMethodBadResultHasNoOutputArguments);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance2);
     tcase_add_test(tc_call, callObjectTypeMethod);
