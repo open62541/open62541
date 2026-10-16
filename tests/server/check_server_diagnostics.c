@@ -151,6 +151,47 @@ START_TEST(readServerStatus) {
     UA_Variant_clear(&value);
 } END_TEST
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+START_TEST(readServerStatusShutdownReason) {
+    const UA_NodeId reasonId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON);
+    const UA_NodeId statusId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
+    UA_UInt32 seconds = 5;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &seconds, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_StatusCode retval = UA_Server_writeValue(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN), value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText reasons[3];
+    reasons[0] = UA_LOCALIZEDTEXT("en", "Scheduled maintenance");
+    reasons[1] = UA_LOCALIZEDTEXT("de", "Wartung");
+    reasons[2] = UA_LOCALIZEDTEXT("", "");
+    for(size_t i = 0; i < sizeof(reasons) / sizeof(reasons[0]); i++) {
+        UA_Variant_setScalar(&value, &reasons[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_writeValue(server, reasonId, value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant statusValue;
+        retval = UA_Server_readValue(server, statusId, &statusValue);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(UA_Variant_hasScalarType(&statusValue, &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE]));
+        UA_ServerStatusDataType *status = (UA_ServerStatusDataType*)statusValue.data;
+        ck_assert(UA_LocalizedText_equal(&status->shutdownReason, &reasons[i]));
+        ck_assert_int_eq(status->state, UA_SERVERSTATE_SHUTDOWN);
+        ck_assert_uint_eq(status->secondsTillShutdown, seconds);
+        ck_assert(UA_BuildInfo_equal(&status->buildInfo, &UA_Server_getConfig(server)->buildInfo));
+
+        /* A status snapshot owns its reason even after the node is overwritten. */
+        UA_LocalizedText empty = UA_LOCALIZEDTEXT("", "");
+        UA_Variant_setScalar(&value, &empty, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_writeValue(server, reasonId, value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(UA_LocalizedText_equal(&status->shutdownReason, &reasons[i]));
+        UA_Variant_clear(&statusValue);
+    }
+} END_TEST
+#endif
+
 START_TEST(readServerStatusState) {
     UA_Variant value;
     UA_StatusCode retval = UA_Server_readValue(server,
@@ -468,6 +509,9 @@ int main(void) {
     TCase *tc_status = tcase_create("ServerStatus");
     tcase_add_checked_fixture(tc_status, setup, teardown);
     tcase_add_test(tc_status, readServerStatus);
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    tcase_add_test(tc_status, readServerStatusShutdownReason);
+#endif
     tcase_add_test(tc_status, readServerStatusState);
     tcase_add_test(tc_status, readServerStatusBuildInfo);
     tcase_add_test(tc_status, readServerStatusStartTime);
