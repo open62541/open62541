@@ -45,8 +45,9 @@ typedef struct UA_Condition {
     UA_UInt16 lastSeverity;
     UA_DateTime lastSeveritySourceTimeStamp;
 
-    /* These callbacks are defined by the user and must not be called with a
-     * locked server mutex */
+    /* These callbacks are defined by the user. The driver has no lock of its
+     * own. The callbacks are called from method calls and value writes with
+     * the (recursive) server lock held, so they can use the server API. */
     struct {
         UA_TwoStateVariableChangeCallback enableStateCallback;
         UA_TwoStateVariableChangeCallback ackStateCallback;
@@ -82,12 +83,17 @@ typedef struct AlarmsConditionsDriver {
     UA_Logger *logging;
     LIST_HEAD(, UA_ConditionSource) conditionSources;
     LIST_HEAD(, UA_ACMonitoredItemTarget) monitoredItemTargets;
+
+    /* Set while the Acknowledge or Confirm method writes AckedState/Id or
+     * ConfirmedState/Id. The method runs the state transition itself, so the
+     * after-write callback of the Id has nothing to do. */
+    UA_Boolean methodWritesStateId;
 } AlarmsConditionsDriver;
 
 #define UA_DRIVER_ALARMS_CONDITIONS_NAME "alarms-conditions"
 
 #define REFRESHEVENT_SEVERITY_DEFAULT                          100
-#define EXPIRATION_LIMIT_DEFAULT_VALUE                         15
+#define EXPIRATION_LIMIT_DEFAULT_VALUE                         1209600000.0 /* 2 weeks in ms */
 
 #define LOCALE                                                 "en"
 #define ENABLED_TEXT                                           "Enabled"
@@ -327,19 +333,52 @@ removeMonitoredItemTarget(UA_ACMonitoredItemTarget *target) {
     UA_free(target);
 }
 
+/* A transferred Subscription keeps its SubscriptionId (unique in the server)
+ * and its MonitoredItems, but belongs to another Session. Move its targets to
+ * that Session. The old Subscription is deleted later without notifications
+ * for the moved MonitoredItems, so its deletion must not remove them. */
+static void
+transferMonitoredItemTargets(AlarmsConditionsDriver *acd, const UA_NodeId *sessionId,
+                             UA_UInt32 subscriptionId) {
+    UA_ACMonitoredItemTarget *target;
+    LIST_FOREACH(target, &acd->monitoredItemTargets, listEntry) {
+        if(target->subscriptionId != subscriptionId ||
+           UA_NodeId_equal(&target->sessionId, sessionId))
+            continue;
+        UA_NodeId newSessionId;
+        UA_StatusCode res = UA_NodeId_copy(sessionId, &newSessionId);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(acd->logging, UA_LOGCATEGORY_SERVER,
+                           "Could not transfer a refresh target of "
+                           "Subscription %u. StatusCode %s",
+                           (unsigned)subscriptionId, UA_StatusCode_name(res));
+            continue;
+        }
+        UA_NodeId_clear(&target->sessionId);
+        target->sessionId = newSessionId;
+    }
+}
+
 static void
 AlarmsConditionsDriver_notification(UA_Driver *drv, UA_ApplicationNotificationType type,
                                     const UA_KeyValueMap payload) {
     AlarmsConditionsDriver *acd = (AlarmsConditionsDriver*)drv;
-    if((type & UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM) == 0)
-        return;
-
     const UA_NodeId *sessionId =
         (const UA_NodeId*)UA_KeyValueMap_getScalar(&payload,
             UA_QUALIFIEDNAME(0, "session-id"), &UA_TYPES[UA_TYPES_NODEID]);
     const UA_UInt32 *subscriptionId =
         (const UA_UInt32*)UA_KeyValueMap_getScalar(&payload,
             UA_QUALIFIEDNAME(0, "subscription-id"), &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* Of the Subscription notifications, only the transfer changes targets */
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_TRANSFERRED) {
+        if(sessionId && subscriptionId)
+            transferMonitoredItemTargets(acd, sessionId, *subscriptionId);
+        return;
+    }
+    if((type & UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM) == 0)
+        return;
+
     const UA_UInt32 *monitoredItemId =
         (const UA_UInt32*)UA_KeyValueMap_getScalar(&payload,
             UA_QUALIFIEDNAME(0, "monitoreditem-id"), &UA_TYPES[UA_TYPES_UINT32]);
@@ -671,6 +710,7 @@ getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
 
     /* Read the Value of SourceNode Property Node (the Value is a NodeId) */
     UA_Variant tOutVariant;
+    UA_Variant_init(&tOutVariant);
     res = UA_Server_readValue(server, nodeIdValue, &tOutVariant);
     if(res != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_NODEID])) {
@@ -754,10 +794,12 @@ isRetained(UA_Server *server, const UA_NodeId *condition) {
 
     /* Read Retain value */
     UA_Variant tOutVariant;
+    UA_Variant_init(&tOutVariant);
     res = UA_Server_readValue(server, retainNodeId, &tOutVariant);
     if(res != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_BOOLEAN])) {
           UA_NodeId_clear(&retainNodeId);
+          UA_Variant_clear(&tOutVariant);
           return false;
     }
 
@@ -788,10 +830,12 @@ isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
 
     /* Read Id value */
     UA_Variant tOutVariant;
+    UA_Variant_init(&tOutVariant);
     res = UA_Server_readValue(server, twoStateVariableIdNodeId, &tOutVariant);
     if(res != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_BOOLEAN])) {
         UA_NodeId_clear(&twoStateVariableIdNodeId);
+        UA_Variant_clear(&tOutVariant);
         return false;
     }
 
@@ -804,6 +848,13 @@ isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
 
     UA_Variant_clear(&tOutVariant);
     return false;
+}
+
+/* A comment is ignored only if both its locale and text are empty. An empty
+ * text with a locale resets the comment (Part 9, 5.5.6 and 5.7.3). */
+static UA_Boolean
+isNullComment(const UA_LocalizedText *comment) {
+    return comment->locale.length == 0 && comment->text.length == 0;
 }
 
 static AlarmsConditionsDriver *
@@ -1085,13 +1136,153 @@ afterWriteCallbackEnabledStateChange(UA_Server *server,
     UA_NodeId_clear(&conditionSource);
 }
 
+/* Enter the AckedState of a condition. The application callback is called
+ * first. Its Bad status refuses the transition before anything is changed and
+ * is returned. Then the comment, Message and AckedState are set and the event
+ * is triggered. The Acknowledge method calls this before AckedState/Id is set
+ * (writeId), the after-write callback of AckedState/Id after it was set. */
+static UA_StatusCode
+enteringAckedState(AlarmsConditionsDriver *acd, const UA_NodeId *conditionNode,
+                   const UA_LocalizedText *comment, UA_Boolean writeId) {
+    UA_Server *server = acd->driver.drv.server;
+
+    /* Get conditionSource */
+    UA_NodeId conditionSource;
+    UA_StatusCode res = getNodeIdValueOfConditionField(server, conditionNode,
+                                                       fieldSourceQN, &conditionSource);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionSource not found",);
+
+    /* User callback */
+    UA_Boolean removeBranch = false;
+    res = callConditionTwoStateVariableCallback(acd, conditionNode, &conditionSource,
+                                                &removeBranch, UA_ENTERING_ACKEDSTATE);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Calling condition callback failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set Comment. A null comment leaves the last value as is */
+    UA_Variant value;
+    if(comment && !isNullComment(comment)) {
+        UA_Variant_setScalar(&value, (void*)(uintptr_t)comment,
+                             &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        res = setConditionField(&acd->driver, *conditionNode, &value, fieldCommentQN);
+        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
+                                           UA_NodeId_clear(&conditionSource););
+    }
+
+    /* Set Message */
+    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, ACKED_MESSAGE);
+    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    res = setConditionField(&acd->driver, *conditionNode, &value, fieldMessageQN);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Message failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set AckedState text */
+    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACKED_TEXT);
+    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    res = setConditionField(&acd->driver, *conditionNode, &value, fieldAckedStateQN);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition AckedState failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set AckedState/Id */
+    if(writeId) {
+        UA_Boolean idValue = true;
+        UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        acd->methodWritesStateId = true;
+        res = setConditionVariableFieldProperty(&acd->driver, *conditionNode, &value,
+                                                fieldAckedStateQN, twoStateVariableIdQN);
+        acd->methodWritesStateId = false;
+        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set AckedState/Id failed",
+                                           UA_NodeId_clear(&conditionSource););
+    }
+
+    /* Trigger event */
+    //Condition Nodes should not be deleted after triggering the event
+    res = triggerConditionEvent(&acd->driver, *conditionNode, conditionSource, NULL);
+    UA_NodeId_clear(&conditionSource);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Triggering condition event failed",);
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Enter the ConfirmedState of a condition. Works like enteringAckedState. */
+static UA_StatusCode
+enteringConfirmedState(AlarmsConditionsDriver *acd, const UA_NodeId *conditionNode,
+                       const UA_LocalizedText *comment, UA_DateTime confirmingTime,
+                       UA_Boolean writeId) {
+    UA_Server *server = acd->driver.drv.server;
+
+    /* Get conditionSource */
+    UA_NodeId conditionSource;
+    UA_StatusCode res = getNodeIdValueOfConditionField(server, conditionNode,
+                                                       fieldSourceQN, &conditionSource);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionSource not found",);
+
+    /* User callback */
+    UA_Boolean removeBranch = false;
+    res = callConditionTwoStateVariableCallback(acd, conditionNode, &conditionSource,
+                                                &removeBranch, UA_ENTERING_CONFIRMEDSTATE);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Calling condition callback failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set Comment. A null comment leaves the last value as is */
+    UA_Variant value;
+    if(comment && !isNullComment(comment)) {
+        UA_Variant_setScalar(&value, (void*)(uintptr_t)comment,
+                             &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        res = setConditionField(&acd->driver, *conditionNode, &value, fieldCommentQN);
+        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
+                                           UA_NodeId_clear(&conditionSource););
+    }
+
+    /* Set confirming time */
+    if(confirmingTime == 0)
+        confirmingTime = UA_DateTime_now();
+    res = UA_Server_writeObjectProperty_scalar(server, *conditionNode, fieldTimeQN,
+                                               &confirmingTime, &UA_TYPES[UA_TYPES_DATETIME]);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Confirming Time failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set Message */
+    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_MESSAGE);
+    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    res = setConditionField(&acd->driver, *conditionNode, &value, fieldMessageQN);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Message failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set ConfirmedState text */
+    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_TEXT);
+    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    res = setConditionField(&acd->driver, *conditionNode, &value, fieldConfirmedStateQN);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition ConfirmedState failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set ConfirmedState/Id */
+    if(writeId) {
+        UA_Boolean idValue = true;
+        UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        acd->methodWritesStateId = true;
+        res = setConditionVariableFieldProperty(&acd->driver, *conditionNode, &value,
+                                                fieldConfirmedStateQN, twoStateVariableIdQN);
+        acd->methodWritesStateId = false;
+        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set ConfirmedState/Id failed",
+                                           UA_NodeId_clear(&conditionSource););
+    }
+
+    /* Trigger event */
+    //Condition Nodes should not be deleted after triggering the event
+    res = triggerConditionEvent(&acd->driver, *conditionNode, conditionSource, NULL);
+    UA_NodeId_clear(&conditionSource);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Triggering condition event failed",);
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 afterWriteCallbackAckedStateChange(UA_Server *server,
                                    const UA_NodeId *sessionId, void *sessionContext,
                                    const UA_NodeId *nodeId, void *nodeContext,
                                    const UA_NumericRange *range, const UA_DataValue *data) {
+    /* The Acknowledge method runs the state transition itself */
     AlarmsConditionsDriver *acd = findAlarmsConditionsDriver(server);
-    if(!acd)
+    if(!acd || acd->methodWritesStateId)
         return;
 
     /* Get the AckedState NodeId then The Condition NodeId */
@@ -1141,45 +1332,9 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
         return;
     }
 
-    /* Set Message */
-    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, ACKED_MESSAGE);
-    UA_Variant value;
-    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    res = setConditionField(&acd->driver, conditionNode, &value, fieldMessageQN);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition Message failed",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* Set AckedState text */
-    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACKED_TEXT);
-    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    res = setConditionField(&acd->driver, conditionNode, &value, fieldAckedStateQN);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition AckedState failed",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* Get conditionSource */
-    UA_NodeId conditionSource;
-    res = getNodeIdValueOfConditionField(server, &conditionNode, fieldSourceQN,
-                                         &conditionSource);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "ConditionSource not found",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* User callback*/
-    UA_Boolean removeBranch = false;
-    res = callConditionTwoStateVariableCallback(acd, &conditionNode, &conditionSource,
-                                                &removeBranch, UA_ENTERING_ACKEDSTATE);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Calling condition callback failed",
-                                     UA_NodeId_clear(&conditionNode);
-                                     UA_NodeId_clear(&conditionSource););
-
-    /* Trigger event */
-    //Condition Nodes should not be deleted after triggering the event
-    res = triggerConditionEvent(&acd->driver, conditionNode, conditionSource, NULL);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Triggering condition event failed",
-                                     UA_NodeId_clear(&conditionNode);
-                                     UA_NodeId_clear(&conditionSource););
-
+    res = enteringAckedState(acd, &conditionNode, NULL, false);
     UA_NodeId_clear(&conditionNode);
-    UA_NodeId_clear(&conditionSource);
+    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Entering acked state failed",);
 }
 
 static void
@@ -1187,8 +1342,9 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
                                        const UA_NodeId *sessionId, void *sessionContext,
                                        const UA_NodeId *nodeId, void *nodeContext,
                                        const UA_NumericRange *range, const UA_DataValue *data) {
+    /* The Confirm method runs the state transition itself */
     AlarmsConditionsDriver *acd = findAlarmsConditionsDriver(server);
-    if(!acd)
+    if(!acd || acd->methodWritesStateId)
         return;
 
     UA_Variant value;
@@ -1236,50 +1392,9 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
         return;
     }
 
-    /* Set confirming time */
-    UA_DateTime confirmingTime = data->sourceTimestamp;
-    if (confirmingTime == 0)
-        confirmingTime = UA_DateTime_now();
-    res = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                               &confirmingTime, &UA_TYPES[UA_TYPES_DATETIME]);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Confirming Time failed",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* Set Message */
-    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_MESSAGE);
-    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    res = setConditionField(&acd->driver, conditionNode, &value, fieldMessageQN);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition Message failed",
-                                 UA_NodeId_clear(&conditionNode););
-
-    /* Set ConfirmedState text */
-    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_TEXT);
-    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    res = setConditionField(&acd->driver, conditionNode, &value, fieldConfirmedStateQN);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition ConfirmedState failed",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* Get conditionSource */
-    UA_NodeId conditionSource;
-    res = getNodeIdValueOfConditionField(server, &conditionNode,
-                                         fieldSourceQN, &conditionSource);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "ConditionSource not found",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* User callback*/
-    UA_Boolean removeBranch = false;
-    res = callConditionTwoStateVariableCallback(acd, &conditionNode, &conditionSource,
-                                                &removeBranch, UA_ENTERING_CONFIRMEDSTATE);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Calling condition callback failed",
-                                 UA_NodeId_clear(&conditionNode);
-                                 UA_NodeId_clear(&conditionSource););
-
-    /* Trigger event */
-    //Condition Nodes should not be deleted after triggering the event
-    res = triggerConditionEvent(&acd->driver, conditionNode, conditionSource, NULL);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Triggering condition event failed",
-                                 UA_NodeId_clear(&conditionNode);
-                                 UA_NodeId_clear(&conditionSource););
+    res = enteringConfirmedState(acd, &conditionNode, NULL, data->sourceTimestamp, false);
+    UA_NodeId_clear(&conditionNode);
+    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Entering confirmed state failed",);
 }
 
 static void
@@ -1492,13 +1607,15 @@ afterWriteCallbackSeverityChange(UA_Server *server,
     UA_Variant_setScalar(&value, &severityTime, &UA_TYPES[UA_TYPES_DATETIME]);
     res = setConditionField(&acd->driver, condition, &value, fieldTimeQN);
     CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition Time failed",
-                                 UA_NodeId_clear(&condition););
+                                 UA_NodeId_clear(&condition);
+                                 UA_NodeId_clear(&conditionSource););
 
     /* Set Message */
     UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     res = setConditionField(&acd->driver, condition, &value, fieldMessageQN);
     CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition Message failed",
-                                 UA_NodeId_clear(&condition););
+                                 UA_NodeId_clear(&condition);
+                                 UA_NodeId_clear(&conditionSource););
 
     /* Check if retained */
     if(isRetained(server, &condition)) {
@@ -1638,8 +1755,10 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
     /* Check if enabled */
-    if(!isRetained(server, &triggerEvent))
+    if(!isRetained(server, &triggerEvent)) {
+        UA_NodeId_clear(&triggerEvent);
         return UA_STATUSCODE_BADCONDITIONDISABLED;
+    }
 
     /* Set SourceTimestamp */
     UA_Variant_setScalar(&value, &fieldSourceTimeStampValue, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -1663,11 +1782,9 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Message failed",
                                    UA_NodeId_clear(&triggerEvent););
 
-    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
+    /* Set Comment. A null comment leaves the last value as is */
     UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
-    UA_String nullString = UA_STRING_NULL;
-    if(!UA_String_equal(&inputComment->locale, &nullString) &&
-       !UA_String_equal(&inputComment->text, &nullString)) {
+    if(!isNullComment(inputComment)) {
         UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         res = setConditionField(&acd->driver, triggerEvent, &value, fieldCommentQN);
         CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
@@ -1705,8 +1822,6 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(!acd)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
-    UA_Variant value;
-
     UA_NodeId conditionTypeNodeId = UA_NS0ID(CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(acd->logging, UA_LOGCATEGORY_SERVER,
@@ -1720,13 +1835,18 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     res = getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
-    /* Check if retained */
-    if(!isRetained(server, &conditionNode))
+    /* Check if enabled and retained */
+    if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledStateQN) ||
+       !isRetained(server, &conditionNode)) {
+        UA_NodeId_clear(&conditionNode);
         return UA_STATUSCODE_BADCONDITIONDISABLED;
+    }
 
     /* Check if already acknowledged */
-    if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldAckedStateQN))
+    if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldAckedStateQN)) {
+        UA_NodeId_clear(&conditionNode);
         return UA_STATUSCODE_BADCONDITIONBRANCHALREADYACKED;
+    }
 
     /* Get EventType */
     UA_NodeId eventType;
@@ -1749,22 +1869,9 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NodeId_clear(&eventType);
 
-    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
-    UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
-    UA_String nullString = UA_STRING_NULL;
-    if(!UA_String_equal(&inputComment->locale, &nullString) &&
-       !UA_String_equal(&inputComment->text, &nullString)) {
-        UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-        res = setConditionField(&acd->driver, conditionNode, &value, fieldCommentQN);
-        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
-                                       UA_NodeId_clear(&conditionNode););
-    }
-
-    /* Set AcknowledgeableStateId */
-    UA_Boolean idValue = true;
-    UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    res = setConditionVariableFieldProperty(&acd->driver, conditionNode, &value,
-                                               fieldAckedStateQN, twoStateVariableIdQN);
+    /* Acknowledge. The application callback can refuse it. */
+    res = enteringAckedState(acd, &conditionNode,
+                             (const UA_LocalizedText *)input[1].data, true);
     UA_NodeId_clear(&conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Acknowledge Condition failed",);
     return res;
@@ -1785,8 +1892,6 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(!acd)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
-    UA_Variant value;
-
     UA_NodeId conditionTypeNodeId = UA_NS0ID(CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(acd->logging, UA_LOGCATEGORY_SERVER,
@@ -1800,13 +1905,18 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     res = getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
-    /* Check if retained */
-    if(!isRetained(server, &conditionNode))
+    /* Check if enabled and retained */
+    if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledStateQN) ||
+       !isRetained(server, &conditionNode)) {
+        UA_NodeId_clear(&conditionNode);
         return UA_STATUSCODE_BADCONDITIONDISABLED;
+    }
 
     /* Check if already confirmed */
-    if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldConfirmedStateQN))
+    if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldConfirmedStateQN)) {
+        UA_NodeId_clear(&conditionNode);
         return UA_STATUSCODE_BADCONDITIONBRANCHALREADYCONFIRMED;
+    }
 
     /* Get EventType */
     UA_NodeId eventType;
@@ -1827,24 +1937,11 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NodeId_clear(&eventType);
 
-    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
-    UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
-    UA_String nullString = UA_STRING_NULL;
-    if(!UA_String_equal(&inputComment->locale, &nullString) &&
-       !UA_String_equal(&inputComment->text, &nullString)) {
-        UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-        res = setConditionField(&acd->driver, conditionNode, &value, fieldCommentQN);
-        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
-                                           UA_NodeId_clear(&conditionNode););
-    }
-
-    /* Set ConfirmedStateId */
-    UA_Boolean idValue = true;
-    UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    res = setConditionVariableFieldProperty(&acd->driver, conditionNode, &value,
-                                            fieldConfirmedStateQN, twoStateVariableIdQN);
+    /* Confirm. The application callback can refuse it. */
+    res = enteringConfirmedState(acd, &conditionNode,
+                                 (const UA_LocalizedText *)input[1].data, 0, true);
     UA_NodeId_clear(&conditionNode);
-    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Acknowledge Condition failed",);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Confirm Condition failed",);
     return res;
 }
 
@@ -1914,13 +2011,22 @@ refreshLogic(UA_Server *server, AlarmsConditionsDriver *acd,
                 if(!isRetained(server, &triggeredNode))
                     continue;
 
-                UA_ByteString_clear(&branch->lastEventId);
+                /* The refreshed event keeps the EventId of the original event
+                 * (Part 9, 5.5.7). Other clients still use it to Acknowledge,
+                 * Confirm or AddComment. */
+                UA_KeyValuePair eventIdField =
+                    {{0, UA_STRING_STATIC("/EventId")}, {0}};
+                UA_Variant_setScalar(&eventIdField.value, &branch->lastEventId,
+                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
+                UA_KeyValueMap eventFields = {1, &eventIdField};
 
                 /* Add the event */
                 ed.eventInstance = &triggeredNode;
                 ed.sourceNode = conditionSource;
                 ed.eventType = UA_NODEID_NULL; /* overwritten by the EventInstance */
-                res = UA_Server_createEventEx(server, &ed, &branch->lastEventId);
+                ed.eventFields = &eventFields;
+                res = UA_Server_createEventEx(server, &ed, NULL);
+                ed.eventFields = NULL;
                 CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Events: Could not add the event to a listening node",);
             }
         }
@@ -1933,6 +2039,8 @@ refreshLogic(UA_Server *server, AlarmsConditionsDriver *acd,
     return UA_Server_createEventEx(server, &ed, NULL);
 }
 
+/* The arguments are IntegerIds. The Call service adjusts a UInt32 value to the
+ * IntegerId DataType of the InputArguments. Both have the same layout. */
 static UA_StatusCode
 checkConditionRefreshArguments(size_t expectedInputSize, size_t inputSize,
                                const UA_Variant *input, size_t outputSize) {
@@ -1941,7 +2049,8 @@ checkConditionRefreshArguments(size_t expectedInputSize, size_t inputSize,
     if(outputSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     for(size_t i = 0; i < inputSize; i++) {
-        if(!UA_Variant_hasScalarType(&input[i], &UA_TYPES[UA_TYPES_UINT32]))
+        if(!UA_Variant_hasScalarType(&input[i], &UA_TYPES[UA_TYPES_UINT32]) &&
+           !UA_Variant_hasScalarType(&input[i], &UA_TYPES[UA_TYPES_INTEGERID]))
             return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     return UA_STATUSCODE_GOOD;
@@ -1997,6 +2106,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
     UA_Boolean subscriptionFound = false;
+    UA_Boolean eventItemFound = false;
     UA_ACMonitoredItemTarget *target;
     LIST_FOREACH(target, &acd->monitoredItemTargets, listEntry) {
         if(target->subscriptionId != subscriptionId ||
@@ -2007,6 +2117,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         if(target->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
             continue;
 
+        eventItemFound = true;
         UA_StatusCode res =
             refreshLogic(server, acd, sessionId, &target->subscriptionId,
                          &target->monitoredItemId, &target->itemToMonitorId);
@@ -2015,6 +2126,9 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     if(!subscriptionFound)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    /* The Subscription has no event MonitoredItems (Part 9, 5.5.7) */
+    if(!eventItemFound)
+        return UA_STATUSCODE_BADNOTHINGTODO;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -2311,9 +2425,9 @@ setStandardConditionFields(AlarmsConditionsDriver *acd, const UA_NodeId* conditi
 
         /* Set the default value for the Expiration limit property */
         UA_Duration defaultValue = EXPIRATION_LIMIT_DEFAULT_VALUE;
-        res |= UA_Server_writeObjectProperty_scalar(server, *condition, fieldExpirationLimitQN,
-                                                    &defaultValue, &UA_TYPES[UA_TYPES_DURATION]);
-
+        res = UA_Server_writeObjectProperty_scalar(server, *condition, fieldExpirationLimitQN,
+                                                   &defaultValue, &UA_TYPES[UA_TYPES_DURATION]);
+        CONDITION_ASSERT_RETURN_RETVAL_SERVER(server, res, "Set Expiration Limit failed",);
     }
 
     /* 2. Check if ConditionType is subType of AlarmConditionType */
@@ -2965,7 +3079,8 @@ UA_AlarmsConditionsDriver(const UA_KeyValueMap params) {
 
     base->name = UA_STRING(UA_DRIVER_ALARMS_CONDITIONS_NAME);
     base->notificationCallback = AlarmsConditionsDriver_notification;
-    base->notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM;
+    base->notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM |
+                               UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION;
     base->start = AlarmsConditionsDriver_start;
     base->stop = AlarmsConditionsDriver_stop;
     base->free = AlarmsConditionsDriver_free;
