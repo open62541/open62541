@@ -75,6 +75,7 @@ endif()
 if(UA_ENABLE_METHODCALLS AND UA_GENERATED_NAMESPACE_ZERO)
     add_example(tutorial_server_filetransfer tutorial_server_filetransfer.c)
     add_example(server_filetransfer_custom_backend filetransfer/server_filetransfer_custom_backend.c)
+    add_example(server_filetransfer_temporary filetransfer/server_filetransfer_temporary.c)
 endif()
 
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)

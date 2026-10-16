@@ -43,6 +43,9 @@ accessRights(UA_Server *server, const FTEntry *node,
         if(!vanished)
             rights = info.accessRights & UA_FILEACCESS_ALL;
     }
+    /* A read transfer only reads its file */
+    if(node->transfer && !node->transfer->forWrite)
+        rights &= (UA_FileAccessRights)~UA_FILEACCESS_WRITE;
     const FTConfig *opts = &node->driver->config;
     if(opts->readOnly)
         rights &= (UA_FileAccessRights)~UA_FILEACCESS_WRITE;
@@ -154,6 +157,11 @@ countSessionHandles(FileTransferDriver *ftd, const UA_NodeId *sessionId) {
     return count;
 }
 
+UA_Boolean
+sessionHandleLimitReached(FileTransferDriver *ftd, const UA_NodeId *sessionId) {
+    return countSessionHandles(ftd, sessionId) >= ftd->config.maxHandlesPerSession;
+}
+
 /* Part 20 requires Session-unique handles. Each driver owns its counter and
  * handles; check the other instances without a shared allocator or registry. */
 static UA_UInt32
@@ -183,7 +191,8 @@ touchFTHandle(UA_Server *server, FTHandle *h) {
 }
 
 /* Close the backend handle and release the handle. Removes zombie nodes once
- * their last handle is closed. */
+ * their last handle is closed. Closing ends a transfer, except for the
+ * commit that uses the file afterwards. */
 UA_StatusCode
 closeFTHandle(UA_Server *server, FTHandle *h) {
     FTEntry *node = h->file;
@@ -201,8 +210,12 @@ closeFTHandle(UA_Server *server, FTHandle *h) {
     }
     UA_free(h);
 
-    if(node->zombie && node->subtreeHandleCount == 0)
+    if(node->transfer) {
+        if(!node->transfer->committing)
+            removeTransferFile(server, node);
+    } else if(node->zombie && node->subtreeHandleCount == 0) {
         removeSubtree(server, node);
+    }
     return res;
 }
 
@@ -255,6 +268,30 @@ sweepIdleHandles(UA_Server *server, void *driver) {
     }
 }
 
+static void *
+idleTransferHandle(void *context, FTHandle *h) {
+    const UA_DateTime *limit = (const UA_DateTime*)context;
+    return (h->file->transfer && h->file->transfer->lastActivity <= *limit) ? h : NULL;
+}
+
+/* Part 20, 4.4.1: the Server may cancel a transfer whose client is idle for
+ * longer than the ClientProcessingTimeout. The sweep runs in this interval,
+ * so a transfer ends within twice the timeout. */
+void
+sweepTransfers(UA_Server *server, void *driver) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime limit = el->dateTime_nowMonotonic(el) -
+        (UA_DateTime)(ftd->config.clientProcessingTimeout * UA_DATETIME_MSEC);
+    FTHandle *h;
+    while((h = (FTHandle*)ZIP_ITER(FTHandlesById, &ftd->handlesById,
+                                   idleTransferHandle, &limit))) {
+        UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                       "FileTransfer: Cancelled the idle transfer \"%S\"", h->file->path);
+        closeFTHandle(server, h);
+    }
+}
+
 /**************************************
  * FileType Method Callbacks
  **************************************/
@@ -273,6 +310,11 @@ resolveHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
     if(!h || !UA_NodeId_equal(&h->file->nodeId, objectId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     touchFTHandle(ftd->driver.server, h);
+    /* Each call on a transfer file restarts its ClientProcessingTimeout */
+    if(h->file->transfer) {
+        UA_EventLoop *el = UA_Server_getConfig(ftd->driver.server)->eventLoop;
+        h->file->transfer->lastActivity = el->dateTime_nowMonotonic(el);
+    }
     *outHandle = h;
     return UA_STATUSCODE_GOOD;
 }
@@ -364,6 +406,9 @@ openMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(!node)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
+    /* A transfer file has exactly the handle returned by its generate Method */
+    if(node->kind != FT_ENTRY_STORAGE)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
     if(node->isDirectory || node->zombie)
         return UA_STATUSCODE_BADNOTFOUND;
     UA_StatusCode res;
@@ -502,7 +547,17 @@ writeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(data.length > ftd->config.maxReadLength)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* A transfer file must not grow beyond max-transfer-size */
     UA_FileTransferFileBackend *b = &h->file->driver->backend.file;
+    UA_UInt64 limit = ftd->config.maxTransferSize;
+    if(h->file->transfer && limit > 0) {
+        UA_UInt64 position = 0;
+        res = b->getPosition(b, h->backendHandle, &position);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        if(position > limit || (UA_UInt64)data.length > limit - position)
+            return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
+    }
     return b->write(b, h->backendHandle, data);
 }
 
