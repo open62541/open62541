@@ -69,6 +69,8 @@ typedef struct {
     /* NUL-terminated UTF-8 basename; empty for a directory root */
     char name[UA_FILETRANSFER_FILENAME_MAX + 1];
     UA_UInt64 size;             /* Size in bytes (files only) */
+    UA_Boolean sizeUnknown;     /* The Size Property then reports
+                                 * Bad_NotSupported (Part 20, 4.2.1) */
     UA_DateTime lastModified;   /* Last modification time */
     UA_Boolean isDirectory;
     UA_FileAccessRights accessRights; /* Storage-level permissions. Backend
@@ -78,6 +80,17 @@ typedef struct {
                                 * leaves an existing one unchanged. */
 } UA_FileTransferFileInfo;
 
+/* The caller of an open. The driver passes the Session of the Method call for
+ * Open, CreateFile, the copies of MoveOrCopy and
+ * UA_FileTransferDriver_openHandle(). Direct calls of the application pass
+ * NULL. */
+typedef struct {
+    UA_Server *server;
+    const UA_NodeId *sessionId;
+    void *sessionContext;
+    void *openContext; /* Of UA_FileTransferDriver_openHandle(), else NULL */
+} UA_FileTransferOpenContext;
+
 typedef struct UA_FileTransferFileBackend UA_FileTransferFileBackend;
 struct UA_FileTransferFileBackend {
     /* Backend-owned storage and handle state */
@@ -85,9 +98,14 @@ struct UA_FileTransferFileBackend {
 
     /* Open a file. mode is a UA_Byte bit mask of UA_OPENFILEMODE_* flags,
      * validated by the driver. Append starts at EOF; otherwise start at zero.
-     * EraseExisting truncates the file. Return an independent handle. */
+     * EraseExisting truncates the file. Return an independent handle.
+     * context is the caller or NULL. For a Method call, the driver has checked
+     * the mode, the locking (Part 20, 4.2.2), the access rights and the handle
+     * limits before, and the result is returned to the client, e.g.
+     * Bad_NotSupported for a mode the file does not offer. */
     UA_StatusCode (*open)(UA_FileTransferFileBackend *b, const UA_String path,
-                          UA_Byte mode, UA_UInt32 *handle);
+                          UA_Byte mode, const UA_FileTransferOpenContext *context,
+                          UA_UInt32 *handle);
 
     /* Close the handle and flush buffered writes. Report flush errors here;
      * a destination close error also fails a driver-managed copy. */
@@ -215,6 +233,12 @@ struct UA_FileTransferBackend {
  * 0:max-open-handles-per-file [UInt16]
  *    Open-handle limit per file (default: 16). Either handle limit makes
  *    Open return Bad_ResourceUnavailable when reached.
+ * 0:activity-timeout [Double]
+ *    Close handles without a Method call for longer than this many
+ *    milliseconds like Close, e.g. for the ActivityTimeout of a TrustList
+ *    (Part 12, 7.8.2.1). The FileType Methods, openHandle and getHandleInfo
+ *    count as calls. Idle handles are closed within twice the timeout. 0
+ *    disables it (default); otherwise at least 0.0001.
  * 0:max-read-length [UInt32]
  *    Maximum bytes per Read or Write (default, also when zero: 1048576).
  *    Published as MaxByteStringLength. Reads are capped at this length;
@@ -315,6 +339,23 @@ UA_FileTransferDriver_closeHandle(UA_Driver *driver,
                                   const UA_NodeId fileNodeId,
                                   const UA_NodeId *sessionId,
                                   UA_UInt32 fileHandle);
+
+/* Subtype Methods that open the file with their own arguments, e.g.
+ * OpenWithMasks of a TrustList (Part 12), create the FileHandle with
+ * openHandle. openContext reaches the backend open, e.g. for the masks. The
+ * checks and results of the Open Method apply; a stopped driver returns
+ * Bad_InvalidState and a node that is not a file of the driver
+ * Bad_InvalidArgument. The handle belongs to the Session like one from Open:
+ * it counts in OpenCount and the handle limits and closes with the Session.
+ * Return fileHandle to the client, or close it with closeHandle if the Method
+ * fails afterwards. backendHandle is optional. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_openHandle(UA_Driver *driver,
+                                 const UA_NodeId fileNodeId,
+                                 const UA_NodeId *sessionId,
+                                 void *sessionContext, UA_Byte mode,
+                                 void *openContext, UA_UInt32 *fileHandle,
+                                 UA_UInt32 *backendHandle);
 
 /**
  * Local Backends

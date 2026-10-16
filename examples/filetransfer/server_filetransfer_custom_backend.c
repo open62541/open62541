@@ -53,7 +53,7 @@ memFsHandle(UA_FileTransferFileBackend *b, UA_UInt32 handle) {
 
 static UA_StatusCode
 memFsOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mode,
-          UA_UInt32 *handle) {
+          const UA_FileTransferOpenContext *context, UA_UInt32 *handle) {
     MemFs *fs = (MemFs*)b->context;
     MemFile *file = memFsFind(fs, path);
     if(!file)

@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Session and subscription diagnostics are named in the server namespace
+
+The per-session objects below `SessionsDiagnosticsSummary` and the
+per-subscription variables below the `SubscriptionDiagnosticsArray` variables
+have the BrowseName `1:<SessionName>` and `1:<SubscriptionId>` instead of
+namespace 0. Their children keep the namespace 0 BrowseNames of their types.
+Browse paths to these nodes have to use namespace 1.
+
 ### Blocking and asynchronous server shutdown
 
 `UA_Server_run_shutdown` now waits for shutdown to complete even with an external

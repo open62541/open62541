@@ -1526,6 +1526,174 @@ START_TEST(Client_subscription_keepAlive) {
 }
 END_TEST
 
+typedef struct {
+    UA_UInt32 count;
+    UA_DateTime publishTime;
+    size_t notificationDataSize;
+    UA_Boolean moreNotifications;
+} KeepAliveResponse;
+
+static void
+keepAliveResponseCallback(UA_Client *client, void *userdata,
+                          UA_UInt32 requestId, void *response) {
+    KeepAliveResponse *received = (KeepAliveResponse*)userdata;
+    UA_PublishResponse *pr = (UA_PublishResponse*)response;
+    ck_assert_uint_eq(pr->responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    received->count++;
+    received->publishTime = pr->notificationMessage.publishTime;
+    received->notificationDataSize = pr->notificationMessage.notificationDataSize;
+    received->moreNotifications = pr->moreNotifications;
+}
+
+static void
+sendKeepAlivePublishRequest(UA_Client *client, KeepAliveResponse *received) {
+    UA_PublishRequest request;
+    UA_PublishRequest_init(&request);
+    UA_StatusCode res = __UA_Client_AsyncService(
+        client, &request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+        keepAliveResponseCallback, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
+        received, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+static void
+iterateKeepAliveClientServer(UA_Client *client) {
+    /* Drain network traffic and delayed callbacks without advancing the clock. */
+    for(unsigned i = 0; i < 10; i++) {
+        UA_Server_run_iterate(server, false);
+        ck_assert_uint_eq(UA_Client_run_iterate(client, 1), UA_STATUSCODE_GOOD);
+    }
+}
+
+static void
+checkKeepAlivePublishingDisabled(unsigned itemCase, UA_UInt32 keepAliveCount,
+                                 UA_Boolean firstKeepAliveLate) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    request.requestedPublishingInterval = 1000;
+    request.requestedMaxKeepAliveCount = keepAliveCount;
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_double_eq(response.revisedPublishingInterval, 1000);
+    ck_assert_uint_eq(response.revisedMaxKeepAliveCount, keepAliveCount);
+    UA_UInt32 subId = response.subscriptionId;
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    /* Empty, changing, disabled and static MonitoredItem cases. */
+    if(itemCase != 0) {
+        UA_UInt32 nodeId = (itemCase == 3) ? UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME :
+                                           UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME;
+        UA_MonitoredItemCreateRequest monRequest =
+            UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, nodeId));
+        monRequest.requestedParameters.samplingInterval = -1;
+        monRequest.requestedParameters.queueSize = 1;
+        if(itemCase == 2)
+            monRequest.monitoringMode = UA_MONITORINGMODE_DISABLED;
+        UA_MonitoredItemCreateResult monResponse =
+            UA_Client_MonitoredItems_createDataChange(
+                client, subId, UA_TIMESTAMPSTORETURN_NEITHER,
+                monRequest, NULL, dataChangeHandler, NULL);
+        ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+        UA_MonitoredItemCreateResult_clear(&monResponse);
+    }
+
+    /* Deliver the initial notification before disabling publishing. In the
+     * static case this leaves no notifications waiting in the queue. */
+    pauseServer();
+    KeepAliveResponse received = {0, 0, 0, false};
+    sendKeepAlivePublishRequest(client, &received);
+    iterateKeepAliveClientServer(client);
+    UA_fakeSleep(1000);
+    iterateKeepAliveClientServer(client);
+    ck_assert_uint_eq(received.count, 1);
+    ck_assert_uint_eq(received.notificationDataSize,
+                      (itemCase == 1 || itemCase == 3) ? 1 : 0);
+
+    runServer();
+    UA_SetPublishingModeRequest mode;
+    UA_SetPublishingModeRequest_init(&mode);
+    mode.subscriptionIds = &subId;
+    mode.subscriptionIdsSize = 1;
+    mode.publishingEnabled = false;
+    UA_SetPublishingModeResponse changed =
+        UA_Client_Subscriptions_setPublishingMode(client, mode);
+    ck_assert_uint_eq(changed.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(changed.resultsSize, 1);
+    ck_assert_uint_eq(changed.results[0], UA_STATUSCODE_GOOD);
+    UA_SetPublishingModeResponse_clear(&changed);
+    pauseServer();
+
+    UA_Boolean moreNotifications = false;
+    for(unsigned round = 0; round < 3; round++) {
+        UA_UInt32 previousCount = received.count;
+        UA_DateTime previousTime = received.publishTime;
+        UA_Boolean late = firstKeepAliveLate && round == 0;
+        if(!late) {
+            sendKeepAlivePublishRequest(client, &received);
+            iterateKeepAliveClientServer(client);
+            ck_assert_uint_eq(received.count, previousCount);
+        }
+        for(UA_UInt32 cycle = 1; cycle <= keepAliveCount; cycle++) {
+            UA_fakeSleep(1000);
+            iterateKeepAliveClientServer(client);
+            ck_assert_uint_eq(received.count,
+                              previousCount + (!late && cycle == keepAliveCount));
+        }
+        if(late) {
+            /* A previously late subscription must also return to normal after
+             * sending its keep-alive, despite the queued data changes. */
+            sendKeepAlivePublishRequest(client, &received);
+            iterateKeepAliveClientServer(client);
+        }
+        ck_assert_uint_eq(received.count, previousCount + 1);
+        ck_assert_int_eq(received.publishTime - previousTime,
+                         keepAliveCount * UA_DATETIME_SEC);
+        ck_assert_uint_eq(received.notificationDataSize, 0);
+        moreNotifications |= received.moreNotifications;
+    }
+    ck_assert(!moreNotifications);
+
+    if(itemCase == 1) {
+        /* Data delivery must resume when publishing is re-enabled. */
+        runServer();
+        mode.publishingEnabled = true;
+        changed = UA_Client_Subscriptions_setPublishingMode(client, mode);
+        ck_assert_uint_eq(changed.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(changed.resultsSize, 1);
+        ck_assert_uint_eq(changed.results[0], UA_STATUSCODE_GOOD);
+        UA_SetPublishingModeResponse_clear(&changed);
+        pauseServer();
+        UA_UInt32 previousCount = received.count;
+        sendKeepAlivePublishRequest(client, &received);
+        iterateKeepAliveClientServer(client);
+        UA_fakeSleep(1000);
+        iterateKeepAliveClientServer(client);
+        ck_assert_uint_eq(received.count, previousCount + 1);
+        ck_assert_uint_eq(received.notificationDataSize, 1);
+    }
+
+    runServer();
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+
+START_TEST(Client_subscription_keepAlive_publishingDisabled) {
+    checkKeepAlivePublishingDisabled((unsigned)_i, 10, false);
+} END_TEST
+
+START_TEST(Client_subscription_keepAlive_publishingDisabled_late) {
+    checkKeepAlivePublishingDisabled(1, 10, true);
+} END_TEST
+
+START_TEST(Client_subscription_keepAlive_publishingDisabled_oneCycle) {
+    checkKeepAlivePublishingDisabled(1, 1, false);
+} END_TEST
+
 START_TEST(Client_subscription_priority) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -2974,6 +3142,16 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_modifyAsync_invalidSubscriptionId);
     tcase_add_test(tc_client, Client_renewSecureChannel_returnsGoodCallAgain);
     suite_add_tcase(s,tc_client);
+
+    TCase *tc_disabledPublishing = tcase_create("Disabled Publishing");
+    tcase_add_checked_fixture(tc_disabledPublishing, setup, teardown);
+    tcase_add_loop_test(tc_disabledPublishing,
+                       Client_subscription_keepAlive_publishingDisabled, 0, 4);
+    tcase_add_test(tc_disabledPublishing,
+                   Client_subscription_keepAlive_publishingDisabled_late);
+    tcase_add_test(tc_disabledPublishing,
+                   Client_subscription_keepAlive_publishingDisabled_oneCycle);
+    suite_add_tcase(s, tc_disabledPublishing);
 
     TCase *tc_doubleBuffer = tcase_create("MonitoredItem Double Buffer");
     tcase_add_checked_fixture(tc_doubleBuffer, setup, teardown);

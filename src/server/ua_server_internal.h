@@ -158,6 +158,7 @@ struct UA_Server {
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
     UA_UInt32 activeSessionCount;
+    UA_UInt32 sessionCleanupPending;
 
     /* Session for local access to the services for upkeep and the C API. Comes
      * equipped with all possible access rights (Session Id: 1). */
