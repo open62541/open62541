@@ -469,8 +469,14 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
          * reading the value. */
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             /* The access to a value variable is granted via the UserAccessLevel
-             * attribute (masked with the AccessLevel attribute) */
-            UA_Byte accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+             * attribute (masked with the AccessLevel attribute). Bad_NotReadable
+             * if the AccessLevel itself does not allow reading. */
+            UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
+            if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
+                retval = UA_STATUSCODE_BADNOTREADABLE;
+                break;
+            }
+            accessLevel = getUserAccessLevel(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
@@ -1798,9 +1804,15 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             /* The access to a value variable is granted via the UserAccessLevel
-             * attribute (masked with the AccessLevel attribute) */
-            UA_Byte accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+             * attribute (masked with the AccessLevel attribute). Bad_NotWritable
+             * if the AccessLevel itself does not allow writing. */
+            UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
+                retval = UA_STATUSCODE_BADNOTWRITABLE;
+                break;
+            }
+            UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
+            if(!(userAccessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
             }
@@ -1810,13 +1822,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
              */
             if(   (wvalue->value.hasStatus)
                && (wvalue->value.status != UA_STATUSCODE_GOOD)) {
-                accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                     break;
                 }
-                accessLevel = getUserAccessLevel(server, session, &node->variableNode);
-                if(!(accessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
+                if(!(userAccessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
                     retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                     break;
                 }
@@ -1828,13 +1838,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
              */
             if(   (wvalue->value.hasSourceTimestamp)
                && (wvalue->value.sourceTimestamp != (UA_DateTime)(0))) {
-                accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                     break;
                 }
-                accessLevel = getUserAccessLevel(server, session, &node->variableNode);
-                if(!(accessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
+                if(!(userAccessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
                     retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                     break;
                 }

@@ -1885,6 +1885,172 @@ START_TEST(ReadRequestsAttributeFromNodestore) {
     ns->getNode = originalGetNode;
 } END_TEST
 
+/* AccessLevel vs. UserAccessLevel precedence. The admin session bypasses both
+ * checks, so these tests go through a regular (non-admin) session. The
+ * UserAccessLevel returned by the AccessControl plugin is set per test. */
+static UA_Byte testUserAccessLevel = 0xFF;
+
+static UA_Byte
+getTestUserAccessLevel(UA_Server *server_, UA_AccessControl *ac,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *nodeId, void *nodeContext) {
+    return testUserAccessLevel;
+}
+
+#define accessLevelNodeId UA_NODEID_STRING(1, "accesslevel.var")
+
+static void
+addAccessLevelVariable(UA_Byte accessLevel, UA_Byte userAccessLevel) {
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_Int32 v = 42;
+    UA_Variant_setScalar(&vattr.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+    vattr.accessLevel = accessLevel;
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "accesslevel");
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, accessLevelNodeId,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "accesslevel"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  vattr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    testUserAccessLevel = userAccessLevel;
+    UA_Server_getConfig(server)->accessControl.getUserAccessLevel = getTestUserAccessLevel;
+}
+
+static UA_StatusCode
+readValueAsUser(void) {
+    UA_Session session;
+    UA_Session_init(&session);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = accessLevelNodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    lockServer(server);
+    UA_DataValue dv = readWithSession(server, &session, &rvi,
+                                      UA_TIMESTAMPSTORETURN_NEITHER);
+    UA_Session_clear(&session, server);
+    unlockServer(server);
+    UA_StatusCode res = dv.hasStatus ? dv.status : UA_STATUSCODE_GOOD;
+    if(res == UA_STATUSCODE_GOOD)
+        ck_assert(dv.hasValue);
+    UA_DataValue_clear(&dv);
+    return res;
+}
+
+static UA_StatusCode
+writeValueAsUser(UA_StatusCode status, UA_DateTime sourceTimestamp) {
+    UA_Session session;
+    UA_Session_init(&session);
+    UA_Int32 v = 23;
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = accessLevelNodeId;
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Variant_setScalar(&wv.value.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+    wv.value.hasValue = true;
+    if(status != UA_STATUSCODE_GOOD) {
+        wv.value.hasStatus = true;
+        wv.value.status = status;
+    }
+    if(sourceTimestamp != 0) {
+        wv.value.hasSourceTimestamp = true;
+        wv.value.sourceTimestamp = sourceTimestamp;
+    }
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    lockServer(server);
+    Operation_Write(server, &session, &wv, &res);
+    UA_Session_clear(&session, server);
+    unlockServer(server);
+    return res;
+}
+
+START_TEST(ReadValue_AccessLevelNotReadable) {
+    /* AccessLevel denies reading -> Bad_NotReadable, regardless of the
+     * UserAccessLevel */
+    addAccessLevelVariable(UA_ACCESSLEVELMASK_WRITE, 0xFF);
+    ck_assert_uint_eq(readValueAsUser(), UA_STATUSCODE_BADNOTREADABLE);
+    testUserAccessLevel = 0;
+    ck_assert_uint_eq(readValueAsUser(), UA_STATUSCODE_BADNOTREADABLE);
+} END_TEST
+
+START_TEST(ReadValue_UserAccessLevelNotReadable) {
+    addAccessLevelVariable(UA_ACCESSLEVELMASK_READ, UA_ACCESSLEVELMASK_WRITE);
+    ck_assert_uint_eq(readValueAsUser(), UA_STATUSCODE_BADUSERACCESSDENIED);
+} END_TEST
+
+START_TEST(ReadValue_Readable) {
+    addAccessLevelVariable(UA_ACCESSLEVELMASK_READ, UA_ACCESSLEVELMASK_READ);
+    ck_assert_uint_eq(readValueAsUser(), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(WriteValue_AccessLevelNotWritable) {
+    /* AccessLevel denies writing -> Bad_NotWritable, regardless of the
+     * UserAccessLevel */
+    addAccessLevelVariable(UA_ACCESSLEVELMASK_READ, 0xFF);
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_GOOD, 0),
+                      UA_STATUSCODE_BADNOTWRITABLE);
+    testUserAccessLevel = 0;
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_GOOD, 0),
+                      UA_STATUSCODE_BADNOTWRITABLE);
+} END_TEST
+
+START_TEST(WriteValue_UserAccessLevelNotWritable) {
+    addAccessLevelVariable(UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE,
+                           UA_ACCESSLEVELMASK_READ);
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_GOOD, 0),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+} END_TEST
+
+START_TEST(WriteValue_Writable) {
+    addAccessLevelVariable(UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE,
+                           UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE);
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_GOOD, 0), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(WriteValue_StatusWrite) {
+    const UA_Byte rw = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    /* AccessLevel lacks StatusWrite */
+    addAccessLevelVariable(rw, 0xFF);
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_UNCERTAIN, 0),
+                      UA_STATUSCODE_BADWRITENOTSUPPORTED);
+
+    /* AccessLevel allows StatusWrite, UserAccessLevel does not */
+    UA_Byte al = rw | UA_ACCESSLEVELMASK_STATUSWRITE;
+    ck_assert_uint_eq(UA_Server_writeAccessLevel(server, accessLevelNodeId, al),
+                      UA_STATUSCODE_GOOD);
+    testUserAccessLevel = rw;
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_UNCERTAIN, 0),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    /* Both allow StatusWrite */
+    testUserAccessLevel = al;
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_UNCERTAIN, 0),
+                      UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(WriteValue_TimestampWrite) {
+    const UA_Byte rw = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    const UA_DateTime ts = UA_DateTime_now();
+    /* AccessLevel lacks TimestampWrite */
+    addAccessLevelVariable(rw, 0xFF);
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_GOOD, ts),
+                      UA_STATUSCODE_BADWRITENOTSUPPORTED);
+
+    /* AccessLevel allows TimestampWrite, UserAccessLevel does not */
+    UA_Byte al = rw | UA_ACCESSLEVELMASK_TIMESTAMPWRITE;
+    ck_assert_uint_eq(UA_Server_writeAccessLevel(server, accessLevelNodeId, al),
+                      UA_STATUSCODE_GOOD);
+    testUserAccessLevel = rw;
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_GOOD, ts),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    /* Both allow TimestampWrite */
+    testUserAccessLevel = al;
+    ck_assert_uint_eq(writeValueAsUser(UA_STATUSCODE_GOOD, ts), UA_STATUSCODE_GOOD);
+} END_TEST
+
 static Suite * testSuite_services_attributes(void) {
     Suite *s = suite_create("services_attributes_read");
 
@@ -2015,6 +2181,18 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_checked_fixture(tc_attributeMask, setup, teardown);
     tcase_add_test(tc_attributeMask, ReadRequestsAttributeFromNodestore);
     suite_add_tcase(s, tc_attributeMask);
+
+    TCase *tc_accessLevel = tcase_create("accessLevel");
+    tcase_add_checked_fixture(tc_accessLevel, setup, teardown);
+    tcase_add_test(tc_accessLevel, ReadValue_AccessLevelNotReadable);
+    tcase_add_test(tc_accessLevel, ReadValue_UserAccessLevelNotReadable);
+    tcase_add_test(tc_accessLevel, ReadValue_Readable);
+    tcase_add_test(tc_accessLevel, WriteValue_AccessLevelNotWritable);
+    tcase_add_test(tc_accessLevel, WriteValue_UserAccessLevelNotWritable);
+    tcase_add_test(tc_accessLevel, WriteValue_Writable);
+    tcase_add_test(tc_accessLevel, WriteValue_StatusWrite);
+    tcase_add_test(tc_accessLevel, WriteValue_TimestampWrite);
+    suite_add_tcase(s, tc_accessLevel);
 
     return s;
 }
