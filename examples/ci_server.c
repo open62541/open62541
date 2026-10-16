@@ -543,6 +543,8 @@ int main(int argc, char* argv[]) {
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
         
+    config->shutdownDelay = 5000.0;
+
     addHelloWorldMethod(server);
     addVariable(server);
     writeVariable(server);
