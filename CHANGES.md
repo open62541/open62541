@@ -19,6 +19,14 @@ EventLoop, which is left running for its other users. Use the new
 drive the EventLoop and repeat the call while the server is STOPPING. Both
 functions are idempotent; `UA_Server_run_iterate` alone no longer completes shutdown.
 
+### Opt-in UTC-only local time
+
+If open62541 is compiled with `UA_LOCAL_TIME_IS_UTC` defined,
+`UA_DateTime_localTimeUtcOffset` always returns 0 on the POSIX, Win32 and
+Zephyr architectures, as it already does on FreeRTOS. The timezone functions
+of the C library are then not used. Timestamps of the stdout logger are printed
+in UTC. There is no CMake option; add the definition to the compiler flags.
+
 ### The server startup fails without a server socket
 
 `UA_Server_run_startup` (and so `UA_Server_run` and

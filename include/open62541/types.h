@@ -288,7 +288,9 @@ typedef int64_t UA_DateTime;
 /* The current time in UTC time */
 UA_DateTime UA_EXPORT UA_DateTime_now(void);
 
-/* Offset between local time and UTC time */
+/* Offset between local time and UTC time. Always 0 if open62541 is compiled
+ * with UA_LOCAL_TIME_IS_UTC defined. This avoids linking the timezone support
+ * of the C library on targets that do not need local time. */
 UA_Int64 UA_EXPORT UA_DateTime_localTimeUtcOffset(void);
 
 /* CPU clock invariant to system time changes. Use only to measure durations,
