@@ -573,6 +573,18 @@ UA_DataSetReader_setPubSubState(UA_Server *server,
 /*                ReaderGroup                 */
 /**********************************************/
 
+#define UA_PUBSUB_REPLAY_HISTORY_SIZE 64
+
+typedef struct {
+    UA_Boolean inUse;
+    UA_Boolean publisherIdEnabled;
+    UA_PublisherIdType publisherIdType;
+    UA_PublisherId publisherId;
+    UA_UInt32 securityTokenId;
+    UA_UInt32 sequenceNumber;
+    UA_UInt64 useCounter;
+} UA_PubSubReplayHistoryEntry;
+
 struct UA_ReaderGroup {
     UA_PubSubComponentEnumType componentType;
     UA_ReaderGroupConfig config;
@@ -595,6 +607,8 @@ struct UA_ReaderGroup {
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_UInt32 securityTokenId;
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
+    UA_UInt64 replayUseCounter;
+    UA_PubSubReplayHistoryEntry replayHistory[UA_PUBSUB_REPLAY_HISTORY_SIZE];
     void *securityPolicyContext;
 #ifdef UA_ENABLE_PUBSUB_SKS
     UA_PubSubKeyStorage *keyStorage;
@@ -694,6 +708,10 @@ UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString *buffer,
                                size_t *currentPosition, UA_NetworkMessage *nm,
                                UA_ReaderGroup *readerGroup);
+
+UA_StatusCode
+UA_ReaderGroup_checkReplay(UA_ReaderGroup *readerGroup,
+                           const UA_NetworkMessage *nm);
 #endif
 
 /* Takes a value (and not a pointer) to the buffer. The original buffer is

@@ -16,6 +16,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <net/if.h>
 #include <stdlib.h>
 
 /* Adjust your configuration globally for the ethernet tests here: */
@@ -113,6 +114,30 @@ START_TEST(AddConnectionWithInvalidInterface){
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
+} END_TEST
+
+START_TEST(AddConnectionRejectsLongInterfaceWithEmbeddedNul) {
+    UA_Byte interfaceData[IFNAMSIZ + 1];
+    memset(interfaceData, 'x', sizeof(interfaceData));
+    interfaceData[0] = 'l';
+    interfaceData[1] = 'o';
+    interfaceData[2] = 0;
+    UA_String interfaceName = {sizeof(interfaceData), interfaceData};
+
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name = UA_STRING("Ethernet Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl = {
+        interfaceName, UA_STRING(MULTICAST_MAC_ADDRESS)};
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING(
+        "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+
+    UA_StatusCode retVal =
+        UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
 } END_TEST
 
@@ -216,6 +241,19 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
 } END_TEST
 
 int main(void) {
+    Suite *boundsSuite = suite_create("PubSub Ethernet interface bounds");
+    TCase *bounds = tcase_create("Ethernet interface bounds");
+    tcase_add_checked_fixture(bounds, setup, teardown);
+    tcase_add_test(bounds, AddConnectionRejectsLongInterfaceWithEmbeddedNul);
+    suite_add_tcase(boundsSuite, bounds);
+    SRunner *boundsRunner = srunner_create(boundsSuite);
+    srunner_set_fork_status(boundsRunner, CK_NOFORK);
+    srunner_run_all(boundsRunner, CK_NORMAL);
+    int boundsFailed = srunner_ntests_failed(boundsRunner);
+    srunner_free(boundsRunner);
+
+    if(boundsFailed)
+        return EXIT_FAILURE;
     if(SKIP_ETHERNET && strlen(SKIP_ETHERNET) > 0)
         return EXIT_SUCCESS;
 
@@ -248,4 +286,3 @@ int main(void) {
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-

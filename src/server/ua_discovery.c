@@ -216,6 +216,8 @@ UA_DiscoveryManager_new(UA_Server *server) {
     if(!dm)
         return NULL;
 
+    dm->maxRegisteredServers = 1000;
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
