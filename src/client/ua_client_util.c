@@ -205,6 +205,7 @@ UA_Client_getRemoteDataTypes(UA_Client *client,
                              UA_DataTypeArray **customTypes) {
     if(!customTypes)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *customTypes = NULL;
 
     UA_ReadRequest req;
     UA_ReadRequest_init(&req);
