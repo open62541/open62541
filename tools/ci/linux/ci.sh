@@ -166,7 +166,7 @@ EOF
 
     x86_64-w64-mingw32-gcc -D_WIN32_WINNT=0x0600 \
         -Wall -Werror amalgamation_none_smoke.c open62541.c \
-        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi
+        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi -lbcrypt
 }
 
 function build_amalgamation_mt {
