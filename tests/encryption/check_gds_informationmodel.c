@@ -1087,6 +1087,40 @@ START_TEST(add_certificate_replaced_input_metadata) {
 }
 END_TEST
 
+/* A file transfer driver serves the TrustList (Part 12, 7.8.2.1) */
+START_TEST(trustlist_file_properties) {
+    UA_Client *client = createSecureClient();
+
+    /* The Size has no meaning for a TrustList */
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval = UA_Client_readValueAttribute(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SIZE),
+        &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_Variant_clear(&value);
+
+    /* Closing the Session closes the TrustList */
+    UA_Variant fileHandle;
+    UA_Variant_init(&fileHandle);
+    retval = openTrustList(client, UA_OPENFILEMODE_READ, &fileHandle);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&fileHandle);
+    const UA_NodeId openCount = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENCOUNT);
+    retval = UA_Client_readValueAttribute(client, openCount, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt16*)value.data, 1);
+    UA_Variant_clear(&value);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    retval = UA_Server_readValue(server, openCount, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt16*)value.data, 0);
+    UA_Variant_clear(&value);
+}
+END_TEST
+
 /* Exercise each callback contract directly, independently of method metadata. */
 START_TEST(gds_callback_argument_counts) {
     const struct {
@@ -1107,22 +1141,10 @@ START_TEST(gds_callback_argument_counts) {
          UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 0},
         {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE,
          UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 0},
-        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN,
-         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 1},
         {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS,
          UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 1},
-        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ,
-         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 1},
-        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE,
-         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 0},
-        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE,
-         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 0},
         {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE,
          UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 1},
-        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION,
-         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 1},
-        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION,
-         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 0},
     };
     UA_Variant input[7];
     UA_Variant output[2];
@@ -1157,6 +1179,42 @@ START_TEST(gds_callback_argument_counts) {
             ck_assert_uint_eq(retval, expectedOutputStatus);
         }
     }
+
+    /* The file transfer driver serves the FileType Methods of the TrustLists */
+    const UA_UInt32 fileMethods[6][3] = {
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN,
+         UA_NS0ID_FILETYPE_OPEN},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSE,
+         UA_NS0ID_FILETYPE_CLOSE},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_READ,
+         UA_NS0ID_FILETYPE_READ},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITE,
+         UA_NS0ID_FILETYPE_WRITE},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION,
+         UA_NS0ID_FILETYPE_GETPOSITION},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION,
+         UA_NS0ID_FILETYPE_SETPOSITION}
+    };
+    for(size_t i = 0; i < 6; i++) {
+        UA_MethodCallback typeCallback = NULL;
+        ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server,
+                              UA_NODEID_NUMERIC(0, fileMethods[i][2]), &typeCallback),
+                          UA_STATUSCODE_GOOD);
+        ck_assert(typeCallback != NULL);
+        for(size_t j = 0; j < 2; j++) {
+            UA_MethodCallback callback = NULL;
+            ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server,
+                                  UA_NODEID_NUMERIC(0, fileMethods[i][j]), &callback),
+                              UA_STATUSCODE_GOOD);
+            ck_assert(callback == typeCallback);
+        }
+    }
 }
 END_TEST
 
@@ -1173,6 +1231,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
+    tcase_add_test(tc_cert, trustlist_file_properties);
     tcase_add_test(tc_cert, apply_changes_without_transaction);
     tcase_add_test(tc_cert, open_continues_transaction);
     tcase_add_test(tc_cert, gds_callback_argument_counts);
