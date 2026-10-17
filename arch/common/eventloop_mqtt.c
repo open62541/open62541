@@ -115,6 +115,9 @@ struct MQTTBrokerConnection {
     /* Store the connection parameters. To reconnect when necessary and to check
      * if a matching connection to the broker already exists. */
     UA_KeyValueMap params;
+
+    /* For delayed removal */
+    UA_DelayedCallback dc;
 };
 
 /* Connections created via the EventLoop interface are bound to an individual
@@ -129,7 +132,7 @@ struct MQTTTopicConnection {
     UA_String topic;      /* Name of the topic */
     UA_Boolean subscribe; /* Subscribe or publish? */
 
-    /* Backpointer to the connection to the broker (is always set) */
+    /* Backpointer to the broker; NULL after topic removal */
     MQTTBrokerConnection *brokerConnection;
 
     /* Callback back into the application */
@@ -232,8 +235,7 @@ shutdownBrokerConnection(MQTTBrokerConnection *bc) {
         __mqtt_send(&bc->client);
     }
 
-    /* Mark the state before closing. ConnectionManagers are allowed to invoke
-     * the closing callback synchronously; that callback removes and frees bc. */
+    /* Closing callbacks may run synchronously. Memory is released later. */
     UA_ConnectionManager *tcpCM = bc->mcm->tcpCM;
     bc->tcpConnectionState = UA_CONNECTIONSTATE_CLOSING;
     tcpCM->closeConnection(tcpCM, bc->tcpConnectionId);
@@ -315,9 +317,12 @@ removeTopicConnection(MQTTTopicConnection *tc) {
         tc->callback(&bc->mcm->cm, tc->topicConnectionId, tc->application, &tc->context,
                      UA_CONNECTIONSTATE_CLOSING, &kvm, UA_BYTESTRING_NULL);
 
-    /* Free the memory */
-    UA_String_clear(&tc->topic);
-    UA_free(tc);
+    /* A detached EventLoop callback batch cannot be cancelled. */
+    tc->brokerConnection = NULL;
+    if(!tc->dc.callback) {
+        UA_String_clear(&tc->topic);
+        UA_free(tc);
+    }
 
     /* The last topic connection was removed. Close the broker connection. */
     if(LIST_EMPTY(&bc->topicConnections))
@@ -326,12 +331,21 @@ removeTopicConnection(MQTTTopicConnection *tc) {
 
 static void
 removeTopicConnectionDelayed(void *application, void *context) {
+    (void)application;
     MQTTTopicConnection *tc = (MQTTTopicConnection*)context;
-    removeTopicConnection(tc);
+    tc->dc.callback = NULL;
+    if(tc->brokerConnection)
+        removeTopicConnection(tc);
+    else {
+        UA_String_clear(&tc->topic);
+        UA_free(tc);
+    }
 }
 
 static void
-removeBrokerConnection(MQTTBrokerConnection *bc) {
+removeBrokerConnectionDelayed(void *application, void *context) {
+    (void)application;
+    MQTTBrokerConnection *bc = (MQTTBrokerConnection*)context;
     MQTTConnectionManager *mcm = bc->mcm;
     UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
 
@@ -362,11 +376,25 @@ removeBrokerConnection(MQTTBrokerConnection *bc) {
         mcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
 }
 
+static void
+removeBrokerConnection(MQTTBrokerConnection *bc) {
+    if(bc->dc.callback)
+        return;
+    bc->tcpConnectionState = UA_CONNECTIONSTATE_CLOSING;
+    bc->dc.callback = removeBrokerConnectionDelayed;
+    bc->dc.application = NULL;
+    bc->dc.context = bc;
+    UA_EventLoop *el = bc->mcm->cm.eventSource.eventLoop;
+    el->addDelayedCallback(el, &bc->dc);
+}
+
 /* Look for BrokerConnections with identical broker connection parameters */
 static MQTTBrokerConnection *
 findIdenticalBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *kvm) {
     MQTTBrokerConnection *bc;
     LIST_FOREACH(bc, &mcm->connections, next) {
+        if(bc->tcpConnectionState == UA_CONNECTIONSTATE_CLOSING)
+            continue;
         UA_Boolean found = true;
         for(size_t i = 0; i < MQTT_BROKERPARAMETERSSIZE; i++) {
             const UA_Variant *v1 = UA_KeyValueMap_get(kvm, MQTTConnectionParameters[i].name);
