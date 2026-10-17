@@ -1128,11 +1128,10 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
 
     /* Print the TypeDefinitionId */
     if(!UA_NodeId_equal(&objectsFolder, &ao->nodeId)) {
-        UA_Byte nodeIdBuf[512];
-        UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= nodeId_printEscape(&ao->nodeId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT_EXTENDED);
-        res |= UA_String_append(&tmp, nodeIdBufStr);
+        res = nodeId_printEscape(&ao->nodeId, &tmp,
+                                 NULL, UA_ESCAPING_PERCENT_EXTENDED);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* Print the BrowsePath */

@@ -124,9 +124,15 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
         }
     }
 
-    /* Input length not a multiple of four */
-    if(count > 0)
+    /* Base64URL permits omitting the padding in the final block. A single
+     * character cannot encode a byte, and explicit padding must be complete. */
+    if(count == 1 || pad > 0)
         goto error;
+    if(count >= 2) {
+        *pos++ = (block[0] << 2) | (block[1] >> 4);
+        if(count == 3)
+            *pos++ = (block[1] << 4) | (block[2] >> 2);
+    }
 
     *out_len = (size_t)(pos - out);
     if(*out_len == 0) {

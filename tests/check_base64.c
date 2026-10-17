@@ -197,9 +197,30 @@ START_TEST(decodePaddingThree) {
 } END_TEST
 
 START_TEST(decodeNotMultipleOfFour) {
-    /* Input not a multiple of 4 → error */
+    /* A final block of one character cannot encode a byte. */
     size_t out_len = 0;
     unsigned char *out = UA_unbase64((const unsigned char *)"Zm9vY", 5, &out_len);
+    ck_assert_ptr_eq(out, NULL);
+} END_TEST
+
+START_TEST(decodeUnpaddedBase64Url) {
+    const char *inputs[] = {"-w", "-_8", "-___", "-w \n", "- _8\t"};
+    const unsigned char expected[] = {0xfb, 0xff, 0xff};
+    const size_t lengths[] = {1, 2, 3, 1, 2};
+    for(size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
+        size_t out_len = 0;
+        unsigned char *out = UA_unbase64((const unsigned char *)inputs[i],
+                                         strlen(inputs[i]), &out_len);
+        ck_assert_ptr_ne(out, NULL);
+        ck_assert_uint_eq(out_len, lengths[i]);
+        ck_assert_int_eq(memcmp(out, expected, out_len), 0);
+        UA_free(out);
+    }
+} END_TEST
+
+START_TEST(decodeIncompletePadding) {
+    size_t out_len = 0;
+    unsigned char *out = UA_unbase64((const unsigned char *)"Zg=", 3, &out_len);
     ck_assert_ptr_eq(out, NULL);
 } END_TEST
 
@@ -293,6 +314,8 @@ static Suite *testSuite_base64(void) {
     tcase_add_test(tc_decode, decodePaddingSecond);
     tcase_add_test(tc_decode, decodePaddingThree);
     tcase_add_test(tc_decode, decodeNotMultipleOfFour);
+    tcase_add_test(tc_decode, decodeUnpaddedBase64Url);
+    tcase_add_test(tc_decode, decodeIncompletePadding);
     tcase_add_test(tc_decode, decodePaddingNotTerminated);
 
     TCase *tc_roundtrip = tcase_create("base64_roundtrip");

@@ -364,6 +364,47 @@ START_TEST(parseSimpleAttributeOperand) {
     UA_SimpleAttributeOperand_clear(&sao5);
 } END_TEST
 
+START_TEST(attributeOperandByteStringRoundtrip) {
+    const char *inputs[] = {
+        "b=Zg==/Path", "b=Zm8=/Path", "b=-___/Path",
+        "b=njn8886jnnb=njn44444404n/b=40n"
+    };
+    for(size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
+        UA_AttributeOperand operand, decoded;
+        UA_String input = UA_STRING((char*)(uintptr_t)inputs[i]);
+        UA_StatusCode res = UA_AttributeOperand_parse(&operand, input);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+        UA_String encoded = UA_STRING_NULL;
+        res = UA_AttributeOperand_print(&operand, &encoded);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+        res = UA_AttributeOperand_parse(&decoded, encoded);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert(UA_AttributeOperand_equal(&operand, &decoded));
+        UA_AttributeOperand_clear(&operand);
+        UA_AttributeOperand_clear(&decoded);
+        UA_String_clear(&encoded);
+    }
+} END_TEST
+
+START_TEST(attributeOperandLongNodeIdRoundtrip) {
+    UA_Byte data[1024];
+    memset(data, 'x', sizeof(data));
+    UA_AttributeOperand operand;
+    UA_AttributeOperand_init(&operand);
+    operand.nodeId.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    operand.nodeId.identifier.byteString = (UA_ByteString){sizeof(data), data};
+    operand.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_String encoded = UA_STRING_NULL;
+    UA_StatusCode res = UA_AttributeOperand_print(&operand, &encoded);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_AttributeOperand decoded;
+    res = UA_AttributeOperand_parse(&decoded, encoded);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_AttributeOperand_equal(&operand, &decoded));
+    UA_AttributeOperand_clear(&decoded);
+    UA_String_clear(&encoded);
+} END_TEST
+
 START_TEST(printSimpleAttributeOperand) {
     UA_QualifiedName browsePath[2];
     browsePath[0] = UA_QUALIFIEDNAME(1, "Boiler");
@@ -484,6 +525,8 @@ int main(void) {
     tcase_add_test(tc, parseRelativePathWithServer);
     tcase_add_test(tc, parseSimpleAttributeOperand);
     tcase_add_test(tc, printSimpleAttributeOperand);
+    tcase_add_test(tc, attributeOperandByteStringRoundtrip);
+    tcase_add_test(tc, attributeOperandLongNodeIdRoundtrip);
     tcase_add_test(tc, parseDateTime);
     tcase_add_test(tc, parseQualifiedNameWithSemicolon);
     tcase_add_test(tc, parseQualifiedNameWithNamespaceUri);
