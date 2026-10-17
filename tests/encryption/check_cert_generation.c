@@ -343,8 +343,10 @@ START_TEST(certificate_generation_ecc_curves) {
     UA_ByteString curveOid = {curve.len, curve.p};
     ck_assert(UA_ByteString_equal(&curveOid, &curveOids[curveIndex]));
     uint32_t flags = 0;
-    ck_assert_int_eq(mbedtls_x509_crt_verify(&parsed, &parsed, NULL,
-                                           "localhost", &flags, NULL, NULL), 0);
+    int verifyResult = mbedtls_x509_crt_verify(&parsed, &parsed, NULL,
+                                               "localhost", &flags, NULL, NULL);
+    ck_assert_msg(verifyResult == 0, "certificate verification failed: %d, flags: 0x%08x",
+                  verifyResult, (unsigned)flags);
     ck_assert_uint_eq(flags, 0);
     mbedtls_x509_crt_free(&parsed);
 #else
