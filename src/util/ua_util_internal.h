@@ -399,6 +399,12 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
 /* out must be a buffer with at least 36 elements, the length of every guid */
 void UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower);
 
+/* A Guid drawn from a stronger random source than UA_Guid_random(), for
+ * identifiers that must not repeat across separate server processes (e.g.
+ * the Session authenticationToken). See UA_random_secureBytes() in
+ * ua_util.c for the source used. */
+UA_Guid UA_Guid_secureRandom(void);
+
 #define UA_ENCODING_HELPERS(TYPE, UPCASE_TYPE)                          \
     static UA_INLINE size_t                                             \
     UA_##TYPE##_calcSizeBinary(const UA_##TYPE *src) {                    \

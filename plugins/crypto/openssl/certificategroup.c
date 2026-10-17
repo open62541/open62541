@@ -759,14 +759,15 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
     for(int i = 0; i < sk_GENERAL_NAME_num(pNames); i++) {
         GENERAL_NAME *value = sk_GENERAL_NAME_value(pNames, i);
         if(value->type == GEN_URI) {
-            subjectURI.length = (size_t) (value->d.ia5->length);
+            subjectURI.length = (size_t)ASN1_STRING_length(value->d.ia5);
             subjectURI.data = (UA_Byte*)UA_malloc(subjectURI.length);
             if(!subjectURI.data) {
                 X509_free(certificateX509);
                 sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
                 return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
             }
-            (void)memcpy(subjectURI.data, value->d.ia5->data, subjectURI.length);
+            (void)memcpy(subjectURI.data, ASN1_STRING_get0_data(value->d.ia5),
+                         subjectURI.length);
             break;
         }
     }

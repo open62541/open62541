@@ -334,6 +334,7 @@ endif()
 
 ua_add_test(server/check_session.c)
 ua_add_test(server/check_session_errorpaths.c)
+ua_add_test(server/check_session_authtoken_rng.c)
 ua_add_test(server/check_server.c)
 ua_add_test(server/check_server_utils_coverage.c)
 ua_add_test(server/check_services_securechannel.c)
