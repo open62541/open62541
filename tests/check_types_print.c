@@ -569,6 +569,41 @@ START_TEST(string_format_test) {
     UA_String_clear(&s);
 } END_TEST
 
+START_TEST(string_escape_size_insert_append) {
+    UA_String plain = UA_STRING((char*)(uintptr_t)escapeCases[_i].plain);
+    UA_String expected = UA_STRING((char*)(uintptr_t)escapeCases[_i].escaped);
+    UA_Escaping escaping = escapeCases[_i].escaping;
+    ck_assert_uint_eq(UA_String_escapedSize(plain, escaping), expected.length);
+
+    UA_Byte buffer[128];
+    memset(buffer, 0x5a, sizeof(buffer));
+    size_t written = UA_String_escapeInsert(buffer, plain, escaping);
+    ck_assert_uint_eq(written, expected.length);
+    ck_assert_mem_eq(buffer, expected.data, written);
+    ck_assert_uint_eq(buffer[written], 0x5a);
+
+    UA_String appended = UA_STRING_ALLOC("prefix:");
+    ck_assert_ptr_nonnull(appended.data);
+    UA_StatusCode res = UA_String_escapeAppend(&appended, plain, escaping);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(appended.length, 7 + expected.length);
+    ck_assert_mem_eq(appended.data, "prefix:", 7);
+    ck_assert_mem_eq(appended.data + 7, expected.data, expected.length);
+    UA_String_clear(&appended);
+} END_TEST
+
+START_TEST(nodeId_print_exactBufferWithoutEscaping) {
+    UA_NodeId id = UA_NODEID_STRING(0, "a/b %");
+    UA_String expected = UA_STRING("s=a/b %");
+    UA_Byte buffer[8];
+    memset(buffer, 0x5a, sizeof(buffer));
+    UA_String output = {expected.length, buffer};
+    ck_assert_uint_eq(UA_NodeId_print(&id, &output), UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&output, &expected));
+    ck_assert_ptr_eq(output.data, buffer);
+    ck_assert_uint_eq(buffer[expected.length], 0x5a);
+} END_TEST
+
 /* === Suite === */
 static Suite *testSuite_typesExtra3(void) {
     TCase *tc_find = tcase_create("FindDataType");
@@ -594,6 +629,7 @@ static Suite *testSuite_typesExtra3(void) {
     tcase_add_loop_test(tc_string, string_unescape_copy_and_inplace, 0, 10);
     tcase_add_loop_test(tc_string, string_unescape_hex_case_and_zero, 0, 2);
     tcase_add_loop_test(tc_string, string_unescape_invalid, 0, 14);
+    tcase_add_loop_test(tc_string, string_escape_size_insert_append, 0, 5);
     tcase_add_test(tc_string, string_format_test);
 
     TCase *tc_print = tcase_create("TypePrint");
@@ -602,6 +638,7 @@ static Suite *testSuite_typesExtra3(void) {
 #ifdef UA_TYPES_ATTRIBUTEOPERAND
     tcase_add_test(tc_print, attributeOperand_print_escapedPathAndRange);
 #endif
+    tcase_add_test(tc_print, nodeId_print_exactBufferWithoutEscaping);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     tcase_add_test(tc_print, print_int32);
     tcase_add_test(tc_print, print_string);
