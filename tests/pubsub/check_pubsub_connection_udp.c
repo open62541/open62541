@@ -303,6 +303,52 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     UA_PubSubConnectionConfig_clear(&connectionConfig);
     } END_TEST
 
+START_TEST(RemovalBeforeShutdownCompletesManagerStop) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnectionConfig connection = {0};
+    connection.name = UA_STRING("UDP shutdown");
+    connection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType address = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_Variant_setScalar(&connection.address, &address, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    UA_NodeId connectionId;
+    ck_assert_uint_eq(UA_Server_addPubSubConnection(server, &connection, &connectionId), UA_STATUSCODE_GOOD);
+    if(_i == 0) {
+        UA_ReaderGroupConfig reader = {0};
+        reader.name = UA_STRING("Reader");
+        ck_assert_uint_eq(UA_Server_addReaderGroup(server, connectionId, &reader, NULL), UA_STATUSCODE_GOOD);
+    } else {
+        UA_WriterGroupConfig writer = {0};
+        writer.name = UA_STRING("Writer");
+        writer.publishingInterval = 100;
+        writer.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        ck_assert_uint_eq(UA_Server_addWriterGroup(server, connectionId, &writer, NULL), UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(UA_Server_enableAllPubSubComponents(server), UA_STATUSCODE_GOOD);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+    ck_assert_ptr_ne(c, NULL);
+    if(_i == 0)
+        ck_assert_uint_gt(c->recvChannelsSize, 0);
+    else
+        ck_assert(c->sendChannel != 0);
+    ck_assert_uint_eq(UA_Server_removePubSubConnection(server, connectionId), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(UA_PubSubConnection_find(psm, connectionId), NULL);
+
+    /* Exercise shutdown's driver stop with a bounded event-loop drain. */
+    lockServer(server);
+    psm->drv.stop(&psm->drv);
+    unlockServer(server);
+    ck_assert_int_eq(psm->drv.state, UA_LIFECYCLESTATE_STOPPING);
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    for(unsigned i = 0; i < 1000; i++) {
+        ck_assert_uint_eq(el->run(el, 1), UA_STATUSCODE_GOOD);
+        if(psm->drv.state == UA_LIFECYCLESTATE_STOPPED && !UA_PubSubConnection_find(psm, connectionId))
+            break;
+    }
+    ck_assert_ptr_null(UA_PubSubConnection_find(psm, connectionId));
+    ck_assert_uint_eq(psm->connectionsSize, 0);
+    ck_assert_int_eq(psm->drv.state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_connections_minimal_config = tcase_create("Create PubSub UDP Connections with minimal valid config");
     tcase_add_checked_fixture(tc_add_pubsub_connections_minimal_config, setup, teardown);
@@ -330,6 +376,10 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_connections_maximal_config, GetMaximalConnectionConfigurationAndCompareValues);
 
     Suite *s = suite_create("PubSub UDP connection creation");
+    TCase *tc_shutdown = tcase_create("PubSub deferred removal shutdown");
+    tcase_add_checked_fixture(tc_shutdown, setup, teardown);
+    tcase_add_loop_test(tc_shutdown, RemovalBeforeShutdownCompletesManagerStop, 0, 2);
+    suite_add_tcase(s, tc_shutdown);
     suite_add_tcase(s, tc_add_pubsub_connections_minimal_config);
     suite_add_tcase(s, tc_add_pubsub_connections_invalid_config);
     suite_add_tcase(s, tc_add_pubsub_connections_maximal_config);
