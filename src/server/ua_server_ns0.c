@@ -390,27 +390,7 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         value->value.data = statustype;
         value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
         value->hasValue = true;
-        UA_StatusCode res = UA_BuildInfo_copy(&server->config.buildInfo, &statustype->buildInfo);
-#ifdef UA_GENERATED_NAMESPACE_ZERO
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-
-        /* ShutdownReason is stored in its component node. Keep the aggregate
-         * consistent with the value supplied by the application. */
-        UA_NodeId reasonId = UA_NS0ID(SERVER_SERVERSTATUS_SHUTDOWNREASON);
-        UA_Variant reason;
-        UA_Variant_init(&reason);
-        res = readWithReadValue(server, &reasonId, UA_ATTRIBUTEID_VALUE, &reason);
-        if(res == UA_STATUSCODE_GOOD && !UA_Variant_isEmpty(&reason)) {
-            if(UA_Variant_hasScalarType(&reason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]))
-                res = UA_LocalizedText_copy((UA_LocalizedText*)reason.data,
-                                           &statustype->shutdownReason);
-            else
-                res = UA_STATUSCODE_BADTYPEMISMATCH;
-        }
-        UA_Variant_clear(&reason);
-#endif
-        return res;
+        return UA_BuildInfo_copy(&server->config.buildInfo, &statustype->buildInfo);
     }
 
     case UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO:
