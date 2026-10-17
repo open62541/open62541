@@ -134,9 +134,12 @@ runSubscription(UA_Client *client, const char *identityLabel) {
     UA_MonitoredItemCreateResult_clear(&itemResult);
 
     /* CurrentTime changes once per second. Three notifications require the
-     * client to replenish its long-running Publish requests after responses. */
+     * client to replenish its long-running Publish requests after responses.
+     * An event-loop iteration can return immediately when there is pending work,
+     * so bound the wait by elapsed time instead of an iteration count. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < 150 && result.notifications < 3; i++) {
+    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 15 * UA_DATETIME_SEC;
+    while(result.notifications < 3 && UA_DateTime_nowMonotonic() < deadline) {
         res = UA_Client_run_iterate(client, 100);
         if(res != UA_STATUSCODE_GOOD)
             break;
