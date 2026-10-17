@@ -451,7 +451,11 @@ START_TEST(GetSecurityKeysAllocatesByteStringArray) {
         0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS);
     request.inputArgumentsSize = 3;
     request.inputArguments = getInput;
+    /* This test exercises allocation, so give the admin Session a user ID
+     * to pass the GetSecurityKeys access check. */
+    server->adminSession.clientUserIdOfSession = UA_STRING("testuser");
     UA_CallMethodResult result = UA_Server_call(server, &request);
+    server->adminSession.clientUserIdOfSession = UA_STRING_NULL;
     server->adminSession.channel = NULL;
     UA_SecureChannel_clear(&channel);
 

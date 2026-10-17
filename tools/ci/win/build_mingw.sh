@@ -59,7 +59,7 @@ int main(void) {
 }
 EOF
 
-${CC:-gcc} -I. amalgamation_none_smoke.c open62541.c -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi
+${CC:-gcc} -I. amalgamation_none_smoke.c open62541.c -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi -lbcrypt
 
 rm -r *
 
