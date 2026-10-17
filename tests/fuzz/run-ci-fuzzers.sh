@@ -16,8 +16,18 @@ for fuzzer in "${fuzzers[@]}"; do
     name="${fuzzer##*/}"
     corpus="$build_dir/corpus/$name"
     mkdir -p "$corpus"
-    if [[ "$name" == fuzz_binary_message || "$name" == fuzz_tcp_message ]]; then
+    if [[ "$name" == fuzz_binary_message ]]; then
         cp tests/fuzz/fuzz_binary_message_corpus/generated/* "$corpus/"
+    elif [[ "$name" == fuzz_tcp_message ]]; then
+        # The binary-message fuzzer processes the full generated corpus.
+        # Sample it evenly for TCP, where each seed starts a server.
+        index=0
+        for seed in tests/fuzz/fuzz_binary_message_corpus/generated/*; do
+            if ((index % 16 == 0)); then
+                cp "$seed" "$corpus/"
+            fi
+            index=$((index + 1))
+        done
     fi
     echo "Running $name"
     "$fuzzer" "$corpus" \
