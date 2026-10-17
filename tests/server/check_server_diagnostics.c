@@ -152,7 +152,7 @@ START_TEST(readServerStatus) {
 } END_TEST
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
-START_TEST(readServerStatusShutdownReason) {
+START_TEST(readServerStatusShutdownReasonSnapshot) {
     const UA_NodeId reasonId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON);
     const UA_NodeId statusId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
     UA_UInt32 seconds = 5;
@@ -510,7 +510,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_status, setup, teardown);
     tcase_add_test(tc_status, readServerStatus);
 #ifdef UA_GENERATED_NAMESPACE_ZERO
-    tcase_add_test(tc_status, readServerStatusShutdownReason);
+    tcase_add_test(tc_status, readServerStatusShutdownReasonSnapshot);
 #endif
     tcase_add_test(tc_status, readServerStatusState);
     tcase_add_test(tc_status, readServerStatusBuildInfo);
