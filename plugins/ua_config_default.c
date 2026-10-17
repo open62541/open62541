@@ -569,6 +569,18 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->allPermissionsForAnonymous = true;
 #endif
 
+#ifdef UA_ENABLE_LWS
+    /* A webSocketBufSize of 0 is forwarded to the WebSocket ConnectionManager
+     * as "no limit" on the fragment reassembly buffer. Callers that never
+     * touched this field (e.g. via setDefaultWithSecurityPolicies) get the
+     * same buffer size as the TCP transport instead. */
+    if(conf->webSocketBufSize == 0)
+        conf->webSocketBufSize = UA_ConnectionConfig_default.recvBufferSize;
+    if(conf->webSocketMaxQueueSize == 0)
+        conf->webSocketMaxQueueSize = conf->webSocketBufSize > UINT32_MAX / 16 ?
+            UINT32_MAX : conf->webSocketBufSize * 16;
+#endif
+
     /* --> Finish setting the default static config <-- */
 
     return UA_STATUSCODE_GOOD;
@@ -706,11 +718,16 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
      * intentionally ignored (see the doxygen note on the declaration). */
     (void)sendBufferSize;
     config->tcpBufSize = recvBufferSize;
-    config->webSocketBufSize = recvBufferSize;
+    /* A recvBufferSize of 0 falls through to the same default used for the
+     * TCP buffers, instead of leaving the WebSocket fragment reassembly
+     * buffer without any cap. */
+    config->webSocketBufSize = recvBufferSize ? recvBufferSize :
+        UA_ConnectionConfig_default.recvBufferSize;
     config->webSocketAllowUnencrypted = false;
     config->webSocketEncryptionMode = UA_WEBSOCKET_ENCRYPTION_OPTIONAL;
     config->webSocketMaxQueueSize =
-        recvBufferSize > UINT32_MAX / 16 ? UINT32_MAX : recvBufferSize * 16;
+        config->webSocketBufSize > UINT32_MAX / 16 ?
+        UINT32_MAX : config->webSocketBufSize * 16;
 
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);
@@ -1414,79 +1431,73 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
-    if(trustListSize > 0) {
-        UA_TrustListDataType list;
-        UA_TrustListDataType_init(&list);
-        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
-        retval = UA_Array_copy(trustList, trustListSize,
-                               (void**)&list.trustedCertificates,
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    retval = UA_Array_copy(trustList, trustListSize,
+                           (void**)&list.trustedCertificates,
+                           &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    list.trustedCertificatesSize = trustListSize;
+
+    if(issuerListSize > 0) {
+        list.specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+        retval = UA_Array_copy(issuerList, issuerListSize,
+                               (void**)&list.issuerCertificates,
                                &UA_TYPES[UA_TYPES_BYTESTRING]);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-        list.trustedCertificatesSize = trustListSize;
-
-        if(issuerListSize > 0) {
-            list.specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
-            retval = UA_Array_copy(issuerList, issuerListSize,
-                                   (void**)&list.issuerCertificates,
-                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_TrustListDataType_clear(&list);
-                return retval;
-            }
-            list.issuerCertificatesSize = issuerListSize;
-        }
-
-        if(revocationListSize > 0) {
-            list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-            retval = UA_Array_copy(revocationList, revocationListSize,
-                                   (void**)&list.trustedCrls,
-                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_TrustListDataType_clear(&list);
-                return retval;
-            }
-            list.trustedCrlsSize = revocationListSize;
-        }
-
-        /* Set up the parameters */
-        UA_KeyValuePair params[2];
-        size_t paramsSize = 2;
-
-        params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
-        UA_Variant_setScalar(&params[0].value, &conf->maxTrustListSize,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-        params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
-        UA_Variant_setScalar(&params[1].value, &conf->maxRejectedListSize,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-
-        UA_KeyValueMap paramsMap;
-        paramsMap.map = params;
-        paramsMap.mapSize = paramsSize;
-
-        UA_NodeId defaultApplicationGroup =
-            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-        retval = UA_CertificateGroup_Memorystore(&conf->secureChannelPKI,
-                                                 &defaultApplicationGroup, &list,
-                                                 conf->logging, &paramsMap);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_TrustListDataType_clear(&list);
             return retval;
         }
-
-        UA_NodeId defaultUserTokenGroup =
-            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
-        retval = UA_CertificateGroup_Memorystore(&conf->sessionPKI,
-                                                 &defaultUserTokenGroup, &list,
-                                                 conf->logging, &paramsMap);
-        UA_TrustListDataType_clear(&list);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    } else {
-        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Empty trustlist passed. Leaving the previously "
-                       "configured certificate verification in place");
+        list.issuerCertificatesSize = issuerListSize;
     }
+
+    if(revocationListSize > 0) {
+        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+        retval = UA_Array_copy(revocationList, revocationListSize,
+                               (void**)&list.trustedCrls,
+                               &UA_TYPES[UA_TYPES_BYTESTRING]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_TrustListDataType_clear(&list);
+            return retval;
+        }
+        list.trustedCrlsSize = revocationListSize;
+    }
+
+    /* Set up the parameters */
+    UA_KeyValuePair params[2];
+    size_t paramsSize = 2;
+
+    params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
+    UA_Variant_setScalar(&params[0].value, &conf->maxTrustListSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
+    UA_Variant_setScalar(&params[1].value, &conf->maxRejectedListSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
+    UA_NodeId defaultApplicationGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    retval = UA_CertificateGroup_Memorystore(&conf->secureChannelPKI,
+                                             &defaultApplicationGroup, &list,
+                                             conf->logging, &paramsMap);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&list);
+        return retval;
+    }
+
+    UA_NodeId defaultUserTokenGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    retval = UA_CertificateGroup_Memorystore(&conf->sessionPKI,
+                                             &defaultUserTokenGroup, &list,
+                                             conf->logging, &paramsMap);
+    UA_TrustListDataType_clear(&list);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
 
@@ -1526,77 +1537,71 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
-    if(trustListSize > 0) {
-        UA_TrustListDataType list;
-        UA_TrustListDataType_init(&list);
-        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
-        retval = UA_Array_copy(trustList, trustListSize,
-                               (void**)&list.trustedCertificates,
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    retval = UA_Array_copy(trustList, trustListSize,
+                           (void**)&list.trustedCertificates,
+                           &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    list.trustedCertificatesSize = trustListSize;
+
+    if(issuerListSize > 0) {
+        list.specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+        retval = UA_Array_copy(issuerList, issuerListSize,
+                               (void**)&list.issuerCertificates,
                                &UA_TYPES[UA_TYPES_BYTESTRING]);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-        list.trustedCertificatesSize = trustListSize;
-
-        if(issuerListSize > 0) {
-            list.specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
-            retval = UA_Array_copy(issuerList, issuerListSize,
-                                   (void**)&list.issuerCertificates,
-                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_TrustListDataType_clear(&list);
-                return retval;
-            }
-            list.issuerCertificatesSize = issuerListSize;
-        }
-
-        if(revocationListSize > 0) {
-            list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-            retval = UA_Array_copy(revocationList, revocationListSize,
-                                   (void**)&list.trustedCrls,
-                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_TrustListDataType_clear(&list);
-                return retval;
-            }
-            list.trustedCrlsSize = revocationListSize;
-        }
-
-        /* Set up the parameters */
-        UA_KeyValuePair params[2];
-        size_t paramsSize = 2;
-
-        params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
-        UA_Variant_setScalar(&params[0].value, &conf->maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
-        params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
-        UA_Variant_setScalar(&params[1].value, &conf->maxRejectedListSize, &UA_TYPES[UA_TYPES_UINT32]);
-
-        UA_KeyValueMap paramsMap;
-        paramsMap.map = params;
-        paramsMap.mapSize = paramsSize;
-
-        UA_NodeId defaultApplicationGroup =
-            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-        retval = UA_CertificateGroup_Memorystore(&conf->secureChannelPKI, &defaultApplicationGroup,
-                                                 &list, conf->logging, &paramsMap);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_TrustListDataType_clear(&list);
             return retval;
         }
-
-        UA_NodeId defaultUserTokenGroup =
-            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
-        retval = UA_CertificateGroup_Memorystore(&conf->sessionPKI, &defaultUserTokenGroup,
-                                                 &list, conf->logging, &paramsMap);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_TrustListDataType_clear(&list);
-            return retval;
-        }
-        UA_TrustListDataType_clear(&list);
-    } else {
-        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Empty trustlist passed. Leaving the previously "
-                       "configured certificate verification in place");
+        list.issuerCertificatesSize = issuerListSize;
     }
+
+    if(revocationListSize > 0) {
+        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+        retval = UA_Array_copy(revocationList, revocationListSize,
+                               (void**)&list.trustedCrls,
+                               &UA_TYPES[UA_TYPES_BYTESTRING]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_TrustListDataType_clear(&list);
+            return retval;
+        }
+        list.trustedCrlsSize = revocationListSize;
+    }
+
+    /* Set up the parameters */
+    UA_KeyValuePair params[2];
+    size_t paramsSize = 2;
+
+    params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
+    UA_Variant_setScalar(&params[0].value, &conf->maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
+    params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
+    UA_Variant_setScalar(&params[1].value, &conf->maxRejectedListSize, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
+    UA_NodeId defaultApplicationGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    retval = UA_CertificateGroup_Memorystore(&conf->secureChannelPKI, &defaultApplicationGroup,
+                                             &list, conf->logging, &paramsMap);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&list);
+        return retval;
+    }
+
+    UA_NodeId defaultUserTokenGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    retval = UA_CertificateGroup_Memorystore(&conf->sessionPKI, &defaultUserTokenGroup,
+                                             &list, conf->logging, &paramsMap);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&list);
+        return retval;
+    }
+    UA_TrustListDataType_clear(&list);
 
     retval = UA_ServerConfig_addAllSecureSecurityPolicies(conf, certificate, privateKey);
 
@@ -2338,59 +2343,53 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(trustListSize > 0) {
-        UA_TrustListDataType list;
-        UA_TrustListDataType_init(&list);
-        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
-        retval = UA_Array_copy(trustList, trustListSize,
-                               (void**)&list.trustedCertificates,
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    retval = UA_Array_copy(trustList, trustListSize,
+                           (void**)&list.trustedCertificates,
+                           &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    list.trustedCertificatesSize = trustListSize;
+
+    if(revocationListSize > 0) {
+        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+        retval = UA_Array_copy(revocationList, revocationListSize,
+                               (void**)&list.trustedCrls,
                                &UA_TYPES[UA_TYPES_BYTESTRING]);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_TrustListDataType_clear(&list);
             return retval;
-        list.trustedCertificatesSize = trustListSize;
-
-        if(revocationListSize > 0) {
-            list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-            retval = UA_Array_copy(revocationList, revocationListSize,
-                                   (void**)&list.trustedCrls,
-                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_TrustListDataType_clear(&list);
-                return retval;
-            }
-            list.trustedCrlsSize = revocationListSize;
         }
-
-        /* Set up the parameters */
-        UA_KeyValuePair params[2];
-        size_t paramsSize = 2;
-
-        params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
-        UA_Variant_setScalar(&params[0].value, &config->maxTrustListSize,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-        params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
-        UA_Variant_setScalar(&params[1].value, &config->maxRejectedListSize,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-
-        UA_KeyValueMap paramsMap;
-        paramsMap.map = params;
-        paramsMap.mapSize = paramsSize;
-
-        if(config->certificateVerification.clear)
-            config->certificateVerification.clear(&config->certificateVerification);
-        UA_NodeId defaultApplicationGroup =
-            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-        retval = UA_CertificateGroup_Memorystore(&config->certificateVerification,
-                                                 &defaultApplicationGroup, &list,
-                                                 config->logging, &paramsMap);
-        UA_TrustListDataType_clear(&list);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    } else {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "Empty trustlist passed. Leaving the previously "
-                       "configured certificate verification in place");
+        list.trustedCrlsSize = revocationListSize;
     }
+
+    /* Set up the parameters */
+    UA_KeyValuePair params[2];
+    size_t paramsSize = 2;
+
+    params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
+    UA_Variant_setScalar(&params[0].value, &config->maxTrustListSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
+    UA_Variant_setScalar(&params[1].value, &config->maxRejectedListSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
+    UA_NodeId defaultApplicationGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    retval = UA_CertificateGroup_Memorystore(&config->certificateVerification,
+                                             &defaultApplicationGroup, &list,
+                                             config->logging, &paramsMap);
+    UA_TrustListDataType_clear(&list);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Load the private key and convert to the DER format. Use an empty password
      * on the first try -- maybe the key does not require a password. */

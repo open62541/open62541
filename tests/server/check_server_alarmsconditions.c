@@ -8,6 +8,7 @@
 #include <open62541/server.h>
 #include <open62541/driver/alarms_conditions.h>
 #include <open62541/server_config_default.h>
+#include "server/ua_server_internal.h"
 #include "test_helpers.h"
 
 #include <check.h>
@@ -1471,6 +1472,61 @@ START_TEST(confirmCallback_withRemoveBranch) {
     acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
+/* Calling Acknowledge with an empty (data == NULL) EventId argument must be
+ * rejected instead of being dereferenced while matching it against the
+ * condition's branches. */
+START_TEST(acknowledgeMethodCallback_emptyEventId) {
+    UA_Server_getConfig(server_ac)->allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
+
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId cond = createTestCondition(
+        server_ac,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE),
+        "EmptyEventIdAckCond", source);
+
+    UA_Variant val;
+    UA_Boolean enabled = true;
+    UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_StatusCode retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
+        UA_QUALIFIEDNAME(0, "EnabledState"),
+        UA_QUALIFIEDNAME(0, "Id"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean retain = true;
+    UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
+                                            UA_QUALIFIEDNAME(0, "Retain"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString eventId = UA_BYTESTRING_NULL;
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&eventId);
+
+    /* EventId argument is a ByteString that is empty: data == NULL. An
+     * argument without a type is already rejected by the argument type check
+     * before the method callback runs. */
+    UA_Variant in[2];
+    UA_ByteString emptyEventId = UA_BYTESTRING_NULL;
+    UA_Variant_setScalar(&in[0], &emptyEventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "ack");
+    UA_Variant_init(&in[1]);
+    UA_Variant_setScalar(&in[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = cond;
+    req.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE);
+    req.inputArguments = in;
+    req.inputArgumentsSize = 2;
+
+    UA_CallMethodResult result = UA_Server_call(server_ac, &req);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADEVENTIDUNKNOWN);
+    UA_CallMethodResult_clear(&result);
+
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
 /* Test enable/disable with re-enable: cover the enteringEnabled callback path fully */
 START_TEST(enableDisable_reEnable) {
     UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
@@ -1765,6 +1821,376 @@ START_TEST(conditionRefresh_replacedInputArguments) {
 }
 END_TEST
 
+static const UA_UInt32 eventMethodIds[] = {
+    UA_NS0ID_CONDITIONTYPE_ADDCOMMENT,
+    UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+    UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM
+};
+
+static UA_StatusCode
+callConditionMethod(UA_NodeId condition, UA_UInt32 methodId,
+                    size_t inputSize, UA_Variant *input) {
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = condition;
+    request.methodId = UA_NODEID_NUMERIC(0, methodId);
+    request.inputArgumentsSize = inputSize;
+    request.inputArguments = input;
+    UA_CallMethodResult result = UA_Server_call(server_ac, &request);
+    UA_StatusCode status = result.statusCode;
+    ck_assert_uint_eq(result.outputArgumentsSize, 0);
+    UA_CallMethodResult_clear(&result);
+    return status;
+}
+
+static void
+setMethodConditionState(UA_NodeId condition, char *name, UA_Boolean state) {
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &state, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_uint_eq(acDriver_ac->setConditionVariableFieldProperty(
+        acDriver_ac, condition, &value, UA_QUALIFIEDNAME(0, name),
+        UA_QUALIFIEDNAME(0, "Id")), UA_STATUSCODE_GOOD);
+}
+
+static void
+assertMethodConditionState(UA_NodeId condition, char *name, UA_Boolean expected) {
+    UA_QualifiedName path[2] = {UA_QUALIFIEDNAME(0, name), UA_QUALIFIEDNAME(0, "Id")};
+    UA_BrowsePathResult result =
+        UA_Server_browseSimplifiedBrowsePath(server_ac, condition, 2, path);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.targetsSize, 1);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(
+        server_ac, result.targets[0].targetId.nodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_BOOLEAN]));
+    ck_assert_uint_eq(*(UA_Boolean *)value.data, expected);
+    UA_Variant_clear(&value);
+    UA_BrowsePathResult_clear(&result);
+}
+
+static void
+setMethodConditionRetain(UA_NodeId condition, UA_Boolean retain) {
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_uint_eq(acDriver_ac->setConditionField(
+        acDriver_ac, condition, &value, UA_QUALIFIEDNAME(0, "Retain")),
+        UA_STATUSCODE_GOOD);
+}
+
+static UA_NodeId
+createMethodCondition(void) {
+    return createTestCondition(server_ac,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE), "Method condition",
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+}
+
+static UA_ByteString
+triggerMethodCondition(UA_NodeId condition) {
+    UA_ByteString eventId = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(acDriver_ac->triggerConditionEvent(
+        acDriver_ac, condition, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &eventId),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(eventId.length, 0);
+    return eventId;
+}
+
+START_TEST(conditionMethods_enableDisable) {
+    UA_NodeId condition = createMethodCondition();
+    assertMethodConditionState(condition, "EnabledState", false);
+    ck_assert_uint_eq(callConditionMethod(condition, UA_NS0ID_CONDITIONTYPE_DISABLE, 0, NULL),
+                      UA_STATUSCODE_BADCONDITIONALREADYDISABLED);
+    ck_assert_uint_eq(callConditionMethod(condition, UA_NS0ID_CONDITIONTYPE_ENABLE, 0, NULL),
+                      UA_STATUSCODE_GOOD);
+    assertMethodConditionState(condition, "EnabledState", true);
+    ck_assert_uint_eq(callConditionMethod(condition, UA_NS0ID_CONDITIONTYPE_ENABLE, 0, NULL),
+                      UA_STATUSCODE_BADCONDITIONALREADYENABLED);
+    ck_assert_uint_eq(callConditionMethod(condition, UA_NS0ID_CONDITIONTYPE_DISABLE, 0, NULL),
+                      UA_STATUSCODE_GOOD);
+    assertMethodConditionState(condition, "EnabledState", false);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionMethods_commentAndState) {
+    unsigned method = (unsigned)_i / 2;
+    UA_NodeId condition = createMethodCondition();
+    setMethodConditionState(condition, "EnabledState", true);
+    setMethodConditionState(condition, "AckedState", false);
+    setMethodConditionState(condition, "ConfirmedState", false);
+    setMethodConditionRetain(condition, true);
+
+    UA_LocalizedText previous = UA_LOCALIZEDTEXT("en", "previous comment");
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &previous, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    ck_assert_uint_eq(acDriver_ac->setConditionField(
+        acDriver_ac, condition, &value, UA_QUALIFIEDNAME(0, "Comment")), UA_STATUSCODE_GOOD);
+    UA_ByteString eventId = triggerMethodCondition(condition);
+    UA_LocalizedText comment = (_i % 2) ? UA_LOCALIZEDTEXT(NULL, NULL) :
+        UA_LOCALIZEDTEXT("en", "operator comment");
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&input[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    ck_assert_uint_eq(callConditionMethod(condition, eventMethodIds[method], 2, input),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(readConditionField(server_ac, condition, "Comment", &value),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    ck_assert(UA_LocalizedText_equal((UA_LocalizedText *)value.data,
+                                    (_i % 2) ? &previous : &comment));
+    UA_Variant_clear(&value);
+    if(method > 0)
+        assertMethodConditionState(condition, method == 1 ? "AckedState" : "ConfirmedState", true);
+
+    /* The successful call replaces the last event ID. */
+    ck_assert_uint_eq(callConditionMethod(condition, eventMethodIds[method], 2, input),
+                      UA_STATUSCODE_BADEVENTIDUNKNOWN);
+    UA_ByteString_clear(&eventId);
+    if(method > 0) {
+        eventId = triggerMethodCondition(condition);
+        ck_assert_uint_eq(callConditionMethod(condition, eventMethodIds[method], 2, input),
+            method == 1 ? UA_STATUSCODE_BADCONDITIONBRANCHALREADYACKED :
+                          UA_STATUSCODE_BADCONDITIONBRANCHALREADYCONFIRMED);
+        UA_ByteString_clear(&eventId);
+    }
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionMethods_notRetained) {
+    UA_NodeId condition = createMethodCondition();
+    setMethodConditionState(condition, "EnabledState", true);
+    setMethodConditionRetain(condition, true);
+    UA_ByteString eventId = triggerMethodCondition(condition);
+    setMethodConditionRetain(condition, false);
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "ignored comment");
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&input[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    ck_assert_uint_eq(callConditionMethod(condition, eventMethodIds[_i], 2, input),
+                      UA_STATUSCODE_BADCONDITIONDISABLED);
+    assertMethodConditionState(condition, "EnabledState", true);
+    UA_ByteString_clear(&eventId);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionMethods_validateCallbackArguments) {
+    UA_NodeId condition = createMethodCondition();
+    UA_NodeId sessionId = UA_NODEID_NULL;
+    UA_ByteString eventId = UA_BYTESTRING("unknown");
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "ignored comment");
+    UA_UInt32 invalid = 42;
+    for(unsigned method = 0; method < 3; method++) {
+        UA_NodeId methodId = UA_NODEID_NUMERIC(0, eventMethodIds[method]);
+        UA_MethodCallback callback = NULL;
+        ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server_ac, methodId, &callback),
+                          UA_STATUSCODE_GOOD);
+        ck_assert(callback != NULL);
+        /* Callback validation also protects against changed InputArguments metadata. */
+        for(unsigned malformed = 0; malformed < 4; malformed++) {
+            UA_Variant input[2];
+            UA_Variant_setScalar(&input[0], &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            UA_Variant_setScalar(&input[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            if(malformed == 1)
+                UA_Variant_setScalar(&input[0], &invalid, &UA_TYPES[UA_TYPES_UINT32]);
+            if(malformed == 2)
+                UA_Variant_setScalar(&input[1], &invalid, &UA_TYPES[UA_TYPES_UINT32]);
+            if(malformed == 3)
+                UA_Variant_setArray(&input[0], &eventId, 1, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            ck_assert_uint_eq(callback(server_ac, &sessionId, NULL, &methodId, NULL,
+                &condition, NULL, malformed == 0 ? 0 : 2, input, 0, NULL),
+                UA_STATUSCODE_BADINVALIDARGUMENT);
+        }
+    }
+    assertMethodConditionState(condition, "EnabledState", false);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionMethods_rejectTypeAndStoppedDriver) {
+    UA_NodeId condition = createMethodCondition();
+    UA_NodeId sessionId = UA_NODEID_NULL;
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    UA_ByteString eventId = UA_BYTESTRING("unknown");
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "ignored comment");
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&input[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    static const UA_UInt32 methods[] = {
+        UA_NS0ID_CONDITIONTYPE_ENABLE, UA_NS0ID_CONDITIONTYPE_DISABLE,
+        UA_NS0ID_CONDITIONTYPE_ADDCOMMENT,
+        UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+        UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM
+    };
+    for(unsigned i = 0; i < 5; i++) {
+        UA_NodeId methodId = UA_NODEID_NUMERIC(0, methods[i]);
+        UA_MethodCallback callback = NULL;
+        ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server_ac, methodId, &callback),
+                          UA_STATUSCODE_GOOD);
+        ck_assert(callback != NULL);
+        ck_assert_uint_eq(callback(server_ac, &sessionId, NULL, &methodId, NULL,
+            &typeId, NULL, i < 2 ? 0 : 2, input, 0, NULL), UA_STATUSCODE_BADNODEIDINVALID);
+        acDriver_ac->drv.stop(&acDriver_ac->drv);
+        ck_assert_uint_eq(callback(server_ac, &sessionId, NULL, &methodId, NULL,
+            &condition, NULL, i < 2 ? 0 : 2, input, 0, NULL), UA_STATUSCODE_BADNOTSUPPORTED);
+        ck_assert_uint_eq(acDriver_ac->drv.start(&acDriver_ac->drv), UA_STATUSCODE_GOOD);
+    }
+    assertMethodConditionState(condition, "EnabledState", false);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionRefresh_callbackValidation) {
+    UA_NodeId condition = createMethodCondition();
+    UA_NodeId sessionId = UA_NODEID_NULL;
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    UA_UInt32 id = 0;
+    UA_Boolean invalid = true;
+    for(unsigned method = 0; method < 2; method++) {
+        UA_NodeId methodId = UA_NODEID_NUMERIC(0, method == 0 ?
+            UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH : UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH2);
+        UA_MethodCallback callback = NULL;
+        ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server_ac, methodId, &callback),
+                          UA_STATUSCODE_GOOD);
+        ck_assert(callback != NULL);
+        for(unsigned malformed = 0; malformed < 3; malformed++) {
+            UA_Variant input[2], output;
+            UA_Variant_init(&output);
+            UA_Variant_setScalar(&input[0], &id, &UA_TYPES[UA_TYPES_UINT32]);
+            UA_Variant_setScalar(&input[1], &id, &UA_TYPES[UA_TYPES_UINT32]);
+            if(malformed == 2)
+                UA_Variant_setScalar(&input[method], &invalid, &UA_TYPES[UA_TYPES_BOOLEAN]);
+            ck_assert_uint_eq(callback(server_ac, &sessionId, NULL, &methodId, NULL,
+                &typeId, NULL, malformed == 0 ? 0 : method + 1, input,
+                malformed == 1 ? 1 : 0, &output), malformed == 1 ?
+                UA_STATUSCODE_BADINTERNALERROR : UA_STATUSCODE_BADINVALIDARGUMENT);
+            ck_assert(UA_Variant_isEmpty(&output));
+        }
+    }
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionDriver_rejectInvalidLifecycle) {
+    UA_AlarmConditionsDriver *unattached = UA_AlarmsConditionsDriver(UA_KEYVALUEMAP_NULL);
+    ck_assert_ptr_ne(unattached, NULL);
+    ck_assert_uint_eq(unattached->drv.start(&unattached->drv), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(unattached->drv.state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(unattached->drv.free(&unattached->drv), UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(acDriver_ac->drv.start(&acDriver_ac->drv), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->drv.free(&acDriver_ac->drv), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->drv.state, UA_LIFECYCLESTATE_STARTED);
+    UA_NodeId condition = createMethodCondition();
+    assertMethodConditionState(condition, "EnabledState", false);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionDriver_stoppedOperationsPreserveState) {
+    UA_NodeId condition = createMethodCondition();
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId type = UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE);
+    UA_NodeId sentinel = UA_NODEID_NUMERIC(1, 12345);
+    UA_NodeId output = sentinel;
+    UA_ByteString eventId = UA_BYTESTRING("unchanged");
+    UA_ByteString originalEventId = eventId;
+    UA_Boolean enabled = true;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    acDriver_ac->drv.stop(&acDriver_ac->drv);
+
+    ck_assert_uint_eq(acDriver_ac->setConditionField(acDriver_ac, condition, &value,
+        UA_QUALIFIEDNAME(0, "Retain")), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, condition,
+        &value, UA_QUALIFIEDNAME(0, "EnabledState"), UA_QUALIFIEDNAME(0, "Id")),
+        UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->triggerConditionEvent(acDriver_ac, condition, source,
+        &eventId), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->addConditionOptionalField(acDriver_ac, condition, type,
+        UA_QUALIFIEDNAME(0, "LocalTime"), &output), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->addConditionBegin(acDriver_ac, UA_NODEID_NULL, type,
+        UA_QUALIFIEDNAME(1, "Stopped condition"), &output), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->addConditionFinish(acDriver_ac, condition, source,
+        UA_NODEID_NULL), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->createCondition(acDriver_ac, UA_NODEID_NULL, type,
+        UA_QUALIFIEDNAME(1, "Stopped condition"), source, UA_NODEID_NULL, &output),
+        UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, condition,
+        source, false, testTwoStateCallback, UA_ENTERING_ENABLEDSTATE),
+        UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->deleteCondition(acDriver_ac, condition, source),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->setLimitState(acDriver_ac, condition, 50.0),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(acDriver_ac->setExpirationDate(acDriver_ac, condition, UA_BYTESTRING_NULL),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert(UA_NodeId_equal(&output, &sentinel));
+    ck_assert_ptr_eq(eventId.data, originalEventId.data);
+    ck_assert_uint_eq(eventId.length, originalEventId.length);
+
+    ck_assert_uint_eq(acDriver_ac->drv.start(&acDriver_ac->drv), UA_STATUSCODE_GOOD);
+    assertMethodConditionState(condition, "EnabledState", false);
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(readConditionField(server_ac, condition, "Retain", &value),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_BOOLEAN]));
+    ck_assert(!*(UA_Boolean *)value.data);
+    UA_Variant_clear(&value);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionOptionalField_objectTypeAndChildren) {
+    UA_NodeId condition = createMethodCondition();
+    UA_NodeId field = UA_NODEID_NULL;
+    ck_assert_uint_eq(acDriver_ac->addConditionOptionalField(acDriver_ac, condition,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE),
+        UA_QUALIFIEDNAME(0, "ShelvingState"), &field), UA_STATUSCODE_GOOD);
+    UA_NodeClass nodeClass = UA_NODECLASS_UNSPECIFIED;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ac, field, &nodeClass), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeClass, UA_NODECLASS_OBJECT);
+
+    UA_BrowseDescription description;
+    UA_BrowseDescription_init(&description);
+    description.nodeId = field;
+    description.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+    UA_BrowseResult result = UA_Server_browse(server_ac, 0, &description);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.referencesSize, 1);
+    UA_NodeId expectedType = UA_NODEID_NUMERIC(0, UA_NS0ID_SHELVEDSTATEMACHINETYPE);
+    ck_assert(UA_NodeId_equal(&result.references[0].nodeId.nodeId, &expectedType));
+    UA_BrowseResult_clear(&result);
+
+    UA_QualifiedName path[2] = {UA_QUALIFIEDNAME(0, "ShelvingState"),
+                              UA_QUALIFIEDNAME(0, "CurrentState")};
+    UA_BrowsePathResult child = UA_Server_browseSimplifiedBrowsePath(server_ac, condition, 2, path);
+    ck_assert_uint_eq(child.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(child.targetsSize, 1);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ac, child.targets[0].targetId.nodeId,
+                                            &nodeClass), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeClass, UA_NODECLASS_VARIABLE);
+    UA_BrowsePathResult_clear(&child);
+    UA_NodeId_clear(&field);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
+START_TEST(conditionOptionalField_rejectMethod) {
+    UA_NodeId condition = createMethodCondition();
+    UA_NodeId sentinel = UA_NODEID_NUMERIC(1, 12345);
+    UA_NodeId output = sentinel;
+    ck_assert_uint_eq(acDriver_ac->addConditionOptionalField(acDriver_ac, condition,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE),
+        UA_QUALIFIEDNAME(0, "Confirm"), &output), UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert(UA_NodeId_equal(&output, &sentinel));
+    assertMethodConditionState(condition, "ConfirmedState", false);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
 #endif /* UA_TEST_ENABLE_ALARMS_CONDITIONS */
 
 int main(void) {
@@ -1817,6 +2243,7 @@ int main(void) {
     tcase_add_test(tc_state, activeState_triggerCycle);
     tcase_add_test(tc_state, ackCallback_withRemoveBranch);
     tcase_add_test(tc_state, confirmCallback_withRemoveBranch);
+    tcase_add_test(tc_state, acknowledgeMethodCallback_emptyEventId);
     tcase_add_test(tc_state, setCallback_outOfRange);
 #endif
     tcase_add_checked_fixture(tc_state, setup, teardown);
@@ -1853,6 +2280,34 @@ int main(void) {
 #endif
     tcase_add_checked_fixture(tc_misc, setup, teardown);
     suite_add_tcase(s, tc_misc);
+
+    TCase *tc_methods = tcase_create("Condition methods");
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
+    tcase_add_test(tc_methods, conditionMethods_enableDisable);
+    tcase_add_loop_test(tc_methods, conditionMethods_commentAndState, 0, 6);
+    tcase_add_loop_test(tc_methods, conditionMethods_notRetained, 0, 3);
+    tcase_add_test(tc_methods, conditionMethods_validateCallbackArguments);
+    tcase_add_test(tc_methods, conditionMethods_rejectTypeAndStoppedDriver);
+#endif
+    tcase_add_checked_fixture(tc_methods, setup, teardown);
+    suite_add_tcase(s, tc_methods);
+
+    TCase *tc_refresh = tcase_create("Condition refresh");
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
+    tcase_add_test(tc_refresh, conditionRefresh_callbackValidation);
+#endif
+    tcase_add_checked_fixture(tc_refresh, setup, teardown);
+    suite_add_tcase(s, tc_refresh);
+
+    TCase *tc_driver = tcase_create("Condition driver lifecycle");
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
+    tcase_add_test(tc_driver, conditionDriver_rejectInvalidLifecycle);
+    tcase_add_test(tc_driver, conditionDriver_stoppedOperationsPreserveState);
+    tcase_add_test(tc_driver, conditionOptionalField_objectTypeAndChildren);
+    tcase_add_test(tc_driver, conditionOptionalField_rejectMethod);
+#endif
+    tcase_add_checked_fixture(tc_driver, setup, teardown);
+    suite_add_tcase(s, tc_driver);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

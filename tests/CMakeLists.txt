@@ -395,6 +395,7 @@ ua_add_test(server/check_services_nodemanagement.c)
 ua_add_test(server/check_discovery_coverage.c)
 ua_add_test(server/check_server_callbacks.c)
 ua_add_test(server/check_server_http_protocol.c)
+ua_add_test(server/check_server_websocket_protocol.c)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     ua_add_test(server/check_server_password.c EXTRALIBS -lcrypt)
@@ -435,6 +436,7 @@ endif()
 ua_add_test(server/check_nodestore.c)
 
 if(UA_ENABLE_HISTORIZING)
+    ua_add_test(server/check_services_history.c)
     ua_add_test(server/check_server_historical_data.c)
     ua_add_test(server/check_server_historical_data_circular.c)
 endif()
@@ -692,6 +694,9 @@ endif()
 # The AEAD ECC policies (AesGcm / ChaChaPoly) are implemented only in the
 # OpenSSL backend, so their tests are OpenSSL-only.
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    ua_add_test(encryption/check_openssl_aead.c)
+    target_include_directories(check_openssl_aead PRIVATE
+                               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
     ua_add_test(encryption/check_encryption_eccnistp256_aesgcm.c)
     ua_add_test(encryption/check_encryption_eccnistp256_chachapoly.c)
 endif()

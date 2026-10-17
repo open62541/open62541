@@ -498,17 +498,27 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
-/* Remove the first channel that has no session attached */
+/* Remove the first channel that has no activated session attached. A
+ * Session created but never activated does not represent an authenticated
+ * client and must not keep its SecureChannel from being reclaimed. */
 static UA_Boolean
 purgeFirstUascChannelWithoutSession(UA_Server *server) {
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->transport != UA_SECURECHANNEL_TRANSPORT_UACP ||
-           channel->sessions)
+        if(channel->transport != UA_SECURECHANNEL_TRANSPORT_UACP)
+            continue;
+        UA_Boolean hasActivatedSession = false;
+        for(UA_Session *s = channel->sessions; s; s = s->next) {
+            if(s->state == UA_SESSIONSTATE_ACTIVATED) {
+                hasActivatedSession = true;
+                break;
+            }
+        }
+        if(hasActivatedSession)
             continue;
         UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                             "Channel was purged since maxSecureChannels was "
-                            "reached and channel had no session attached");
+                            "reached and channel had no activated session attached");
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_PURGE);
         return true;
     }

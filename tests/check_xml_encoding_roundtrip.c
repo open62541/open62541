@@ -609,6 +609,213 @@ START_TEST(xml_decode_union) {
     UA_clear(&dst, &testUnionType);
 } END_TEST
 
+START_TEST(xml_decode_variant_customTypeLookup) {
+    const char *xmlCases[] = {
+        "<Variant><Value><TestUnion><SwitchField>2</SwitchField>"
+        "<Text>custom</Text></TestUnion></Value></Variant>",
+        "<Variant><Value><ListOfTestUnion>"
+        "<TestUnion><SwitchField>2</SwitchField><Text>custom</Text></TestUnion>"
+        "</ListOfTestUnion></Value></Variant>",
+        "<Variant><Value><UnknownType>custom</UnknownType></Value></Variant>"
+    };
+    UA_DataType unrelatedType = testUnionType;
+    unrelatedType.typeName = "UnrelatedUnion";
+    unrelatedType.typeId = UA_NODEID_NUMERIC(1, 1003);
+    unrelatedType.binaryEncodingId = UA_NODEID_NUMERIC(1, 2003);
+    unrelatedType.xmlEncodingId = UA_NODEID_NUMERIC(1, 3003);
+    UA_DataTypeArray customTypes = {NULL, 1, &testUnionType, false};
+    UA_DataTypeArray precedingTypes = {&customTypes, 1, &unrelatedType, false};
+    UA_DecodeXmlOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = &precedingTypes;
+
+    UA_ByteString xml = UA_BYTESTRING((char*)(uintptr_t)xmlCases[_i]);
+    UA_Variant dst;
+    UA_StatusCode res = UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_VARIANT], &options);
+    if(_i < 2) {
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_eq(dst.type, &testUnionType);
+        ck_assert_uint_eq(dst.arrayLength, (_i == 0) ? 0 : 1);
+        ck_assert_int_eq(UA_Variant_isScalar(&dst), _i == 0);
+        TestUnion *value = (TestUnion*)dst.data;
+        ck_assert_uint_eq(value->switchField, 2);
+        UA_String expected = UA_STRING("custom");
+        ck_assert(UA_String_equal(&value->fields.text, &expected));
+    } else {
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+        ck_assert_ptr_null(dst.type);
+        ck_assert_ptr_null(dst.data);
+    }
+    UA_Variant_clear(&dst);
+} END_TEST
+
+START_TEST(xml_decode_variant_unwrapExtensionObjectArray) {
+    UA_ByteString xml = UA_BYTESTRING(
+        "<Variant><Value><ListOfExtensionObject>"
+        "<ExtensionObject><TypeId><Identifier>ns=1;i=1001</Identifier></TypeId>"
+        "<Body><TestUnion><SwitchField>2</SwitchField><Text>first</Text>"
+        "</TestUnion></Body></ExtensionObject>"
+        "<ExtensionObject><TypeId><Identifier>ns=1;i=1001</Identifier></TypeId>"
+        "<Body><TestUnion><SwitchField>2</SwitchField><Text>second</Text>"
+        "</TestUnion></Body></ExtensionObject>"
+        "</ListOfExtensionObject></Value></Variant>");
+    UA_DataTypeArray customTypes = {NULL, 1, &testUnionType, false};
+    UA_DecodeXmlOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = &customTypes;
+
+    UA_Variant dst;
+    UA_StatusCode res = UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_VARIANT], &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&dst, &testUnionType));
+    ck_assert_uint_eq(dst.arrayLength, 2);
+    TestUnion *values = (TestUnion*)dst.data;
+    UA_String expected[] = {UA_STRING_STATIC("first"), UA_STRING_STATIC("second")};
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_uint_eq(values[i].switchField, 2);
+        ck_assert(UA_String_equal(&values[i].fields.text, &expected[i]));
+    }
+    UA_Variant_clear(&dst);
+} END_TEST
+
+START_TEST(xml_decode_variant_preserveMixedExtensionObjects) {
+    const char *secondBodies[] = {
+        "<ExtensionObject><TypeId><Identifier>ns=1;i=1002</Identifier></TypeId>"
+        "<Body><OtherUnion><SwitchField>2</SwitchField><Text>second</Text>"
+        "</OtherUnion></Body></ExtensionObject>",
+        "<ExtensionObject><TypeId><Identifier>ns=1;i=9999</Identifier></TypeId>"
+        "<Body><UnknownType>second</UnknownType></Body></ExtensionObject>"
+    };
+    UA_String xml = UA_STRING_ALLOC(
+        "<Variant><Value><ListOfExtensionObject>"
+        "<ExtensionObject><TypeId><Identifier>ns=1;i=1001</Identifier></TypeId>"
+        "<Body><TestUnion><SwitchField>2</SwitchField><Text>first</Text>"
+        "</TestUnion></Body></ExtensionObject>");
+    ck_assert_ptr_nonnull(xml.data);
+    UA_String second = UA_STRING((char*)(uintptr_t)secondBodies[_i]);
+    UA_StatusCode res = UA_String_append(&xml, second);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_String_append(&xml, UA_STRING("</ListOfExtensionObject></Value></Variant>"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_DataType types[2];
+    types[0] = testUnionType;
+    types[1] = testUnionType;
+    types[1].typeId = UA_NODEID_NUMERIC(1, 1002);
+    types[1].binaryEncodingId = UA_NODEID_NUMERIC(1, 2002);
+    types[1].xmlEncodingId = UA_NODEID_NUMERIC(1, 3002);
+    types[1].typeName = "OtherUnion";
+    UA_DataTypeArray customTypes = {NULL, 2, types, false};
+    UA_DecodeXmlOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = &customTypes;
+
+    UA_Variant dst;
+    res = UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_VARIANT], &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&dst, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]));
+    ck_assert_uint_eq(dst.arrayLength, 2);
+    UA_ExtensionObject *values = (UA_ExtensionObject*)dst.data;
+    ck_assert(UA_ExtensionObject_hasDecodedType(&values[0], &types[0]));
+    TestUnion *firstValue = (TestUnion*)values[0].content.decoded.data;
+    ck_assert_uint_eq(firstValue->switchField, 2);
+    UA_String firstExpected = UA_STRING("first");
+    ck_assert(UA_String_equal(&firstValue->fields.text, &firstExpected));
+    if(_i == 0) {
+        ck_assert(UA_ExtensionObject_hasDecodedType(&values[1], &types[1]));
+        TestUnion *secondValue = (TestUnion*)values[1].content.decoded.data;
+        ck_assert_uint_eq(secondValue->switchField, 2);
+        UA_String secondExpected = UA_STRING("second");
+        ck_assert(UA_String_equal(&secondValue->fields.text, &secondExpected));
+    } else {
+        ck_assert_int_eq(values[1].encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
+        UA_NodeId expectedId = UA_NODEID_NUMERIC(1, 9999);
+        ck_assert(UA_NodeId_equal(&values[1].content.encoded.typeId, &expectedId));
+        UA_String expectedBody = UA_STRING("<UnknownType>second</UnknownType>");
+        ck_assert(UA_String_equal(&values[1].content.encoded.body, &expectedBody));
+    }
+    UA_Variant_clear(&dst);
+    UA_String_clear(&xml);
+} END_TEST
+
+static const struct {
+    const char *xml;
+    size_t typeIndex;
+} invalidScalarXml[] = {
+    {"<Boolean>truth</Boolean>", UA_TYPES_BOOLEAN},
+    {"<SByte>-129</SByte>", UA_TYPES_SBYTE},
+    {"<SByte>128</SByte>", UA_TYPES_SBYTE},
+    {"<Byte>256</Byte>", UA_TYPES_BYTE},
+    {"<Byte>-1</Byte>", UA_TYPES_BYTE},
+    {"<Int16>-32769</Int16>", UA_TYPES_INT16},
+    {"<Int16>32768</Int16>", UA_TYPES_INT16},
+    {"<UInt16>65536</UInt16>", UA_TYPES_UINT16},
+    {"<UInt16>-1</UInt16>", UA_TYPES_UINT16},
+    {"<Int32>-2147483649</Int32>", UA_TYPES_INT32},
+    {"<Int32>2147483648</Int32>", UA_TYPES_INT32},
+    {"<UInt32>4294967296</UInt32>", UA_TYPES_UINT32},
+    {"<UInt32>-1</UInt32>", UA_TYPES_UINT32},
+    {"<Int64>-9223372036854775809</Int64>", UA_TYPES_INT64},
+    {"<Int64>9223372036854775808</Int64>", UA_TYPES_INT64},
+    {"<UInt64>18446744073709551616</UInt64>", UA_TYPES_UINT64},
+    {"<Int64/>", UA_TYPES_INT64},
+    {"<UInt64/>", UA_TYPES_UINT64},
+    {"<Int16>12x</Int16>", UA_TYPES_INT16},
+    {"<UInt16>12x</UInt16>", UA_TYPES_UINT16},
+    {"<Double/>", UA_TYPES_DOUBLE},
+    {"<Double>number</Double>", UA_TYPES_DOUBLE},
+    {"<Double>1.25x</Double>", UA_TYPES_DOUBLE},
+    {"<Float>number</Float>", UA_TYPES_FLOAT},
+    {"<ServerState>Unknown_0</ServerState>", UA_TYPES_SERVERSTATE},
+    {"<ServerState>Running_5</ServerState>", UA_TYPES_SERVERSTATE},
+    {"<ServerState>2147483648</ServerState>", UA_TYPES_SERVERSTATE}
+};
+
+START_TEST(xml_decode_invalidScalar) {
+    UA_ByteString xml = UA_BYTESTRING((char*)(uintptr_t)invalidScalarXml[_i].xml);
+    const UA_DataType *type = &UA_TYPES[invalidScalarXml[_i].typeIndex];
+    void *dst = UA_new(type);
+    ck_assert_ptr_nonnull(dst);
+    memset(dst, 0xA5, type->memSize);
+    UA_StatusCode res = UA_decodeXml(&xml, dst, type, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    const UA_Byte zero[sizeof(UA_UInt64)] = {0};
+    ck_assert_uint_le(type->memSize, sizeof(zero));
+    ck_assert(memcmp(dst, zero, type->memSize) == 0);
+    UA_delete(dst, type);
+} END_TEST
+
+START_TEST(xml_decode_invalidMatrix) {
+    const char *xmlCases[] = {
+        "<Variant><Value><Matrix><Dimensions><Int32>1</Int32></Dimensions>"
+        "</Matrix></Value></Variant>",
+        "<Variant><Value><Matrix><Shape><Int32>1</Int32></Shape>"
+        "<Elements><Int32>42</Int32></Elements></Matrix></Value></Variant>",
+        "<Variant><Value><Matrix><Dimensions><Int32>bad</Int32></Dimensions>"
+        "<Elements><Int32>42</Int32></Elements></Matrix></Value></Variant>",
+        "<Variant><Value><Matrix><Dimensions><Int32>1</Int32></Dimensions>"
+        "<Values><Int32>42</Int32></Values></Matrix></Value></Variant>",
+        "<Variant><Value><Matrix><Dimensions><Int32>1</Int32></Dimensions>"
+        "<Elements><UnknownType>42</UnknownType></Elements></Matrix></Value></Variant>",
+        "<Variant><Value><Matrix><Dimensions><Int32>1</Int32></Dimensions>"
+        "<Elements><Int32>bad</Int32></Elements></Matrix></Value></Variant>",
+        "<Variant><Value><Matrix><Dimensions><Int32>2</Int32><Int32>2</Int32>"
+        "</Dimensions><Elements><Int32>42</Int32></Elements></Matrix></Value></Variant>",
+        "<Variant><Value><Matrix><Dimensions><Int32>2147483647</Int32>"
+        "<Int32>2147483647</Int32><Int32>2147483647</Int32></Dimensions>"
+        "<Elements><Int32>42</Int32></Elements></Matrix></Value></Variant>"
+    };
+    UA_ByteString xml = UA_BYTESTRING((char*)(uintptr_t)xmlCases[_i]);
+    UA_Variant dst;
+    UA_StatusCode res = UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_null(dst.type);
+    ck_assert_ptr_null(dst.data);
+    ck_assert_ptr_null(dst.arrayDimensions);
+    ck_assert_uint_eq(dst.arrayDimensionsSize, 0);
+    UA_Variant_clear(&dst);
+} END_TEST
+
 START_TEST(xml_decode_character_references) {
     const struct {
         const char *xml;
@@ -714,6 +921,10 @@ int main(void) {
     tcase_add_test(tc_complex, xml_extensionobject_decoded);
     tcase_add_test(tc_complex, xml_extensionobject_nobody);
     tcase_add_test(tc_complex, xml_decode_union);
+    tcase_add_loop_test(tc_complex, xml_decode_variant_customTypeLookup, 0, 3);
+    tcase_add_test(tc_complex, xml_decode_variant_unwrapExtensionObjectArray);
+    tcase_add_loop_test(tc_complex, xml_decode_variant_preserveMixedExtensionObjects, 0, 2);
+    tcase_add_loop_test(tc_complex, xml_decode_invalidMatrix, 0, 8);
     suite_add_tcase(s, tc_complex);
 
     TCase *tc_misc = tcase_create("Misc");
@@ -729,6 +940,8 @@ int main(void) {
     tcase_add_test(tc_misc, xml_decode_numeric_enum);
     tcase_add_test(tc_misc, xml_decode_character_references);
     tcase_add_test(tc_misc, xml_decode_invalid_character_reference);
+    tcase_add_loop_test(tc_misc, xml_decode_invalidScalar, 0,
+                        (int)(sizeof(invalidScalarXml) / sizeof(invalidScalarXml[0])));
     suite_add_tcase(s, tc_misc);
 
     SRunner *sr = srunner_create(s);

@@ -1,5 +1,6 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
@@ -88,6 +89,11 @@ START_TEST(encryption_connect) {
     UA_ClientConfig_setDefaultEncryption(config, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
+
+    /* This test is about the config being copied into the server (see
+     * create_server() above), not about trust-list enforcement -- use
+     * AcceptAll explicitly instead of relying on an empty trust list. */
+    UA_CertificateGroup_AcceptAll(&config->certificateVerification);
 
     UA_String_clear(&config->clientDescription.applicationUri);
     config->clientDescription.applicationUri =

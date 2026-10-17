@@ -1161,6 +1161,253 @@ START_TEST(Server_HistorizingRandomIndexBackend)
 }
 END_TEST
 
+static void
+setupMemoryBackend(void) {
+    server = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(server);
+}
+
+static void
+teardownMemoryBackend(void) {
+    UA_Server_delete(server);
+}
+
+START_TEST(MemoryBackendGrowsNodeStorage) {
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(0, 0);
+    ck_assert_ptr_nonnull(backend.context);
+    char names[3][2] = {"A", "B", "C"};
+    for(UA_UInt32 i = 0; i < 3; i++) {
+        UA_NodeId id = UA_NODEID_STRING(1, names[i]);
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        value.hasValue = true;
+        UA_Variant_setScalar(&value.value, &i, &UA_TYPES[UA_TYPES_UINT32]);
+        value.hasServerTimestamp = true;
+        value.serverTimestamp = 100 + i;
+        ck_assert_uint_eq(backend.serverSetHistoryData(server, backend.context,
+            NULL, NULL, &id, false, &value), UA_STATUSCODE_GOOD);
+    }
+    for(UA_UInt32 i = 0; i < 3; i++) {
+        UA_NodeId id = UA_NODEID_STRING(1, names[i]);
+        ck_assert_uint_eq(backend.getEnd(server, backend.context, NULL, NULL, &id), 1);
+        const UA_DataValue *stored = backend.getDataValue(server, backend.context,
+                                                         NULL, NULL, &id, 0);
+        ck_assert(UA_Variant_hasScalarType(&stored->value, &UA_TYPES[UA_TYPES_UINT32]));
+        ck_assert_uint_eq(*(UA_UInt32*)stored->value.data, i);
+        ck_assert(!stored->hasSourceTimestamp);
+        ck_assert(stored->hasServerTimestamp);
+        ck_assert_int_eq(stored->serverTimestamp, 100 + i);
+        ck_assert(backend.timestampsToReturnSupported(server, backend.context,
+            NULL, NULL, &id, UA_TIMESTAMPSTORETURN_SERVER));
+        ck_assert(!backend.timestampsToReturnSupported(server, backend.context,
+            NULL, NULL, &id, UA_TIMESTAMPSTORETURN_SOURCE));
+        ck_assert(!backend.timestampsToReturnSupported(server, backend.context,
+            NULL, NULL, &id, UA_TIMESTAMPSTORETURN_BOTH));
+    }
+    /* The backend owns its NodeIds independently of the caller's storage. */
+    memset(names, 0, sizeof(names));
+    UA_NodeId first = UA_NODEID_STRING(1, "A");
+    ck_assert_uint_eq(backend.getEnd(server, backend.context, NULL, NULL, &first), 1);
+    backend.deleteMembers(&backend);
+} END_TEST
+
+START_TEST(MemoryBackendRejectsMissingUpdateTimestamp) {
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
+    ck_assert_ptr_nonnull(backend.context);
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 100);
+    UA_UInt32 number = 7;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.hasValue = true;
+    UA_Variant_setScalar(&value.value, &number, &UA_TYPES[UA_TYPES_UINT32]);
+    value.hasSourceTimestamp = true;
+    value.sourceTimestamp = 100;
+    ck_assert_uint_eq(backend.insertDataValue(server, backend.context,
+        NULL, NULL, &id, &value), UA_STATUSCODE_GOOD);
+    value.hasSourceTimestamp = false;
+    number = 99;
+    UA_StatusCode res;
+    if(_i == 0)
+        res = backend.insertDataValue(server, backend.context, NULL, NULL, &id, &value);
+    else if(_i == 1)
+        res = backend.replaceDataValue(server, backend.context, NULL, NULL, &id, &value);
+    else
+        res = backend.updateDataValue(server, backend.context, NULL, NULL, &id, &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDTIMESTAMP);
+    ck_assert_uint_eq(backend.getEnd(server, backend.context, NULL, NULL, &id), 1);
+    const UA_DataValue *stored = backend.getDataValue(server, backend.context,
+                                                     NULL, NULL, &id, 0);
+    ck_assert_uint_eq(*(UA_UInt32*)stored->value.data, 7);
+    ck_assert(stored->hasSourceTimestamp && stored->hasServerTimestamp);
+    ck_assert_int_eq(stored->sourceTimestamp, 100);
+    ck_assert_int_eq(stored->serverTimestamp, 100);
+    backend.deleteMembers(&backend);
+} END_TEST
+
+START_TEST(MemoryBackendCompletesReplacementTimestamp) {
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
+    ck_assert_ptr_nonnull(backend.context);
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 100);
+    UA_UInt32 number = 7;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.hasValue = true;
+    UA_Variant_setScalar(&value.value, &number, &UA_TYPES[UA_TYPES_UINT32]);
+    value.hasServerTimestamp = true;
+    value.serverTimestamp = 100;
+    ck_assert_uint_eq(backend.insertDataValue(server, backend.context,
+        NULL, NULL, &id, &value), UA_STATUSCODE_GOOD);
+    value.hasServerTimestamp = false;
+    value.hasSourceTimestamp = true;
+    value.sourceTimestamp = 100;
+    number = 99;
+    ck_assert_uint_eq(backend.replaceDataValue(server, backend.context,
+        NULL, NULL, &id, &value), UA_STATUSCODE_GOOD);
+    const UA_DataValue *stored = backend.getDataValue(server, backend.context,
+                                                     NULL, NULL, &id, 0);
+    ck_assert_uint_eq(*(UA_UInt32*)stored->value.data, 99);
+    ck_assert(stored->hasSourceTimestamp && stored->hasServerTimestamp);
+    ck_assert_int_eq(stored->sourceTimestamp, 100);
+    ck_assert_int_eq(stored->serverTimestamp, 100);
+    backend.deleteMembers(&backend);
+} END_TEST
+
+START_TEST(MemoryBackendRangeFailurePreservesCompletedValues) {
+    const UA_Boolean reverse = (_i & 1) != 0;
+    const UA_Boolean missingValue = (_i & 2) != 0;
+    const UA_Boolean omitCount = (_i & 4) != 0;
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 2);
+    ck_assert_ptr_nonnull(backend.context);
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 100);
+    UA_UInt32 numbers[2] = {10, 20};
+    for(size_t i = 0; i < 2; i++) {
+        UA_Boolean valid = (i == (reverse ? 1u : 0u));
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        value.hasSourceTimestamp = true;
+        value.sourceTimestamp = (UA_DateTime)(100 + i);
+        if(valid || !missingValue) {
+            value.hasValue = true;
+            UA_Variant_setArray(&value.value, numbers, valid ? 2 : 1,
+                                &UA_TYPES[UA_TYPES_UINT32]);
+        } else {
+            value.hasStatus = true;
+            value.status = UA_STATUSCODE_BADWAITINGFORINITIALDATA;
+        }
+        ck_assert_uint_eq(backend.serverSetHistoryData(server, backend.context,
+            NULL, NULL, &id, false, &value), UA_STATUSCODE_GOOD);
+    }
+    UA_NumericRangeDimension dimension = {1, 1};
+    UA_NumericRange range = {1, &dimension};
+    UA_ByteString continuation = UA_BYTESTRING_NULL;
+    UA_ByteString next = UA_BYTESTRING_NULL;
+    UA_DataValue results[2];
+    UA_DataValue_init(&results[0]);
+    UA_DataValue_init(&results[1]);
+    size_t provided = SIZE_MAX;
+    UA_StatusCode res = backend.copyDataValues(server, backend.context, NULL, NULL,
+        &id, reverse ? 1 : 0, reverse ? 0 : 1, reverse, 2, range, false,
+        &continuation, &next, omitCount ? NULL : &provided, results);
+    ck_assert_uint_eq(res, missingValue ? UA_STATUSCODE_BADDATAUNAVAILABLE
+                                       : UA_STATUSCODE_BADINDEXRANGENODATA);
+    if(!omitCount)
+        ck_assert_uint_eq(provided, 1);
+    ck_assert(results[0].hasValue);
+    ck_assert(UA_Variant_hasArrayType(&results[0].value, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(results[0].value.arrayLength, 1);
+    ck_assert_uint_eq(*(UA_UInt32*)results[0].value.data, 20);
+    ck_assert(UA_Variant_isEmpty(&results[1].value));
+    ck_assert_uint_eq(next.length, 0);
+    UA_DataValue_clear(&results[0]);
+    UA_DataValue_clear(&results[1]);
+    UA_ByteString_clear(&next);
+    backend.deleteMembers(&backend);
+} END_TEST
+
+START_TEST(MemoryBackendRejectsMalformedContinuationPoint) {
+    UA_HistoryDataBackend backend;
+    if(_i)
+        backend = UA_HistoryDataBackend_Memory_Circular(1, 1);
+    else
+        backend = UA_HistoryDataBackend_Memory(1, 1);
+    ck_assert_ptr_nonnull(backend.context);
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 100);
+    UA_Byte byte = 0;
+    UA_ByteString continuation = {1, &byte};
+    UA_ByteString next = UA_BYTESTRING_NULL;
+    UA_NumericRange range = {0, NULL};
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    size_t provided = SIZE_MAX;
+    UA_StatusCode res;
+    if(_i) {
+        UA_HistoryData history;
+        UA_HistoryData_init(&history);
+        res = backend.getHistoryData(server, NULL, NULL, &backend, 0, 0, &id,
+            1, 1, false, UA_TIMESTAMPSTORETURN_BOTH, range, false,
+            &continuation, &next, &history);
+        ck_assert_uint_eq(history.dataValuesSize, 0);
+        ck_assert_ptr_null(history.dataValues);
+        UA_HistoryData_clear(&history);
+    } else {
+        res = backend.copyDataValues(server, backend.context, NULL, NULL, &id,
+            0, 0, false, 1, range, false, &continuation, &next, &provided, &value);
+    }
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    ck_assert_uint_eq(provided, SIZE_MAX);
+    ck_assert(UA_Variant_isEmpty(&value.value));
+    ck_assert_uint_eq(next.length, 0);
+    backend.deleteMembers(&backend);
+} END_TEST
+
+START_TEST(MemoryBackendCompletesMissingTimestamps) {
+    UA_HistoryDataBackend backend;
+    if(_i)
+        backend = UA_HistoryDataBackend_Memory_Circular(1, 1);
+    else
+        backend = UA_HistoryDataBackend_Memory(1, 1);
+    ck_assert_ptr_nonnull(backend.context);
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 100);
+    UA_UInt32 number = 7;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.hasValue = true;
+    UA_Variant_setScalar(&value.value, &number, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(backend.serverSetHistoryData(server, backend.context,
+        NULL, NULL, &id, false, &value), UA_STATUSCODE_GOOD);
+    const UA_DataValue *stored = backend.getDataValue(server, backend.context,
+                                                     NULL, NULL, &id, 0);
+    ck_assert(stored->hasServerTimestamp);
+    ck_assert_int_gt(stored->serverTimestamp, 0);
+    ck_assert(!stored->hasSourceTimestamp);
+    ck_assert_uint_eq(*(UA_UInt32*)stored->value.data, 7);
+    backend.deleteMembers(&backend);
+} END_TEST
+
+START_TEST(CircularBackendRejectsExcessNodes) {
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory_Circular(1, 1);
+    ck_assert_ptr_nonnull(backend.context);
+    UA_NodeId first = UA_NODEID_NUMERIC(1, 100);
+    UA_NodeId second = UA_NODEID_NUMERIC(1, 101);
+    UA_UInt32 number = 7;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.hasValue = true;
+    UA_Variant_setScalar(&value.value, &number, &UA_TYPES[UA_TYPES_UINT32]);
+    value.hasServerTimestamp = true;
+    value.serverTimestamp = 100;
+    ck_assert_uint_eq(backend.serverSetHistoryData(server, backend.context,
+        NULL, NULL, &first, false, &value), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(backend.serverSetHistoryData(server, backend.context,
+        NULL, NULL, &second, false, &value), UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(backend.getEnd(server, backend.context, NULL, NULL, &first), 1);
+    const UA_DataValue *stored = backend.getDataValue(server, backend.context,
+                                                     NULL, NULL, &first, 0);
+    ck_assert_uint_eq(*(UA_UInt32*)stored->value.data, 7);
+    ck_assert_int_eq(stored->serverTimestamp, 100);
+    backend.deleteMembers(&backend);
+} END_TEST
+
 static Suite *
 testSuite_Client(void) {
     Suite *s = suite_create("Server Historical Data");
@@ -1177,6 +1424,17 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_HistorizingUpdateReplace);
     tcase_add_test(tc_server, Server_HistorizingUpdateUpdate);
     suite_add_tcase(s, tc_server);
+
+    TCase *tc_memory = tcase_create("Memory backend boundaries");
+    tcase_add_checked_fixture(tc_memory, setupMemoryBackend, teardownMemoryBackend);
+    tcase_add_test(tc_memory, MemoryBackendGrowsNodeStorage);
+    tcase_add_loop_test(tc_memory, MemoryBackendRejectsMissingUpdateTimestamp, 0, 3);
+    tcase_add_test(tc_memory, MemoryBackendCompletesReplacementTimestamp);
+    tcase_add_loop_test(tc_memory, MemoryBackendRangeFailurePreservesCompletedValues, 0, 8);
+    tcase_add_loop_test(tc_memory, MemoryBackendRejectsMalformedContinuationPoint, 0, 2);
+    tcase_add_loop_test(tc_memory, MemoryBackendCompletesMissingTimestamps, 0, 2);
+    tcase_add_test(tc_memory, CircularBackendRejectsExcessNodes);
+    suite_add_tcase(s, tc_memory);
 
 #ifdef UA_ENABLE_MALLOC_SINGLETON
     TCase *tc_oom = tcase_create("Server Historical Data Out Of Memory");

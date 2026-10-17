@@ -248,6 +248,19 @@ tagged union. Before the Subscriber API used a variant -- which is still used in
 some standard-defined data types. `UA_PublisherId_fromVariant` and
 `UA_PublisherId_toVariant` are provided for the conversion.
 
+### Empty trust list no longer falls back to accept-all
+
+`UA_ClientConfig_setDefaultEncryption()`, `UA_ServerConfig_setDefaultWithSecurityPolicies()`
+and `UA_ServerConfig_setDefaultWithSecureSecurityPolicies()` now always build a
+trust-list-backed certificate verifier, even when called with an empty trust
+list. Previously, an empty trust list left whatever certificate verifier the
+base configuration had already installed in place, which accepts any
+certificate. An empty trust list now results in a verifier that trusts
+nothing, so encrypted connections set up this way will fail certificate
+verification until a non-empty trust list is passed, or a verifying
+certificate group is assigned to `certificateVerification`/`secureChannelPKI`/
+`sessionPKI` afterwards.
+
 # Release 1.4
 
 ### Decoding variant with array of structure

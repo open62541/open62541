@@ -6,6 +6,8 @@
 #include <open62541/client_config_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <open62541/plugin/create_certificate.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include "server/ua_server_internal.h"
 #include "client/ua_client_internal.h"
@@ -123,6 +125,35 @@ UA_UInt64 periodicRegisterCallbackId;
 static const UA_String registeredDiscoveryUrl =
     UA_STRING_STATIC("opc.tcp://third-party.example:16664");
 
+/* Certificate for the client that registers server_register at the LDS. Its
+ * ApplicationUri must match server_register's own applicationUri, since that
+ * is the serverUri the LDS checks the certificate against. */
+static UA_ByteString registerCert;
+static UA_ByteString registerKey;
+
+static void
+createRegisterCertificate(void) {
+    UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("O=SampleOrganization"),
+                            UA_STRING_STATIC("CN=Open62541Server@localhost")};
+    UA_String subjectAltName[2] = {
+        UA_STRING_STATIC("DNS:localhost"),
+        UA_STRING_STATIC("URI:urn:open62541.test.server_register")
+    };
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt16 expiresIn = 14;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "expires-in-days"),
+                             (void *)&expiresIn, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_StatusCode status = UA_CreateCertificate(
+        UA_Log_Stdout, subject, 3, subjectAltName, 2,
+        UA_CERTIFICATEFORMAT_DER, kvm, &registerKey, &registerCert);
+    UA_KeyValueMap_delete(kvm);
+    ck_assert_uint_eq(status, UA_STATUSCODE_GOOD);
+}
+
 THREAD_CALLBACK(serverloop_register) {
     while(UA_atomic_load(&running_register))
         UA_Server_run_iterate(server_register, true);
@@ -133,6 +164,8 @@ static void
 setup_register(void) {
     // start register server
     UA_atomic_store(&running_register, true);
+
+    createRegisterCertificate();
 
     server_register = UA_Server_newForUnitTest();
     UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
@@ -176,6 +209,8 @@ teardown_register(void) {
     THREAD_JOIN(server_thread_register);
     UA_Server_run_shutdown(server_register);
     UA_Server_delete(server_register);
+    UA_ByteString_clear(&registerCert);
+    UA_ByteString_clear(&registerKey);
 }
 
 /* The LDS can expose a registration before the asynchronous registration
@@ -195,17 +230,8 @@ waitForRegisterRequestCompletion(void) {
 
 static UA_StatusCode
 beginRegisterServerStopped(void) {
-    /* Load certificate and private key */
-    UA_ByteString certificate;
-    certificate.length = CERT_DER_LENGTH;
-    certificate.data = CERT_DER_DATA;
-
-    UA_ByteString privateKey;
-    privateKey.length = KEY_DER_LENGTH;
-    privateKey.data = KEY_DER_DATA;
-
     UA_ClientConfig cc;
-    UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
+    UA_ClientConfig_newForUnitTestWithEncryption(&cc, registerCert, registerKey);
 
     UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
@@ -228,17 +254,8 @@ registerServer(void) {
 
 static void
 unregisterServer(void) {
-    /* Load certificate and private key */
-    UA_ByteString certificate;
-    certificate.length = CERT_DER_LENGTH;
-    certificate.data = CERT_DER_DATA;
-
-    UA_ByteString privateKey;
-    privateKey.length = KEY_DER_LENGTH;
-    privateKey.data = KEY_DER_DATA;
-
     UA_ClientConfig cc;
-    UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
+    UA_ClientConfig_newForUnitTestWithEncryption(&cc, registerCert, registerKey);
 
     UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
@@ -270,17 +287,8 @@ Server_register_semaphore(void) {
     fclose(fp);
 #endif
 
-    /* Load certificate and private key */
-    UA_ByteString certificate;
-    certificate.length = CERT_DER_LENGTH;
-    certificate.data = CERT_DER_DATA;
-
-    UA_ByteString privateKey;
-    privateKey.length = KEY_DER_LENGTH;
-    privateKey.data = KEY_DER_DATA;
-
     UA_ClientConfig cc;
-    UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
+    UA_ClientConfig_newForUnitTestWithEncryption(&cc, registerCert, registerKey);
 
     UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
@@ -865,6 +873,48 @@ START_TEST(Server_registerFindServers) {
 }
 END_TEST
 
+/* RegisterServer(2) must not accept a registration that arrives over a
+ * SecureChannel without a client certificate. Send the request directly (no
+ * Session, SecurityPolicy#None) and confirm both that the service call is
+ * rejected and that no entry is created for the claimed serverUri. */
+START_TEST(Server_registerServer2_withoutCertificate_rejected) {
+    while(!Client_find_discovery()) {}
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String uninvitedUri =
+        UA_STRING("urn:open62541.test.uninvited_register_attempt");
+    UA_String uninvitedDiscoveryUrl =
+        UA_STRING("opc.tcp://uninvited.example:4842");
+
+    UA_RegisterServer2Request request;
+    UA_RegisterServer2Request_init(&request);
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+    request.server.serverUri = uninvitedUri;
+    request.server.isOnline = true;
+    request.server.discoveryUrlsSize = 1;
+    request.server.discoveryUrls = &uninvitedDiscoveryUrl;
+
+    UA_RegisterServer2Response response;
+    UA_RegisterServer2Response_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_RegisterServer2Response_clear(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* No entry must have been created for the rejected request */
+    ck_assert(FindAndCheck(NULL, 0, NULL, NULL,
+                           "urn:open62541.test.uninvited_register_attempt", NULL));
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Register Server and Client");
 
@@ -889,6 +939,11 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_register_find, setup_register, teardown_register);
     tcase_add_test(tc_register_find, Server_registerFindServers);
     suite_add_tcase(s,tc_register_find);
+
+    TCase *tc_register_noauth = tcase_create("RegisterServer without authentication");
+    tcase_add_unchecked_fixture(tc_register_noauth, setup_lds, teardown_lds);
+    tcase_add_test(tc_register_noauth, Server_registerServer2_withoutCertificate_rejected);
+    suite_add_tcase(s, tc_register_noauth);
 
     TCase *tc_register_races = tcase_create("RegisterServer async cleanup");
     tcase_add_unchecked_fixture(tc_register_races, setup_lds, teardown_lds);

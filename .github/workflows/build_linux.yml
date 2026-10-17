@@ -36,6 +36,10 @@ jobs:
           sudo apt-get install -y -qq build-essential check cmake libsubunit-dev python3 valgrind libwebsockets-dev zlib1g-dev
       - name: Build mbedTLS
         run: |
+          # The tests run clients and servers in separate threads. PSA crypto
+          # needs mutexes even when the open62541 build uses UA_MULTITHREADING=0.
+          python3 mbedtls-source/scripts/config.py set MBEDTLS_THREADING_C
+          python3 mbedtls-source/scripts/config.py set MBEDTLS_THREADING_PTHREAD
           cmake -S mbedtls-source -B mbedtls-build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \

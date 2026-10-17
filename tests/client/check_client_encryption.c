@@ -82,6 +82,38 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+/* An empty trust list must still result in a real (trust-nothing) certificate
+ * verifier, not a no-op that leaves whatever verifier was previously
+ * configured (the accept-all default) in place. */
+START_TEST(encryption_emptyTrustList_rejectsUntrustedCert) {
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_StatusCode retval = UA_ClientConfig_setDefaultEncryption(
+        cc, certificate, privateKey, NULL, 0, NULL, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Some other certificate that is not part of the (empty) trust list. */
+    UA_ByteString otherCert;
+    otherCert.length = APPLICATION_CERT_DER_LENGTH;
+    otherCert.data = APPLICATION_CERT_DER_DATA;
+
+    ck_assert(cc->certificateVerification.verifyCertificate != NULL);
+    retval = cc->certificateVerification.verifyCertificate(&cc->certificateVerification,
+                                                            &otherCert);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Test re-activating a Session on a new SecureChannel */
 START_TEST(encryption_reconnect_session) {
     UA_Client *client = NULL;
@@ -175,6 +207,9 @@ START_TEST(encryption_setDefaultEncryption_whileConnected_doesNotCrash) {
     retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                                   NULL, 0, NULL, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* The (empty) trust list rejects every server certificate, accept the
+     * certificate of the test server again */
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     /* The still-open (unencrypted) channel must remain fully usable */
     UA_Variant val;
@@ -212,6 +247,7 @@ static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
     TCase *tc_encryption = tcase_create("Encryption basic256sha256");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
+    tcase_add_test(tc_encryption, encryption_emptyTrustList_rejectsUntrustedCert);
     tcase_add_test(tc_encryption, encryption_reconnect_session);
     tcase_add_test(tc_encryption, encryption_setDefaultEncryption_whileConnected_doesNotCrash);
     suite_add_tcase(s,tc_encryption);
