@@ -716,6 +716,120 @@ START_TEST(UA_Networkmessage_rawInvalidFields) {
     UA_NetworkMessage_clear(&nm);
 } END_TEST
 
+START_TEST(UA_Networkmessage_deltaDuplicateFields) {
+    const size_t fieldCounts[] = {9, 64, 65, UA_UINT16_MAX};
+    for(size_t i = 0; i < sizeof(fieldCounts) / sizeof(fieldCounts[0]); i++) {
+        size_t fieldCount = fieldCounts[i];
+        UA_FieldMetaData *fields = (UA_FieldMetaData*)
+            UA_calloc(fieldCount, sizeof(UA_FieldMetaData));
+        ck_assert_ptr_nonnull(fields);
+        fields[0].name = UA_STRING("First");
+        fields[fieldCount - 1].name = UA_STRING("Last");
+        fields[0].dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_INT32);
+        fields[fieldCount - 1].dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_INT32);
+        fields[0].builtInType = UA_NS0ID_INT32;
+        fields[fieldCount - 1].builtInType = UA_NS0ID_INT32;
+        fields[0].valueRank = UA_VALUERANK_SCALAR;
+        fields[fieldCount - 1].valueRank = UA_VALUERANK_SCALAR;
+
+        UA_DataSetMessage_EncodingMetaData metadata = {0};
+        metadata.dataSetWriterId = 1;
+        metadata.fieldsSize = fieldCount;
+        metadata.fields = fields;
+        UA_NetworkMessage_EncodingOptions options = {0};
+        options.metaDataSize = 1;
+        options.metaData = &metadata;
+
+        UA_ByteString valid = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
+            "\"DataSetWriterId\":1,\"MessageType\":\"ua-deltaframe\","
+            "\"Payload\":{\"Last\":8,\"First\":1}}]}");
+        UA_NetworkMessage nm;
+        ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&valid, &nm, &options, NULL),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(nm.payload.dataSetMessages[0].fieldCount, 2);
+        ck_assert_uint_eq(nm.payload.dataSetMessages[0].data.deltaFrameFields[0].index,
+                          fieldCount - 1);
+        ck_assert_uint_eq(nm.payload.dataSetMessages[0].data.deltaFrameFields[1].index, 0);
+        UA_NetworkMessage_clear(&nm);
+
+        UA_ByteString duplicate = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
+            "\"DataSetWriterId\":1,\"MessageType\":\"ua-deltaframe\","
+            "\"Payload\":{\"Last\":8,\"First\":1,\"Last\":9}}]}");
+        ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&duplicate, &nm, &options, NULL),
+                          UA_STATUSCODE_BADDECODINGERROR);
+        UA_free(fields);
+    }
+
+    UA_DataSetMessage_EncodingMetaData oversized = {0};
+    oversized.dataSetWriterId = 1;
+    oversized.fieldsSize = (size_t)UA_UINT16_MAX + 1;
+    UA_NetworkMessage_EncodingOptions options = {0};
+    options.metaDataSize = 1;
+    options.metaData = &oversized;
+    UA_ByteString json = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
+        "\"DataSetWriterId\":1,\"MessageType\":\"ua-deltaframe\","
+        "\"Payload\":{\"First\":1}}]}");
+    UA_NetworkMessage nm;
+    ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&json, &nm, &options, NULL),
+                      UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_Networkmessage_dataValueFieldsWithMetadata) {
+    UA_FieldMetaData field = {0};
+    field.name = UA_STRING("A");
+    field.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_INT32);
+    field.builtInType = UA_NS0ID_INT32;
+    field.valueRank = UA_VALUERANK_SCALAR;
+    UA_DataSetMessage_EncodingMetaData metadata = {0};
+    metadata.dataSetWriterId = 1;
+    metadata.fieldsSize = 1;
+    metadata.fields = &field;
+    UA_NetworkMessage_EncodingOptions options = {0};
+    options.metaDataSize = 1;
+    options.metaData = &metadata;
+    struct {
+        const char *payload;
+        UA_Boolean hasValue;
+        UA_Boolean hasStatus;
+        UA_Boolean hasSourceTimestamp;
+    } cases[] = {
+        {"{}", false, false, false},
+        {"{\"Value\":42,\"Status\":{\"Code\":2147483648},"
+         "\"SourceTimestamp\":\"2026-10-10T17:12:50.831Z\"}", true, true, true},
+        {"{\"Status\":2147483648}", false, true, false},
+        {"{\"Value\":null}", false, false, false},
+        {"{\"UaType\":6,\"Value\":42}", true, false, false}
+    };
+    for(size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        char buffer[512];
+        snprintf(buffer, sizeof(buffer), "{\"MessageType\":\"ua-data\",\"Messages\":[{"
+                 "\"DataSetWriterId\":1,\"Payload\":{\"A\":%s}}]}", cases[i].payload);
+        UA_ByteString json = UA_STRING(buffer);
+        UA_NetworkMessage nm;
+        ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&json, &nm, &options, NULL),
+                          UA_STATUSCODE_GOOD);
+        UA_DataValue *value = &nm.payload.dataSetMessages[0].data.keyFrameFields[0];
+        ck_assert_msg(value->hasValue == cases[i].hasValue,
+                      "payload %zu hasValue=%u expected=%u", i,
+                      (unsigned)value->hasValue, (unsigned)cases[i].hasValue);
+        ck_assert_int_eq(value->hasStatus, cases[i].hasStatus);
+        ck_assert_int_eq(value->hasSourceTimestamp, cases[i].hasSourceTimestamp);
+        if(value->hasValue) {
+            ck_assert(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_INT32]));
+            ck_assert_int_eq(*(UA_Int32*)value->value.data, 42);
+        }
+        if(value->hasStatus)
+            ck_assert_uint_eq(value->status, 2147483648u);
+        UA_NetworkMessage_clear(&nm);
+    }
+
+    UA_ByteString invalid = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
+        "\"DataSetWriterId\":1,\"Payload\":{\"A\":{\"Value\":\"bad\"}}}]}");
+    UA_NetworkMessage nm;
+    ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&invalid, &nm, &options, NULL),
+                      UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
 START_TEST(UA_Networkmessage_partialJsonUpdates) {
     UA_FieldMetaData fields[3] = {0};
     const char *names[] = {"Counter", "Square", "Random"};
@@ -732,15 +846,25 @@ START_TEST(UA_Networkmessage_partialJsonUpdates) {
     UA_NetworkMessage_EncodingOptions options = {0};
     options.metaDataSize = 1;
     options.metaData = &metadata;
-    const char *messageTypes[] = {"", "\"MessageType\":\"ua-deltaframe\",", "\"MessageType\":\"ua-keyframe\","};
-    for(unsigned i = 0; i < 3; i++) {
+    struct {
+        const char *messageType;
+        UA_Boolean valid;
+    } cases[] = {
+        {"", false},
+        {"\"MessageType\":\"ua-deltaframe\",", true},
+        {"\"MessageType\":\"ua-keyframe\",", false},
+        {"\"MessageType\":42,", false},
+        {"\"MessageType\":\"ua-deltaframe\",\"MessageType\":\"ua-deltaframe\",", false}
+    };
+    for(size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
         char buffer[256];
         snprintf(buffer, sizeof(buffer), "{\"MessageType\":\"ua-data\",\"Messages\":[{"
-                 "\"Payload\":{\"Random\":12,\"Counter\":42},%s\"DataSetWriterId\":1}]}", messageTypes[i]);
+                 "\"Payload\":{\"Random\":12,\"Counter\":42},%s\"DataSetWriterId\":1}]}",
+                 cases[i].messageType);
         UA_ByteString json = UA_STRING(buffer);
         UA_NetworkMessage nm;
         UA_StatusCode ret = UA_NetworkMessage_decodeJson(&json, &nm, &options, NULL);
-        if(i == 2) {
+        if(!cases[i].valid) {
             ck_assert_uint_ne(ret, UA_STATUSCODE_GOOD);
             continue;
         }
@@ -753,6 +877,14 @@ START_TEST(UA_Networkmessage_partialJsonUpdates) {
         ck_assert_int_eq(*(UA_Int32*)message->data.deltaFrameFields[1].value.value.data, 42);
         UA_NetworkMessage_clear(&nm);
     }
+    UA_ByteString complete = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
+        "\"DataSetWriterId\":1,\"Payload\":{\"Counter\":1,\"Square\":2,\"Random\":3}}]}");
+    UA_NetworkMessage nm;
+    ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&complete, &nm, &options, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nm.payload.dataSetMessages[0].header.dataSetMessageType,
+                      UA_DATASETMESSAGE_DATAKEYFRAME);
+    UA_NetworkMessage_clear(&nm);
 } END_TEST
 
 START_TEST(UA_Networkmessage_omittedWriterId) {
@@ -783,7 +915,7 @@ START_TEST(UA_Networkmessage_omittedWriterId) {
     UA_NetworkMessage_clear(&nm);
 
     UA_ByteString partial = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
-        "\"Payload\":{\"Square\":7}}]}");
+        "\"MessageType\":\"ua-deltaframe\",\"Payload\":{\"Square\":7}}]}");
     ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&partial, &nm, &options, NULL), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(nm.dataSetWriterIds[0], 42);
     ck_assert_uint_eq(nm.payload.dataSetMessages[0].header.dataSetMessageType, UA_DATASETMESSAGE_DATADELTAFRAME);
@@ -838,6 +970,76 @@ START_TEST(UA_Networkmessage_rawArrays) {
     UA_NetworkMessage_clear(&nm);
 } END_TEST
 
+START_TEST(UA_Networkmessage_verboseArrayWithMetadata) {
+    UA_FieldMetaData field = {0};
+    field.name = UA_STRING("Samples");
+    field.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    field.builtInType = UA_NS0ID_INT32;
+    field.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_DataSetMessage_EncodingMetaData metadata = {0};
+    metadata.dataSetWriterId = 1;
+    metadata.fields = &field;
+    metadata.fieldsSize = 1;
+    UA_NetworkMessage_EncodingOptions options = {0};
+    options.metaData = &metadata;
+    options.metaDataSize = 1;
+
+    UA_ByteString json = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
+        "\"DataSetWriterId\":1,\"Payload\":{\"Samples\":{\"Value\":[3,5],"
+        "\"Status\":{\"Code\":2147483648}}}}]}");
+    UA_NetworkMessage nm;
+    ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&json, &nm, &options, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_DataValue *value = &nm.payload.dataSetMessages[0].data.keyFrameFields[0];
+    ck_assert(value->hasValue);
+    ck_assert(value->hasStatus);
+    ck_assert_uint_eq(value->status, 2147483648u);
+    ck_assert(UA_Variant_hasArrayType(&value->value, &UA_TYPES[UA_TYPES_INT32]));
+    ck_assert_uint_eq(value->value.arrayLength, 2);
+    ck_assert_int_eq(((UA_Int32*)value->value.data)[1], 5);
+    UA_NetworkMessage_clear(&nm);
+
+    UA_ByteString invalid = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
+        "\"DataSetWriterId\":1,\"Payload\":{\"Samples\":{\"Value\":3}}}]}");
+    ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&invalid, &nm, &options, NULL),
+                      UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_Networkmessage_rawObjectBesideVerboseValue) {
+    UA_FieldMetaData fields[2] = {0};
+    fields[0].name = UA_STRING("Label");
+    fields[0].dataType = UA_TYPES[UA_TYPES_LOCALIZEDTEXT].typeId;
+    fields[0].builtInType = UA_NS0ID_LOCALIZEDTEXT;
+    fields[0].valueRank = UA_VALUERANK_SCALAR;
+    fields[1].name = UA_STRING("Counter");
+    fields[1].dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    fields[1].builtInType = UA_NS0ID_INT32;
+    fields[1].valueRank = UA_VALUERANK_SCALAR;
+    UA_DataSetMessage_EncodingMetaData metadata = {0};
+    metadata.dataSetWriterId = 1;
+    metadata.fields = fields;
+    metadata.fieldsSize = 2;
+    UA_NetworkMessage_EncodingOptions options = {0};
+    options.metaData = &metadata;
+    options.metaDataSize = 1;
+
+    UA_ByteString json = UA_STRING("{\"MessageType\":\"ua-data\",\"Messages\":[{"
+        "\"DataSetWriterId\":1,\"Payload\":{\"Label\":{\"Locale\":\"en\",\"Text\":\"Ready\"},"
+        "\"Counter\":{\"Status\":2147483648,\"Value\":42}}}]}");
+    UA_NetworkMessage nm;
+    ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&json, &nm, &options, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_DataValue *values = nm.payload.dataSetMessages[0].data.keyFrameFields;
+    ck_assert(UA_Variant_hasScalarType(&values[0].value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    UA_String expected = UA_STRING("Ready");
+    ck_assert(UA_String_equal(&((UA_LocalizedText*)values[0].value.data)->text, &expected));
+    ck_assert(!values[0].hasStatus);
+    ck_assert(values[1].hasStatus);
+    ck_assert_uint_eq(values[1].status, 2147483648u);
+    ck_assert_int_eq(*(UA_Int32*)values[1].value.data, 42);
+    UA_NetworkMessage_clear(&nm);
+} END_TEST
+
 START_TEST(UA_Networkmessage_multipleWritersWithMetadata) {
     UA_FieldMetaData fields[2] = {0};
     UA_DataSetMessage_EncodingMetaData metadata[2] = {0};
@@ -879,7 +1081,11 @@ static Suite *testSuite_networkmessage(void) {
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_omittedWriterId);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_rawFieldsWithMetadata);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_rawInvalidFields);
+    tcase_add_test(tc_json_networkmessage, UA_Networkmessage_deltaDuplicateFields);
+    tcase_add_test(tc_json_networkmessage, UA_Networkmessage_dataValueFieldsWithMetadata);
     tcase_add_loop_test(tc_json_networkmessage, UA_Networkmessage_rawArrays, 0, 5);
+    tcase_add_test(tc_json_networkmessage, UA_Networkmessage_verboseArrayWithMetadata);
+    tcase_add_test(tc_json_networkmessage, UA_Networkmessage_rawObjectBesideVerboseValue);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_multipleWritersWithMetadata);
     tcase_add_test(tc_json_networkmessage, UA_PubSub_CompactJsonOptions);
     tcase_add_test(tc_json_networkmessage, UA_PubSub_EncodeAllOptionalFields);
