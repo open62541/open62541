@@ -54,7 +54,9 @@ else()
 endif()
 
 list(APPEND LIBS "${open62541_LIBRARIES}")
-link_libraries("-fsanitize=address,undefined,fuzzer")
+if(NOT UA_BUILD_OSS_FUZZ)
+    link_libraries("-fsanitize=address,undefined,fuzzer")
+endif()
 
 # the fuzzer test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
