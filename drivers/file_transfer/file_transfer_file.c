@@ -227,12 +227,20 @@ backendGetInfo(UA_FileTransferFileBackend *b, const UA_String path,
     return b->getInfo(b, path, info);
 }
 
+/* A transfer of the handle ends with the status */
+static void
+closeTransferHandle(UA_Server *server, FTHandle *h, UA_StatusCode status) {
+    if(h->file->transfer)
+        h->file->transfer->endStatus = status;
+    closeFTHandle(server, h);
+}
+
 /* Close only this instance's handles. */
 void
 closeDriverHandles(UA_Server *server, FileTransferDriver *ftd) {
     FTHandle *h;
     while((h = ZIP_ROOT(&ftd->handlesById)))
-        closeFTHandle(server, h);
+        closeTransferHandle(server, h, UA_STATUSCODE_BADSHUTDOWN);
 }
 
 void
@@ -242,7 +250,7 @@ closeSessionHandles(UA_Server *server, FileTransferDriver *ftd,
     /* Removal rebalances both indexes; find again instead of mutating a tree
      * during ZIP_ITER_KEY. Only this Session's handles are visited. */
     while((h = ZIP_FIND(FTHandlesBySession, &ftd->handlesBySession, sessionId)))
-        closeFTHandle(server, h);
+        closeTransferHandle(server, h, UA_STATUSCODE_BADSESSIONCLOSED);
 }
 
 static void *
@@ -264,7 +272,7 @@ sweepIdleHandles(UA_Server *server, void *driver) {
         UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
                     "FileTransfer: Closing the idle FileHandle %u of %N",
                     (unsigned)h->handle, h->file->nodeId);
-        closeFTHandle(server, h);
+        closeTransferHandle(server, h, UA_STATUSCODE_BADTIMEOUT);
     }
 }
 

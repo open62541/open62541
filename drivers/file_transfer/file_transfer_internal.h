@@ -61,9 +61,11 @@ typedef enum {
 
 /* One transfer of a TemporaryFileTransferType Object */
 typedef struct {
+    UA_NodeId sessionId;        /* Of the generate Method */
     UA_Boolean forWrite;
     UA_Boolean committing;      /* The handle is closed for CloseAndCommit */
-    UA_Variant generateOptions; /* Of a write transfer, for closeAndCommit */
+    UA_StatusCode endStatus;    /* Passed to endTransfer */
+    UA_Variant generateOptions;
 } FTTransfer;
 
 ZIP_HEAD(FTEntriesById, FTEntry);

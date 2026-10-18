@@ -414,13 +414,25 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  *
  * closeAndCommit runs after the client handle is closed. Its result is the
  * result of CloseAndCommit. The file is removed afterwards in any case; the
- * application copies or moves what it keeps. */
+ * application copies or moves what it keeps.
+ *
+ * endTransfer runs once for each transfer that a generate Method created, and
+ * after a successful generateFileForRead whose transfer could not be created.
+ * The client handle is closed then; the file still exists and is removed
+ * afterwards. The status tells how the transfer ended: Good when a read
+ * transfer is closed, the result of closeAndCommit,
+ * Bad_RequestCancelledByClient when a write transfer is closed, Bad_Timeout for
+ * the activity-timeout (ClientProcessingTimeout), Bad_SessionClosed,
+ * Bad_Shutdown when the driver stops, otherwise the error of the generate
+ * Method.
+ *
+ * The callbacks must not stop or remove the driver. */
 
 /* The temporary file of one transfer, borrowed for the duration of a
  * callback */
 typedef struct {
     const UA_NodeId *sessionId;
-    void *sessionContext;
+    void *sessionContext;              /* NULL in endTransfer */
     const UA_Variant *generateOptions; /* May be an empty Variant */
     UA_FileTransferFileBackend *store;
     UA_String path;                    /* Of the transfer file in the store */
@@ -431,9 +443,15 @@ typedef UA_StatusCode
 (*UA_FileTransferTemporaryCallback)(UA_Server *server, void *context,
                                     UA_FileTransferTemporaryFile *file);
 
+typedef void
+(*UA_FileTransferTemporaryEndCallback)(UA_Server *server, void *context,
+                                       UA_FileTransferTemporaryFile *file,
+                                       UA_StatusCode status);
+
 typedef struct {
     UA_FileTransferTemporaryCallback generateFileForRead; /* NULL: Bad_NotReadable */
     UA_FileTransferTemporaryCallback closeAndCommit;      /* NULL: Bad_NotWritable */
+    UA_FileTransferTemporaryEndCallback endTransfer;      /* Optional */
     void *context;                                        /* Passed to the callbacks */
     /* Storage of the transfer files, NULL selects an internal memory store.
      * Needs the file operations, create and remove; listDirectory, rename and

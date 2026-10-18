@@ -6566,6 +6566,9 @@ static UA_StatusCode tempGenerateResult;
 static UA_StatusCode tempCommitResult;
 static size_t tempGenerateCalls;
 static size_t tempCommitCalls;
+static size_t tempEndCalls;
+static UA_StatusCode tempEndStatus;
+static UA_Boolean tempEndForWrite;
 
 static void
 resetTemporaryCallbacks(void) {
@@ -6576,6 +6579,9 @@ resetTemporaryCallbacks(void) {
     tempCommitResult = UA_STATUSCODE_GOOD;
     tempGenerateCalls = 0;
     tempCommitCalls = 0;
+    tempEndCalls = 0;
+    tempEndStatus = UA_STATUSCODE_GOOD;
+    tempEndForWrite = false;
 }
 
 static UA_StatusCode
@@ -6641,12 +6647,35 @@ tempCommit(UA_Server *server, void *context, UA_FileTransferTemporaryFile *trans
     return (res != UA_STATUSCODE_GOOD) ? res : tempCommitResult;
 }
 
+/* The file of an ending transfer still exists */
+static void
+tempEndTransfer(UA_Server *server, void *context, UA_FileTransferTemporaryFile *transfer,
+                UA_StatusCode status) {
+    tempEndCalls++;
+    tempEndStatus = status;
+    tempEndForWrite = transfer->forWrite;
+    ck_assert_ptr_null(transfer->sessionContext);
+    ck_assert(UA_NodeId_equal(transfer->sessionId, &server->adminSession.sessionId));
+    UA_FileTransferFileInfo info;
+    memset(&info, 0, sizeof(info));
+    ck_assert_uint_eq(transfer->store->getInfo(transfer->store, transfer->path, &info),
+                      UA_STATUSCODE_GOOD);
+}
+
+static void
+expectEnd(size_t calls, UA_Boolean forWrite, UA_StatusCode status) {
+    ck_assert_uint_eq(tempEndCalls, calls);
+    ck_assert(tempEndForWrite == forWrite);
+    ck_assert_uint_eq(tempEndStatus, status);
+}
+
 static UA_FileTransferTemporaryOptions
 temporaryOptions(UA_Boolean read, UA_Boolean write) {
     UA_FileTransferTemporaryOptions options;
     memset(&options, 0, sizeof(options));
     options.generateFileForRead = read ? tempGenerateRead : NULL;
     options.closeAndCommit = write ? tempCommit : NULL;
+    options.endTransfer = tempEndTransfer;
     return options;
 }
 
@@ -7222,6 +7251,62 @@ START_TEST(temporaryCallbackFailures) {
     resetTemporaryCallbacks();
 } END_TEST
 
+/* endTransfer tells how each transfer ended */
+START_TEST(temporaryEndTransferStatus) {
+    resetTemporaryCallbacks();
+    UA_NodeId root;
+    UA_Driver *driver = newTemporaryDriver(true, true, "Temp", &root);
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(tempEndCalls, 0);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    expectEnd(1, false, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+
+    /* CloseAndCommit ends with the result of closeAndCommit, Close cancels */
+    h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    callCommit(root, h, UA_STATUSCODE_GOOD);
+    expectEnd(2, true, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    tempCommitResult = UA_STATUSCODE_BADINVALIDSTATE;
+    h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    callCommit(root, h, UA_STATUSCODE_BADINVALIDSTATE);
+    expectEnd(3, true, UA_STATUSCODE_BADINVALIDSTATE);
+    UA_NodeId_clear(&file);
+    tempCommitResult = UA_STATUSCODE_GOOD;
+    h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    expectEnd(4, true, UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT);
+    UA_NodeId_clear(&file);
+
+    /* A refused generateFileForRead creates no transfer */
+    tempGenerateResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+    callGenerate(root, false, NULL, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(tempEndCalls, 4);
+    tempGenerateResult = UA_STATUSCODE_GOOD;
+
+    /* The Session closes, the driver stops */
+    callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
+    UA_KeyValueMap payload = UA_KEYVALUEMAP_NULL;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&payload, UA_QUALIFIEDNAME(0, "session-id"),
+                          &server_ft->adminSession.sessionId, &UA_TYPES[UA_TYPES_NODEID]),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server_ft);
+    notifyApplication(server_ft, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED, payload);
+    unlockServer(server_ft);
+    UA_KeyValueMap_clear(&payload);
+    expectEnd(5, false, UA_STATUSCODE_BADSESSIONCLOSED);
+    UA_NodeId_clear(&file);
+    callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    driver->stop(driver);
+    expectEnd(6, true, UA_STATUSCODE_BADSHUTDOWN);
+    ck_assert(!nodeExists(file));
+    UA_NodeId_clear(&file);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
 static UA_Driver *
 newTimedTemporaryDriver(const char *name, UA_Double timeout, UA_NodeId *outRoot) {
     UA_FileTransferTemporaryOptions options = temporaryOptions(true, true);
@@ -7259,6 +7344,7 @@ START_TEST(temporaryIdleTransferCancelled) {
     UA_Server_run_iterate(server_ft, false);
     ck_assert(!nodeExists(file));
     ck_assert_uint_eq(tempCommitCalls, 0);
+    expectEnd(1, true, UA_STATUSCODE_BADTIMEOUT);
     UA_NodeId_clear(&file);
     h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
     callClose(file, h, UA_STATUSCODE_GOOD);
@@ -7268,6 +7354,7 @@ START_TEST(temporaryIdleTransferCancelled) {
     callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
     advanceClock(201);
     ck_assert(!nodeExists(file));
+    expectEnd(3, false, UA_STATUSCODE_BADTIMEOUT);
     UA_NodeId_clear(&file);
     ck_assert_uint_eq(UA_Server_run_shutdown(server_ft), UA_STATUSCODE_GOOD);
     UA_NodeId_clear(&root);
@@ -7578,6 +7665,7 @@ int main(void) {
     tcase_add_test(tc_temp, temporaryApplicationStore);
     tcase_add_test(tc_temp, temporaryStopAndSessionClose);
     tcase_add_test(tc_temp, temporaryCallbackFailures);
+    tcase_add_test(tc_temp, temporaryEndTransferStatus);
     tcase_add_test(tc_temp, temporaryIdleTransferCancelled);
     tcase_add_test(tc_temp, temporaryTimeoutParameter);
     tcase_add_test(tc_temp, temporaryExclusiveReads);
