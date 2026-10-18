@@ -310,9 +310,9 @@ static UA_ByteString committed;
 static size_t commitCalls;
 
 static UA_StatusCode
-tempGenerateRead(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
-                 const UA_Variant *generateOptions, void *context,
-                 UA_FileTransferFileBackend *store, const UA_String path) {
+tempGenerateRead(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
+    UA_FileTransferFileBackend *store = transfer->store;
+    const UA_String path = transfer->path;
     UA_UInt32 handle = 0;
     UA_StatusCode res = store->open(store, path, UA_OPENFILEMODE_WRITE, NULL, &handle);
     if(res != UA_STATUSCODE_GOOD)
@@ -324,9 +324,9 @@ tempGenerateRead(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
 
 /* Runs in the server thread before the CloseAndCommit response is sent */
 static UA_StatusCode
-tempCommit(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
-           const UA_Variant *generateOptions, void *context,
-           UA_FileTransferFileBackend *store, const UA_String path) {
+tempCommit(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
+    UA_FileTransferFileBackend *store = transfer->store;
+    const UA_String path = transfer->path;
     commitCalls++;
     UA_ByteString_clear(&committed);
     UA_UInt32 handle = 0;

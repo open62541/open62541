@@ -92,9 +92,10 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    UA_FileTransferTemporaryFile transfer = {sessionId, sessionContext, generateOptions,
+                                             &ftd->backend.file, path, forWrite};
     if(!forWrite)
-        res = ftd->generateFileForRead(server, sessionId, sessionContext, generateOptions,
-                               ftd->transferContext, &ftd->backend.file, path);
+        res = ftd->temporary.generateFileForRead(server, ftd->temporary.context, &transfer);
     UA_FileTransferFileInfo info;
     if(res == UA_STATUSCODE_GOOD)
         res = backendGetInfo(&ftd->backend.file, path, &info);
@@ -207,10 +208,10 @@ generateFile(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     if(inputSize < 1 || outputSize < (forWrite ? 2u : 3u))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     FileTransferDriver *ftd = root->driver;
-    if(forWrite && (!ftd->closeAndCommit || ftd->config.readOnly ||
+    if(forWrite && (!ftd->temporary.closeAndCommit || ftd->config.readOnly ||
                     ftd->activeWrite || ftd->activeReads > 0))
         return UA_STATUSCODE_BADNOTWRITABLE;
-    if(!forWrite && (!ftd->generateFileForRead || ftd->activeWrite ||
+    if(!forWrite && (!ftd->temporary.generateFileForRead || ftd->activeWrite ||
                      (ftd->config.exclusiveReads && ftd->activeReads > 0)))
         return UA_STATUSCODE_BADNOTREADABLE;
     if(transferLimitReached(ftd, sessionId))
@@ -286,10 +287,11 @@ closeAndCommitMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     FTEntry *file = h->file;
     file->transfer->committing = true;
     UA_StatusCode res = closeFTHandle(server, h);
+    UA_FileTransferTemporaryFile transfer = {sessionId, sessionContext,
+                                             &file->transfer->generateOptions,
+                                             &ftd->backend.file, file->path, true};
     if(res == UA_STATUSCODE_GOOD)
-        res = ftd->closeAndCommit(server, sessionId, sessionContext,
-                               &file->transfer->generateOptions, ftd->transferContext,
-                               &ftd->backend.file, file->path);
+        res = ftd->temporary.closeAndCommit(server, ftd->temporary.context, &transfer);
     removeTransferFile(server, file);
     if(res != UA_STATUSCODE_GOOD)
         return res;

@@ -132,9 +132,7 @@ struct FileTransferDriver {
 
     /* A TemporaryFileTransferType root serves one write transfer or up to
      * max-open-handles-per-file read transfers (one with exclusive-reads) */
-    UA_FileTransferTemporaryCallback generateFileForRead;
-    UA_FileTransferTemporaryCallback closeAndCommit;
-    void *transferContext;
+    UA_FileTransferTemporaryOptions temporary; /* Without the store */
     UA_UInt32 nextTransferId;
     UA_UInt32 activeReads;
     UA_Boolean activeWrite;

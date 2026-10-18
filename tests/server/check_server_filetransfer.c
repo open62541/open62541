@@ -6620,26 +6620,24 @@ readStoreFile(UA_FileTransferFileBackend *store, const UA_String path,
 }
 
 static UA_StatusCode
-tempGenerateRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
-                 const UA_Variant *generateOptions, void *context,
-                 UA_FileTransferFileBackend *store, const UA_String path) {
+tempGenerateRead(UA_Server *server, void *context, UA_FileTransferTemporaryFile *transfer) {
     tempGenerateCalls++;
+    ck_assert(!transfer->forWrite);
     UA_Variant_clear(&tempOptions);
-    UA_Variant_copy(generateOptions, &tempOptions);
+    UA_Variant_copy(transfer->generateOptions, &tempOptions);
     if(tempGenerateResult != UA_STATUSCODE_GOOD)
         return tempGenerateResult;
-    return writeStoreFile(store, path, tempReadContent);
+    return writeStoreFile(transfer->store, transfer->path, tempReadContent);
 }
 
 static UA_StatusCode
-tempCommit(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
-           const UA_Variant *generateOptions, void *context,
-           UA_FileTransferFileBackend *store, const UA_String path) {
+tempCommit(UA_Server *server, void *context, UA_FileTransferTemporaryFile *transfer) {
     tempCommitCalls++;
+    ck_assert(transfer->forWrite);
     UA_Variant_clear(&tempOptions);
-    UA_Variant_copy(generateOptions, &tempOptions);
+    UA_Variant_copy(transfer->generateOptions, &tempOptions);
     UA_ByteString_clear(&tempCommitted);
-    UA_StatusCode res = readStoreFile(store, path, &tempCommitted);
+    UA_StatusCode res = readStoreFile(transfer->store, transfer->path, &tempCommitted);
     return (res != UA_STATUSCODE_GOOD) ? res : tempCommitResult;
 }
 
