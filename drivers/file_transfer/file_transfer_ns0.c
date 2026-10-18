@@ -80,6 +80,7 @@ removeFTEntry(FileTransferDriver *ftd, FTEntry *node) {
     unbindObjectContext(ftd->driver.server, node);
     releaseFileNode(ftd->driver.server, node);
     if(node->transfer) {
+        UA_NodeId_clear(&node->transfer->sessionId);
         UA_Variant_clear(&node->transfer->generateOptions);
         UA_free(node->transfer);
     }
