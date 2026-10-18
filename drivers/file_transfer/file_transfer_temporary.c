@@ -94,9 +94,11 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
 
     UA_FileTransferTemporaryFile transfer = {sessionId, sessionContext, generateOptions,
                                              &ftd->backend.file, path, forWrite, NULL};
-    if(!forWrite)
-        res = ftd->temporary.generateFileForRead(server, ftd->temporary.context, &transfer);
-    UA_Boolean generated = (!forWrite && res == UA_STATUSCODE_GOOD);
+    UA_FileTransferTemporaryCallback generate = forWrite ?
+        ftd->temporary.generateFileForWrite : ftd->temporary.generateFileForRead;
+    if(generate)
+        res = generate(server, ftd->temporary.context, &transfer);
+    UA_Boolean generated = (generate && res == UA_STATUSCODE_GOOD);
     UA_FileTransferFileInfo info;
     if(res == UA_STATUSCODE_GOOD)
         res = backendGetInfo(&ftd->backend.file, path, &info);
@@ -195,9 +197,9 @@ removeTransferFile(UA_Server *server, FTEntry *file) {
  * TemporaryFileTransferType Methods
  **************************************/
 
-/* Each transfer holds one handle. The limits are checked before
- * generateFileForRead runs: max-open-handles-per-file for the transfers of the
- * root and max-open-handles-per-session for the Session. */
+/* Each transfer holds one handle. Before the generate callbacks run,
+ * max-open-handles-per-file limits the transfers of the Object and
+ * max-open-handles-per-session those of the Session. */
 static UA_Boolean
 transferLimitReached(FileTransferDriver *ftd, const UA_NodeId *sessionId) {
     UA_UInt32 transfers = ftd->activeReads + (ftd->activeWrite ? 1u : 0u);

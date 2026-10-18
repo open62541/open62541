@@ -6566,6 +6566,8 @@ static UA_StatusCode tempGenerateResult;
 static UA_StatusCode tempCommitResult;
 static size_t tempGenerateCalls;
 static size_t tempCommitCalls;
+static UA_StatusCode tempGenerateWriteResult;
+static size_t tempGenerateWriteCalls;
 static size_t tempEndCalls;
 static UA_StatusCode tempEndStatus;
 static UA_Boolean tempEndForWrite;
@@ -6585,6 +6587,8 @@ resetTemporaryCallbacks(void) {
     tempCommitResult = UA_STATUSCODE_GOOD;
     tempGenerateCalls = 0;
     tempCommitCalls = 0;
+    tempGenerateWriteResult = UA_STATUSCODE_GOOD;
+    tempGenerateWriteCalls = 0;
     tempEndCalls = 0;
     tempEndStatus = UA_STATUSCODE_GOOD;
     tempEndForWrite = false;
@@ -6646,6 +6650,18 @@ tempGenerateRead(UA_Server *server, void *context, UA_FileTransferTemporaryFile 
     ck_assert_ptr_null(transfer->transferContext);
     transfer->transferContext = tempGenerateContext;
     return writeStoreFile(transfer->store, transfer->path, tempReadContent);
+}
+
+static UA_StatusCode
+tempGenerateWrite(UA_Server *server, void *context, UA_FileTransferTemporaryFile *transfer) {
+    tempGenerateWriteCalls++;
+    ck_assert(transfer->forWrite);
+    UA_Variant_clear(&tempOptions);
+    UA_Variant_copy(transfer->generateOptions, &tempOptions);
+    if(tempGenerateWriteResult != UA_STATUSCODE_GOOD)
+        return tempGenerateWriteResult;
+    transfer->transferContext = tempGenerateContext;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -7381,6 +7397,63 @@ START_TEST(temporaryTransferContext) {
     resetTemporaryCallbacks();
 } END_TEST
 
+/* generateFileForWrite can refuse a write transfer (Part 20, 4.4.4) */
+START_TEST(temporaryGenerateWrite) {
+    resetTemporaryCallbacks();
+    UA_FileTransferBackend store;
+    ck_assert_uint_eq(memBackend(&store), UA_STATUSCODE_GOOD);
+    MemBackendContext *ctx = (MemBackendContext*)store.file.context;
+    UA_FileTransferTemporaryOptions options = temporaryOptions(true, true);
+    options.generateFileForWrite = tempGenerateWrite;
+    options.store = &store;
+    UA_FileTransferNodeDescription description = temporaryDescription("Temp");
+    UA_Driver *driver = NULL;
+    UA_NodeId root;
+    ck_assert_uint_eq(UA_FileTransferDriver_newTemporary(server_ft, &options, &description,
+                          &root, &driver), UA_STATUSCODE_GOOD);
+    registerTestDriver(driver);
+
+    UA_StatusCode refusals[2] = {UA_STATUSCODE_BADINVALIDSTATE,
+                                 UA_STATUSCODE_BADINVALIDARGUMENT};
+    const char *names[2] = {"write-1", "write-2"};
+    for(size_t i = 0; i < 2; i++) {
+        tempGenerateWriteResult = refusals[i];
+        callGenerate(root, true, NULL, refusals[i]);
+        ck_assert_uint_eq(tempGenerateWriteCalls, i + 1);
+        ck_assert_uint_eq(*(UA_UInt32*)tempOptions.data, 7);
+        ck_assert_ptr_null(memFind(ctx, UA_STRING((char*)(uintptr_t)names[i])));
+        ck_assert_uint_eq(((FileTransferDriver*)driver)->entryCount, 1);
+    }
+    ck_assert_uint_eq(tempEndCalls, 0);
+
+    /* A refused transfer holds no lock; an accepted one keeps its context */
+    tempGenerateWriteResult = UA_STATUSCODE_GOOD;
+    int image = 1;
+    tempGenerateContext = &image;
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    callWrite(file, h, "image", UA_STATUSCODE_GOOD);
+    callCommit(root, h, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(tempCommitContextSeen, &image);
+    expectEnd(1, true, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    h = callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+
+    /* A read-only driver refuses before generateFileForWrite */
+    driver->stop(driver);
+    UA_Boolean readOnly = true;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "read-only"), &readOnly,
+                          &UA_TYPES[UA_TYPES_BOOLEAN]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+    callGenerate(root, true, NULL, UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_uint_eq(tempGenerateWriteCalls, 3);
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
 static UA_Driver *
 newTimedTemporaryDriver(const char *name, UA_Double timeout, UA_NodeId *outRoot) {
     UA_FileTransferTemporaryOptions options = temporaryOptions(true, true);
@@ -7747,6 +7820,7 @@ int main(void) {
     tcase_add_test(tc_temp, temporaryCallbackFailures);
     tcase_add_test(tc_temp, temporaryEndTransferStatus);
     tcase_add_test(tc_temp, temporaryTransferContext);
+    tcase_add_test(tc_temp, temporaryGenerateWrite);
     tcase_add_test(tc_temp, temporaryIdleTransferCancelled);
     tcase_add_test(tc_temp, temporaryTimeoutParameter);
     tcase_add_test(tc_temp, temporaryOneTransferAtATime);

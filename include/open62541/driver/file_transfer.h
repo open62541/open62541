@@ -408,17 +408,21 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  * closes its own store handles. A Bad result fails GenerateFileForRead and
  * removes the file.
  *
+ * generateFileForWrite runs with the existing empty file. A Bad result, e.g.
+ * Bad_InvalidState or Bad_InvalidArgument for unsupported generateOptions,
+ * fails GenerateFileForWrite and removes the file.
+ *
  * closeAndCommit runs after the client handle is closed. Its result is the
  * result of CloseAndCommit. The file is removed afterwards in any case; the
  * application copies or moves what it keeps.
  *
- * generateFileForRead and closeAndCommit can set the transferContext of the
+ * The generate callbacks and closeAndCommit can set the transferContext of the
  * application. The driver keeps it for the transfer and passes it to the later
  * callbacks; endTransfer releases it.
  *
  * endTransfer runs once for each transfer that a generate Method created, and
- * after a successful generateFileForRead whose transfer could not be created.
- * The client handle is closed then; the file still exists and is removed
+ * after a successful generate callback whose transfer could not be created. The
+ * client handle is closed then; the file still exists and is removed
  * afterwards. The status tells how the transfer ended: Good when a read
  * transfer is closed, the result of closeAndCommit,
  * Bad_RequestCancelledByClient when a write transfer is closed, Bad_Timeout for
@@ -450,28 +454,28 @@ typedef void
                                        UA_StatusCode status);
 
 typedef struct {
-    UA_FileTransferTemporaryCallback generateFileForRead; /* NULL: Bad_NotReadable */
-    UA_FileTransferTemporaryCallback closeAndCommit;      /* NULL: Bad_NotWritable */
-    UA_FileTransferTemporaryEndCallback endTransfer;      /* Optional */
-    void *context;                                        /* Passed to the callbacks */
-    /* Storage of the transfer files, NULL selects an internal memory store.
-     * Needs the file operations, create and remove; the driver uses no
-     * listDirectory, rename and copy. The callbacks get its file part; cast it
-     * back to UA_FileTransferBackend to rename or copy, e.g. to keep a written
-     * file. The access callbacks get the random NodeIds of the transfer files;
-     * authorize the generate Methods with the access control plugin instead. */
+    UA_FileTransferTemporaryCallback generateFileForRead;  /* NULL: Bad_NotReadable */
+    UA_FileTransferTemporaryCallback generateFileForWrite; /* Optional */
+    UA_FileTransferTemporaryCallback closeAndCommit;       /* NULL: Bad_NotWritable */
+    UA_FileTransferTemporaryEndCallback endTransfer;       /* Optional */
+    void *context;                                         /* Passed to the callbacks */
+    /* Where the temporary files are kept; NULL keeps them in memory. It needs
+     * the file operations, create and remove. To rename or copy, e.g. to keep
+     * a written file, cast file->store back to UA_FileTransferBackend. The
+     * access callbacks only see the random NodeIds of the temporary files, so
+     * authorize the generate Methods in the access control plugin. */
     const UA_FileTransferBackend *store;
 } UA_FileTransferTemporaryOptions;
 
-/* Construct a stopped driver for a TemporaryFileTransferType Object. At least
- * one callback is required. The description, reuse and ownership rules of
- * UA_FileTransferDriver_newFile() apply to the root Object and the store; the
- * default type is TemporaryFileTransferType, the default BrowseName
- * 1:TemporaryFileTransfer. The parameters namespace-index (for the transfer
- * files, default: the namespace of the root NodeId), the handle limits,
- * max-read-length, activity-timeout and read-only (rejects GenerateFileForWrite)
- * apply.
- * UA_FileTransferDriver_refresh() returns Bad_NotSupported. */
+/* Construct a stopped driver for a TemporaryFileTransferType Object.
+ * generateFileForRead or closeAndCommit is required. The description, reuse and
+ * ownership rules of UA_FileTransferDriver_newFile() apply to the root Object
+ * and the store; the default type is TemporaryFileTransferType, the default
+ * BrowseName 1:TemporaryFileTransfer. The parameters namespace-index (for the
+ * transfer files, default: the namespace of the root NodeId), the handle
+ * limits, max-read-length, activity-timeout and read-only (rejects
+ * GenerateFileForWrite) apply. UA_FileTransferDriver_refresh() returns
+ * Bad_NotSupported. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_FileTransferDriver_newTemporary(UA_Server *server,
                                    const UA_FileTransferTemporaryOptions *options,
