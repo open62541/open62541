@@ -62,8 +62,9 @@ typedef enum {
 typedef struct {
     UA_NodeId sessionId;        /* Of the generate Method */
     UA_Boolean forWrite;
-    UA_Boolean committing;      /* The handle is closed for CloseAndCommit */
+    UA_Boolean committing;      /* CloseAndCommit still uses the file */
     UA_StatusCode endStatus;    /* Passed to endTransfer */
+    void *transferContext;      /* Of the application */
     UA_Variant generateOptions;
 } FTTransfer;
 

@@ -93,7 +93,7 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
         return res;
 
     UA_FileTransferTemporaryFile transfer = {sessionId, sessionContext, generateOptions,
-                                             &ftd->backend.file, path, forWrite};
+                                             &ftd->backend.file, path, forWrite, NULL};
     if(!forWrite)
         res = ftd->temporary.generateFileForRead(server, ftd->temporary.context, &transfer);
     UA_Boolean generated = (!forWrite && res == UA_STATUSCODE_GOOD);
@@ -129,6 +129,7 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
     }
     if(res == UA_STATUSCODE_GOOD) {
         file->transfer->forWrite = forWrite;
+        file->transfer->transferContext = transfer.transferContext;
         file->transfer->endStatus = forWrite ?
             UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT : UA_STATUSCODE_GOOD;
         res = UA_NodeId_copy(sessionId, &file->transfer->sessionId);
@@ -173,7 +174,7 @@ removeTransferFile(UA_Server *server, FTEntry *file) {
     if(ftd->temporary.endTransfer) {
         UA_FileTransferTemporaryFile transfer = {&t->sessionId, NULL, &t->generateOptions,
                                                  &ftd->backend.file, file->path,
-                                                 t->forWrite};
+                                                 t->forWrite, t->transferContext};
         ftd->temporary.endTransfer(server, ftd->temporary.context, &transfer,
                                    t->endStatus);
     }
@@ -308,9 +309,11 @@ closeAndCommitMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_StatusCode res = closeFTHandle(server, h);
     UA_FileTransferTemporaryFile transfer = {sessionId, sessionContext,
                                              &file->transfer->generateOptions,
-                                             &ftd->backend.file, file->path, true};
+                                             &ftd->backend.file, file->path, true,
+                                             file->transfer->transferContext};
     if(res == UA_STATUSCODE_GOOD)
         res = ftd->temporary.closeAndCommit(server, ftd->temporary.context, &transfer);
+    file->transfer->transferContext = transfer.transferContext;
     file->transfer->endStatus = res;
     removeTransferFile(server, file);
     if(res != UA_STATUSCODE_GOOD)
