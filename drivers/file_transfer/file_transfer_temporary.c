@@ -92,9 +92,11 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    UA_FileTransferTemporaryFile transfer = {sessionId, sessionContext, generateOptions,
+                                             &ftd->backend.file, path, forWrite};
     if(!forWrite)
-        res = ftd->generateFileForRead(server, sessionId, sessionContext, generateOptions,
-                               ftd->transferContext, &ftd->backend.file, path);
+        res = ftd->temporary.generateFileForRead(server, ftd->temporary.context, &transfer);
+    UA_Boolean generated = (!forWrite && res == UA_STATUSCODE_GOOD);
     UA_FileTransferFileInfo info;
     if(res == UA_STATUSCODE_GOOD)
         res = backendGetInfo(&ftd->backend.file, path, &info);
@@ -127,7 +129,10 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
     }
     if(res == UA_STATUSCODE_GOOD) {
         file->transfer->forWrite = forWrite;
-        if(forWrite && generateOptions)
+        file->transfer->endStatus = forWrite ?
+            UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT : UA_STATUSCODE_GOOD;
+        res = UA_NodeId_copy(sessionId, &file->transfer->sessionId);
+        if(res == UA_STATUSCODE_GOOD && generateOptions)
             res = UA_Variant_copy(generateOptions, &file->transfer->generateOptions);
     }
     if(res == UA_STATUSCODE_GOOD)
@@ -140,6 +145,10 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
         hideTransferNode(server, nodeId, 0);
 
     if(res != UA_STATUSCODE_GOOD) {
+        if(generated && ftd->temporary.endTransfer) {
+            transfer.sessionContext = NULL;
+            ftd->temporary.endTransfer(server, ftd->temporary.context, &transfer, res);
+        }
         if(file)
             removeSubtree(server, file);
         else if(!UA_NodeId_isNull(&nodeId))
@@ -160,13 +169,21 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
 void
 removeTransferFile(UA_Server *server, FTEntry *file) {
     FileTransferDriver *ftd = file->driver;
+    FTTransfer *t = file->transfer;
+    if(ftd->temporary.endTransfer) {
+        UA_FileTransferTemporaryFile transfer = {&t->sessionId, NULL, &t->generateOptions,
+                                                 &ftd->backend.file, file->path,
+                                                 t->forWrite};
+        ftd->temporary.endTransfer(server, ftd->temporary.context, &transfer,
+                                   t->endStatus);
+    }
     /* closeAndCommit may have moved the file to keep it */
     UA_StatusCode res = ftd->backend.remove(&ftd->backend, file->path);
     if(res != UA_STATUSCODE_GOOD && res != UA_STATUSCODE_BADNOTFOUND)
         UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
                        "FileTransfer: Removing the transfer file \"%S\" failed with %s",
                        file->path, UA_StatusCode_name(res));
-    if(file->transfer->forWrite)
+    if(t->forWrite)
         ftd->activeWrite = false;
     else if(ftd->activeReads > 0)
         ftd->activeReads--;
@@ -208,10 +225,10 @@ generateFile(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     if(inputSize < 1 || outputSize < (forWrite ? 2u : 3u))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     FileTransferDriver *ftd = root->driver;
-    if(forWrite && (!ftd->closeAndCommit || ftd->config.readOnly ||
+    if(forWrite && (!ftd->temporary.closeAndCommit || ftd->config.readOnly ||
                     ftd->activeWrite || ftd->activeReads > 0))
         return UA_STATUSCODE_BADNOTWRITABLE;
-    if(!forWrite && (!ftd->generateFileForRead || ftd->activeWrite))
+    if(!forWrite && (!ftd->temporary.generateFileForRead || ftd->activeWrite))
         return UA_STATUSCODE_BADNOTREADABLE;
     if(transferLimitReached(ftd, sessionId))
         return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
@@ -226,6 +243,7 @@ generateFile(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                          forWrite ? UA_OPENFILEMODE_WRITE : UA_OPENFILEMODE_READ,
                          NULL, &h);
     if(res != UA_STATUSCODE_GOOD) {
+        file->transfer->endStatus = res;
         removeTransferFile(server, file);
         return res;
     }
@@ -237,8 +255,10 @@ generateFile(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         res = UA_Variant_setScalarCopy(&output[2], &none, &UA_TYPES[UA_TYPES_NODEID]);
     }
     /* The client cannot end a transfer whose handle it does not receive */
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        file->transfer->endStatus = res;
         closeFTHandle(server, h);
+    }
     return res;
 }
 
@@ -286,10 +306,12 @@ closeAndCommitMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     FTEntry *file = h->file;
     file->transfer->committing = true;
     UA_StatusCode res = closeFTHandle(server, h);
+    UA_FileTransferTemporaryFile transfer = {sessionId, sessionContext,
+                                             &file->transfer->generateOptions,
+                                             &ftd->backend.file, file->path, true};
     if(res == UA_STATUSCODE_GOOD)
-        res = ftd->closeAndCommit(server, sessionId, sessionContext,
-                               &file->transfer->generateOptions, ftd->transferContext,
-                               &ftd->backend.file, file->path);
+        res = ftd->temporary.closeAndCommit(server, ftd->temporary.context, &transfer);
+    file->transfer->endStatus = res;
     removeTransferFile(server, file);
     if(res != UA_STATUSCODE_GOOD)
         return res;

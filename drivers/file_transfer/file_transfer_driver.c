@@ -596,9 +596,8 @@ UA_FileTransferDriver_newTemporary(UA_Server *server,
         return res;
     }
     FileTransferDriver *ftd = (FileTransferDriver*)*outDriver;
-    ftd->generateFileForRead = options->generateFileForRead;
-    ftd->closeAndCommit = options->closeAndCommit;
-    ftd->transferContext = options->context;
+    ftd->temporary = *options;
+    ftd->temporary.store = NULL;
     return UA_STATUSCODE_GOOD;
 }
 

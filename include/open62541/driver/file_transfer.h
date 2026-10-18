@@ -401,8 +401,8 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  * the returned handle; closing it ends the transfer. The Methods complete
  * synchronously, completionStateMachine is always null.
  *
- * The callbacks work on the file at path in the store. They run with the
- * server lock held and borrow generateOptions, which may be an empty Variant.
+ * The callbacks receive the transfer and work on its file in the store. They
+ * run with the server lock held.
  *
  * generateFileForRead writes the content into the existing empty file and
  * closes its own store handles. A Bad result fails GenerateFileForRead and
@@ -410,18 +410,45 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  *
  * closeAndCommit runs after the client handle is closed. Its result is the
  * result of CloseAndCommit. The file is removed afterwards in any case; the
- * application copies or moves what it keeps. */
+ * application copies or moves what it keeps.
+ *
+ * endTransfer runs once for each transfer that a generate Method created, and
+ * after a successful generateFileForRead whose transfer could not be created.
+ * The client handle is closed then; the file still exists and is removed
+ * afterwards. The status tells how the transfer ended: Good when a read
+ * transfer is closed, the result of closeAndCommit,
+ * Bad_RequestCancelledByClient when a write transfer is closed, Bad_Timeout for
+ * the activity-timeout (ClientProcessingTimeout), Bad_SessionClosed,
+ * Bad_Shutdown when the driver stops, otherwise the error of the generate
+ * Method.
+ *
+ * The callbacks must not stop or remove the driver. */
+
+/* The temporary file of one transfer, borrowed for the duration of a
+ * callback */
+typedef struct {
+    const UA_NodeId *sessionId;
+    void *sessionContext;              /* NULL in endTransfer */
+    const UA_Variant *generateOptions; /* Can be an empty Variant */
+    UA_FileTransferFileBackend *store;
+    UA_String path;                    /* Of the transfer file in the store */
+    UA_Boolean forWrite;
+} UA_FileTransferTemporaryFile;
+
 typedef UA_StatusCode
-(*UA_FileTransferTemporaryCallback)(UA_Server *server, const UA_NodeId *sessionId,
-                                    void *sessionContext,
-                                    const UA_Variant *generateOptions,
-                                    void *context, UA_FileTransferFileBackend *store,
-                                    const UA_String path);
+(*UA_FileTransferTemporaryCallback)(UA_Server *server, void *context,
+                                    UA_FileTransferTemporaryFile *file);
+
+typedef void
+(*UA_FileTransferTemporaryEndCallback)(UA_Server *server, void *context,
+                                       UA_FileTransferTemporaryFile *file,
+                                       UA_StatusCode status);
 
 typedef struct {
     UA_FileTransferTemporaryCallback generateFileForRead; /* NULL: Bad_NotReadable */
     UA_FileTransferTemporaryCallback closeAndCommit;      /* NULL: Bad_NotWritable */
-    void *context;                                        /* Passed to both callbacks */
+    UA_FileTransferTemporaryEndCallback endTransfer;      /* Optional */
+    void *context;                                        /* Passed to the callbacks */
     /* Storage of the transfer files, NULL selects an internal memory store.
      * Needs the file operations, create and remove; the driver uses no
      * listDirectory, rename and copy. The callbacks get its file part; cast it
