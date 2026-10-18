@@ -322,6 +322,16 @@ tempGenerateRead(UA_Server *s, void *context, UA_FileTransferTemporaryFile *tran
     return res;
 }
 
+/* Refuses the generateOptions 13 like an unsupported storage */
+static UA_StatusCode
+tempGenerateWrite(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
+    const UA_Variant *options = transfer->generateOptions;
+    if(UA_Variant_hasScalarType(options, &UA_TYPES[UA_TYPES_UINT32]) &&
+       *(UA_UInt32*)options->data == 13)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Runs in the server thread before the CloseAndCommit response is sent */
 static UA_StatusCode
 tempCommit(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
@@ -343,6 +353,7 @@ addTemporaryDriver(const char *name, UA_Double timeout, UA_NodeId *outRoot) {
     UA_FileTransferTemporaryOptions options;
     memset(&options, 0, sizeof(options));
     options.generateFileForRead = tempGenerateRead;
+    options.generateFileForWrite = tempGenerateWrite;
     options.closeAndCommit = tempCommit;
     UA_FileTransferNodeDescription description;
     memset(&description, 0, sizeof(description));
@@ -483,6 +494,25 @@ START_TEST(tempWriteCommitOverWire) {
     UA_Client_delete(client);
 } END_TEST
 
+/* The client receives the refusal of generateFileForWrite */
+START_TEST(tempGenerateWriteRefusal) {
+    UA_Client *client = connectClient();
+    UA_UInt32 option = 13;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &option, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(clientCall(client, tempRoot,
+                          UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORWRITE,
+                          1, &input), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_NodeId file;
+    UA_UInt32 handle = 0;
+    ck_assert_uint_eq(clientGenerateWrite(client, tempRoot, &file, &handle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientCommit(client, tempRoot, handle), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 /* Closing the Session aborts its transfer and releases the write lock */
 START_TEST(tempSessionCloseAborts) {
     UA_Client *client = connectClient();
@@ -580,6 +610,7 @@ int main(void) {
 
     TCase *tc_temp = tcase_create("Temporary File Transfer");
     tcase_add_test(tc_temp, tempWriteCommitOverWire);
+    tcase_add_test(tc_temp, tempGenerateWriteRefusal);
     tcase_add_test(tc_temp, tempSessionCloseAborts);
     tcase_add_test(tc_temp, tempWriteTimeout);
     tcase_add_test(tc_temp, tempOtherSessionRejected);
