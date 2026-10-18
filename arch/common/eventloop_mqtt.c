@@ -689,14 +689,17 @@ MQTT_connect(MQTTBrokerConnection *bc) {
 
 static enum MQTTErrors
 MQTT_receive(MQTTBrokerConnection *bc, UA_ByteString msg) {
-    if(bc->client.recv_buffer.curr_sz < msg.length) {
+    /* MQTT-C rejects incomplete packets that fill the receive buffer. */
+    if(bc->client.recv_buffer.curr_sz <= msg.length) {
+        size_t used = bc->client.recv_buffer.mem_size - bc->client.recv_buffer.curr_sz;
+        if(msg.length > MQTT_MESSAGE_MAXLEN - used)
+            return MQTT_ERROR_SOCKET_ERROR;
         size_t size = bc->client.recv_buffer.mem_size + msg.length;
         if(size > MQTT_MESSAGE_MAXLEN)
-            return MQTT_ERROR_SOCKET_ERROR;
+            size = MQTT_MESSAGE_MAXLEN;
         uint8_t *mem = (uint8_t*)UA_realloc(bc->client.recv_buffer.mem_start, size);
         if(!mem)
             return MQTT_ERROR_SOCKET_ERROR;
-        size_t used = bc->client.recv_buffer.mem_size - bc->client.recv_buffer.curr_sz;
         bc->client.recv_buffer.mem_start = mem;
         bc->client.recv_buffer.mem_size = size;
         bc->client.recv_buffer.curr = &mem[used];
@@ -771,7 +774,7 @@ MQTTNetworkCallback(UA_ConnectionManager *tcpCM, uintptr_t connectionId,
             if(MQTT_connect(bc) != MQTT_OK)
                 goto fail;
         }
-        unsigned char data[16384];
+        unsigned char data[1024];
         while(bc->tcpConnectionState == UA_CONNECTIONSTATE_ESTABLISHED) {
             int ret = mbedtls_ssl_read(&bc->ssl, data, sizeof(data));
             if(ret == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET)
@@ -998,6 +1001,12 @@ MQTT_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADNOTSUPPORTED;
 #ifndef UA_ENABLE_ENCRYPTION_MBEDTLS
     if((tls && *(UA_Boolean*)tls->data) || (alias && *(UA_Boolean*)alias->data))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+#elif !defined(MBEDTLS_FS_IO)
+    const UA_ByteString *ca = (const UA_ByteString*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "ca-certificate"), &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(((tls && *(UA_Boolean*)tls->data) || (alias && *(UA_Boolean*)alias->data)) &&
+       (!ca || ca->length == 0) && UA_KeyValueMap_contains(params, UA_QUALIFIEDNAME(0, "ca-file-path")))
         return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
 

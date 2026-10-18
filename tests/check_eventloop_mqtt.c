@@ -409,6 +409,7 @@ typedef struct {
     unsigned established;
     unsigned received;
     UA_Boolean stopOnMessage;
+    UA_ByteString expectedMessage;
 } TopicState;
 
 static void
@@ -421,6 +422,10 @@ trackTopic(UA_ConnectionManager *cm, uintptr_t id, void *application, void **con
     if(state == UA_CONNECTIONSTATE_CLOSING)
         topic->closed++;
     if(msg.length > 0) {
+        if(topic->expectedMessage.length) {
+            ck_assert_uint_eq(msg.length, topic->expectedMessage.length);
+            ck_assert_mem_eq(msg.data, topic->expectedMessage.data, msg.length);
+        }
         topic->received++;
         if(topic->stopOnMessage)
             cm->eventSource.stop(&cm->eventSource);
@@ -579,6 +584,24 @@ START_TEST(invalidSecurityParametersAreRejected) {
 } END_TEST
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#ifndef MBEDTLS_FS_IO
+START_TEST(tlsFileTrustWithoutFilesystem) {
+    OfflineMQTT test = setupOfflineMQTT(NULL, false);
+    UA_KeyValueMap params = authenticatedParameters();
+    UA_Boolean enabled = true, validate = (_i != 0);
+    UA_String caPath = UA_STRING("unused-ca.pem");
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "use-tls"), &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "ca-file-path"), &caPath, &UA_TYPES[UA_TYPES_STRING]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "validate"), &validate, &UA_TYPES[UA_TYPES_BOOLEAN]), UA_STATUSCODE_GOOD);
+    TopicState topic = {0};
+    ck_assert_uint_eq(test.mqtt->openConnection(test.mqtt, &params, &topic, NULL, trackTopic), UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 100, NULL, NULL), UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(topic.established, 0);
+    UA_KeyValueMap_clear(&params);
+    teardownOfflineMQTT(&test);
+} END_TEST
+#endif
+
 typedef struct {
     UA_ByteString input;
     UA_ByteString output;
@@ -684,6 +707,8 @@ START_TEST(tlsCertificateVerification) {
                                              UA_CERTIFICATEFORMAT_DER, &certOptions, &otherKey, &otherCert), UA_STATUSCODE_GOOD);
     }
     UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "ca-certificate"), _i == 2 ? &otherCert : &certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_String unusedCaPath = UA_STRING("unused-ca.pem");
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "ca-file-path"), &unusedCaPath, &UA_TYPES[UA_TYPES_STRING]), UA_STATUSCODE_GOOD);
     if(_i == 1) {
         UA_String wrongHostname = UA_STRING("wrong.example");
         UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "address"), &wrongHostname, &UA_TYPES[UA_TYPES_STRING]);
@@ -722,6 +747,20 @@ START_TEST(tlsCertificateVerification) {
         deliverTLSBroker(&test, &broker);
         ck_assert_uint_eq(topic.established, 1);
         ck_assert_uint_eq(topic.received, 1);
+
+        /* The payload spans multiple TLS reads and grows the MQTT buffer. */
+        const UA_Byte header[] = {0x30, 0x87, 0x40, 0, 5, 't', 'o', 'p', 'i', 'c'};
+        UA_ByteString packet = UA_BYTESTRING_NULL;
+        ck_assert_uint_eq(UA_ByteString_allocBuffer(&packet, sizeof(header) + 8192), UA_STATUSCODE_GOOD);
+        memcpy(packet.data, header, sizeof(header));
+        memset(packet.data + sizeof(header), 'x', 8192);
+        topic.expectedMessage.data = packet.data + sizeof(header);
+        topic.expectedMessage.length = 8192;
+        ck_assert_int_eq(mbedtls_ssl_write(&ssl, packet.data, packet.length), (int)packet.length);
+        deliverTLSBroker(&test, &broker);
+        ck_assert_uint_eq(topic.received, 2);
+        topic.expectedMessage = UA_BYTESTRING_NULL;
+        UA_ByteString_clear(&packet);
     } else {
         ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 100, NULL, NULL), UA_STATUSCODE_BADNOTFOUND);
     }
@@ -860,6 +899,9 @@ int main(void) {
     tcase_add_loop_test(tcAuthentication, invalidSecurityParametersAreRejected, 0, 6);
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     tcase_add_loop_test(tcAuthentication, tlsCertificateVerification, 0, 3);
+#ifndef MBEDTLS_FS_IO
+    tcase_add_loop_test(tcAuthentication, tlsFileTrustWithoutFilesystem, 0, 2);
+#endif
 #endif
     suite_add_tcase(s, tcAuthentication);
 
