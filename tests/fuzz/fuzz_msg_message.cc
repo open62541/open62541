@@ -60,9 +60,11 @@ struct FuzzServer {
         if(!server)
             return;
 
+        lockServer(server);
         ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
                  removeServerComponent, server);
         ZIP_INIT(&server->serverComponents);
+        unlockServer(server);
         bpm = UA_BinaryProtocolManager_new(server);
         if(!bpm)
             return;

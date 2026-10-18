@@ -124,9 +124,14 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
         }
     }
 
-    /* Input length not a multiple of four */
-    if(count > 0)
+    /* Base64url omits the final padding. Decode the remaining two or three
+     * characters as one or two bytes, respectively. */
+    if(pad > 0 || count == 1)
         goto error;
+    if(count >= 2)
+        *pos++ = (block[0] << 2) | (block[1] >> 4);
+    if(count == 3)
+        *pos++ = (block[1] << 4) | (block[2] >> 2);
 
     *out_len = (size_t)(pos - out);
     if(*out_len == 0) {
