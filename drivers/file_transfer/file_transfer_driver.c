@@ -581,27 +581,28 @@ UA_FileTransferDriver_newTemporary(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Move the store out of the options, also when the construction fails */
-    UA_FileTransferBackend store = options->store;
+    UA_FileTransferTemporaryOptions temporary = *options;
     memset(&options->store, 0, sizeof(options->store));
     UA_FileTransferBackend noStore;
     memset(&noStore, 0, sizeof(noStore));
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(!options->generateFileForRead && !options->closeAndCommit)
+    if(!temporary.generateFileForRead && !temporary.closeAndCommit)
         res = UA_STATUSCODE_BADINVALIDARGUMENT;
-    else if(memcmp(&store, &noStore, sizeof(noStore)) == 0)
-        res = memStoreInit(&store);
+    else if(memcmp(&temporary.store, &noStore, sizeof(noStore)) == 0)
+        res = memStoreInit(&temporary.store);
     if(res == UA_STATUSCODE_GOOD)
-        res = newDriver(server, &store, FT_ROOT_TEMPORARY, UA_STRING_NULL,
+        res = newDriver(server, &temporary.store, FT_ROOT_TEMPORARY, UA_STRING_NULL,
                         description, outNodeId, outDriver);
     if(res != UA_STATUSCODE_GOOD) {
-        if(store.file.clear)
-            store.file.clear(&store.file);
+        if(temporary.store.file.clear)
+            temporary.store.file.clear(&temporary.store.file);
         return res;
     }
+
+    /* The store is now in ftd->backend */
+    memset(&temporary.store, 0, sizeof(temporary.store));
     FileTransferDriver *ftd = (FileTransferDriver*)*outDriver;
-    ftd->generateFileForRead = options->generateFileForRead;
-    ftd->closeAndCommit = options->closeAndCommit;
-    ftd->transferContext = options->context;
+    ftd->temporary = temporary;
     return UA_STATUSCODE_GOOD;
 }
 
