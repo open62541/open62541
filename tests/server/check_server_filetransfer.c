@@ -6569,6 +6569,12 @@ static size_t tempCommitCalls;
 static size_t tempEndCalls;
 static UA_StatusCode tempEndStatus;
 static UA_Boolean tempEndForWrite;
+/* transferContext set by generateFileForRead and closeAndCommit, seen by
+ * closeAndCommit and endTransfer */
+static void *tempGenerateContext;
+static void *tempCommitContextOut;
+static void *tempCommitContextSeen;
+static void *tempEndContext;
 
 static void
 resetTemporaryCallbacks(void) {
@@ -6582,6 +6588,10 @@ resetTemporaryCallbacks(void) {
     tempEndCalls = 0;
     tempEndStatus = UA_STATUSCODE_GOOD;
     tempEndForWrite = false;
+    tempGenerateContext = NULL;
+    tempCommitContextOut = NULL;
+    tempCommitContextSeen = NULL;
+    tempEndContext = NULL;
 }
 
 static UA_StatusCode
@@ -6633,6 +6643,8 @@ tempGenerateRead(UA_Server *server, void *context, UA_FileTransferTemporaryFile 
     UA_Variant_copy(transfer->generateOptions, &tempOptions);
     if(tempGenerateResult != UA_STATUSCODE_GOOD)
         return tempGenerateResult;
+    ck_assert_ptr_null(transfer->transferContext);
+    transfer->transferContext = tempGenerateContext;
     return writeStoreFile(transfer->store, transfer->path, tempReadContent);
 }
 
@@ -6640,6 +6652,9 @@ static UA_StatusCode
 tempCommit(UA_Server *server, void *context, UA_FileTransferTemporaryFile *transfer) {
     tempCommitCalls++;
     ck_assert(transfer->forWrite);
+    tempCommitContextSeen = transfer->transferContext;
+    if(tempCommitContextOut)
+        transfer->transferContext = tempCommitContextOut;
     UA_Variant_clear(&tempOptions);
     UA_Variant_copy(transfer->generateOptions, &tempOptions);
     UA_ByteString_clear(&tempCommitted);
@@ -6654,6 +6669,7 @@ tempEndTransfer(UA_Server *server, void *context, UA_FileTransferTemporaryFile *
     tempEndCalls++;
     tempEndStatus = status;
     tempEndForWrite = transfer->forWrite;
+    tempEndContext = transfer->transferContext;
     ck_assert_ptr_null(transfer->sessionContext);
     ck_assert(UA_NodeId_equal(transfer->sessionId, &server->adminSession.sessionId));
     UA_FileTransferFileInfo info;
@@ -7307,6 +7323,64 @@ START_TEST(temporaryEndTransferStatus) {
     resetTemporaryCallbacks();
 } END_TEST
 
+/* A subtype Method finds the running transfer by its FileHandle */
+START_TEST(temporaryTransferContext) {
+    resetTemporaryCallbacks();
+    UA_NodeId root;
+    UA_Driver *driver = newTemporaryDriver(true, true, "Temp", &root);
+    const UA_NodeId *session = &server_ft->adminSession.sessionId;
+    UA_NodeId other = UA_NODEID_NUMERIC(1, 4711);
+    int dataset = 1, info = 2, result = 3;
+
+    tempGenerateContext = &dataset;
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, false, &file, UA_STATUSCODE_GOOD);
+    UA_Boolean forWrite = true;
+    void *context = NULL;
+    ck_assert_uint_eq(UA_FileTransferDriver_getTransfer(driver, session, h, &forWrite,
+                          &context), UA_STATUSCODE_GOOD);
+    ck_assert(!forWrite);
+    ck_assert_ptr_eq(context, &dataset);
+    ck_assert_uint_eq(UA_FileTransferDriver_getTransfer(driver, &other, h, NULL, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_getTransfer(driver, session, h + 1, NULL,
+                          NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    callClose(file, h, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(tempEndContext, &dataset);
+    ck_assert_uint_eq(UA_FileTransferDriver_getTransfer(driver, session, h, NULL, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_NodeId_clear(&file);
+
+    /* A write transfer gets its context later; closeAndCommit can replace it */
+    h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_FileTransferDriver_getTransfer(driver, session, h, &forWrite,
+                          &context), UA_STATUSCODE_GOOD);
+    ck_assert(forWrite);
+    ck_assert_ptr_null(context);
+    ck_assert_uint_eq(UA_FileTransferDriver_setTransferContext(driver, &other, h, &info),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_setTransferContext(driver, session, h, &info),
+                      UA_STATUSCODE_GOOD);
+    tempCommitContextOut = &result;
+    callCommit(root, h, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(tempCommitContextSeen, &info);
+    ck_assert_ptr_eq(tempEndContext, &result);
+    UA_NodeId_clear(&file);
+
+    /* Only temporary drivers have transfers */
+    UA_NodeId plain = addTestFile("Plain", "data", NULL);
+    UA_Driver *fileDriver = driverForRoot(plain);
+    h = callOpen(plain, UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_FileTransferDriver_getTransfer(fileDriver, session, h, NULL,
+                          NULL), UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(UA_FileTransferDriver_setTransferContext(fileDriver, session, h,
+                          &info), UA_STATUSCODE_BADNOTSUPPORTED);
+    callClose(plain, h, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&plain);
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
 static UA_Driver *
 newTimedTemporaryDriver(const char *name, UA_Double timeout, UA_NodeId *outRoot) {
     UA_FileTransferTemporaryOptions options = temporaryOptions(true, true);
@@ -7336,6 +7410,14 @@ START_TEST(temporaryIdleTransferCancelled) {
         UA_fakeSleep(60);
         UA_Server_run_iterate(server_ft, false);
         callWrite(file, h, "x", UA_STATUSCODE_GOOD);
+    }
+    /* So do the lookups of subtype Methods */
+    for(size_t i = 0; i < 3; i++) {
+        UA_fakeSleep(60);
+        UA_Server_run_iterate(server_ft, false);
+        ck_assert_uint_eq(UA_FileTransferDriver_getTransfer(driver,
+                              &server_ft->adminSession.sessionId, h, NULL, NULL),
+                          UA_STATUSCODE_GOOD);
     }
     ck_assert(nodeExists(file));
 
@@ -7666,6 +7748,7 @@ int main(void) {
     tcase_add_test(tc_temp, temporaryStopAndSessionClose);
     tcase_add_test(tc_temp, temporaryCallbackFailures);
     tcase_add_test(tc_temp, temporaryEndTransferStatus);
+    tcase_add_test(tc_temp, temporaryTransferContext);
     tcase_add_test(tc_temp, temporaryIdleTransferCancelled);
     tcase_add_test(tc_temp, temporaryTimeoutParameter);
     tcase_add_test(tc_temp, temporaryExclusiveReads);

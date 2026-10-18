@@ -648,6 +648,59 @@ UA_FileTransferDriver_getHandleInfo(UA_Driver *driver, const UA_NodeId fileNodeI
     return h ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINVALIDARGUMENT;
 }
 
+/* The running transfer with the FileHandle of the Session. A lookup counts as
+ * a call of the transfer. */
+static FTTransfer *
+findTransfer(UA_Driver *driver, const UA_NodeId *sessionId, UA_UInt32 fileHandle,
+             UA_StatusCode *res) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    if(!ftd->root || ftd->root->kind != FT_ENTRY_TEMPORARY) {
+        *res = UA_STATUSCODE_BADNOTSUPPORTED;
+        return NULL;
+    }
+    FTHandle *h = findFTHandle(ftd, sessionId, fileHandle);
+    if(!h || !h->file->transfer) {
+        *res = UA_STATUSCODE_BADINVALIDARGUMENT;
+        return NULL;
+    }
+    touchFTHandle(driver->server, h);
+    *res = UA_STATUSCODE_GOOD;
+    return h->file->transfer;
+}
+
+UA_StatusCode
+UA_FileTransferDriver_getTransfer(UA_Driver *driver, const UA_NodeId *sessionId,
+                                  UA_UInt32 fileHandle, UA_Boolean *forWrite,
+                                  void **transferContext) {
+    if(!driver || !driver->server || !isFileTransferDriver(driver) || !sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    UA_StatusCode res;
+    FTTransfer *t = findTransfer(driver, sessionId, fileHandle, &res);
+    if(t && forWrite)
+        *forWrite = t->forWrite;
+    if(t && transferContext)
+        *transferContext = t->transferContext;
+    el->unlock(el);
+    return res;
+}
+
+UA_StatusCode
+UA_FileTransferDriver_setTransferContext(UA_Driver *driver, const UA_NodeId *sessionId,
+                                         UA_UInt32 fileHandle, void *transferContext) {
+    if(!driver || !driver->server || !isFileTransferDriver(driver) || !sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    UA_StatusCode res;
+    FTTransfer *t = findTransfer(driver, sessionId, fileHandle, &res);
+    if(t)
+        t->transferContext = transferContext;
+    el->unlock(el);
+    return res;
+}
+
 UA_StatusCode
 UA_FileTransferDriver_closeHandle(UA_Driver *driver, const UA_NodeId fileNodeId,
                                   const UA_NodeId *sessionId, UA_UInt32 fileHandle) {

@@ -416,6 +416,10 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  * result of CloseAndCommit. The file is removed afterwards in any case; the
  * application copies or moves what it keeps.
  *
+ * generateFileForRead and closeAndCommit can set the transferContext of the
+ * application. The driver keeps it for the transfer and passes it to the later
+ * callbacks; endTransfer releases it.
+ *
  * endTransfer runs once for each transfer that a generate Method created, and
  * after a successful generateFileForRead whose transfer could not be created.
  * The client handle is closed then; the file still exists and is removed
@@ -437,6 +441,7 @@ typedef struct {
     UA_FileTransferFileBackend *store;
     UA_String path;                    /* Of the transfer file in the store */
     UA_Boolean forWrite;
+    void *transferContext;             /* Of the application, initially NULL */
 } UA_FileTransferTemporaryFile;
 
 typedef UA_StatusCode
@@ -475,6 +480,23 @@ UA_FileTransferDriver_newTemporary(UA_Server *server,
                                    const UA_FileTransferTemporaryOptions *options,
                                    const UA_FileTransferNodeDescription *description,
                                    UA_NodeId *outNodeId, UA_Driver **outDriver);
+
+/* Methods of a TemporaryFileTransferType subtype can take the FileHandle of a
+ * running transfer, e.g. SendProductionDatasetInformation of EUROMAP 83.
+ * getTransfer resolves it for the Session to the direction and the
+ * transferContext (both optional); setTransferContext replaces the context. A
+ * transfer runs from the generate Method until its handle is closed; other
+ * handles return Bad_InvalidArgument, a driver that is not temporary
+ * Bad_NotSupported. Both count as calls for the activity-timeout and can be
+ * called from Method callbacks. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_getTransfer(UA_Driver *driver, const UA_NodeId *sessionId,
+                                  UA_UInt32 fileHandle, UA_Boolean *forWrite,
+                                  void **transferContext);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_setTransferContext(UA_Driver *driver, const UA_NodeId *sessionId,
+                                         UA_UInt32 fileHandle, void *transferContext);
 
 _UA_END_DECLS
 

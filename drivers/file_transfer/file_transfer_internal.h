@@ -65,6 +65,7 @@ typedef struct {
     UA_Boolean forWrite;
     UA_Boolean committing;      /* The handle is closed for CloseAndCommit */
     UA_StatusCode endStatus;    /* Passed to endTransfer */
+    void *transferContext;      /* Of the application */
     UA_Variant generateOptions;
 } FTTransfer;
 
