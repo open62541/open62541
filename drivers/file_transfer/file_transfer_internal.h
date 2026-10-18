@@ -63,6 +63,7 @@ typedef struct {
     UA_NodeId sessionId;        /* Of the generate Method */
     UA_Boolean forWrite;
     UA_StatusCode endStatus;    /* Passed to endTransfer */
+    void *transferContext;      /* Of the application */
     UA_Variant generateOptions;
 } FTTransfer;
 
