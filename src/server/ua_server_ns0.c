@@ -1154,11 +1154,18 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(PUBLISHSUBSCRIBE), true);
 #endif
 
-    /* ServerConfiguration - MulticastDnsEnabled */
+    /* ServerConfiguration - MulticastDnsEnabled. The configuration has the
+     * setting only with discovery. */
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
-                               &server->config.serversOnNetworkEnabled,
-                               &UA_TYPES[UA_TYPES_BOOLEAN]);
+    {
+#ifdef UA_ENABLE_DISCOVERY
+        UA_Boolean multicastDnsEnabled = server->config.serversOnNetworkEnabled;
+#else
+        UA_Boolean multicastDnsEnabled = false;
+#endif
+        retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
+                                   &multicastDnsEnabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    }
 #endif
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
