@@ -15,6 +15,10 @@
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+#include "arch/posix/posix.h"
+#endif
+
 #include "../common/timer.h"
 #include "../common/eventloop_common.h"
 #include "../../deps/mp_printf.h"
