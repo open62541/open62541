@@ -164,6 +164,16 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
                    server->config.logging, UA_LOGCATEGORY_SERVER,
                    "PubSub Connection creation failed. Missing connection configuration.");
 
+    /* The information model representation reads the address before the
+     * validate-connect below. Check the address type first. */
+    if(!UA_Variant_hasScalarType(&cc->address,
+                                 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. No "
+                     "NetworkAddressUrlDataType for the address configuration");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     /* Allocate */
     UA_PubSubConnection *c = (UA_PubSubConnection *)
         UA_calloc(1, sizeof(UA_PubSubConnection));
