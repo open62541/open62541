@@ -637,10 +637,42 @@ struct UA_ClientConfig {
     UA_LocaleId *sessionLocaleIds; /* Preferred locales of the client */
     size_t sessionLocaleIdsSize;
 
-    /* Basic connection behavior */
+    /* Basic connection behavior
+     *
+     * The client tracks a connectStatus. While it is Good, a lost connection is
+     * re-dialed automatically. Any other status is final: the SecureChannel is
+     * closed, nothing is retried and the status is reported by
+     * UA_Client_connect, UA_Client_getState and the state callback. Only a new
+     * UA_Client_connect* call resets it (and cancels a pending re-dial).
+     *
+     * Final: a failure in the handshake, FindServers, GetEndpoints,
+     * CreateSession or ActivateSession, a local error, a lost Session with
+     * noNewSession, a lost connection with noReconnect. (BadSessionIdInvalid
+     * or BadSessionClosed on ActivateSession create a new Session instead,
+     * unless noNewSession is set.)
+     *
+     * Re-dial (the status stays Good): the connection closed without the
+     * client requesting it. The first re-dial is immediate. If a connection
+     * closes again before its SecureChannel opens, the next re-dial waits
+     * reconnectInterval ms, doubling per attempt up to reconnectIntervalMax.
+     * The attempt counter resets whenever a SecureChannel opens.
+     *
+     * Session-bound requests (all but CreateSession, ActivateSession,
+     * CloseSession and the discovery services) are refused with
+     * BadSessionNotActivated until the Session is activated. */
     UA_Boolean noSession;    /* Only open a SecureChannel, but no Session */
     UA_Boolean noReconnect;  /* Don't reconnect SecureChannel when the connection
                               * is lost without explicitly closing. */
+    UA_UInt32 reconnectInterval;    /* The first re-dial after a lost
+                                     * connection is immediate. If that
+                                     * connection closes again before its
+                                     * SecureChannel opens, wait this long
+                                     * (in ms) before the next attempt,
+                                     * doubling with every further attempt.
+                                     * 0 -> no delay. */
+    UA_UInt32 reconnectIntervalMax; /* Upper bound of that delay in ms.
+                                     * setDefault sets 10000. 0 or less than
+                                     * reconnectInterval -> no growth. */
     UA_Boolean noNewSession; /* Don't automatically create a new Session when
                               * the initial one is lost. Instead abort the
                               * connection when the Session is lost. */

@@ -544,6 +544,62 @@ START_TEST(Client_sessionSurvivesRequestsDuringReactivation) {
 }
 END_TEST
 
+static size_t dialAttempts;
+static UA_SecureChannelState lastChannelState;
+
+static void
+countDials(UA_Client *client, UA_SecureChannelState channelState,
+           UA_SessionState sessionState, UA_StatusCode connectStatus) {
+    (void)client; (void)sessionState; (void)connectStatus;
+    if(channelState == UA_SECURECHANNELSTATE_CONNECTING &&
+       lastChannelState != UA_SECURECHANNELSTATE_CONNECTING)
+        dialAttempts++;
+    lastChannelState = channelState;
+}
+
+/* A server at its SecureChannel limit accepts the TCP connection and closes
+ * it before the handshake. The client keeps trying, but with a delay that
+ * doubles, instead of in a hot loop. */
+START_TEST(Client_reconnectBacksOff) {
+    UA_Client *holder = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(holder, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Manually control the server thread */
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    UA_Server_getConfig(server)->maxSecureChannels = 1;
+
+    dialAttempts = 0;
+    lastChannelState = UA_SECURECHANNELSTATE_CLOSED;
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->stateCallback = countDials;
+    cc->timeout = 60 * 1000; /* No timeout within the test */
+    retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Five seconds. With the default 500ms doubling up to 10s, the dials are
+     * at 0, 0 (the first re-dial), 0.5, 1.5 and 3.5 seconds. */
+    for(size_t i = 0; i < 500; i++) {
+        UA_fakeSleep(10);
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+    }
+    ck_assert_uint_ge(dialAttempts, 3);
+    ck_assert_uint_le(dialAttempts, 8);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    UA_Server_getConfig(server)->maxSecureChannels = 0;
+    UA_atomic_store(&running, true);
+    THREAD_CREATE(server_thread, serverloop);
+    UA_Client_disconnect(holder);
+    UA_Client_delete(holder);
+}
+END_TEST
+
 START_TEST(Client_delete_without_connect) {
     UA_Client *client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
@@ -1237,6 +1293,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_reconnect, Client_reconnect);
     tcase_add_test(tc_client_reconnect, Client_requestRefusedBeforeActivation);
     tcase_add_test(tc_client_reconnect, Client_sessionSurvivesRequestsDuringReactivation);
+    tcase_add_test(tc_client_reconnect, Client_reconnectBacksOff);
     tcase_add_test(tc_client_reconnect, Client_activateSessionClose);
     tcase_add_test(tc_client_reconnect, Client_activateSessionTimeout);
     tcase_add_test(tc_client_reconnect, Client_connectTimeoutRecovery);
