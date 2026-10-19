@@ -3,6 +3,12 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Optional UTC-only local time on POSIX
+
+The POSIX CMake option `UA_ARCH_LOCAL_TIME_IS_UTC` (default OFF) makes
+`UA_DateTime_localTimeUtcOffset()` return zero without linking C library timezone
+conversion functions. The stdout logger consequently uses UTC timestamps.
+
 ### Session and subscription diagnostics are named in the server namespace
 
 The per-session objects below `SessionsDiagnosticsSummary` and the

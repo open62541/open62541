@@ -288,7 +288,8 @@ typedef int64_t UA_DateTime;
 /* The current time in UTC time */
 UA_DateTime UA_EXPORT UA_DateTime_now(void);
 
-/* Offset between local time and UTC time */
+/* Offset between local time and UTC time. On POSIX, building with
+ * UA_ARCH_LOCAL_TIME_IS_UTC enabled returns zero without timezone conversion. */
 UA_Int64 UA_EXPORT UA_DateTime_localTimeUtcOffset(void);
 
 /* CPU clock invariant to system time changes. Use only to measure durations,

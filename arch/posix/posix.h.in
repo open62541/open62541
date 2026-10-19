@@ -5,6 +5,7 @@
 #ifndef UA_POSIX_H_
 #define UA_POSIX_H_
 
-/* Architecture-specific build configuration. */
+/* Return a zero UTC offset and omit C library timezone conversion. */
+#cmakedefine UA_ARCH_LOCAL_TIME_IS_UTC
 
 #endif /* UA_POSIX_H_ */
