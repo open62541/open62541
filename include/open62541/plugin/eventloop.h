@@ -579,7 +579,13 @@ UA_EventLoop_new_GLib(const UA_Logger *logger, void *glibMainContext);
  * 0:remote-address [string]
  *    Address of the remote side (hostname or IP address).
  *
- * **Listen Connection Connection Callback Parameters (first callback only):**
+ * **Listen Connection Connection Callback Parameters (at establishment):**
+ *
+ * Listener setup can be asynchronous: ``openConnection`` may return before
+ * binding and listening have completed. In this case, the initial
+ * ``UA_CONNECTIONSTATE_OPENING`` callback may omit the bound address and port.
+ * These are provided in the ``UA_CONNECTIONSTATE_ESTABLISHED`` callback once
+ * the listener is ready to accept connections.
  *
  * 0:listen-address [string]
  *    Local address (IP or hostname) for the new listen-connection.
@@ -1244,7 +1250,13 @@ UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config
  * 0:remote-address [string]
  *    Address of the remote side (hostname or IP address).
  *
- * **Listen Connection Connection Callback Parameters (first callback only):**
+ * **Listen Connection Connection Callback Parameters (at establishment):**
+ *
+ * Listener setup can be asynchronous: ``openConnection`` may return before
+ * binding and listening have completed. In this case, the initial
+ * ``UA_CONNECTIONSTATE_OPENING`` callback may omit the bound address and port.
+ * These are provided in the ``UA_CONNECTIONSTATE_ESTABLISHED`` callback once
+ * the listener is ready to accept connections.
  *
  * 0:listen-address [string]
  *    Local address (IP or hostname) for the new listen-connection.
