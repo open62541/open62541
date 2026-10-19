@@ -139,6 +139,55 @@ UA_PubSubConnection_disconnect(UA_PubSubConnection *c) {
     }
 }
 
+UA_Boolean
+UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *psc,
+                             UA_ByteString msg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_Boolean processed = false;
+    UA_ReaderGroup *rg;
+    LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
+        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
+           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+        /* Verification and in-place decryption belong to this ReaderGroup.
+         * Keep the received bytes intact for every other ReaderGroup. */
+        UA_ByteString buffer = msg;
+        UA_ByteString copy = UA_BYTESTRING_NULL;
+        UA_StatusCode res = UA_STATUSCODE_GOOD;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+        if(rg->config.securityMode != UA_MESSAGESECURITYMODE_NONE) {
+            res = UA_ByteString_copy(&msg, &copy);
+            if(res != UA_STATUSCODE_GOOD)
+                break;
+            buffer = copy;
+        }
+#endif
+        if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
+            processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, &buffer);
+            UA_ByteString_clear(&copy);
+            continue;
+        }
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(nm));
+        if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+            size_t pos = 0;
+            res = decodeNetworkMessage(server, &buffer, &pos, &nm, rg);
+        } else {
+#ifdef UA_ENABLE_JSON_ENCODING
+            res = UA_NetworkMessage_decodeJson(&nm, &buffer);
+#else
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+        }
+        if(res == UA_STATUSCODE_GOOD)
+            processed |= UA_ReaderGroup_process(server, rg, &nm);
+        UA_NetworkMessage_clear(&nm);
+        UA_ByteString_clear(&copy);
+    }
+
+    return processed;
+}
+
 static void
 PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                      void *application, void **connectionContext,
@@ -201,56 +250,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_OPERATIONAL,
                                            UA_STATUSCODE_GOOD);
 
-    UA_NetworkMessage nm;
-    memset(&nm, 0, sizeof(UA_NetworkMessage));
-
-    UA_Boolean nonRT = false;
-    UA_Boolean processed = false;
-
-    /* Process buffer ReaderGroups */
-    UA_ReaderGroup *rg;
-    LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
-        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
-            processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
-            continue;
-        } 
-
-        if(!nonRT) {
-            nonRT = true;
-            /* Decode once for all nonRT ReaderGroups */
-            if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-                size_t currentPosition = 0;
-                res = decodeNetworkMessage(server, &msg, &currentPosition, &nm, psc);
-            } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
-#ifdef UA_ENABLE_JSON_ENCODING
-                res = UA_NetworkMessage_decodeJson(&nm, &msg);
-#else
-                res = UA_STATUSCODE_BADNOTSUPPORTED;
-#endif
-            }
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING_CONNECTION(server->config.logging, psc,
-                                          "Verify, decrypt and decode network message failed");
-                nonRT = false;
-            }
-        }
-    }
-
-    /* Process the received message for the non-RT ReaderGroups */
-    if(nonRT) {
-        LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
-            if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
-               rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
-                continue;
-            if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)
-                continue;
-            processed |= UA_ReaderGroup_process(server, rg, &nm);
-        }
-        UA_NetworkMessage_clear(&nm);
-    }
+    UA_Boolean processed = UA_PubSubConnection_process(server, psc, msg);
 
     if(!processed) {
         UA_DateTime nowM = UA_DateTime_nowMonotonic();
@@ -895,7 +895,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
         size_t currentPosition = 0;
         res = decodeNetworkMessage(server, &msg, &currentPosition,
-                                   &nm, rg->linkedConnection);
+                                   &nm, rg);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
         res = UA_NetworkMessage_decodeJson(&nm, &msg);
@@ -904,6 +904,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 #endif
     }
     if(res != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(&nm);
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                   "Verify, decrypt and decode network message failed");
         unlockServer(server);

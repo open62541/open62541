@@ -8,6 +8,7 @@
 
 #include <check.h>
 #include <string.h>
+#include <stdlib.h>
 
 /* API-level smoke test related to GHSA-38g6-5hfj-2fj7: a malformed field
  * name inside a nested JSON5 config object (an unpaired UTF-16 surrogate

@@ -45,6 +45,7 @@ typedef struct {
     UA_NodeId         sessionId;
     UA_String         clientUserIdOfSession;
     UA_UserTokenType  userTokenType;
+    UA_ByteString     userCertificate; /* Full certificate for identity comparison */
     UA_UInt32         maxRequestMessageSize;
     UA_UInt32         maxResponseMessageSize;
     UA_Double         timeout; /* in ms */

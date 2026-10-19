@@ -238,17 +238,19 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+static UA_StatusCode
 mdns_append_path_to_url(UA_String *url, const char *path) {
     size_t pathLen = strlen(path);
-    size_t newUrlLen = url->length + pathLen; //size of the new url string incl. the path 
-    /* todo: malloc may fail: return a statuscode */
+    size_t newUrlLen = url->length + pathLen; //size of the new url string incl. the path
     char *newUrl = (char *)UA_malloc(url->length + pathLen);
+    if(!newUrl)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy(newUrl, url->data, url->length);
     memcpy(newUrl + url->length, path, pathLen);
     UA_String_clear(url);
     url->length = newUrlLen;
     url->data = (UA_Byte *) newUrl;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -269,6 +271,7 @@ setTxt(UA_DiscoveryManager *dm, const struct resource *r,
                 if (!entry->pathTmp) {
                     UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
                                  "Cannot alloc memory for mDNS srv path");
+                    xht_free(x);
                     return;
                 }
                 memcpy(entry->pathTmp, path, pathLen);
@@ -276,7 +279,11 @@ setTxt(UA_DiscoveryManager *dm, const struct resource *r,
             }
         } else {
             /* SRV already there and discovery URL set. Add path to discovery URL */
-            mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, path);
+            UA_StatusCode res =
+                mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, path);
+            if(res != UA_STATUSCODE_GOOD)
+                UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+                             "Cannot append the path to the discovery url. Out of memory.");
         }
     }
 
@@ -289,16 +296,31 @@ setTxt(UA_DiscoveryManager *dm, const struct resource *r,
         }
 
         /* set capabilities */
-        entry->serverOnNetwork.serverCapabilitiesSize = capsCount;
         entry->serverOnNetwork.serverCapabilities =
             (UA_String *) UA_Array_new(capsCount, &UA_TYPES[UA_TYPES_STRING]);
+        if(!entry->serverOnNetwork.serverCapabilities) {
+            UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+                         "Cannot alloc memory for mDNS capabilities");
+            xht_free(x);
+            return;
+        }
+        entry->serverOnNetwork.serverCapabilitiesSize = capsCount;
 
         for(size_t i = 0; i < capsCount; i++) {
             char *nextStr = strchr(caps, ',');
             size_t len = nextStr ? (size_t) (nextStr - caps) : strlen(caps);
-            entry->serverOnNetwork.serverCapabilities[i].length = len;
-            /* todo: malloc may fail: return a statuscode */
             entry->serverOnNetwork.serverCapabilities[i].data = (UA_Byte*)UA_malloc(len);
+            if(!entry->serverOnNetwork.serverCapabilities[i].data) {
+                UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+                             "Cannot alloc memory for mDNS capabilities");
+                UA_Array_delete(entry->serverOnNetwork.serverCapabilities,
+                                capsCount, &UA_TYPES[UA_TYPES_STRING]);
+                entry->serverOnNetwork.serverCapabilities = NULL;
+                entry->serverOnNetwork.serverCapabilitiesSize = 0;
+                xht_free(x);
+                return;
+            }
+            entry->serverOnNetwork.serverCapabilities[i].length = len;
             memcpy(entry->serverOnNetwork.serverCapabilities[i].data, caps, len);
             if(nextStr)
                 caps = nextStr + 1;
@@ -331,9 +353,8 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
                      "Cannot allocate char for discovery url. Out of memory.");
         return;
     }
-
     mp_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
-                r->known.srv.name, r->known.srv.port);
+             r->known.srv.name, r->known.srv.port);
 
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
     UA_LOG_INFO(dm->logging, UA_LOGCATEGORY_SERVER,
@@ -343,7 +364,11 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
     UA_free(newUrl);
 
     if(entry->pathTmp) {
-        mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, entry->pathTmp);
+        UA_StatusCode res =
+            mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, entry->pathTmp);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+                         "Cannot append the path to the discovery url. Out of memory.");
         UA_free(entry->pathTmp);
         entry->pathTmp = NULL;
     }
@@ -439,6 +464,7 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
             if(!allocPath) {
                 UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
                              "Cannot alloc memory for txt path");
+                xht_free(h);
                 return;
             }
             memcpy(allocPath, path, pathLen);
@@ -448,6 +474,7 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
             if(!allocPath) {
                 UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
                              "Cannot alloc memory for txt path");
+                xht_free(h);
                 return;
             }
             allocPath[0] = '/';
@@ -467,8 +494,15 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
     char *caps = NULL;
     if(capsLen) {
         /* freed when xht_free is called */
-        /* todo: malloc may fail: return a statuscode */
         caps = (char*)UA_malloc(sizeof(char) * capsLen);
+        if(!caps) {
+            UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+                         "Cannot alloc memory for txt capabilities");
+            if(allocPath)
+                UA_free(allocPath);
+            xht_free(h);
+            return;
+        }
         size_t idx = 0;
         for(size_t i = 0; i < capabilitiesSize; i++) {
             memcpy(caps + idx, (const char *) capabilites[i].data, capabilites[i].length);

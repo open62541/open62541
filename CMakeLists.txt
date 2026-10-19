@@ -363,6 +363,7 @@ endif()
 option(UA_ENABLE_MQTT "Enable MQTT connections for the EventLoop" OFF)
 mark_as_advanced(UA_ENABLE_MQTT)
 if(UA_ENABLE_MQTT)
+    message(WARNING "The MQTT-C library (UA_ENABLE_MQTT) is deprecated and has known, unfixed issues. Only use it with a trusted broker over a protected connection.")
     if(NOT EXISTS "${UA_FILE_MQTT}")
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive

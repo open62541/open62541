@@ -331,11 +331,8 @@ END_TEST
 START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, connectionId);
-    if(!connection) {
-        ck_assert(false);
-    }
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    ck_assert(readerGroup != NULL);
 
     const char * msg_enc = MSG_HEADER MSG_PAYLOAD_ENC MSG_SIG;
 
@@ -349,7 +346,7 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
 
     size_t currentPosition = 0;
     UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+                                            &msg, readerGroup);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
     const char * msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
@@ -370,11 +367,8 @@ END_TEST
 START_TEST(InvalidSignature) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, connectionId);
-    if(!connection) {
-        ck_assert(false);
-    }
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    ck_assert(readerGroup != NULL);
 
     const char * msg_enc = MSG_HEADER MSG_PAYLOAD_ENC MSG_SIG_INVALID;
 
@@ -388,7 +382,7 @@ START_TEST(InvalidSignature) {
     size_t currentPosition = 0;
 
     UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+                                            &msg, readerGroup);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
@@ -403,11 +397,8 @@ END_TEST
 START_TEST(ShortSignedNetworkMessage) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, connectionId);
-    if(!connection) {
-        ck_assert(false);
-    }
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    ck_assert_ptr_ne(readerGroup, NULL);
 
     UA_ByteString buffer;
     buffer.length = (sizeof(MSG_HEADER) - 1) / 2;
@@ -419,7 +410,7 @@ START_TEST(ShortSignedNetworkMessage) {
     size_t currentPosition = 0;
 
     UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+                                            &msg, readerGroup);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
@@ -432,11 +423,8 @@ END_TEST
 START_TEST(InvalidSecurityModeInsufficientSig) {
         UA_FieldMetaData *fields = newReaderGroupWithSecurity(
             UA_MESSAGESECURITYMODE_NONE);
-        UA_PubSubConnection *connection =
-            UA_PubSubConnection_findConnectionbyId(server, connectionId);
-        if(!connection) {
-            ck_assert(false);
-        }
+        UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+        ck_assert(readerGroup != NULL);
 
         const char * msg_enc = MSG_HEADER MSG_PAYLOAD_ENC MSG_SIG;
 
@@ -450,7 +438,7 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
         size_t currentPosition = 0;
 
         UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                                &msg, connection);
+                                                &msg, readerGroup);
         ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
 
         UA_NetworkMessage_clear(&msg);
@@ -465,11 +453,8 @@ END_TEST
 START_TEST(InvalidSecurityModeRejectedSig) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
             UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
-    UA_PubSubConnection *connection =
-    UA_PubSubConnection_findConnectionbyId(server, connectionId);
-    if(!connection) {
-        ck_assert(false);
-    }
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    ck_assert(readerGroup != NULL);
     const char * msg_unenc = MSG_HEADER_NO_SEC MSG_PAYLOAD_DEC;
 
     UA_ByteString buffer;
@@ -482,7 +467,7 @@ START_TEST(InvalidSecurityModeRejectedSig) {
     size_t currentPosition = 0;
 
     UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+                                            &msg, readerGroup);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
     UA_NetworkMessage_clear(&msg);
