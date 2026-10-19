@@ -175,6 +175,14 @@ UA_Timer_modify(UA_Timer *t, UA_UInt64 callbackId,
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
+    /* A one-shot timer stays one-shot. Its owner may free the callback
+     * context once it has run, so it must not start to repeat. */
+    if(te->timerPolicy == UA_TIMERPOLICY_ONCE &&
+       timerPolicy != UA_TIMERPOLICY_ONCE) {
+        UA_UNLOCK(&t->timerMutex);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     /* The entry is either in the timer tree or current processed. If
      * in-process, the entry is re-added to the timer-tree right after. */
     UA_Boolean processing = (ZIP_REMOVE(UA_TimerTree, &t->tree, te) == NULL);
