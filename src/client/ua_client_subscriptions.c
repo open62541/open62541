@@ -817,13 +817,17 @@ ua_MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
     return;
 #endif
 
+    /* Check that the request and response size -- use the same index for both */
+    if(request->monitoredItemIdsSize != response->resultsSize)
+        return;
+
     /* Loop over deleted MonitoredItems */
     struct UA_Client_MonitoredItem_ForDelete deleteMonitoredItem;
     memset(&deleteMonitoredItem, 0, sizeof(struct UA_Client_MonitoredItem_ForDelete));
     deleteMonitoredItem.client = client;
     deleteMonitoredItem.sub = sub;
 
-    for(size_t i = 0; i < response->resultsSize; i++) {
+    for(size_t i = 0; i < request->monitoredItemIdsSize; i++) {
         if(response->results[i] != UA_STATUSCODE_GOOD &&
            response->results[i] != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
             continue;

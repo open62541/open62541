@@ -798,6 +798,126 @@ START_TEST(Client_subscription_createDataChanges_async) {
 }
 END_TEST
 
+/* Records the MonitoredItems that the client deleted internally */
+static UA_UInt32 deletedMonitoredItemIds[4];
+static size_t deletedMonitoredItemCount;
+
+static void
+countingDeleteMonitoredItemCallback(UA_Client *client, UA_UInt32 subId, void *subContext,
+                                    UA_UInt32 monId, void *monContext) {
+    if(deletedMonitoredItemCount < 4)
+        deletedMonitoredItemIds[deletedMonitoredItemCount] = monId;
+    deletedMonitoredItemCount++;
+}
+
+/* The results of a DeleteMonitoredItems response are indexed like the
+ * MonitoredItemIds of the request. A server that returns more results than
+ * requested must not make the client read MonitoredItemIds past the end of its
+ * own request array. */
+START_TEST(Client_monitoredItems_delete_resultsSizeMismatch) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* Two MonitoredItems, both with a delete callback */
+    UA_UInt32 monIds[2];
+    deletedMonitoredItemCount = 0;
+    for(size_t i = 0; i < 2; i++) {
+        UA_MonitoredItemCreateRequest monRequest =
+            UA_MonitoredItemCreateRequest_default(
+                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+        UA_MonitoredItemCreateResult monResult =
+            UA_Client_MonitoredItems_createDataChange(client, subId,
+                UA_TIMESTAMPSTORETURN_BOTH, monRequest, NULL, dataChangeHandler,
+                countingDeleteMonitoredItemCallback);
+        ck_assert_uint_eq(monResult.statusCode, UA_STATUSCODE_GOOD);
+        monIds[i] = monResult.monitoredItemId;
+    }
+
+    /* Take over the server thread, so that the response below is the first one
+     * processed for the request */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Request the deletion of the first MonitoredItem only */
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subId;
+    deleteRequest.monitoredItemIds = &monIds[0];
+    deleteRequest.monitoredItemIdsSize = 1;
+
+    UA_DeleteMonitoredItemsResponse deleteResponse;
+    UA_DeleteMonitoredItemsResponse_init(&deleteResponse);
+    UA_UInt32 requestId = 0;
+    retval = UA_Client_MonitoredItems_delete_async(client, deleteRequest,
+                                                   deleteMonitoredItemsCallback,
+                                                   &deleteResponse, &requestId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Encode a response with two results for the single requested item */
+    UA_StatusCode results[2] = {UA_STATUSCODE_GOOD, UA_STATUSCODE_GOOD};
+    UA_DeleteMonitoredItemsResponse badResponse;
+    UA_DeleteMonitoredItemsResponse_init(&badResponse);
+    badResponse.results = results;
+    badResponse.resultsSize = 2;
+
+    const UA_DataType *responseType =
+        &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE];
+    UA_ByteString encodedType = UA_BYTESTRING_NULL;
+    UA_ByteString encodedResponse = UA_BYTESTRING_NULL;
+    retval = UA_encodeBinary(&responseType->binaryEncodingId,
+                             &UA_TYPES[UA_TYPES_NODEID], &encodedType);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_encodeBinary(&badResponse, responseType, &encodedResponse);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString message;
+    retval = UA_ByteString_allocBuffer(&message, encodedType.length +
+                                       encodedResponse.length);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    memcpy(message.data, encodedType.data, encodedType.length);
+    memcpy(message.data + encodedType.length, encodedResponse.data,
+           encodedResponse.length);
+
+    lockClient(client);
+    retval = processServiceResponse(client, &client->channel, UA_MESSAGETYPE_MSG,
+                                    requestId, &message);
+    unlockClient(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The application still sees the response as sent by the server */
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteResponse.resultsSize, 2);
+
+    /* No MonitoredItem was removed from the internal representation */
+    ck_assert_uint_eq(deletedMonitoredItemCount, 0);
+
+    UA_ByteString_clear(&message);
+    UA_ByteString_clear(&encodedResponse);
+    UA_ByteString_clear(&encodedType);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    /* run the server in an independent thread again */
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    retval = UA_Client_Subscriptions_deleteSingle(client, subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_subscription_keepAlive) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -1752,6 +1872,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_createDataChanges_negativeInterval);
     tcase_add_test(tc_client, Client_subscription_modifyMonitoredItem);
     tcase_add_test(tc_client, Client_subscription_createDataChanges_async);
+    tcase_add_test(tc_client, Client_monitoredItems_delete_resultsSizeMismatch);
     tcase_add_test(tc_client, Client_subscription_keepAlive);
     tcase_add_test(tc_client, Client_subscription_priority);
     tcase_add_test(tc_client, Client_subscription_without_notification);
