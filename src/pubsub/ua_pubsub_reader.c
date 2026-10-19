@@ -741,7 +741,7 @@ updateTargetsForState(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
             wv.nodeId = tvs->targetVariables[i].targetNodeId;
             wv.attributeId = tvs->targetVariables[i].attributeId;
             wv.indexRange = tvs->targetVariables[i].writeIndexRange;
-            Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &wv, &res);
+            res = writeNoAsync(psm->drv.server, &psm->drv.server->adminSession, &wv);
         }
         UA_DataValue_clear(&wv.value);
         if(res != UA_STATUSCODE_GOOD)
@@ -1100,7 +1100,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         writeVal.indexRange = tv->writeIndexRange;
         writeVal.nodeId = tv->targetNodeId;
         writeVal.value = writeValue;
-        Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &writeVal, &res);
+        res = writeNoAsync(psm->drv.server, &psm->drv.server->adminSession, &writeVal);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",
