@@ -96,30 +96,6 @@ gdsTrustListRemoveHandle(UA_GDSTrustList *tl, UA_GDSTrustListHandle *h) {
  * File Transfer Backend
  **************************************/
 
-static void
-gdsTrustListKeep(UA_ByteString **list, size_t *size, UA_Boolean keep) {
-    if(keep)
-        return;
-    UA_Array_delete(*list, *size, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    *list = NULL;
-    *size = 0;
-}
-
-/* CertificateGroups may return more lists than requested. A read with masks
- * contains only the lists of the masks (Part 12, 7.8.2.3). */
-static void
-gdsTrustListApplyMasks(UA_TrustListDataType *list, UA_UInt32 masks) {
-    gdsTrustListKeep(&list->trustedCertificates, &list->trustedCertificatesSize,
-                     (masks & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) != 0);
-    gdsTrustListKeep(&list->trustedCrls, &list->trustedCrlsSize,
-                     (masks & UA_TRUSTLISTMASKS_TRUSTEDCRLS) != 0);
-    gdsTrustListKeep(&list->issuerCertificates, &list->issuerCertificatesSize,
-                     (masks & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) != 0);
-    gdsTrustListKeep(&list->issuerCrls, &list->issuerCrlsSize,
-                     (masks & UA_TRUSTLISTMASKS_ISSUERCRLS) != 0);
-    list->specifiedLists = masks & UA_TRUSTLISTMASKS_ALL;
-}
-
 #define GDS_TRUSTLIST_WRITEMODE \
     (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING)
 
@@ -160,18 +136,18 @@ gdsTrustListOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mo
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(mode == UA_OPENFILEMODE_READ) {
-        /* The reads of a handle see the TrustList at the time of the Open */
+        /* The reads of a handle see the TrustList at the time of the Open. The
+         * CertificateGroup returns only the lists of the masks (Part 12,
+         * 7.8.2.3). */
         UA_CertificateGroup *certGroup = getCertGroup(ctx->drv.server, &tl->objectId);
         UA_TrustListDataType trustList;
         UA_TrustListDataType_init(&trustList);
         trustList.specifiedLists = masks;
         res = certGroup ? certGroup->getTrustList(certGroup, &trustList) :
             UA_STATUSCODE_BADINTERNALERROR;
-        if(res == UA_STATUSCODE_GOOD) {
-            gdsTrustListApplyMasks(&trustList, masks);
+        if(res == UA_STATUSCODE_GOOD)
             res = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
                                   &h->data, NULL);
-        }
         UA_TrustListDataType_clear(&trustList);
     } else if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         /* Writing starts a transaction. A failed open closes the handle again,
