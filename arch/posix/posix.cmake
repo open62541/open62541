@@ -1,6 +1,7 @@
 # Build settings for the POSIX architectures. Included after the build options and
 # library lists have been initialized in the top-level CMakeLists.txt.
 
+option(UA_ARCH_LOCAL_TIME_IS_UTC "Treat local time as UTC without timezone conversion" OFF)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/posix.h.in"
                "${PROJECT_BINARY_DIR}/src_generated/arch/posix/posix.h")
 
