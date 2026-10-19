@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Asynchronous client requests need an activated Session
+
+Asynchronous requests bound to a Session return `BadSessionNotActivated` while
+the Session is not activated, e.g. during its re-activation after a reconnect.
+Before, they were sent without an AuthenticationToken, and the rejection by the
+server discarded the Session.
+
 ### Method support is always available
 
 `UA_ENABLE_METHODCALLS` is removed. The Method service set and method APIs are
