@@ -2106,6 +2106,10 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
     if(config->maxAsyncServiceCalls == 0)
         config->maxAsyncServiceCalls = 32;
+    if(config->reconnectInterval == 0)
+        config->reconnectInterval = 500; /* 500ms */
+    if(config->reconnectIntervalMax == 0)
+        config->reconnectIntervalMax = 10 * 1000; /* 10 seconds */
 
     if(config->logging == NULL)
         config->logging = UA_Log_Stdout_new(UA_LOGLEVEL_INFO);

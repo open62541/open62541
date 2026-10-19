@@ -720,6 +720,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     }
 
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
+    client->reconnectAttempts = 0;
     UA_OpenSecureChannelResponse_clear(&response);
 }
 
@@ -2181,6 +2182,71 @@ initSecurityPolicy(UA_Client *client, const UA_ClientTransport *transport) {
     return res;
 }
 
+static void
+delayedReconnect(void *application, void *_) {
+    UA_Client *client = (UA_Client*)application;
+    lockClient(client);
+    client->reconnectCallbackId = 0;
+    if(client->connectStatus == UA_STATUSCODE_GOOD &&
+       client->channel.state == UA_SECURECHANNELSTATE_CLOSED &&
+       !client->config.noReconnect) {
+        client->reconnectAttempts++;
+        initConnect(client);
+        notifyClientState(client);
+    }
+    unlockClient(client);
+}
+
+void
+resetReconnect(UA_Client *client) {
+    client->reconnectAttempts = 0;
+    if(client->reconnectCallbackId == 0)
+        return;
+    UA_EventLoop *el = client->config.eventLoop;
+    if(el)
+        el->removeTimer(el, client->reconnectCallbackId);
+    client->reconnectCallbackId = 0;
+}
+
+/* Re-dial after a lost connection. The first attempt is immediate. A
+ * connection that closes again before its SecureChannel opens -- a peer that
+ * accepts TCP and hangs up, a proxy without a backend, a server at its
+ * connection limit -- is retried after a delay that doubles with every
+ * attempt, instead of in a hot loop. */
+static void
+reconnect(UA_Client *client) {
+    if(client->reconnectCallbackId != 0)
+        return; /* A delayed re-dial is pending */
+
+    UA_ClientConfig *cc = &client->config;
+    if(client->reconnectAttempts > 0 && cc->reconnectInterval > 0) {
+        UA_Double delay = cc->reconnectInterval;
+        for(UA_UInt32 i = 1; i < client->reconnectAttempts &&
+                delay < cc->reconnectIntervalMax; i++)
+            delay *= 2;
+        if(delay > cc->reconnectIntervalMax)
+            delay = (cc->reconnectIntervalMax > cc->reconnectInterval) ?
+                cc->reconnectIntervalMax : cc->reconnectInterval;
+
+        UA_EventLoop *el = cc->eventLoop;
+        UA_DateTime due = el->dateTime_nowMonotonic(el) +
+            (UA_DateTime)(delay * UA_DATETIME_MSEC);
+        UA_StatusCode res =
+            el->addTimer(el, delayedReconnect, client, NULL, 0.0, &due,
+                         UA_TIMERPOLICY_ONCE, &client->reconnectCallbackId);
+        if(res == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(cc->logging, UA_LOGCATEGORY_CLIENT,
+                        "The connection closed before the SecureChannel "
+                        "opened. Reconnect in %.0fms", delay);
+            return;
+        }
+        client->reconnectCallbackId = 0; /* Re-dial right away instead */
+    }
+
+    client->reconnectAttempts++;
+    initConnect(client); /* Sets the connectStatus internally */
+}
+
 void
 connectActivity(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
@@ -2225,7 +2291,7 @@ connectActivity(UA_Client *client) {
         if(client->config.noReconnect)
             setConnectStatus(client, UA_STATUSCODE_BADNOTCONNECTED);
         else
-            initConnect(client); /* Sets the connectStatus internally */
+            reconnect(client);
         return;
 
         /* These states should never occur for the client */
@@ -2806,6 +2872,7 @@ connectInternal(UA_Client *client, UA_Boolean async) {
     /* Reset the connectStatus. This should be the only place where we can
      * recover from a bad connectStatus. */
     client->connectStatus = UA_STATUSCODE_GOOD;
+    resetReconnect(client);
 
     if(async)
         initConnect(client);
@@ -3276,6 +3343,7 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
      * synchronously. Notify the client at the end. */
     if(client->connectStatus == UA_STATUSCODE_GOOD)
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    resetReconnect(client);
 
     /* Close the SecureChannel */
     closeSecureChannel(client);

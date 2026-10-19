@@ -641,6 +641,15 @@ struct UA_ClientConfig {
     UA_Boolean noSession;    /* Only open a SecureChannel, but no Session */
     UA_Boolean noReconnect;  /* Don't reconnect SecureChannel when the connection
                               * is lost without explicitly closing. */
+    UA_UInt32 reconnectInterval;    /* The first re-dial after a lost
+                                     * connection is immediate. If that
+                                     * connection closes again before its
+                                     * SecureChannel opens, wait this long
+                                     * (in ms) before the next attempt,
+                                     * doubling with every further attempt.
+                                     * 0 -> no delay. */
+    UA_UInt32 reconnectIntervalMax; /* Upper bound of that delay in ms.
+                                     * 0 -> no growth. */
     UA_Boolean noNewSession; /* Don't automatically create a new Session when
                               * the initial one is lost. Instead abort the
                               * connection when the Session is lost. */

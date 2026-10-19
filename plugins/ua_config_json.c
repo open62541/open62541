@@ -1677,6 +1677,10 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                     retval = BooleanField_parseJson(&ctx, &config->noReconnect, NULL);
                 else if(strcmp(field, "noNewSession") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->noNewSession, NULL);
+                else if(strcmp(field, "reconnectInterval") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->reconnectInterval, NULL);
+                else if(strcmp(field, "reconnectIntervalMax") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->reconnectIntervalMax, NULL);
                 else if(strcmp(field, "secureChannelLifeTime") == 0)
                     retval = UInt32Field_parseJson(&ctx, &config->secureChannelLifeTime, NULL);
                 else if(strcmp(field, "requestedSessionTimeout") == 0)
