@@ -245,6 +245,36 @@ START_TEST(Async_timeout_worker) {
     UA_Client_delete(client);
 } END_TEST
 
+/* The methodId references a node that is not a Method. The (smaller) node
+ * struct has no async flag that may be read. */
+START_TEST(Async_call_methodId_not_a_method) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(clientConfig);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CallMethodRequest cmr;
+    UA_CallMethodRequest_init(&cmr);
+    cmr.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    cmr.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_CallRequest request;
+    UA_CallRequest_init(&request);
+    request.methodsToCall = &cmr;
+    request.methodsToCallSize = 1;
+
+    UA_CallResponse response = UA_Client_Service_call(client, request);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode,
+                      UA_STATUSCODE_BADNODECLASSINVALID);
+    UA_CallResponse_clear(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 static Suite* method_async_suite(void) {
     /* set up unit test for internal data structures */
     Suite *s = suite_create("Async Method");
@@ -254,6 +284,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_call);
     tcase_add_test(tc_manager, Async_timeout);
     tcase_add_test(tc_manager, Async_timeout_worker);
+    tcase_add_test(tc_manager, Async_call_methodId_not_a_method);
     suite_add_tcase(s, tc_manager);
     
     return s;

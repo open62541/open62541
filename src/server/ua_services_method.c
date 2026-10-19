@@ -343,8 +343,10 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         return;
     }
 
-    /* Synchronous execution */
-    if(!method->methodNode.async) {
+    /* Synchronous execution. Only read the async flag of an actual Method node.
+     * The NodeClass is verified in callWithMethodAndObject. */
+    if(method->head.nodeClass != UA_NODECLASS_METHOD ||
+       !method->methodNode.async) {
         callWithMethodAndObject(server, session, opRequest, opResult,
                                 &method->methodNode, &object->objectNode);
         goto cleanup;
