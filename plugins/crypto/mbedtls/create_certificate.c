@@ -291,7 +291,9 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         if(!sanType) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "Invalid Input format");
             UA_free(subAlt);
-            continue;
+            errRet = UA_STATUSCODE_BADINTERNALERROR;
+            clearSanList(head);
+            goto cleanup;
         }
 
         char *sanValue = (char *)subjectAltName[i].data + strlen(sanType) + 1;
@@ -318,14 +320,18 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
             if(!ip) {
                 mbedtls_free(cur_tmp);
                 UA_free(subAlt);
-                continue;
+                errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+                clearSanList(head);
+                goto cleanup;
             }
             if(musl_inet_pton(AF_INET, sanValueTerminated, ip) <= 0) {
                 UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "IP SAN preparation failed");
                 mbedtls_free(ip);
                 mbedtls_free(cur_tmp);
                 UA_free(subAlt);
-                continue;
+                errRet = UA_STATUSCODE_BADINTERNALERROR;
+                clearSanList(head);
+                goto cleanup;
             }
             cur_tmp->node.type = MBEDTLS_X509_SAN_IP_ADDRESS;
             cur_tmp->node.host = (char *)ip;
@@ -336,7 +342,9 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "Given an unsupported SAN");
             mbedtls_free(cur_tmp);
             UA_free(subAlt);
-            continue;
+            errRet = UA_STATUSCODE_BADINTERNALERROR;
+            clearSanList(head);
+            goto cleanup;
         }
 
         if(!cur) {

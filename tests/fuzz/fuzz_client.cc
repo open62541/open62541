@@ -28,7 +28,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     client->sessionState = UA_SESSIONSTATE_ACTIVATED;
 
     UA_MessageType messageType = (UA_MessageType)data[0];
-    UA_UInt32 requestId = *(UA_UInt32*)&data[1];
+    UA_UInt32 requestId;
+    memcpy(&requestId, &data[1], sizeof(requestId));
     
     UA_ByteString message;
     message.length = size - 5;

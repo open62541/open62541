@@ -2191,6 +2191,172 @@ START_TEST(conditionOptionalField_rejectMethod) {
 }
 END_TEST
 
+typedef struct {
+    size_t count;
+    UA_UInt32 eventTypes[8];
+    UA_Boolean invalid;
+} RefreshEvents;
+
+static void
+recordRefreshEvent(UA_Server *server, UA_UInt32 monitoredItemId,
+                   void *context, const UA_KeyValueMap fields) {
+    RefreshEvents *events = (RefreshEvents *)context;
+    if(fields.mapSize != 1 || events->count >= 8 ||
+       !UA_Variant_hasScalarType(&fields.map[0].value, &UA_TYPES[UA_TYPES_NODEID])) {
+        events->invalid = true;
+        return;
+    }
+    UA_NodeId *type = (UA_NodeId *)fields.map[0].value.data;
+    if(type->namespaceIndex != 0 || type->identifierType != UA_NODEIDTYPE_NUMERIC) {
+        events->invalid = true;
+        return;
+    }
+    events->eventTypes[events->count++] = type->identifier.numeric;
+}
+
+static UA_UInt32
+createRefreshMonitoredItem(RefreshEvents *events) {
+    UA_SimpleAttributeOperand field;
+    UA_SimpleAttributeOperand_init(&field);
+    ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&field, UA_STRING("/EventType")),
+                      UA_STATUSCODE_GOOD);
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClauses = &field;
+    filter.selectClausesSize = 1;
+    UA_MonitoredItemCreateResult result = UA_Server_createEventMonitoredItem(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), filter, events, recordRefreshEvent);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_UInt32 id = result.monitoredItemId;
+    UA_MonitoredItemCreateResult_clear(&result);
+    UA_SimpleAttributeOperand_clear(&field);
+    return id;
+}
+
+static void
+assertRefreshEvents(const RefreshEvents *events, UA_Boolean refreshed) {
+    ck_assert(!events->invalid);
+    ck_assert_uint_eq(events->count, refreshed ? 3 : 0);
+    if(refreshed) {
+        ck_assert_uint_eq(events->eventTypes[0], UA_NS0ID_REFRESHSTARTEVENTTYPE);
+        ck_assert_uint_eq(events->eventTypes[1], UA_NS0ID_OFFNORMALALARMTYPE);
+        ck_assert_uint_eq(events->eventTypes[2], UA_NS0ID_REFRESHENDEVENTTYPE);
+    }
+}
+
+static UA_StatusCode
+callConditionRefreshMethod(UA_UInt32 method, size_t inputSize, UA_Variant *input) {
+    return callConditionMethod(UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE),
+                               method, inputSize, input);
+}
+
+START_TEST(conditionRefreshMethods_targetsAndRetention) {
+    UA_EventLoop *el = UA_Server_getConfig(server_ac)->eventLoop;
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+    UA_NodeId retained = createMethodCondition();
+    setMethodConditionState(retained, "EnabledState", true);
+    setMethodConditionRetain(retained, true);
+    UA_ByteString eventId = triggerMethodCondition(retained);
+    UA_ByteString_clear(&eventId);
+
+    /* A condition that has emitted no event, and one no longer retained, must
+     * both be omitted from the refreshed notification sequence. */
+    UA_NodeId neverTriggered = createMethodCondition();
+    UA_NodeId notRetained = createMethodCondition();
+    setMethodConditionState(notRetained, "EnabledState", true);
+    setMethodConditionRetain(notRetained, true);
+    eventId = triggerMethodCondition(notRetained);
+    UA_ByteString_clear(&eventId);
+    setMethodConditionRetain(notRetained, false);
+
+    RefreshEvents events[2] = {{0}, {0}};
+    UA_UInt32 ids[2];
+    ids[0] = createRefreshMonitoredItem(&events[0]);
+    ids[1] = createRefreshMonitoredItem(&events[1]);
+    UA_UInt32 subscriptionId = 0; /* Local MonitoredItems use the admin subscription. */
+    UA_UInt32 target = _i == 2 ? ids[1] : ids[0];
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &subscriptionId, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&input[1], &target, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32 method = _i == 0 ? UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH :
+        UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH2;
+    ck_assert_uint_eq(callConditionRefreshMethod(method, _i == 0 ? 1 : 2, input),
+                      UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server_ac, false);
+    assertRefreshEvents(&events[0], _i != 2);
+    assertRefreshEvents(&events[1], _i != 1);
+
+    /* Removing one item invalidates only its refresh target. */
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server_ac, ids[0]), UA_STATUSCODE_GOOD);
+    target = ids[0];
+    ck_assert_uint_eq(callConditionRefreshMethod(UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH2,
+                                                  2, input), UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+    memset(&events[1], 0, sizeof(events[1]));
+    target = ids[1];
+    ck_assert_uint_eq(callConditionRefreshMethod(UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH2,
+                                                  2, input), UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server_ac, false);
+    assertRefreshEvents(&events[1], true);
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server_ac, ids[1]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callConditionRefreshMethod(UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH,
+                                                  1, input), UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+    UA_NodeId_clear(&retained);
+    UA_NodeId_clear(&neverTriggered);
+    UA_NodeId_clear(&notRetained);
+}
+END_TEST
+
+START_TEST(conditionRefresh_acceptsIntegerId) {
+    UA_EventLoop *el = UA_Server_getConfig(server_ac)->eventLoop;
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+    UA_NodeId condition = createTestCondition(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+        "Refresh argument types", UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+
+    UA_SimpleAttributeOperand field;
+    UA_SimpleAttributeOperand_init(&field);
+    ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&field, UA_STRING("/EventType")),
+                      UA_STATUSCODE_GOOD);
+    UA_EventFilter filter = {0};
+    filter.selectClauses = &field;
+    filter.selectClausesSize = 1;
+    RefreshEvents events = {0};
+    UA_MonitoredItemCreateResult item = UA_Server_createEventMonitoredItem(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), filter, &events,
+        recordRefreshEvent);
+    UA_SimpleAttributeOperand_clear(&field);
+    ck_assert_uint_eq(item.statusCode, UA_STATUSCODE_GOOD);
+
+    /* Local MonitoredItems use the admin subscription. Test both the declared
+     * IntegerId type and UInt32, which the Method service adjusts to IntegerId. */
+    UA_UInt32 subscriptionId = 0;
+    const UA_DataType *type = &UA_TYPES[_i < 2 ? UA_TYPES_UINT32 : UA_TYPES_INTEGERID];
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &subscriptionId, type);
+    UA_Variant_setScalar(&input[1], &item.monitoredItemId, type);
+    UA_CallMethodRequest request = {0};
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    request.methodId = UA_NODEID_NUMERIC(0, (_i % 2) == 0 ?
+        UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH : UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH2);
+    request.inputArgumentsSize = (_i % 2) == 0 ? 1 : 2;
+    request.inputArguments = input;
+    UA_CallMethodResult result = UA_Server_call(server_ac, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.outputArgumentsSize, 0);
+    UA_CallMethodResult_clear(&result);
+    UA_Server_run_iterate(server_ac, false);
+
+    ck_assert(!events.invalid);
+    ck_assert_uint_eq(events.count, 2);
+    ck_assert_uint_eq(events.eventTypes[0], UA_NS0ID_REFRESHSTARTEVENTTYPE);
+    ck_assert_uint_eq(events.eventTypes[1], UA_NS0ID_REFRESHENDEVENTTYPE);
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server_ac, item.monitoredItemId),
+                      UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult_clear(&item);
+    UA_NodeId_clear(&condition);
+}
+END_TEST
+
 #endif /* UA_TEST_ENABLE_ALARMS_CONDITIONS */
 
 int main(void) {
@@ -2205,9 +2371,18 @@ int main(void) {
     tcase_add_test(tc_call, createCondition_nullOutNodeId);
     tcase_add_test(tc_call, addConditionBegin_nullOutNodeId);
     tcase_add_test(tc_call, conditionRefresh_replacedInputArguments);
+    tcase_add_loop_test(tc_call, conditionRefresh_acceptsIntegerId, 0, 4);
 #endif
     tcase_add_checked_fixture(tc_call, setup, teardown);
     suite_add_tcase(s, tc_call);
+
+    TCase *tc_refresh = tcase_create("Condition refresh");
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
+    tcase_add_loop_test(tc_refresh, conditionRefreshMethods_targetsAndRetention, 0, 3);
+    tcase_add_test(tc_refresh, conditionRefresh_callbackValidation);
+#endif
+    tcase_add_checked_fixture(tc_refresh, setup, teardown);
+    suite_add_tcase(s, tc_refresh);
 
     TCase *tc_fields = tcase_create("Condition Fields");
 #ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
@@ -2291,13 +2466,6 @@ int main(void) {
 #endif
     tcase_add_checked_fixture(tc_methods, setup, teardown);
     suite_add_tcase(s, tc_methods);
-
-    TCase *tc_refresh = tcase_create("Condition refresh");
-#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
-    tcase_add_test(tc_refresh, conditionRefresh_callbackValidation);
-#endif
-    tcase_add_checked_fixture(tc_refresh, setup, teardown);
-    suite_add_tcase(s, tc_refresh);
 
     TCase *tc_driver = tcase_create("Condition driver lifecycle");
 #ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
