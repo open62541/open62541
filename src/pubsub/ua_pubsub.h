@@ -696,11 +696,17 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString *buffer,
                                UA_ReaderGroup *readerGroup);
 #endif
 
-/* Takes a value (and not a pointer) to the buffer. The original buffer is
-   const. Internally we may adjust the length during decryption. */
+UA_Boolean
+UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *connection,
+                             UA_ByteString msg);
+
+/* Decode the NetworkMessage and verify/decrypt it with the security settings of
+ * the ReaderGroup. The buffer is decrypted in-place and its length may be
+ * adjusted. Returns BADNOTFOUND if no DataSetReader of the ReaderGroup matches
+ * the identifiers of the NetworkMessage. */
 UA_StatusCode
 decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
-                     UA_NetworkMessage *nm, UA_PubSubConnection *connection);
+                     UA_NetworkMessage *nm, UA_ReaderGroup *readerGroup);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 /*********************************************************/

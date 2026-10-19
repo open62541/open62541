@@ -21,67 +21,36 @@
 
 UA_StatusCode
 decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
-                     UA_NetworkMessage *nm, UA_PubSubConnection *connection) {
+                     UA_NetworkMessage *nm, UA_ReaderGroup *readerGroup) {
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(buffer->data, buffer->length);
 #endif
 
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buffer, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
+        UA_LOG_WARNING_CONNECTION(server->config.logging, readerGroup->linkedConnection,
                                   "PubSub receive. decoding headers failed");
         UA_NetworkMessage_clear(nm);
         return rv;
     }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    UA_Boolean processed = false;
-    UA_ReaderGroup *readerGroup;
     UA_DataSetReader *reader;
-
-    /* Choose a correct readergroup for decrypt/verify this message
-     * (there could be multiple) */
-    LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
-        LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-            UA_StatusCode retval =
-                UA_DataSetReader_checkIdentifier(server, nm, reader, readerGroup->config);
-            if(retval != UA_STATUSCODE_GOOD)
-                continue;
-            processed = true;
-            rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, pos,
-                                                nm, readerGroup);
-            if(rv != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
-                                          "Subscribe failed, verify and decrypt "
-                                          "network message failed.");
-                UA_NetworkMessage_clear(nm);
-                return rv;
-            }
-
-            /* break out of all loops when first verify & decrypt was successful */
-            goto loops_exit;
+    UA_Boolean found = false;
+    LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
+        if(UA_DataSetReader_checkIdentifier(server, nm, reader,
+                                            readerGroup->config) == UA_STATUSCODE_GOOD) {
+            found = true;
+            break;
         }
     }
+    if(!found)
+        return UA_STATUSCODE_BADNOTFOUND;
 
-loops_exit:
-    if(!processed) {
-        UA_DateTime nowM = UA_DateTime_nowMonotonic();
-        if(connection->silenceErrorUntil < nowM) {
-            UA_LOG_INFO_CONNECTION(server->config.logging, connection,
-                                   "Dataset reader not found. Check PublisherId, "
-                                   "WriterGroupId and DatasetWriterId. "
-                                   "(This error is now silenced for 10s.)");
-            connection->silenceErrorUntil = nowM + (UA_DateTime)(10.0 * UA_DATETIME_SEC);
-        }
-        /* Possible multicast scenario: there are multiple connections (with one
-         * or more ReaderGroups) within a multicast group every connection
-         * receives all network messages, even if some of them are not meant for
-         * the connection currently processed -> therefore it is ok if the
-         * connection does not have a DataSetReader for every received network
-         * message. We must not return an error here, but continue with the
-         * buffer decoding and see if we have a matching DataSetReader for the
-         * next network message. */
-    }
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, pos,
+                                        nm, readerGroup);
+    if(rv != UA_STATUSCODE_GOOD)
+        return rv;
 #endif
 
     rv = UA_NetworkMessage_decodePayload(buffer, pos, nm, server->config.customDataTypes, NULL);

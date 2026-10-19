@@ -765,6 +765,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     const UA_SecurityPolicy *tokenSp = NULL;
     UA_String *tmpLocaleIds;
     UA_String clientUserId = UA_STRING_NULL;
+    UA_ByteString userCertificate = UA_BYTESTRING_NULL;
 
     /* Get the session */
     UA_Session *session = getSessionByToken(server, &req->requestHeader.authenticationToken);
@@ -865,9 +866,21 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         goto securityRejected;
 
+    /* Subject names need not uniquely identify certificates. Keep the full
+     * certificate for comparison while preserving the diagnostic user name. */
+    if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        const UA_X509IdentityToken *token = (const UA_X509IdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        resp->responseHeader.serviceResult =
+            UA_ByteString_copy(&token->certificateData, &userCertificate);
+        if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+            goto securityRejected;
+    }
+
     if(session->activated &&
        (utp->tokenType != session->userTokenType ||
-        !UA_String_equal(&clientUserId, &session->clientUserIdOfSession))) {
+        !UA_String_equal(&clientUserId, &session->clientUserIdOfSession) ||
+        !UA_ByteString_equal(&userCertificate, &session->userCertificate))) {
         resp->responseHeader.serviceResult =
             UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED;
         goto securityRejected;
@@ -943,6 +956,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     session->clientUserIdOfSession = clientUserId;
     UA_String_init(&clientUserId);
     session->userTokenType = utp->tokenType;
+    UA_ByteString_clear(&session->userCertificate);
+    session->userCertificate = userCertificate;
+    UA_ByteString_init(&userCertificate);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     /* Add the ClientUserId to the diagnostics history */
@@ -980,6 +996,7 @@ securityRejected:
     server->serverDiagnosticsSummary.securityRejectedSessionCount++;
 rejected:
     UA_String_clear(&clientUserId);
+    UA_ByteString_clear(&userCertificate);
     server->serverDiagnosticsSummary.rejectedSessionCount++;
 }
 

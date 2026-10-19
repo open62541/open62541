@@ -223,9 +223,18 @@ UA_HistoryDataGathering_Default(size_t initialNodeIdStoreSize)
     gathering.deleteMembers = &deleteMembers_gathering_default;
     gathering.updateNodeIdSetting = &updateNodeIdSetting_gathering_default;
     UA_NodeIdStoreContext *context = (UA_NodeIdStoreContext*)UA_calloc(1, sizeof(UA_NodeIdStoreContext));
+    if (!context) {
+        memset(&gathering, 0, sizeof(UA_HistoryDataGathering));
+        return gathering;
+    }
     context->storeEnd = 0;
     context->storeSize = initialNodeIdStoreSize;
     context->dataStore = (UA_NodeIdStoreContextItem_gathering_default*)UA_calloc(initialNodeIdStoreSize, sizeof(UA_NodeIdStoreContextItem_gathering_default));
+    if (!context->dataStore) {
+        UA_free(context);
+        memset(&gathering, 0, sizeof(UA_HistoryDataGathering));
+        return gathering;
+    }
     gathering.context = context;
     return gathering;
 }

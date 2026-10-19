@@ -409,6 +409,277 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_Variant_delete(publishedNodeData);
     } END_TEST
 
+/* Several ReaderGroups with different security settings on one connection. A
+ * NetworkMessage must only be delivered to the DataSetReaders of a ReaderGroup
+ * whose own security settings (mode and keys) accept this very message. All
+ * ReaderGroups use the same PublisherId/WriterGroupId/DataSetWriterId, so the
+ * identifiers alone don't tell the groups apart. */
+
+#define VARIABLE_FIRST  3001
+#define VARIABLE_SECOND 3002
+
+typedef struct {
+    UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH];
+    UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH];
+    UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH];
+} TestKeys;
+
+static void
+setTestKeys(TestKeys *keys, UA_Byte fill) {
+    memset(keys->signingKey, fill, sizeof(keys->signingKey));
+    memset(keys->encryptingKey, fill, sizeof(keys->encryptingKey));
+    memset(keys->keyNonce, fill, sizeof(keys->keyNonce));
+}
+
+static void
+addInt32Variable(UA_UInt32 id) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Int32 initial = 0;
+    UA_Variant_setScalar(&attr.value, &initial, &UA_TYPES[UA_TYPES_INT32]);
+    UA_StatusCode retVal =
+        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, id),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+}
+
+static UA_Int32
+readInt32Variable(UA_UInt32 id) {
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retVal =
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(1, id), &value);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_INT32]));
+    UA_Int32 result = *(UA_Int32*)value.data;
+    UA_Variant_clear(&value);
+    return result;
+}
+
+/* Add a ReaderGroup with one DataSetReader that writes the received Int32 to
+ * the variable. The keys are ignored for the security mode None. */
+static void
+addReaderGroupWithReader(UA_MessageSecurityMode mode, TestKeys *keys,
+                         UA_UInt32 variableId, UA_NodeId *readerGroupId) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup Test");
+    readerGroupConfig.securityMode = mode;
+    if(mode != UA_MESSAGESECURITYMODE_NONE)
+        readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+    retVal = UA_Server_addReaderGroup(server, connection_test,
+                                      &readerGroupConfig, readerGroupId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    if(mode != UA_MESSAGESECURITYMODE_NONE) {
+        UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, keys->signingKey};
+        UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, keys->encryptingKey};
+        UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keys->keyNonce};
+        retVal = UA_Server_setReaderGroupEncryptionKeys(server, *readerGroupId, 1, sk, ek, kn);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    }
+
+    UA_DataSetReaderConfig readerConfig;
+    memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+    readerConfig.name = UA_STRING("DataSetReader Test");
+    UA_UInt16 publisherIdentifier = PUBLISHER_ID;
+    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.writerGroupId = WRITER_GROUP_ID;
+    readerConfig.dataSetWriterId = DATASET_WRITER_ID;
+    UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
+    UA_DataSetMetaDataType_init(pMetaData);
+    pMetaData->name = UA_STRING("DataSet Test");
+    pMetaData->fieldsSize = 1;
+    pMetaData->fields = (UA_FieldMetaData*)
+        UA_Array_new(pMetaData->fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    UA_FieldMetaData_init(&pMetaData->fields[0]);
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId, &pMetaData->fields[0].dataType);
+    pMetaData->fields[0].builtInType = UA_NS0ID_INT32;
+    pMetaData->fields[0].valueRank = -1; /* scalar */
+    UA_NodeId readerIdentifier;
+    retVal = UA_Server_addDataSetReader(server, *readerGroupId, &readerConfig,
+                                        &readerIdentifier);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_FieldTargetVariable targetVar;
+    memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType_init(&targetVar.targetVariable);
+    targetVar.targetVariable.attributeId = UA_ATTRIBUTEID_VALUE;
+    targetVar.targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, variableId);
+    retVal = UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
+                                                           1, &targetVar);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_free(pMetaData->fields);
+    retVal = UA_Server_setReaderGroupOperational(server, *readerGroupId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+}
+
+/* Process a NetworkMessage with a single Int32 field through the same
+ * connection dispatch used by the event loop. With the security mode None, the message is
+ * neither signed nor encrypted. Otherwise it is secured with the keys. */
+static void
+sendAndReceive(UA_Int32 value,
+               UA_MessageSecurityMode mode, TestKeys *keys) {
+    UA_DataValue field;
+    UA_DataValue_init(&field);
+    UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    field.hasValue = true;
+
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(UA_DataSetMessage));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.fieldEncoding = UA_FIELDENCODING_VARIANT;
+    dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    dsm.data.keyFrameData.fieldCount = 1;
+    dsm.data.keyFrameData.dataSetFields = &field;
+
+    UA_UInt16 dataSetWriterId = DATASET_WRITER_ID;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
+    nm.version = 1;
+    nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    nm.publisherIdEnabled = true;
+    nm.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    nm.publisherId.uint16 = PUBLISHER_ID;
+    nm.groupHeaderEnabled = true;
+    nm.groupHeader.writerGroupIdEnabled = true;
+    nm.groupHeader.writerGroupId = WRITER_GROUP_ID;
+    nm.payloadHeaderEnabled = true;
+    nm.payloadHeader.dataSetPayloadHeader.count = 1;
+    nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dataSetWriterId;
+    nm.payload.dataSetPayload.dataSetMessages = &dsm;
+
+    UA_PubSubSecurityPolicy *policy = &config->pubSubConfig.securityPolicies[0];
+    UA_Byte nonce[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    void *policyContext = NULL;
+    size_t sigSize = 0;
+    if(mode != UA_MESSAGESECURITYMODE_NONE) {
+        UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, keys->signingKey};
+        UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, keys->encryptingKey};
+        UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keys->keyNonce};
+        UA_StatusCode retVal =
+            policy->newContext(policy->policyContext, &sk, &ek, &kn, &policyContext);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        sigSize = policy->symmetricModule.cryptoModule.signatureAlgorithm.
+            getLocalSignatureSize(policyContext);
+
+        nm.securityEnabled = true;
+        nm.securityHeader.networkMessageSigned = true;
+        nm.securityHeader.networkMessageEncrypted =
+            (mode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+        nm.securityHeader.securityTokenId = 1;
+        memcpy(nm.securityHeader.messageNonce, nonce, sizeof(nonce));
+        nm.securityHeader.messageNonceSize = sizeof(nonce);
+    }
+
+    UA_ByteString buf;
+    UA_StatusCode retVal =
+        UA_ByteString_allocBuffer(&buf, UA_NetworkMessage_calcSizeBinary(&nm, NULL) + sigSize);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_Byte *bufPos = buf.data;
+    UA_Byte *encryptStart = NULL;
+    retVal = UA_NetworkMessage_encodeBinary(&nm, &bufPos, &buf.data[buf.length],
+                                            &encryptStart);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    if(mode != UA_MESSAGESECURITYMODE_NONE) {
+        retVal = UA_NetworkMessage_signEncrypt(&nm, mode, policy, policyContext,
+                                               buf.data, encryptStart, bufPos);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        policy->deleteContext(policyContext);
+    }
+
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_findConnectionbyId(server, connection_test);
+    ck_assert(connection != NULL);
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubConnection_process(server, connection, buf);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_ByteString_clear(&buf);
+}
+
+static void
+checkSecurityIsolation(UA_Boolean plainGroupFirst) {
+    addInt32Variable(VARIABLE_FIRST);
+    addInt32Variable(VARIABLE_SECOND);
+
+    /* The secured group uses the first variable and the group without security
+     * the second. The order of adding them is the tested parameter. */
+    TestKeys keys, otherKeys;
+    setTestKeys(&keys, 0x11);
+    setTestKeys(&otherKeys, 0x22);
+    UA_NodeId securedGroup, plainGroup;
+    if(plainGroupFirst) {
+        addReaderGroupWithReader(UA_MESSAGESECURITYMODE_NONE, NULL,
+                                 VARIABLE_SECOND, &plainGroup);
+        addReaderGroupWithReader(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, &keys,
+                                 VARIABLE_FIRST, &securedGroup);
+    } else {
+        addReaderGroupWithReader(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, &keys,
+                                 VARIABLE_FIRST, &securedGroup);
+        addReaderGroupWithReader(UA_MESSAGESECURITYMODE_NONE, NULL,
+                                 VARIABLE_SECOND, &plainGroup);
+    }
+
+    /* An unsigned message is only accepted by the group without security */
+    sendAndReceive(11, UA_MESSAGESECURITYMODE_NONE, NULL);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_SECOND), 11);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_FIRST), 0);
+
+    /* A message secured with the keys of the secured group is not delivered to
+     * the group without security. A signed message is not what that group
+     * expects. */
+    sendAndReceive(22, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, &keys);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_FIRST), 22);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_SECOND), 11);
+
+    /* A message secured with some other keys is not accepted by any group */
+    sendAndReceive(33, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, &otherKeys);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_FIRST), 22);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_SECOND), 11);
+
+    /* Signing without encryption is not sufficient for the secured group */
+    sendAndReceive(44, UA_MESSAGESECURITYMODE_SIGN, &keys);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_FIRST), 22);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_SECOND), 11);
+}
+
+START_TEST(ReaderGroupsOfDifferentSecurityModeNoneFirst) {
+    checkSecurityIsolation(true);
+} END_TEST
+
+START_TEST(ReaderGroupsOfDifferentSecurityModeNoneLast) {
+    checkSecurityIsolation(false);
+} END_TEST
+
+START_TEST(ReaderGroupsWithDifferentKeys) {
+    addInt32Variable(VARIABLE_FIRST);
+    addInt32Variable(VARIABLE_SECOND);
+
+    TestKeys keysFirst, keysSecond;
+    setTestKeys(&keysFirst, 0x11);
+    setTestKeys(&keysSecond, 0x22);
+    UA_NodeId firstGroup, secondGroup;
+    addReaderGroupWithReader(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, &keysFirst,
+                             VARIABLE_FIRST, &firstGroup);
+    addReaderGroupWithReader(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, &keysSecond,
+                             VARIABLE_SECOND, &secondGroup);
+
+    sendAndReceive(11, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, &keysFirst);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_FIRST), 11);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_SECOND), 0);
+
+    sendAndReceive(22, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, &keysSecond);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_FIRST), 11);
+    ck_assert_int_eq(readInt32Variable(VARIABLE_SECOND), 22);
+} END_TEST
+
 int main(void) {
 
     /*Test case to run both publisher and subscriber */
@@ -417,8 +688,17 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTime);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32);
 
+    /* Several ReaderGroups with different security settings on one connection */
+    TCase *tc_pubsub_readergroup_security =
+        tcase_create("ReaderGroups with different security settings");
+    tcase_add_checked_fixture(tc_pubsub_readergroup_security, setup, teardown);
+    tcase_add_test(tc_pubsub_readergroup_security, ReaderGroupsOfDifferentSecurityModeNoneFirst);
+    tcase_add_test(tc_pubsub_readergroup_security, ReaderGroupsOfDifferentSecurityModeNoneLast);
+    tcase_add_test(tc_pubsub_readergroup_security, ReaderGroupsWithDifferentKeys);
+
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);
+    suite_add_tcase(suite, tc_pubsub_readergroup_security);
 
     SRunner *suiteRunner = srunner_create(suite);
     srunner_set_fork_status(suiteRunner, CK_NOFORK);

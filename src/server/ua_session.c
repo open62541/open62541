@@ -45,6 +45,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_ApplicationDescription_clear(&session->clientDescription);
     UA_NodeId_clear(&session->header.authenticationToken);
     UA_String_clear(&session->clientUserIdOfSession);
+    UA_ByteString_clear(&session->userCertificate);
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
     UA_ByteString_clear(&session->serverNonce);

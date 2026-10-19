@@ -1040,6 +1040,20 @@ START_TEST(WriteSingleAttributeValueRangeFromArray) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(WriteSingleAttributeValueRangeExceedsArray) {
+    /* The range is reduced to 0:2,0:1 (3x3 array), so 12 elements don't fit */
+    UA_Int32 values[12] = {0};
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Variant_setArray(&wValue.value.value, values, 12, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "myarray");
+    wValue.indexRange = UA_STRING("0:5,0:1");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADINDEXRANGEINVALID);
+} END_TEST
+
 START_TEST(WriteSingleAttributeDataType) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
@@ -1752,6 +1766,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromArray);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeExceedsArray);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRank);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeArrayDimensions);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeAccessLevel);

@@ -10,6 +10,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include "server/ua_server_internal.h"
+#include "server/ua_discovery.h"
 #include "server/ua_services.h"
 #include "../encryption/certificates.h"
 
@@ -214,6 +215,27 @@ teardown_register(void) {
 }
 
 static void
+waitForRegisterRequests(void) {
+    /* Registration is asynchronous in 1.4. Drive the registering server's
+     * EventLoop until the response and client cleanup have completed, rather
+     * than assuming that a fixed sleep covers the encrypted handshake.
+     * The server thread must be stopped while we iterate here. */
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server_register, UA_STRING("discovery"));
+    ck_assert_ptr_ne(dm, NULL);
+    for(size_t attempt = 0; attempt < 1000; attempt++) {
+        UA_Boolean pending = false;
+        for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++)
+            pending |= (dm->registerRequests[i].client != NULL);
+        if(!pending)
+            return;
+        UA_Server_run_iterate(server_register, false);
+        UA_realSleep(10);
+    }
+    ck_abort_msg("Discovery registration did not complete");
+}
+
+static void
 registerServer(void) {
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
@@ -229,11 +251,10 @@ registerServer(void) {
         UA_Server_registerDiscovery(server_register, &cc,
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING_NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequests();
     *running_register = true;
     THREAD_CREATE(server_thread_register, serverloop_register);
-
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
 }
 
 static void
@@ -252,11 +273,10 @@ unregisterServer(void) {
         UA_Server_deregisterDiscovery(server_register, &cc,
                                     UA_STRING("opc.tcp://localhost:4840"));
 
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequests();
     *running_register = true;
     THREAD_CREATE(server_thread_register, serverloop_register);
-
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
 }
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
@@ -290,11 +310,10 @@ Server_register_semaphore(void) {
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING(SEMAPHORE_PATH));
 
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequests();
     *running_register = true;
     THREAD_CREATE(server_thread_register, serverloop_register);
-
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
 }
 
 static void

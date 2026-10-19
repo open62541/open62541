@@ -242,9 +242,9 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
-UA_Boolean running = true;
+static volatile sig_atomic_t running = true;
 static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    /* Logging can take locks, so only set the flag in the signal handler. */
     running = false;
 }
 
@@ -472,7 +472,12 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     if (retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
-    retval = UA_Server_run(server, &running);
+    retval = UA_Server_run_startup(server);
+    if(retval == UA_STATUSCODE_GOOD) {
+        while(running)
+            UA_Server_run_iterate(server, true);
+        retval = UA_Server_run_shutdown(server);
+    }
     UA_Server_delete(server);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,

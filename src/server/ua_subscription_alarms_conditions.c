@@ -499,6 +499,9 @@ UA_Server_getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *con
 static UA_StatusCode
 UA_Server_getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
                          UA_NodeId *outConditionBranchNodeId) {
+    if(!eventId)
+        return UA_STATUSCODE_BADEVENTIDUNKNOWN;
+
     lockServer(server);
 
     *outConditionBranchNodeId = UA_NODEID_NULL;
