@@ -576,6 +576,15 @@ readRaw_service_default(UA_Server *server,
             }
         }
 
+        /* Part 11, 6.5.3.1: an unspecified time is DateTime.MinValue, 0 on
+         * the wire. The backends mark it with LLONG_MIN. */
+        UA_DateTime start = historyReadDetails->startTime;
+        UA_DateTime end = historyReadDetails->endTime;
+        if(start == 0)
+            start = LLONG_MIN;
+        if(end == 0)
+            end = LLONG_MIN;
+
         UA_StatusCode getHistoryDataStatusCode;
         if (setting->historizingBackend.getHistoryData) {
             getHistoryDataStatusCode = setting->historizingBackend.getHistoryData(
@@ -583,8 +592,8 @@ readRaw_service_default(UA_Server *server,
                         sessionId,
                         sessionContext,
                         &setting->historizingBackend,
-                        historyReadDetails->startTime,
-                        historyReadDetails->endTime,
+                        start,
+                        end,
                         &nodesToRead[i].nodeId,
                         setting->maxHistoryDataResponseSize,
                         historyReadDetails->numValuesPerNode,
@@ -598,8 +607,8 @@ readRaw_service_default(UA_Server *server,
         } else {
             getHistoryDataStatusCode = getHistoryData_service_default(
                         &setting->historizingBackend,
-                        historyReadDetails->startTime,
-                        historyReadDetails->endTime,
+                        start,
+                        end,
                         server,
                         sessionId,
                         sessionContext,

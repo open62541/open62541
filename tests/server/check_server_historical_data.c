@@ -1133,6 +1133,49 @@ START_TEST(Server_HistorizingBackendMemory)
 }
 END_TEST
 
+/* The source timestamp of the only value a read of one value returns */
+static UA_DateTime
+readOneValue(UA_DateTime start, UA_DateTime end) {
+    UA_HistoryReadResponse response;
+    UA_HistoryReadResponse_init(&response);
+    requestHistory(start, end, &response, 1, false, NULL);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_HistoryData *data = (UA_HistoryData*)
+        response.results[0].historyData.content.decoded.data;
+    ck_assert_uint_eq(data->dataValuesSize, 1);
+    UA_DateTime ts = data->dataValues[0].sourceTimestamp;
+    UA_HistoryReadResponse_clear(&response);
+    return ts;
+}
+
+/* Part 11, 6.5.3.1: an unspecified start or end time is DateTime.MinValue,
+ * 0 on the wire. With a start time and a count alone, the values after the
+ * start are read forwards; with an end time and a count alone, the values
+ * before the end are read backwards (6.5.3.2). */
+START_TEST(Server_HistorizingUnspecifiedTimeIsZero)
+{
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 100);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 100;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(fillHistoricalDataBackend(backend), true);
+
+    /* Data: 5:00, 5:02, 5:03, 5:05, 5:06 */
+    ck_assert_int_eq(readOneValue(TIMESTAMP_5_01, 0), TIMESTAMP_5_02);
+    ck_assert_int_eq(readOneValue(0, TIMESTAMP_5_04), TIMESTAMP_5_03);
+
+    /* LLONG_MIN, which the backends use internally, means the same */
+    ck_assert_int_eq(readOneValue(TIMESTAMP_5_01, LLONG_MIN), TIMESTAMP_5_02);
+    ck_assert_int_eq(readOneValue(LLONG_MIN, TIMESTAMP_5_04), TIMESTAMP_5_03);
+
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
+}
+END_TEST
+
 START_TEST(Server_HistorizingRandomIndexBackend)
 {
     UA_HistoryDataBackend backend = UA_HistoryDataBackend_randomindextest(testData);
@@ -1418,6 +1461,7 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_HistorizingReadIndexRange);
     tcase_add_test(tc_server, Server_HistorizingStrategyValueSet);
     tcase_add_test(tc_server, Server_HistorizingBackendMemory);
+    tcase_add_test(tc_server, Server_HistorizingUnspecifiedTimeIsZero);
     tcase_add_test(tc_server, Server_HistorizingRandomIndexBackend);
     tcase_add_test(tc_server, Server_HistorizingUpdateDelete);
     tcase_add_test(tc_server, Server_HistorizingUpdateInsert);
