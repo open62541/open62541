@@ -188,6 +188,11 @@ struct UA_Client {
     /* Callback ID to remove it from the EventLoop */
     UA_UInt64 houseKeepingCallbackId;
 
+    /* Reconnect backoff: re-dials since the SecureChannel was last open, and
+     * the timer of a delayed re-dial (0 if none) */
+    UA_UInt32 reconnectAttempts;
+    UA_UInt64 reconnectCallbackId;
+
     /* Overall connection status */
     UA_StatusCode connectStatus;
 
@@ -365,6 +370,9 @@ void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
 void processOPNResponse(UA_Client *client, const UA_ByteString *message);
 void closeSecureChannel(UA_Client *client);
+
+/* Cancel a pending delayed re-dial and start the backoff over */
+void resetReconnect(UA_Client *client);
 void cleanupSession(UA_Client *client);
 UA_StatusCode __Client_validateHttpConnection(UA_Client *client,
                                               UA_Boolean useTls);

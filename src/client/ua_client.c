@@ -125,6 +125,8 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->maxRejectedListSize = src->maxRejectedListSize;
 #endif
     dst->connectivityCheckInterval = src->connectivityCheckInterval;
+    dst->reconnectInterval = src->reconnectInterval;
+    dst->reconnectIntervalMax = src->reconnectIntervalMax;
     dst->certificateVerification = src->certificateVerification;
     dst->clientContext = src->clientContext;
     dst->customDataTypes = src->customDataTypes;
@@ -345,6 +347,7 @@ UA_Client_clear(UA_Client *client) {
     /* Remove the internal regular callback */
     UA_Client_removeCallback(client, client->houseKeepingCallbackId);
     client->houseKeepingCallbackId = 0;
+    resetReconnect(client);
 
     /* Clean up the SecureChannel */
     UA_SecureChannel_clear(&client->channel);
