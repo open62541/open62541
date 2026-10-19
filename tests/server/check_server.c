@@ -1192,18 +1192,26 @@ closeConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 }
 
 static void
-checkHello(size_t urlLength, size_t trailing, UA_UInt32 version, UA_StatusCode expected) {
+checkHello(size_t urlLength, size_t trailing, UA_UInt32 version,
+           UA_StatusCode expected, UA_Boolean asynchronous) {
     UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
     ck_assert_ptr_ne(cm, NULL);
     cm->eventSource.eventLoop = UA_Server_getConfig(server)->eventLoop;
     cm->closeConnection = closeConnection;
-    UA_Driver *bpm = server->binaryDriver;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binaryDriver;
     ck_assert_ptr_ne(bpm, NULL);
     closeCount = 0;
     void *listener = NULL;
+    if(asynchronous) {
+        serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_OPENING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        ck_assert_ptr_ne(listener, NULL);
+    }
     serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     ck_assert_ptr_ne(listener, NULL);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
 
     UA_TcpHelloMessage hello;
     UA_TcpHelloMessage_init(&hello);
@@ -1231,6 +1239,8 @@ checkHello(size_t urlLength, size_t trailing, UA_UInt32 version, UA_StatusCode e
     void *connection = listener;
     serverNetworkCallback(cm, 2, bpm, &connection, UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, frame);
+    ck_assert_ptr_ne(connection, listener);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 1);
     const UA_ByteString *response = TestConnectionManager_getLastSent(cm);
     size_t offset = 0;
     ck_assert_uint_eq(UA_decodeBinaryInternal(response, &offset, &header,
@@ -1253,24 +1263,143 @@ checkHello(size_t urlLength, size_t trailing, UA_UInt32 version, UA_StatusCode e
     }
     serverNetworkCallback(cm, 2, bpm, &connection, UA_CONNECTIONSTATE_CLOSING,
                           &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
     serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_CLOSING,
                           &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+    ck_assert(TAILQ_EMPTY(&bpm->channels));
     cm->eventSource.free(&cm->eventSource);
     UA_ByteString_clear(&frame);
 }
 
 START_TEST(helloEndpointUrlLimit) {
-    checkHello(32, 0, 0, UA_STATUSCODE_GOOD);
-    checkHello(4095, 0, 0, UA_STATUSCODE_GOOD);
-    checkHello(4096, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
-    checkHello(4097, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
-    checkHello(5000, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
-    checkHello(32, 0, 0xdeadbeef, UA_STATUSCODE_GOOD);
+    checkHello(32, 0, 0, UA_STATUSCODE_GOOD, false);
+    checkHello(4095, 0, 0, UA_STATUSCODE_GOOD, false);
+    checkHello(4096, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID, false);
+    checkHello(4097, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID, false);
+    checkHello(5000, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID, false);
+    checkHello(32, 0, 0xdeadbeef, UA_STATUSCODE_GOOD, false);
 } END_TEST
 
 START_TEST(helloTrailingData) {
-    checkHello(32, 1, 0, UA_STATUSCODE_BADDECODINGERROR);
-    checkHello(32, 8, 0, UA_STATUSCODE_BADDECODINGERROR);
+    checkHello(32, 1, 0, UA_STATUSCODE_BADDECODINGERROR, false);
+    checkHello(32, 8, 0, UA_STATUSCODE_BADDECODINGERROR, false);
+} END_TEST
+
+START_TEST(asyncListenerHello) {
+    checkHello(32, 0, 0, UA_STATUSCODE_GOOD, true);
+} END_TEST
+
+START_TEST(listenerStateUpdates) {
+    UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_ne(cm, NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    cm->eventSource.eventLoop = config->eventLoop;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binaryDriver;
+    UA_ApplicationDescription *description = &config->applicationDescription;
+    ck_assert_uint_eq(description->discoveryUrlsSize, 0);
+
+    UA_String address = UA_STRING((_i & 2) ? "localhost" : "127.0.0.1");
+    UA_UInt16 port = 4841;
+    UA_KeyValuePair params[2];
+    params[0].key = UA_QUALIFIEDNAME(0, "listen-address");
+    UA_Variant_setScalar(&params[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    params[1].key = UA_QUALIFIEDNAME(0, "listen-port");
+    UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap map = {2, params};
+
+    void *listener = NULL;
+    if(_i & 1) {
+        serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_OPENING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        ck_assert_ptr_eq(listener, &bpm->serverConnections[0]);
+        ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
+        ck_assert_uint_eq(bpm->serverConnections[0].state, UA_CONNECTIONSTATE_OPENING);
+        ck_assert_uint_eq(description->discoveryUrlsSize, 0);
+        ck_assert(TAILQ_EMPTY(&bpm->channels));
+    }
+
+    /* A later notification must preserve the listener context and URL count. */
+    for(unsigned update = 0; update < 2; update++) {
+        serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_ESTABLISHED,
+                              &map, UA_BYTESTRING_NULL);
+        ck_assert_ptr_eq(listener, &bpm->serverConnections[0]);
+        ck_assert_ptr_eq(bpm->serverConnections[0].connectionManager, cm);
+        ck_assert_uint_eq(bpm->serverConnections[0].connectionId, 1);
+        ck_assert_uint_eq(bpm->serverConnections[0].state, UA_CONNECTIONSTATE_ESTABLISHED);
+        ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
+        ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
+        ck_assert(TAILQ_EMPTY(&bpm->channels));
+        ck_assert_uint_eq(description->discoveryUrlsSize, 1);
+        UA_String expected = UA_STRING((_i & 2) ? "opc.tcp://localhost:4841" :
+                                                "opc.tcp://127.0.0.1:4841");
+        ck_assert(UA_String_equal(&description->discoveryUrls[0], &expected));
+    }
+
+    serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+    ck_assert_uint_eq(bpm->serverConnections[0].state, UA_CONNECTIONSTATE_CLOSED);
+    ck_assert_uint_eq(bpm->serverConnections[0].connectionId, 0);
+    cm->eventSource.free(&cm->eventSource);
+} END_TEST
+
+START_TEST(openingListenerCloses) {
+    UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_ne(cm, NULL);
+    cm->eventSource.eventLoop = UA_Server_getConfig(server)->eventLoop;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binaryDriver;
+
+    /* Reusing the slot after failed setup must not leave a registered listener. */
+    for(uintptr_t id = 1; id <= 2; id++) {
+        void *listener = NULL;
+        serverNetworkCallback(cm, id, bpm, &listener, UA_CONNECTIONSTATE_OPENING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        ck_assert_ptr_eq(listener, &bpm->serverConnections[0]);
+        ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
+        serverNetworkCallback(cm, id, bpm, &listener, UA_CONNECTIONSTATE_CLOSING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+        ck_assert_uint_eq(bpm->serverConnections[0].state, UA_CONNECTIONSTATE_CLOSED);
+        ck_assert_uint_eq(bpm->serverConnections[0].connectionId, 0);
+        ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
+        ck_assert(TAILQ_EMPTY(&bpm->channels));
+    }
+    ck_assert_uint_eq(UA_Server_getConfig(server)->applicationDescription.discoveryUrlsSize, 0);
+    cm->eventSource.free(&cm->eventSource);
+} END_TEST
+
+START_TEST(listenerConnectionManagerIdentity) {
+    UA_ConnectionManager *listenerCm = TestConnectionManager_new("tcp", NULL);
+    UA_ConnectionManager *acceptedCm = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_ne(listenerCm, NULL);
+    ck_assert_ptr_ne(acceptedCm, NULL);
+    listenerCm->eventSource.eventLoop = UA_Server_getConfig(server)->eventLoop;
+    acceptedCm->eventSource.eventLoop = listenerCm->eventSource.eventLoop;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binaryDriver;
+    void *listener = NULL;
+    serverNetworkCallback(listenerCm, 1, bpm, &listener, UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+
+    /* Equal numeric ids from different managers identify different connections. */
+    void *accepted = listener;
+    serverNetworkCallback(acceptedCm, 1, bpm, &accepted, UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_ptr_ne(accepted, listener);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 1);
+    ck_assert_ptr_eq(((UA_SecureChannel*)accepted)->connectionManager, acceptedCm);
+
+    serverNetworkCallback(listenerCm, 1, bpm, &listener, UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 1);
+    serverNetworkCallback(acceptedCm, 1, bpm, &accepted, UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
+    ck_assert(TAILQ_EMPTY(&bpm->channels));
+    acceptedCm->eventSource.free(&acceptedCm->eventSource);
+    listenerCm->eventSource.free(&listenerCm->eventSource);
 } END_TEST
 
 int main(void) {
@@ -1297,6 +1426,14 @@ int main(void) {
     tcase_add_test(tc_call, checkNoneEndpointUserTokens);
     tcase_add_loop_test(tc_call, checkStartupFailsWithoutServerSocket, 0, 2);
     suite_add_tcase(s, tc_call);
+
+    TCase *tc_listener = tcase_create("server - listener");
+    tcase_add_checked_fixture(tc_listener, setup, teardown);
+    tcase_add_test(tc_listener, asyncListenerHello);
+    tcase_add_loop_test(tc_listener, listenerStateUpdates, 0, 4);
+    tcase_add_test(tc_listener, openingListenerCloses);
+    tcase_add_test(tc_listener, listenerConnectionManagerIdentity);
+    suite_add_tcase(s, tc_listener);
 
     TCase *tc_ext = tcase_create("server - extended");
     tcase_add_checked_fixture(tc_ext, setup, teardown);

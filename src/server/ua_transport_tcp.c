@@ -673,8 +673,8 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         sc->connectionManager = cm;
         *connectionContext = (void*)sc; /* Set the context pointer in the connection */
 
-        /* Add to the DiscoveryUrls */
-        if(bpm->addDiscoveryUrl)
+        /* An opening listener may not have its bound endpoint metadata yet. */
+        if(state == UA_CONNECTIONSTATE_ESTABLISHED && bpm->addDiscoveryUrl)
             bpm->addDiscoveryUrl(bpm, params);
         return;
     }
@@ -705,6 +705,16 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
            bpm->serverConnectionsSize == 0 && TAILQ_EMPTY(&bpm->channels)) {
            setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPED);
         }
+        return;
+    }
+
+    /* Accepted connections inherit the listener context, but have a different
+     * connection identity. Updates to the listener must keep that context. */
+    if(serverSocket && sc->connectionManager == cm &&
+       sc->connectionId == connectionId) {
+        sc->state = state;
+        if(state == UA_CONNECTIONSTATE_ESTABLISHED && bpm->addDiscoveryUrl)
+            bpm->addDiscoveryUrl(bpm, params);
         return;
     }
 
