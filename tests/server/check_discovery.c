@@ -56,6 +56,7 @@ static void configure_lds_server(UA_Server *pServer)
     UA_ServerConfig_setDefaultWithSecurityPolicies(config_lds, 4840,
                                                    &certificate, &privateKey,
                                                    NULL, 0, NULL, 0, NULL, 0);
+    config_lds->certificateVerification.clear(&config_lds->certificateVerification);
     UA_CertificateVerification_AcceptAll(&config_lds->certificateVerification);
 
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
