@@ -34,6 +34,21 @@ The POSIX CMake option `UA_ARCH_LOCAL_TIME_IS_UTC` (default OFF) makes
 `UA_DateTime_localTimeUtcOffset()` return zero without linking C library timezone
 conversion functions. The stdout logger consequently uses UTC timestamps.
 
+### CertificateGroup parameters are validated
+
+The OpenSSL `UA_CertificateGroup_Memorystore` (and the Filestore, which builds on
+it) read the keys `0:maxTrustListSize` and `0:maxRejectedListSize`, while the
+documentation and the mbedTLS backend use `0:max-trust-listsize` and
+`0:max-rejected-listsize`. Both backends now use the documented keys. With
+OpenSSL, the old keys remain accepted and log a deprecation warning. The new
+key takes precedence if both are given.
+
+Keys in namespace zero are reserved for the plugin. `UA_CertificateGroup_Memorystore`
+and `UA_CertificateGroup_Filestore` now fail with `BadInvalidArgument` for an
+unknown namespace zero key and with `BadTypeMismatch` if a known key does not
+hold a `UInt32` scalar. Before, such parameters were silently ignored. Keys in
+other namespaces are still ignored.
+
 ### Session and subscription diagnostics are named in the server namespace
 
 The per-session objects below `SessionsDiagnosticsSummary` and the
