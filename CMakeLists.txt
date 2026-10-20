@@ -9,12 +9,12 @@ else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
 
+# Early Zephyr handling. The actual architecture definitions are below.
 if(ZEPHYR_BASE)
   if(NOT CONFIG_OPEN62541)
     return()
   endif()
-  include(arch/zephyr/zephyr.cmake)
-  add_compile_definitions(UA_ARCH_HEADER="${PROJECT_SOURCE_DIR}/arch/zephyr/zephyr_arch.h")
+  include(arch/zephyr/zephyr_base.cmake)
 endif()
 
 # set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -100,6 +100,8 @@ if("${UA_ARCHITECTURE}" STREQUAL "posix" OR
    "${UA_ARCHITECTURE}" STREQUAL "posix-lwip" OR
    "${UA_ARCHITECTURE}" STREQUAL "win32")
     include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
+elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
+    include("${PROJECT_SOURCE_DIR}/arch/zephyr/zephyr.cmake")
 endif()
 
 #################
