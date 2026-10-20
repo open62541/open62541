@@ -510,17 +510,9 @@ set(open62541_PUBLIC_LIBRARIES "")
 set(pkgcfg_libsprivate "")
 set(pkgcfg_requiresprivate "")
 if("${UA_ARCHITECTURE}" STREQUAL "posix")
-    list(APPEND open62541_LIBRARIES "m")
-    list(APPEND pkgcfg_libsprivate "-lm")
-    if(UA_MULTITHREADING GREATER_EQUAL 100 OR UA_BUILD_UNIT_TESTS AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
-        list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
-        list(APPEND pkgcfg_libsprivate "-lpthread")
-    endif()
-    if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
-        list(APPEND open62541_LIBRARIES "rt")
-        list(APPEND pkgcfg_libsprivate "-lrt")
-    endif()
+    include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
 elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
+    include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
     # The default TAP interface is shared across EventLoops. Its initialization
     # is synchronized independently of UA_MULTITHREADING.
     list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
@@ -1656,6 +1648,10 @@ add_custom_target(open62541-generator-statuscode DEPENDS
                   ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                   ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                   ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c)
+
+if(UA_ARCHITECTURE_POSIX)
+    list(PREPEND lib_headers "${PROJECT_BINARY_DIR}/src_generated/arch/posix/posix.h")
+endif()
 
 if(UA_ENABLE_AMALGAMATION)
     # single-file release

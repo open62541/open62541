@@ -6,7 +6,6 @@
  */
 
 #include "file_transfer_internal.h"
-
 #include <stdlib.h>
 
 /**************************************

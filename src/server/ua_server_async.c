@@ -41,6 +41,16 @@ allocateResultsArray(const UA_DataType *resultsType, size_t resultsLen,
     return arr;
 }
 
+void
+clearCallOutputIfBad(UA_CallMethodResult *result) {
+    if(!UA_StatusCode_isBad(result->statusCode))
+        return;
+    UA_Array_delete(result->outputArguments, result->outputArgumentsSize,
+                    &UA_TYPES[UA_TYPES_VARIANT]);
+    result->outputArguments = NULL;
+    result->outputArgumentsSize = 0;
+}
+
 /* Cancel the operation, but don't _clear it here */
 static void
 UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op,
@@ -84,6 +94,12 @@ UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op,
     /* Notify the application that it must no longer set the async result */
     if(sc->asyncOperationCancelCallback)
         sc->asyncOperationCancelCallback(server, cancelPtr);
+
+    /* The outputArguments pointer no longer identifies the operation */
+    if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST)
+        clearCallOutputIfBad(op->output.call);
+    else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+        clearCallOutputIfBad(&op->output.directCall);
 }
 
 static void
@@ -1126,12 +1142,14 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
         if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
             if(op->output.call->outputArguments == output) {
                 op->output.call->statusCode = result;
+                clearCallOutputIfBad(op->output.call);
                 processOperationResult(server, op);
                 break;
             }
         } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
             if(op->output.directCall.outputArguments == output) {
                 op->output.directCall.statusCode = result;
+                clearCallOutputIfBad(&op->output.directCall);
                 processOperationResult(server, op);
                 break;
             }

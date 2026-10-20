@@ -892,6 +892,9 @@ static const u8 hexchars[16] =
 
 size_t
 UA_String_escapedSize(const UA_String s, UA_Escaping esc) {
+    if(esc == UA_ESCAPING_NONE)
+        return s.length;
+
     /* Find out the overhead from escaping */
     size_t overhead = 0;
     for(size_t j = 0; j < s.length; j++) {

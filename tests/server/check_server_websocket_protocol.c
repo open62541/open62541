@@ -55,7 +55,7 @@ mockWebSocketOpen(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_Variant_setScalar(&fields[size++].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     }
     UA_KeyValueMap callbackParams = {size, fields};
-    return TestConnectionManager_inject(cm, listenerId, UA_CONNECTIONSTATE_OPENING,
+    return TestConnectionManager_inject(cm, listenerId, UA_CONNECTIONSTATE_ESTABLISHED,
                                          &callbackParams, NULL);
 }
 
