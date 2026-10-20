@@ -1,8 +1,11 @@
+########################
+# Basic CMake Settings #
+###################### #
+
 cmake_minimum_required(VERSION 3.13)
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 
-# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
-set(ANDROID_PLATFORM 24)
-
+# Define the open62541 project
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
@@ -17,20 +20,18 @@ if(ZEPHYR_BASE)
   include(arch/zephyr/zephyr_base.cmake)
 endif()
 
-# set(CMAKE_VERBOSE_MAKEFILE ON)
+# Early Android handling.
+# android.toolchain.cmake is "19" but we need "24" for epoll_create1 and ifaddrs.h.
+set(ANDROID_PLATFORM 24)
 
+# Load CMake packages
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-
 find_package(Python3 REQUIRED)
 find_package(Git)
-
 include(AssignSourceGroup)
 include(GNUInstallDirs)
 
-#############################
-# Compiled binaries folders #
-#############################
-
+# Put binaries into a /bin subfolder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -72,6 +73,7 @@ set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr" "freertos-lwip" "posix-lwip
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
 
+# Use win32 or posix if no architecture is selected
 if("${UA_ARCHITECTURE}" STREQUAL "")
     if(WIN32)
         set(UA_ARCHITECTURE "win32" CACHE STRING ""  FORCE)
@@ -201,7 +203,7 @@ if(UA_ENABLE_EVENTLOOP_GLIB)
     endif()
 endif()
 
-# security provider
+# Security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
 set(UA_ENABLE_ENCRYPTION OFF CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
 SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION PROPERTY STRINGS "OFF" ${UA_ENCRYPTION_PLUGINS})
