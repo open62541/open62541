@@ -2607,6 +2607,109 @@ START_TEST(HeartbeatWriterViaInformationModel) {
 }
 END_TEST
 
+static void
+setupLocalRemoval(void) {
+    server = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(server);
+}
+
+static void
+teardownLocalRemoval(void) {
+    UA_Server_delete(server);
+}
+
+static void
+createRemovalGroup(UA_NodeId connection, UA_Boolean reader,
+                    UA_NodeId *groupId, UA_NodeId *childId) {
+    if(reader) {
+        UA_ReaderGroupConfig group = {0};
+        group.name = UA_STRING("Removal reader group");
+        ck_assert_uint_eq(UA_Server_addReaderGroup(server, connection, &group, groupId),
+                          UA_STATUSCODE_GOOD);
+        UA_DataSetReaderConfig child = {0};
+        child.name = UA_STRING("Removal reader");
+        child.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+        child.publisherId.id.uint32 = 42;
+        ck_assert_uint_eq(UA_Server_addDataSetReader(server, *groupId, &child, childId),
+                          UA_STATUSCODE_GOOD);
+    } else {
+        UA_WriterGroupConfig group = {0};
+        group.name = UA_STRING("Removal writer group");
+        group.publishingInterval = 100;
+        group.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection, &group, groupId),
+                          UA_STATUSCODE_GOOD);
+        UA_DataSetWriterConfig child = {0};
+        child.name = UA_STRING("Removal heartbeat writer");
+        child.dataSetWriterId = 42;
+        child.keyFrameCount = 1;
+        ck_assert_uint_eq(UA_Server_addDataSetWriter(server, *groupId, UA_NODEID_NULL,
+                                                    &child, childId), UA_STATUSCODE_GOOD);
+    }
+}
+
+static UA_StatusCode
+callRemovalMethod(UA_NodeId parent, UA_UInt32 method, UA_NodeId child) {
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &child, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_CallMethodRequest request = {0};
+    request.objectId = parent;
+    request.methodId = UA_NODEID_NUMERIC(0, method);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    UA_StatusCode res = result.statusCode;
+    ck_assert_uint_eq(result.outputArgumentsSize, 0);
+    UA_CallMethodResult_clear(&result);
+    return res;
+}
+
+static void
+assertPubSubObjectExists(UA_NodeId id, UA_Boolean exists) {
+    UA_NodeClass nodeClass;
+    UA_StatusCode res = UA_Server_readNodeClass(server, id, &nodeClass);
+    ck_assert_uint_eq(res, exists ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNODEIDUNKNOWN);
+    if(exists)
+        ck_assert_uint_eq(nodeClass, UA_NODECLASS_OBJECT);
+}
+
+/* The shared Method node must resolve the requested child beneath the Object
+ * on which it was called, for both individual children and whole groups. */
+START_TEST(RemovalMethodsEnforceParentOwnership) {
+    UA_Boolean reader = (_i % 2) != 0;
+    UA_Boolean removeGroup = _i >= 2;
+    UA_NodeId connections[2], groups[2], children[2];
+    for(size_t i = 0; i < 2; i++) {
+        connections[i] = addPubSubConnection();
+        createRemovalGroup(connections[i], reader, &groups[i], &children[i]);
+    }
+    UA_UInt32 method = removeGroup ? UA_NS0ID_PUBSUBCONNECTIONTYPE_REMOVEGROUP :
+        (reader ? UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER :
+                  UA_NS0ID_WRITERGROUPTYPE_REMOVEDATASETWRITER);
+    UA_NodeId target = removeGroup ? groups[0] : children[0];
+    UA_NodeId owner = removeGroup ? connections[0] : groups[0];
+    UA_NodeId other = removeGroup ? connections[1] : groups[1];
+    ck_assert_uint_eq(callRemovalMethod(other, method, target), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    for(size_t i = 0; i < 2; i++) {
+        assertPubSubObjectExists(groups[i], true);
+        assertPubSubObjectExists(children[i], true);
+    }
+
+    ck_assert_uint_eq(callRemovalMethod(owner, method, target), UA_STATUSCODE_GOOD);
+    assertPubSubObjectExists(groups[0], !removeGroup);
+    assertPubSubObjectExists(children[0], false);
+    assertPubSubObjectExists(groups[1], true);
+    assertPubSubObjectExists(children[1], true);
+    ck_assert_uint_eq(callRemovalMethod(owner, method, target), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    assertPubSubObjectExists(children[1], true);
+    for(size_t i = 0; i < 2; i++) {
+        assertPubSubObjectExists(connections[i], true);
+        UA_NodeId_clear(&connections[i]);
+        UA_NodeId_clear(&groups[i]);
+        UA_NodeId_clear(&children[i]);
+    }
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_informationmodel_methods_connection = tcase_create("PubSub connection delete and creation using the information model methods");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
@@ -2650,6 +2753,10 @@ int main(void) {
     TCase *tc_input_contract = tcase_create("PubSub method input contracts");
     tcase_add_loop_test(tc_input_contract, AddConnectionValidatesScalarInput, 0, 3);
     suite_add_tcase(s, tc_input_contract);
+    TCase *tc_removal = tcase_create("PubSub removal ownership");
+    tcase_add_checked_fixture(tc_removal, setupLocalRemoval, teardownLocalRemoval);
+    tcase_add_loop_test(tc_removal, RemovalMethodsEnforceParentOwnership, 0, 4);
+    suite_add_tcase(s, tc_removal);
     suite_add_tcase(s, tc_add_pubsub_informationmodel_methods_connection);
 
     SRunner *sr = srunner_create(s);
