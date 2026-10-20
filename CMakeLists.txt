@@ -95,6 +95,10 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
     set(UA_ARCHITECTURE_POSIX 1)
 endif()
 
+if("${UA_ARCHITECTURE}" STREQUAL "posix" OR "${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
+    include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
+endif()
+
 #################
 # Build Options #
 #################
@@ -509,10 +513,7 @@ set(open62541_LIBRARIES "")
 set(open62541_PUBLIC_LIBRARIES "")
 set(pkgcfg_libsprivate "")
 set(pkgcfg_requiresprivate "")
-if("${UA_ARCHITECTURE}" STREQUAL "posix")
-    include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
-elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
-    include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
+if("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
     # The default TAP interface is shared across EventLoops. Its initialization
     # is synchronized independently of UA_MULTITHREADING.
     list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
