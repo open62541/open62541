@@ -47,6 +47,12 @@ typedef struct LogObjectEntry {
     UA_NodeId minimumSeverityId;      /* Writable MinimumSeverity Property, or
                                        * null */
     UA_Byte minimumSeverityAccessLevel; /* AccessLevel before the binding */
+
+    /* LogOverflowEventType Events */
+    UA_atomic(uintptr_t) discarded;   /* Records evicted by an overflow since
+                                       * the last Event. From any thread. */
+    UA_Boolean overflowReported;      /* An overflow Event was emitted */
+    UA_DateTime lastOverflowEvent;    /* Monotonic time of the last Event */
 } LogObjectEntry;
 
 /* A continuation point of the GetRecords Method. It stores the filter of the
@@ -89,6 +95,7 @@ typedef struct LogObjectDriver {
     UA_LogObjectSettings defaultSettings; /* For instances without Properties */
     UA_UInt32 maxRecordsPerCall;
     UA_UInt16 maxContinuationPoints;
+    UA_Double overflowEventInterval;
 
     /* The LogObjects. The ServerLog entry is part of the driver. */
     LIST_HEAD(, LogObjectEntry) logObjects;
@@ -125,6 +132,16 @@ typedef struct LogObjectDriver {
     UA_atomic(uintptr_t) capturing;
     UA_atomic(uintptr_t) captureInFlight;
     UA_atomic(uintptr_t) serverLogMinimumSeverity;
+
+    /* LogOverflowEventType Events are emitted from the EventLoop. The delayed
+     * callback is armed from any thread, also from the logging path. The
+     * one-shot timer emits the overflows that were coalesced because the
+     * LogObject reported an overflow less than overflowEventInterval ago. */
+    UA_DelayedCallback overflowCallback;
+    UA_atomic(uintptr_t) overflowCallbackQueued;
+    UA_atomic(uintptr_t) overflowTimerArmed;
+    UA_UInt64 overflowTimerId;
+    UA_DateTime overflowTimerDue; /* Monotonic time the timer fires */
 } LogObjectDriver;
 
 /* Identify the driver before casting a generic UA_Driver */
@@ -211,6 +228,15 @@ logObjectReleaseContinuationPointMethod(UA_Server *server, const UA_NodeId *sess
                                         void *objectContext, size_t inputSize,
                                         const UA_Variant *input, size_t outputSize,
                                         UA_Variant *output);
+
+/* A record of the LogObject was evicted by an overflow. Called from any
+ * thread. */
+void
+scheduleOverflowEvent(LogObjectDriver *lod, LogObjectEntry *entry);
+
+/* Disarm the delayed callback and the timer of the overflow Events */
+void
+cancelOverflowEvents(LogObjectDriver *lod);
 
 /* Change the MinimumSeverity of a LogObject. The driver lock must be held. */
 void

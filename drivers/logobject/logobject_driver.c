@@ -64,6 +64,8 @@ addLogObjectRecord(LogObjectDriver *lod, LogObjectEntry *entry,
         res = lod->backend.addRecord(lod->driver.server, lod->backend.context,
                                      &entry->nodeId, record, logObjectNow(lod),
                                      &overflow);
+        if(overflow)
+            scheduleOverflowEvent(lod, entry);
     }
 
     /* The ServerLog contains the records of all LogObjects (Part 26, 7.2) */
@@ -287,12 +289,19 @@ configureDriver(LogObjectDriver *lod) {
     if(cps)
         lod->maxContinuationPoints = *cps;
 
+    lod->overflowEventInterval = 60000.0; /* At most one Event per minute */
+    const UA_Double *interval = (const UA_Double*)
+        driverParam(lod, "overflow-event-interval", &UA_TYPES[UA_TYPES_DURATION], &res);
+    if(interval)
+        lod->overflowEventInterval = *interval;
+
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    if(!validSettings(&lod->serverLogSettings) || !validSettings(&lod->defaultSettings)) {
+    if(!validSettings(&lod->serverLogSettings) || !validSettings(&lod->defaultSettings) ||
+       !logObjectValidDuration(lod->overflowEventInterval)) {
         UA_LOG_ERROR(UA_Server_getConfig(lod->driver.server)->logging,
                      UA_LOGCATEGORY_SERVER,
-                     "LogObject: Invalid settings of the ServerLog or the defaults");
+                     "LogObject: Invalid parameters");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     return UA_STATUSCODE_GOOD;
@@ -335,6 +344,7 @@ deleteOrphanedRecords(LogObjectDriver *lod) {
 static void
 stopDriver(LogObjectDriver *lod) {
     removeLogCapture(lod);
+    cancelOverflowEvents(lod);
     restoreLogObjectTypeLifecycles(lod);
     unbindLogObjectMethods(lod);
     LogObjectEntry *entry, *tmp;
