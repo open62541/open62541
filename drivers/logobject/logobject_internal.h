@@ -44,6 +44,9 @@ typedef struct LogObjectEntry {
     UA_Boolean logsReferenceAdded;    /* Organizes from the Logs Folder */
     UA_Boolean releaseReferenceAdded; /* HasComponent to the type's
                                        * ReleaseContinuationPoint Method */
+    UA_NodeId minimumSeverityId;      /* Writable MinimumSeverity Property, or
+                                       * null */
+    UA_Byte minimumSeverityAccessLevel; /* AccessLevel before the binding */
 } LogObjectEntry;
 
 /* A continuation point of the GetRecords Method. It stores the filter of the
@@ -208,6 +211,20 @@ logObjectReleaseContinuationPointMethod(UA_Server *server, const UA_NodeId *sess
                                         void *objectContext, size_t inputSize,
                                         const UA_Variant *input, size_t outputSize,
                                         UA_Variant *output);
+
+/* Change the MinimumSeverity of a LogObject. The driver lock must be held. */
+void
+setMinimumSeverity(LogObjectDriver *lod, LogObjectEntry *entry, UA_UInt16 severity);
+
+/* Write the effective settings into the Properties of the LogObject */
+void
+mirrorLogObjectProperties(LogObjectDriver *lod, LogObjectEntry *entry);
+
+/* The LogObject exposes a MaxStorageDuration Property with a value. Zero is
+ * not a valid value (Part 26, 5.2), so its time limit cannot be removed. The
+ * ServerLog created by the driver adds and removes the Property itself. */
+UA_Boolean
+hasMaxStorageDurationValue(LogObjectDriver *lod, LogObjectEntry *entry);
 
 /* Release the continuation points of a Session (NULL for all Sessions) and of
  * a LogObject (NULL for all LogObjects) */
