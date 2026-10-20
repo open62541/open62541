@@ -108,7 +108,8 @@ adjustType(UA_Variant *value, const UA_DataType *targetType) {
 }
 
 size_t
-UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
+UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
+                      UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
     UA_assert(number);
     u32 n = 0;
@@ -258,12 +259,10 @@ UA_StatusCode
 UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
                             UA_UInt16 *vid, UA_Byte *pcp) {
     /* Url must begin with "opc.eth://" */
-    if(endpointUrl->length < 11) {
+    if(endpointUrl->length < 11)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0) {
+    if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     /* Where does the host address end? */
     size_t curr = 10;
@@ -276,40 +275,33 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
     /* set host address */
     target->data = &endpointUrl->data[10];
     target->length = curr - 10;
-    if(curr == endpointUrl->length) {
+    if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
-    }
 
     /* Set VLAN */
     u32 value = 0;
     curr++;  /* skip ':' */
     size_t progress = UA_readNumber(&endpointUrl->data[curr],
                                     endpointUrl->length - curr, &value);
-    if(progress == 0 || value > 4096) {
+    if(progress == 0 || value > 4096)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
     curr += progress;
-    if(curr == endpointUrl->length || endpointUrl->data[curr] == '.') {
+    if(curr == endpointUrl->length || endpointUrl->data[curr] == '.')
         *vid = (UA_UInt16) value;
-    }
-    if(curr == endpointUrl->length) {
+    if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
-    }
 
     /* Set priority */
-    if(endpointUrl->data[curr] != '.') {
+    if(endpointUrl->data[curr] != '.')
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
     curr++;  /* skip '.' */
     progress = UA_readNumber(&endpointUrl->data[curr],
                              endpointUrl->length - curr, &value);
-    if(progress == 0 || value > 7) {
+    if(progress == 0 || value > 7)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
     curr += progress;
-    if(curr != endpointUrl->length) {
+    if(curr != endpointUrl->length)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
     *pcp = (UA_Byte) value;
 
     return UA_STATUSCODE_GOOD;
@@ -550,9 +542,8 @@ void
 UA_KeyValueMap_clear(UA_KeyValueMap *map) {
     if(!map)
         return;
-    if(map->mapSize > 0) {
+    if(map->mapSize > 0)
         UA_Array_delete(map->map, map->mapSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    }
     map->map = NULL;
     map->mapSize = 0;
 }
@@ -778,7 +769,8 @@ getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN) {
         for(size_t i = 0; i < KNOWNREFTYPES; i++) {
             if(refTypeId->identifier.numeric != knownRefTypes[i].identifier)
                 continue;
-            memcpy(outBN->data, knownRefTypes[i].browseName.data, knownRefTypes[i].browseName.length);
+            memcpy(outBN->data, knownRefTypes[i].browseName.data,
+                   knownRefTypes[i].browseName.length);
             outBN->length = knownRefTypes[i].browseName.length;
             return UA_STATUSCODE_GOOD;
         }
@@ -1185,7 +1177,7 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
 
     /* Print the attribute name */
     if(rvi->attributeId != UA_ATTRIBUTEID_VALUE) {
-        const char *attrName= UA_AttributeId_name((UA_AttributeId)rvi->attributeId);
+        const char *attrName = UA_AttributeId_name((UA_AttributeId)rvi->attributeId);
         res |= UA_String_append(&tmp, UA_STRING("#"));
         res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
     }
@@ -1346,105 +1338,127 @@ UA_TrustListDataType_contains(const UA_TrustListDataType *trustList,
 }
 
 UA_StatusCode
-UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+UA_TrustListDataType_add(const UA_TrustListDataType *src,
+                         UA_TrustListDataType *dst) {
     if(!dst)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(!src) {
+    if(!src)
         return UA_STATUSCODE_GOOD;
-    }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
 
+    /* UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES */
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
         if(dst->trustedCertificates == NULL)
-            dst->trustedCertificates = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            dst->trustedCertificates = (UA_ByteString*)
+                UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
         for(size_t i = 0; i < src->trustedCertificatesSize; i++) {
             if(UA_TrustListDataType_contains(dst, &src->trustedCertificates[i],
                                              UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES)) {
                 continue;
             }
-            retval = UA_Array_appendCopy((void**)&dst->trustedCertificates, &dst->trustedCertificatesSize,
-                                      &src->trustedCertificates[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
+            res = UA_Array_appendCopy((void**)&dst->trustedCertificates,
+                                      &dst->trustedCertificatesSize,
+                                      &src->trustedCertificates[i],
+                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(res != UA_STATUSCODE_GOOD) {
+                return res;
             }
         }
         dst->specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
     }
+
+    /* UA_TRUSTLISTMASKS_TRUSTEDCRLS */
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
         if(dst->trustedCrls == NULL)
-            dst->trustedCrls = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            dst->trustedCrls = (UA_ByteString*)
+                UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
         for(size_t i = 0; i < src->trustedCrlsSize; i++) {
             if(UA_TrustListDataType_contains(dst, &src->trustedCrls[i],
-                                             UA_TRUSTLISTMASKS_TRUSTEDCRLS)) {
+                                             UA_TRUSTLISTMASKS_TRUSTEDCRLS))
                 continue;
-            }
-            retval = UA_Array_appendCopy((void**)&dst->trustedCrls, &dst->trustedCrlsSize,
-                                      &src->trustedCrls[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
-            }
+            res = UA_Array_appendCopy((void**)&dst->trustedCrls,
+                                      &dst->trustedCrlsSize,
+                                      &src->trustedCrls[i],
+                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
         }
         dst->specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
     }
+
+    /* UA_TRUSTLISTMASKS_ISSUERCERTIFICATES */
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
         if(dst->issuerCertificates == NULL)
-            dst->issuerCertificates = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            dst->issuerCertificates = (UA_ByteString*)
+                UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
         for(size_t i = 0; i < src->issuerCertificatesSize; i++) {
             if(UA_TrustListDataType_contains(dst, &src->issuerCertificates[i],
-                                            UA_TRUSTLISTMASKS_ISSUERCERTIFICATES)) {
+                                            UA_TRUSTLISTMASKS_ISSUERCERTIFICATES))
                 continue;
-            }
-            retval = UA_Array_appendCopy((void**)&dst->issuerCertificates, &dst->issuerCertificatesSize,
-                                      &src->issuerCertificates[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
-            }
+            res = UA_Array_appendCopy((void**)&dst->issuerCertificates,
+                                      &dst->issuerCertificatesSize,
+                                      &src->issuerCertificates[i],
+                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
         }
         dst->specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
     }
+
+    /* UA_TRUSTLISTMASKS_ISSUERCRLS */
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
         if(dst->issuerCrls == NULL)
-            dst->issuerCrls = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            dst->issuerCrls = (UA_ByteString*)
+                UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
         for(size_t i = 0; i < src->issuerCrlsSize; i++) {
             if(UA_TrustListDataType_contains(dst, &src->issuerCrls[i],
-                                            UA_TRUSTLISTMASKS_ISSUERCRLS)) {
+                                            UA_TRUSTLISTMASKS_ISSUERCRLS))
                 continue;
-            }
-            retval = UA_Array_appendCopy((void**)&dst->issuerCrls, &dst->issuerCrlsSize,
-                                      &src->issuerCrls[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
-            }
+            res = UA_Array_appendCopy((void**)&dst->issuerCrls,
+                                      &dst->issuerCrlsSize,
+                                      &src->issuerCrls[i],
+                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
         }
         dst->specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCRLS;
     }
 
-    return retval;
+    return res;
 }
 
 UA_StatusCode
-UA_TrustListDataType_set(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+UA_TrustListDataType_set(const UA_TrustListDataType *src,
+                         UA_TrustListDataType *dst) {
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
-        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         dst->trustedCertificates = NULL;
         dst->trustedCertificatesSize = 0;
     }
+
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
-        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         dst->trustedCrls = NULL;
         dst->trustedCrlsSize = 0;
     }
+
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
-        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         dst->issuerCertificates = NULL;
         dst->issuerCertificatesSize = 0;
     }
+
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
-        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         dst->issuerCrls = NULL;
         dst->issuerCrlsSize = 0;
     }
+
     return UA_TrustListDataType_add(src, dst);
 }
 
