@@ -955,7 +955,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 
 if(UA_ARCHITECTURE_INCLUDE)
-    list(PREPEND lib_headers "${UA_ARCHITECTURE_INCLUDE}")
+    list(PREPEND lib_headers "${PROJECT_BINARY_DIR}/src_generated/open62541/${UA_ARCHITECTURE_INCLUDE}")
 endif()
 
 if(UA_ENABLE_AMALGAMATION OR (UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32))
