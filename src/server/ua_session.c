@@ -22,6 +22,9 @@ void UA_Session_init(UA_Session *session) {
     memset(session, 0, sizeof(UA_Session));
     session->state = UA_SESSIONSTATE_CREATED;
     TAILQ_INIT(&session->continuationPoints);
+#ifdef UA_ENABLE_LOGOBJECT
+    TAILQ_INIT(&session->logObjectCPs);
+#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     SIMPLEQ_INIT(&session->responseQueue);
     TAILQ_INIT(&session->subscriptions);
@@ -55,6 +58,10 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_ByteString_clear(&session->clientNonce);
     ContinuationPointQueue_clear(&session->continuationPoints);
     session->continuationPointsSize = 0;
+#ifdef UA_ENABLE_LOGOBJECT
+    UA_LogObjectCPQueue_clear(&session->logObjectCPs);
+    session->logObjectCPsSize = 0;
+#endif
 
     UA_KeyValueMap_clear(&session->attributes);
 

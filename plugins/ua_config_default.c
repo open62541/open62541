@@ -19,6 +19,9 @@
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
+#ifdef UA_ENABLE_LOGOBJECT
+#include <open62541/plugin/logobject_backend_memory.h>
+#endif
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
@@ -550,6 +553,19 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* conf->deleteRawCapability = false; */
     /* conf->deleteEventCapability = false; */
     /* conf->deleteAtTimeDataCapability = false; */
+#endif
+
+#ifdef UA_ENABLE_LOGOBJECT
+    conf->logObjectsEnabled = true;
+    if(!conf->logObjectBackend.addRecord)
+        conf->logObjectBackend = UA_LogObjectBackend_Memory();
+    conf->serverLog.maxRecords = 1000;
+    conf->serverLog.maxStorageDuration = 0.0; /* No time-based expiry */
+    conf->serverLog.minimumSeverity = 51;     /* Information and above (Part 26, Table 9) */
+    conf->serverLog.anonymousAccess = false;  /* Authenticated users only (Part 26, 5.11) */
+    conf->maxLogRecordsPerCall = 1000;
+    conf->maxLogObjectContinuationPoints = 32;
+    conf->logOverflowEventInterval = 60000.0; /* At most one Event per minute */
 #endif
 
 #if UA_MULTITHREADING >= 100

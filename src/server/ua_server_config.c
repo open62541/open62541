@@ -86,6 +86,12 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
         config->historyDatabase.clear(&config->historyDatabase);
 #endif
 
+    /* LogObject storage */
+#ifdef UA_ENABLE_LOGOBJECT
+    if(config->logObjectBackend.clear)
+        config->logObjectBackend.clear(&config->logObjectBackend);
+#endif
+
 #ifdef UA_ENABLE_PUBSUB
     if(config->pubSubConfig.securityPolicies != NULL) {
         for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {

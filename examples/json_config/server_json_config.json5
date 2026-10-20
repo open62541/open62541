@@ -182,6 +182,19 @@
     maxPublishReqPerSession: 5,
   },
 
+  // LogObjects of OPC UA Part 26 (UA_ENABLE_LOGOBJECT). The ServerLog captures
+  // the server logger. Anonymous Sessions cannot read it unless allowed.
+  logObjectsEnabled: true,
+  serverLog: {
+    maxRecords: 1000,
+    maxStorageDuration: 0.0, // 0 = no time-based expiry
+    minimumSeverity: 51,     // Information and above
+    anonymousAccess: false,
+  },
+  maxLogRecordsPerCall: 1000,
+  maxLogObjectContinuationPoints: 32,
+  logOverflowEventInterval: 60000.0,
+
   // Historizing capability flags (UA_ENABLE_HISTORIZING).
   historizingEnabled: true,
   historizing: {

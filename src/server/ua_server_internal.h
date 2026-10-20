@@ -27,6 +27,9 @@
 #include "ua_session.h"
 #include "ua_services.h"
 #include "ua_server_async.h"
+#ifdef UA_ENABLE_LOGOBJECT
+#include "ua_server_logobject.h"
+#endif
 #include "../util/ua_util_internal.h"
 #include "ziptree.h"
 
@@ -243,6 +246,25 @@ struct UA_Server {
     /* Namespace metadata: default role permissions per namespace */
     size_t namespaceMetadataSize;
     UA_NamespaceMetadata *namespaceMetadata;
+#endif
+
+#ifdef UA_ENABLE_LOGOBJECT
+    /* OPC UA Part 26 LogObjects. The server logger is captured in place, the
+     * original logger is restored when the server is deleted. */
+    UA_Logger originalLogger;
+    UA_Boolean logObjectLoggerInstalled;
+    UA_Server *logCaptureOuter; /* Server that captured the shared logger
+                                 * after this one */
+    UA_LogObjectList logObjects;
+    UA_LogObjectEntry *serverLog; /* NULL when the feature is disabled */
+    /* LogOverflowEventType Events are emitted from the EventLoop. The delayed
+     * callback is armed from any thread, also from the logging path. The
+     * one-shot timer emits the overflows that were coalesced because the
+     * LogObject reported an overflow less than logOverflowEventInterval ago. */
+    UA_DelayedCallback overflowCallback;
+    UA_atomic(uintptr_t) overflowCallbackQueued;
+    UA_atomic(uintptr_t) overflowTimerArmed;
+    UA_UInt64 overflowTimerId;
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
