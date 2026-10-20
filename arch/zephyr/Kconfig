@@ -41,11 +41,6 @@ config OPEN62541_ENABLE_HISTORIZING
     default y
     help
         Enable basic support for historical access (client and server)
-config OPEN62541_ENABLE_DISCOVERY
-    bool "Enable discovery"
-    default y
-    help
-        Enable Discovery Service (LDS)
 config OPEN62541_ENABLE_JSON_ENCODING
     bool "Enable JSON encoding"
     default y
@@ -76,11 +71,6 @@ config OPEN62541_ENABLE_INLINABLE_EXPORT
     default n
     help
         Export 'static inline' methods as regular API
-config OPEN62541_ENABLE_DISCOVERY_MULTICAST
-    bool "Enable discovery multicast"
-    default n
-    help
-        Enable Discovery Service with multicast support (LDS-ME)
 config OPEN62541_ENABLE_ENCRYPTION_MBEDTLS
     bool "Enable mbedTLS"
     default n

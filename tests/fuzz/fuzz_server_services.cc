@@ -95,7 +95,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             UA_GetEndpointsResponse_clear(&response);
             break;
         }
-#ifdef UA_ENABLE_DISCOVERY
         case SERVICE_REGISTERSERVER: {
             UA_RegisterServerRequest request;
             UA_RegisterServerResponse response;
@@ -122,7 +121,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             UA_RegisterServer2Response_clear(&response);
             break;
         }
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
         case SERVICE_FINDSERVERSONNETWORK: {
             UA_FindServersOnNetworkRequest request;
             UA_FindServersOnNetworkResponse response;
@@ -136,8 +134,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             UA_FindServersOnNetworkResponse_clear(&response);
             break;
         }
-# endif
-#endif
         case SERVICE_CREATESESSION: {
             UA_CreateSessionRequest request;
             UA_CreateSessionResponse response;

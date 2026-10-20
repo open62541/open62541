@@ -19,7 +19,6 @@
 
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_DISCOVERY
 
 typedef struct UA_DiscoveryManager UA_DiscoveryManager;
 
@@ -461,5 +460,3 @@ UA_DiscoveryManager_new(void) {
     dm->drv.free = UA_DiscoveryManager_free;
     return &dm->drv;
 }
-
-#endif /* UA_ENABLE_DISCOVERY */

@@ -57,7 +57,7 @@ START_TEST(Server_registerDiscovery_serverNotStarted_rejected) {
      *     ... return UA_STATUSCODE_BADINTERNALERROR;
      *   }
      * The server was created but never run_startup'd. The discovery
-     * component is registered (UA_ENABLE_DISCOVERY is on) but its
+     * component is registered but its
      * state is FRESH. UA_Server_registerDiscovery must fail with
      * BADINTERNALERROR. The public cc is consumed and freed by
      * the failing call (UA_ClientConfig_clear at line 436-437). */

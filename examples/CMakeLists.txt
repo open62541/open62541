@@ -165,7 +165,7 @@ if(UA_ENABLE_NODEMANAGEMENT)
     endif()
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OR UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+if(UA_ENABLE_DRIVER_MDNS_MDNSD OR UA_ENABLE_DRIVER_MDNS_AVAHI)
     add_example(discovery_server_lds discovery/server_lds.c)
     add_example(discovery_server_register discovery/server_register.c)
     add_example(discovery_client_find_servers discovery/client_find_servers.c)

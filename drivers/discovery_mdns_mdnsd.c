@@ -12,7 +12,7 @@
 #include <open62541/driver/mdns.h>
 #include "open62541_queue.h"
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
+#ifdef UA_ENABLE_DRIVER_MDNS_MDNSD
 
 #include "mdnsd/mdnsd.h"
 #include "mdnsd/xht.h"
@@ -1531,4 +1531,4 @@ UA_MdnsDriver_Mdnsd(const UA_KeyValueMap params) {
     return &md->mdns;
 }
 
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+#endif /* UA_ENABLE_DRIVER_MDNS_MDNSD */

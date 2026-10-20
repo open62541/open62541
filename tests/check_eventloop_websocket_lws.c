@@ -13,9 +13,7 @@
 #include <libwebsockets.h>
 #include <stdio.h>
 
-#ifdef UA_ENABLE_DISCOVERY
 #include "server/ua_server_internal.h"
-#endif
 
 static UA_ByteString loadFile(const char *path) {
     UA_ByteString out = UA_BYTESTRING_NULL;
@@ -543,7 +541,6 @@ START_TEST(serverWebSocketListener) {
     UA_Server *server = startWebSocketServer(&port, &ws, false);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-#ifdef UA_ENABLE_DISCOVERY
     UA_EndpointDescription *endpoints = NULL;
     size_t endpointsSize = 0;
     ck_assert_uint_eq(
@@ -559,7 +556,6 @@ START_TEST(serverWebSocketListener) {
                                   &wssTransport));
     UA_Array_delete(endpoints, endpointsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-#endif
 
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);

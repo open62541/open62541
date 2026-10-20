@@ -61,7 +61,6 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
                      const void *request /* UA_GetEndpointsRequest */,
                      void *response /* UA_GetEndpointsResponse */);
 
-#ifdef UA_ENABLE_DISCOVERY
 
 UA_Boolean
 Service_RegisterServer(UA_Server *server, UA_Session *session,
@@ -78,7 +77,6 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                              const void *request /* UA_FindServersOnNetworkRequest */,
                              void *response /* UA_FindServersOnNetworkResponse */);
 
-#endif /* UA_ENABLE_DISCOVERY */
 
 /** SecureChannel Service Set **/
 void
