@@ -1462,157 +1462,73 @@ UA_TrustListDataType_set(const UA_TrustListDataType *src,
     return UA_TrustListDataType_add(src, dst);
 }
 
+/* Remove bytestring elements from the given list. Keeps the ordering to ensure
+ * consistent behavior. */
+static void
+byteStringListRemove(size_t *listSizeP, UA_ByteString **listP,
+                     const size_t removeSize, const UA_ByteString *remove) {
+    size_t listSize = *listSizeP;
+    UA_ByteString *list = *listP;
+
+    size_t pos = 0; /* Entries before pos are tightly packed */
+    for(size_t i = 0; i < listSize; i++) {
+        /* Check if contained in the remove-list */
+        UA_Boolean keep = true;
+        for(size_t j = 0; j < removeSize; j++) {
+            if(UA_ByteString_equal(&list[i], &remove[j])) {
+                keep = false;
+                break;
+            }
+        }
+
+        /* Reinsert into the tightly packed list or clear the memory */
+        if(keep) {
+            if(pos != i) {
+                list[pos] = list[i];
+                UA_ByteString_init(&list[i]); /* Ownership moved to pos */
+            }
+            pos++;
+        } else {
+            UA_ByteString_clear(&list[i]);
+        }
+    }
+
+    /* Resize the new list. This never fails as the size is only decreased. At
+     * worst retains the bigger array with unused last entries. */
+    (void)UA_Array_resize((void**)listP, listSizeP, pos,
+                          &UA_TYPES[UA_TYPES_BYTESTRING]);
+    *listSizeP = pos; /* Keep the logical size even if realloc fails */
+}
+
 UA_StatusCode
-UA_TrustListDataType_remove(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+UA_TrustListDataType_remove(const UA_TrustListDataType *src,
+                            UA_TrustListDataType *dst) {
     if(!dst)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(!src) {
+    if(!src)
         return UA_STATUSCODE_GOOD;
-    }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Remove Trusted Certificates */
+    if(dst->trustedCertificatesSize > 0 && src->trustedCertificatesSize > 0)
+        byteStringListRemove(&dst->trustedCertificatesSize, &dst->trustedCertificates,
+                             src->trustedCertificatesSize, src->trustedCertificates);
 
-    /* remove trusted certificates */
-    if(dst->trustedCertificatesSize > 0 && src->trustedCertificatesSize > 0) {
-        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->trustedCertificatesSize, sizeof(UA_ByteString));
-        size_t newListSize = 0;
-        size_t oldListSize = dst->trustedCertificatesSize;
-        UA_Boolean isContained = false;
-        for(size_t i = 0; i < dst->trustedCertificatesSize; i++) {
-            for(size_t j = 0; j < src->trustedCertificatesSize; j++) {
-                if(UA_ByteString_equal(&dst->trustedCertificates[i], &src->trustedCertificates[j]))
-                    isContained = true;
-            }
-            if(!isContained) {
-                UA_ByteString_copy(&dst->trustedCertificates[i], &newList[newListSize]);
-                newListSize += 1;
-            }
-            isContained = false;
-        }
-        if(newListSize < dst->trustedCertificatesSize) {
-            if(newListSize == 0) {
-                UA_free(newList);
-                newList = NULL;
-            } else {
-                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_free(newList);
-                    return retval;
-                }
-            }
-        }
-        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        dst->trustedCertificatesSize = 0;
-        dst->trustedCertificates = newList;
-        dst->trustedCertificatesSize = newListSize;
-    }
+    /* Remove Issuer Certificates */
+    if(dst->issuerCertificatesSize > 0 && src->issuerCertificatesSize > 0)
+        byteStringListRemove(&dst->issuerCertificatesSize, &dst->issuerCertificates,
+                             src->issuerCertificatesSize, src->issuerCertificates);
 
-    /* remove issuer certificates */
-    if(dst->issuerCertificatesSize > 0 && src->issuerCertificatesSize > 0) {
-        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->issuerCertificatesSize, sizeof(UA_ByteString));
-        size_t newListSize = 0;
-        size_t oldListSize = dst->issuerCertificatesSize;
-        UA_Boolean isContained = false;
-        for(size_t i = 0; i < dst->issuerCertificatesSize; i++) {
-            for(size_t j = 0; j < src->issuerCertificatesSize; j++) {
-                if(UA_ByteString_equal(&dst->issuerCertificates[i], &src->issuerCertificates[j]))
-                    isContained = true;
-            }
-            if(!isContained) {
-                UA_ByteString_copy(&dst->issuerCertificates[i], &newList[newListSize]);
-                newListSize += 1;
-            }
-            isContained = false;
-        }
-        if(newListSize < dst->issuerCertificatesSize) {
-            if(newListSize == 0) {
-                UA_free(newList);
-                newList = NULL;
-            } else {
-                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_free(newList);
-                    return retval;
-                }
-            }
-        }
-        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        dst->issuerCertificatesSize = 0;
-        dst->issuerCertificates = newList;
-        dst->issuerCertificatesSize = newListSize;
-    }
+    /* Remove Trusted CRLs */
+    if(dst->trustedCrlsSize > 0 && src->trustedCrlsSize > 0)
+        byteStringListRemove(&dst->trustedCrlsSize, &dst->trustedCrls,
+                             src->trustedCrlsSize, src->trustedCrls);
 
-    /* remove trusted crls */
-    if(dst->trustedCrlsSize > 0 && src->trustedCrlsSize > 0) {
-        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->trustedCrlsSize, sizeof(UA_ByteString));
-        size_t newListSize = 0;
-        size_t oldListSize = dst->trustedCrlsSize;
-        UA_Boolean isContained = false;
-        for(size_t i = 0; i < dst->trustedCrlsSize; i++) {
-            for(size_t j = 0; j < src->trustedCrlsSize; j++) {
-                if(UA_ByteString_equal(&dst->trustedCrls[i], &src->trustedCrls[j]))
-                    isContained = true;
-            }
-            if(!isContained) {
-                UA_ByteString_copy(&dst->trustedCrls[i], &newList[newListSize]);
-                newListSize += 1;
-            }
-            isContained = false;
-        }
-        if(newListSize < dst->trustedCrlsSize) {
-            if(newListSize == 0) {
-                UA_free(newList);
-                newList = NULL;
-            } else {
-                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_free(newList);
-                    return retval;
-                }
-            }
-        }
-        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        dst->trustedCrlsSize = 0;
-        dst->trustedCrls = newList;
-        dst->trustedCrlsSize = newListSize;
-    }
+    /* Remove Issuer CRLs */
+    if(dst->issuerCrlsSize > 0 && src->issuerCrlsSize > 0)
+        byteStringListRemove(&dst->issuerCrlsSize, &dst->issuerCrls,
+                             src->issuerCrlsSize, src->issuerCrls);
 
-    /* remove issuer crls */
-    if(dst->issuerCrlsSize > 0 && src->issuerCrlsSize > 0) {
-        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->issuerCrlsSize, sizeof(UA_ByteString));
-        size_t newListSize = 0;
-        size_t oldListSize = dst->issuerCrlsSize;
-        UA_Boolean isContained = false;
-        for(size_t i = 0; i < dst->issuerCrlsSize; i++) {
-            for(size_t j = 0; j < src->issuerCrlsSize; j++) {
-                if(UA_ByteString_equal(&dst->issuerCrls[i], &src->issuerCrls[j]))
-                    isContained = true;
-            }
-            if(!isContained) {
-                UA_ByteString_copy(&dst->issuerCrls[i], &newList[newListSize]);
-                newListSize += 1;
-            }
-            isContained = false;
-        }
-        if(newListSize < dst->issuerCrlsSize) {
-            if(newListSize == 0) {
-                UA_free(newList);
-                newList = NULL;
-            } else {
-                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_free(newList);
-                    return retval;
-                }
-            }
-        }
-        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        dst->issuerCrlsSize = 0;
-        dst->issuerCrls = newList;
-        dst->issuerCrlsSize = newListSize;
-    }
-
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_UInt32
