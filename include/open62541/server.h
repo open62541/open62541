@@ -23,9 +23,7 @@
 #include <open62541/common.h>
 #include <open62541/util.h>
 #include <open62541/types.h>
-#ifdef UA_ENABLE_DISCOVERY
 #include <open62541/client.h>
-#endif
 
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/certificategroup.h>
@@ -1864,7 +1862,6 @@ UA_Server_createEventEx(UA_Server *server,
  *
  * See ``examples/events/server_modelchange.c`` for a complete local example. */
 
-#ifdef UA_ENABLE_DISCOVERY
 
 /**
  * Remote Discovery Server Registration
@@ -1960,7 +1957,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deregisterServerOnNetwork(UA_Server *server,
                                     UA_String serverName);
 
-#endif /* UA_ENABLE_DISCOVERY */
 
 /**
  * .. _drivers:
@@ -2574,7 +2570,6 @@ struct UA_ServerConfig {
 
     /* Discovery
      * ~~~~~~~~~ */
-#ifdef UA_ENABLE_DISCOVERY
     /* Enable the internal management of RegisteredServers (besides the local
      * server itself) via the RegisterServer and FindServer services. */
     UA_Boolean registeredServersEnabled;
@@ -2598,7 +2593,6 @@ struct UA_ServerConfig {
      * implement a Discovery Server that detects other servers on the
      * network. */
     UA_Boolean serversOnNetworkEnabled;
-#endif
 
     /* Subscriptions
      * ~~~~~~~~~~~~~ */

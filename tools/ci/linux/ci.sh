@@ -504,7 +504,6 @@ function unit_tests_mdnsd {
     # This job intentionally exercises that multicast discovery driver path.
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_SEMAPHORE=ON \
           ..
     make ${MAKEOPTS} check_discovery_mdnsd
@@ -710,7 +709,6 @@ function run_examples {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_PUBSUB_SKS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -757,7 +755,6 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_PUBSUB_SKS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}

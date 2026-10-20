@@ -475,10 +475,8 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_datachange_deadband_typekinds.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST AND NOT WIN32)
+if(NOT WIN32)
     ua_add_test(server/check_findservers_on_network.c)
-    target_include_directories(check_findservers_on_network PRIVATE
-                               "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -614,17 +612,14 @@ if(UA_ENABLE_ENCRYPTION)
         MESSAGE(WARNING "Certificate authentication with LibreSSL as crypto backend is not supported.")
     endif()
 
-    if(UA_ENABLE_DISCOVERY)
-        ua_add_test(server/check_discovery.c)
-    endif()
+    ua_add_test(server/check_discovery.c)
 
     if(UA_ENABLE_DRIVER_GDS_RECEIVER)
         ua_add_test(encryption/check_gds_informationmodel.c)
     endif()
 endif()
 
-if(UA_ENABLE_DISCOVERY AND (UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OR
-                            UA_ENABLE_DISCOVERY_MULTICAST_AVAHI))
+if(UA_ENABLE_DRIVER_MDNS_MDNSD OR UA_ENABLE_DRIVER_MDNS_AVAHI)
     ua_add_test(server/check_discovery_mdnsd.c)
     if(NOT MSVC)
         target_compile_options(check_discovery_mdnsd PRIVATE

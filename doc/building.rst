@@ -38,7 +38,7 @@ Building with CMake on Debian/Ubuntu
 
    # select additional features
    ccmake ..
-   cmake .. -DUA_ENABLE_DRIVER_MDNS_AVAHI=ON # use Avahi for multicast discovery
+   cmake .. -DUA_ENABLE_DRIVER_MDNS_AVAHI=ON -DUA_ENABLE_DRIVER_MDNS_MDNSD=OFF # use Avahi for multicast discovery
    make
 
    # build documentation
@@ -289,8 +289,10 @@ Detailed SDK Features
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
 
-**UA_ENABLE_DISCOVERY**
-   Enable Discovery Service (LDS)
+Discovery services are always compiled. Enable registration management with
+``UA_ServerConfig.registeredServersEnabled`` and network discovery management
+with ``UA_ServerConfig.serversOnNetworkEnabled``. mDNS announcement and browsing
+require an attached mDNS driver.
 
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support

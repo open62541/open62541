@@ -118,7 +118,6 @@ option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
 option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" ON)
-option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
@@ -164,9 +163,14 @@ option(UA_ENABLE_DRIVER_GDS_RECEIVER "Enable the GDS Receiver driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_GDS_RECEIVER)
 option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
-set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
-set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
 set(UA_FILE_MDNSD "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c")
+set(MDNS_MDNSD_DEFAULT OFF)
+if(UA_ARCHITECTURE_POSIX AND
+   NOT UA_ENABLE_DRIVER_MDNS_AVAHI AND EXISTS "${UA_FILE_MDNSD}")
+    set(MDNS_MDNSD_DEFAULT ON)
+endif()
+option(UA_ENABLE_DRIVER_MDNS_MDNSD "Enable the bundled mdnsd mDNS discovery driver" ${MDNS_MDNSD_DEFAULT})
+mark_as_advanced(UA_ENABLE_DRIVER_MDNS_MDNSD)
 
 option(UA_ENABLE_LWS
        "Enable the libwebsockets provider for HTTP and WebSocket transports"
@@ -303,7 +307,6 @@ endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable options not passed in the build script, to also fuzzy-test this code
-    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_SUBSCRIPTIONS ON CACHE STRING "" FORCE)
@@ -314,18 +317,6 @@ endif()
 #if((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_NAMESPACE_ZERO STREQUAL "FULL")))
 #    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
 #endif()
-
-if(UA_ENABLE_DRIVER_MDNS_AVAHI AND NOT UA_ENABLE_DISCOVERY)
-    message(FATAL_ERROR "UA_ENABLE_DRIVER_MDNS_AVAHI requires UA_ENABLE_DISCOVERY")
-endif()
-
-if(UA_ENABLE_DISCOVERY)
-    if(UA_ENABLE_DRIVER_MDNS_AVAHI)
-        set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI ON)
-    elseif(UA_ARCHITECTURE_POSIX AND EXISTS "${UA_FILE_MDNSD}")
-        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
-    endif()
-endif()
 
 # Advanced options
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
@@ -646,7 +637,7 @@ if(MINGW)
     list(APPEND open62541_LIBRARIES ws2_32 ssp)
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+if(UA_ENABLE_DRIVER_MDNS_AVAHI)
     find_package(PkgConfig REQUIRED)
     pkg_search_module(AVAHI REQUIRED avahi-client)
     include_directories(${AVAHI_INCLUDE_DIRS})
@@ -987,6 +978,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_transport_tcp.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_transport_tcp_reverse.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
@@ -1005,7 +997,15 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c)
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
+                # client
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_http.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c)
 
 if(UA_ENABLE_DRIVER_GDS_RECEIVER)
     list(APPEND exported_headers
@@ -1052,16 +1052,6 @@ set(lib_sources ${lib_sources}
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
-endif()
-
-if(UA_ENABLE_DISCOVERY OR UA_ENABLE_AMALGAMATION)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_http.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
@@ -1126,7 +1116,7 @@ else()
     message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+if(UA_ENABLE_DRIVER_MDNS_MDNSD)
     if(NOT UA_ARCHITECTURE_POSIX)
         message(FATAL_ERROR "The bundled mdnsd discovery driver requires UA_ARCHITECTURE=posix")
     endif()
@@ -1265,7 +1255,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/log.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+if(UA_ENABLE_DRIVER_MDNS_AVAHI)
     list(APPEND lib_sources
          ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_avahi.c)
 endif()
@@ -1500,10 +1490,6 @@ if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
-endif()
-
-if(UA_ENABLE_DISCOVERY)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c)
 endif()
 
 #########################
@@ -1765,7 +1751,7 @@ function(include_directories_private)
 endfunction()
 
 include_directories_private("${PROJECT_SOURCE_DIR}/deps")
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+if(UA_ENABLE_DRIVER_MDNS_MDNSD)
     include_directories_private("${PROJECT_BINARY_DIR}/src_generated/mdnsd")
 endif()
 

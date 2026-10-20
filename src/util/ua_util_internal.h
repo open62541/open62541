@@ -296,11 +296,9 @@ typedef union {
     UA_RequestHeader requestHeader;
     UA_FindServersRequest findServersRequest;
     UA_GetEndpointsRequest getEndpointsRequest;
-#ifdef UA_ENABLE_DISCOVERY
     UA_FindServersOnNetworkRequest findServersOnNetworkRequest;
     UA_RegisterServerRequest registerServerRequest;
     UA_RegisterServer2Request registerServer2Request;
-#endif
     UA_OpenSecureChannelRequest openSecureChannelRequest;
     UA_CreateSessionRequest createSessionRequest;
     UA_ActivateSessionRequest activateSessionRequest;
@@ -341,13 +339,9 @@ typedef union {
     UA_ResponseHeader responseHeader;
     UA_FindServersResponse findServersResponse;
     UA_GetEndpointsResponse getEndpointsResponse;
-#ifdef UA_ENABLE_DISCOVERY
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_FindServersOnNetworkResponse findServersOnNetworkResponse;
-# endif
     UA_RegisterServerResponse registerServerResponse;
     UA_RegisterServer2Response registerServer2Response;
-#endif
     UA_OpenSecureChannelResponse openSecureChannelResponse;
     UA_CreateSessionResponse createSessionResponse;
     UA_ActivateSessionResponse activateSessionResponse;

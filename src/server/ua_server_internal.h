@@ -87,7 +87,6 @@ UA_StatusCode initNS0RBAC(UA_Server *server);
 
 #endif /* UA_ENABLE_RBAC */
 
-#ifdef UA_ENABLE_DISCOVERY
 
 typedef struct RegisteredServerRecord {
     LIST_ENTRY(RegisteredServerRecord) pointers;
@@ -95,7 +94,6 @@ typedef struct RegisteredServerRecord {
     UA_DateTime lastSeen;
 } RegisteredServerRecord;
 
-#endif /* UA_ENABLE_DISCOVERY */
 
 typedef struct session_list_entry {
     UA_DelayedCallback cleanupCallback;
@@ -245,7 +243,6 @@ struct UA_Server {
     UA_NamespaceMetadata *namespaceMetadata;
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
     /* Registered Servers */
     LIST_HEAD(, RegisteredServerRecord) registeredServers;
     size_t registeredServersSize;
@@ -256,7 +253,6 @@ struct UA_Server {
     UA_DateTime lastCounterResetTime;
     size_t serversOnNetworkSize;
     UA_ServerOnNetwork *serversOnNetwork;
-#endif /* UA_ENABLE_DISCOVERY */
 };
 
 /* In case the configuration was updated. Make the ->next pointer in the
@@ -849,7 +845,6 @@ UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
-#ifdef UA_ENABLE_DISCOVERY
 UA_Driver * UA_DiscoveryManager_new(void);
 
 /* Narrow registration-state access for white-box tests. */
@@ -859,7 +854,6 @@ UA_DiscoveryManager_getPendingRegistration(UA_Server *server,
 UA_StatusCode
 UA_DiscoveryManager_cancelPendingRegistration(UA_Server *server);
 void cleanupRegisteredServers(UA_Server *server);
-#endif
 
 /* Binary protocol handling shared by stream-based server transports */
 #define UA_MAXSERVERCONNECTIONS 16

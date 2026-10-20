@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Discovery is controlled by server configuration
+
+`UA_ENABLE_DISCOVERY` and `UA_ENABLE_DISCOVERY_MULTICAST` are removed. Use
+`UA_ServerConfig.registeredServersEnabled` and `serversOnNetworkEnabled` to
+enable registration management and network discovery services. mDNS announcement
+and browsing require an attached driver, built with
+`UA_ENABLE_DRIVER_MDNS_MDNSD` or `UA_ENABLE_DRIVER_MDNS_AVAHI`.
+
 ### Optional UTC-only local time on POSIX
 
 The POSIX CMake option `UA_ARCH_LOCAL_TIME_IS_UTC` (default OFF) makes

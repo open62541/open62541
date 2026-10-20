@@ -22,10 +22,8 @@
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
-#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_AMALGAMATION)
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#endif
 
 #include "../deps/mp_printf.h"
 
@@ -526,9 +524,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
     conf->registeredServerCleanupTimeout = 60 * 60;
-#endif
 
 #ifdef UA_ENABLE_HISTORIZING
     /* conf->accessHistoryDataCapability = false; */
@@ -1999,7 +1995,6 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
-#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_AMALGAMATION)
 
 /***************************/
 /* Default Client Settings */
@@ -2458,5 +2453,3 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
     return clientConfig_setAuthenticationSecurityPolicies(config, certificateAuth, privateKeyAuth);
 }
 #endif
-
-#endif /* UA_ENABLE_DISCOVERY OR UA_ENABLE_AMALGAMATION*/
