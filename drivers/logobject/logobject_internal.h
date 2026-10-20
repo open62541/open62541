@@ -69,6 +69,13 @@ typedef struct {
     UA_MethodCallback previous;
 } LogObjectBoundMethod;
 
+/* The lifecycle of the LogObjectType or a subtype. The driver chains to the
+ * lifecycle the application had set and restores it when it stops. */
+typedef struct {
+    UA_NodeId typeId;
+    UA_NodeTypeLifecycle application;
+} LogObjectTypeLifecycle;
+
 typedef struct LogObjectDriver {
     UA_Driver driver; /* Must be the first member */
     UA_LogObjectBackend backend;
@@ -76,6 +83,7 @@ typedef struct LogObjectDriver {
     /* Parameters, read on every start */
     UA_Boolean serverLogEnabled;
     UA_LogObjectSettings serverLogSettings;
+    UA_LogObjectSettings defaultSettings; /* For instances without Properties */
     UA_UInt32 maxRecordsPerCall;
     UA_UInt16 maxContinuationPoints;
 
@@ -90,6 +98,19 @@ typedef struct LogObjectDriver {
 
     LogObjectBoundMethod *boundMethods;
     size_t boundMethodsSize;
+
+    /* Lifecycles of the LogObjectType and its subtypes. A lifecycle that the
+     * application has chained to the driver's stays installed when the driver
+     * stops. */
+    LogObjectTypeLifecycle *types;
+    size_t typesSize;
+    const UA_NodeId *constructing; /* Node in the application constructor */
+    const UA_NodeId *destructing;  /* Node in the application destructor */
+
+    /* LogObjects closed when the driver stopped. Their records are deleted at
+     * the next start if the LogObject no longer exists. */
+    UA_NodeId *closedIds;
+    size_t closedIdsSize;
 
     LIST_HEAD(, LogObjectContinuationPoint) continuationPoints;
 
@@ -144,6 +165,21 @@ unregisterLogObjectNode(LogObjectDriver *lod, LogObjectEntry *entry,
 
 void
 unbindLogObjectMethods(LogObjectDriver *lod);
+
+/* Serve every instance of the LogObjectType and its subtypes: install the
+ * lifecycles of the types and register the existing instances */
+UA_StatusCode
+serveLogObjectInstances(LogObjectDriver *lod);
+
+/* Restore the lifecycles of the types. The ones the application has chained
+ * to stay installed. */
+void
+restoreLogObjectTypeLifecycles(LogObjectDriver *lod);
+
+/* Free the lifecycles that stayed installed. The driver is not called any
+ * more. */
+void
+clearLogObjectTypeLifecycles(LogObjectDriver *lod);
 
 /* Capture the server logger into the ServerLog. The capture is installed last
  * when the driver starts and removed first when it stops. */

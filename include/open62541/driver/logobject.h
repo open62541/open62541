@@ -194,6 +194,16 @@ UA_LogObjectDriver_new(const UA_LogObjectBackend *backend, UA_Driver **outDriver
  * 0:server-log-minimum-severity [UInt16]
  *    MinimumSeverity of the ServerLog, 1..1000 (default: 51, Information and
  *    above, Part 26 Table 9).
+ * 0:default-max-records [UInt32]
+ *    MaxRecords of the LogObjects in the information model without a valid
+ *    MaxRecords Property, at least 1 (default: 1000).
+ * 0:default-max-storage-duration [Duration]
+ *    MaxStorageDuration in milliseconds of the LogObjects without a valid
+ *    MaxStorageDuration Property. 0 disables the time-based expiry (default:
+ *    0).
+ * 0:default-minimum-severity [UInt16]
+ *    MinimumSeverity of the LogObjects without a valid MinimumSeverity
+ *    Property, 1..1000 (default: 1).
  * 0:max-records-per-call [UInt32]
  *    Server-imposed limit for the LogRecords returned by one GetRecords call.
  *    0 = only the MaxReturnRecords argument of the client applies (default:
@@ -243,6 +253,42 @@ UA_LogObjectDriver_new(const UA_LogObjectBackend *backend, UA_Driver **outDriver
  * driver must not run concurrently with log calls through the same logger
  * from other threads.
  *
+ * LogObjects in the Information Model
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Every Object of the LogObjectType or one of its subtypes is a LogObject of
+ * the driver: Objects added with ``UA_Server_addObjectNode``, created by the
+ * instantiation of an ObjectType (e.g. the log of a device) or loaded from the
+ * nodeset of a companion specification. The InstanceDeclarations below
+ * ObjectTypes are not LogObjects. The driver installs the node lifecycle of
+ * the LogObjectType and its subtypes, chained to the lifecycle the application
+ * had set, and registers the existing instances when it starts. An
+ * application that sets the lifecycle of such a type while the driver runs
+ * chains to the driver's lifecycle (``UA_Server_getNodeTypeLifecycle``). That
+ * lifecycle then stays installed when the driver stops and must be restored
+ * by the application before the driver is removed.
+ *
+ * The settings of a LogObject come from its MaxRecords, MaxStorageDuration and
+ * MinimumSeverity Properties if they are present and valid, otherwise from
+ * the default parameters. The Properties are read when the LogObject is
+ * registered: when the driver starts or when the Object is finished. Add them
+ * between ``UA_Server_addNode_begin`` and ``UA_Server_addNode_finish`` or
+ * change the settings later with ``UA_LogObjectDriver_setSettings``. The
+ * effective settings are written back into the Properties. Deleting the
+ * Object deletes its records. The records of every LogObject are also added
+ * to the ServerLog (Part 26, 7.2).
+ *
+ * The Logs Folder references every LogObject (Part 26, 7.3). A LogObject that
+ * is the component of another Object, e.g. of a device, therefore has a second
+ * hierarchical parent and is not deleted together with that Object. Delete it
+ * explicitly.
+ *
+ * Subtypes of the LogObjectType that are added after the driver started, e.g.
+ * by a nodeset that is loaded at runtime, are served after a refresh. Returns
+ * ``Bad_InvalidState`` if the driver is not started. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_LogObjectDriver_refresh(UA_Driver *driver);
+
+/**
  * Application Records
  * ~~~~~~~~~~~~~~~~~~~
  * Add a record to a LogObject of the started driver. The record is copied by

@@ -191,6 +191,11 @@ configureDriver(LogObjectDriver *lod) {
     lod->serverLogSettings = defaultServerLog;
     readSettingsParams(lod, "server-log", &lod->serverLogSettings, &res);
 
+    /* The LogObjects in the information model without the Properties */
+    UA_LogObjectSettings defaultInstance = {1000, 0.0, 1};
+    lod->defaultSettings = defaultInstance;
+    readSettingsParams(lod, "default", &lod->defaultSettings, &res);
+
     lod->maxRecordsPerCall = 1000;
     const UA_UInt32 *perCall = (const UA_UInt32*)
         driverParam(lod, "max-records-per-call", &UA_TYPES[UA_TYPES_UINT32], &res);
@@ -205,10 +210,10 @@ configureDriver(LogObjectDriver *lod) {
 
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    if(!validSettings(&lod->serverLogSettings)) {
+    if(!validSettings(&lod->serverLogSettings) || !validSettings(&lod->defaultSettings)) {
         UA_LOG_ERROR(UA_Server_getConfig(lod->driver.server)->logging,
                      UA_LOGCATEGORY_SERVER,
-                     "LogObject: Invalid settings of the ServerLog");
+                     "LogObject: Invalid settings of the ServerLog or the defaults");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     return UA_STATUSCODE_GOOD;
@@ -218,14 +223,45 @@ configureDriver(LogObjectDriver *lod) {
 /* Lifecycle */
 /*************/
 
-/* Undo everything start did. Idempotent, also for a partial start. */
+/* Remember the closed LogObjects to find the orphaned records at the next
+ * start */
+static void
+rememberClosedLogObject(LogObjectDriver *lod, const UA_NodeId *id) {
+    UA_NodeId *ids = (UA_NodeId*)
+        UA_realloc(lod->closedIds, (lod->closedIdsSize + 1) * sizeof(UA_NodeId));
+    if(!ids)
+        return;
+    lod->closedIds = ids;
+    if(UA_NodeId_copy(id, &lod->closedIds[lod->closedIdsSize]) == UA_STATUSCODE_GOOD)
+        lod->closedIdsSize++;
+}
+
+/* Delete the records of LogObjects that were deleted while the driver was
+ * stopped. Their destructor did not run. */
+static void
+deleteOrphanedRecords(LogObjectDriver *lod) {
+    for(size_t i = 0; i < lod->closedIdsSize; i++) {
+        if(!findLogObjectEntry(lod, &lod->closedIds[i]))
+            lod->backend.unregisterLogObject(lod->driver.server, lod->backend.context,
+                                             &lod->closedIds[i], true);
+    }
+    UA_Array_delete(lod->closedIds, lod->closedIdsSize, &UA_TYPES[UA_TYPES_NODEID]);
+    lod->closedIds = NULL;
+    lod->closedIdsSize = 0;
+}
+
+/* Undo everything start did. Idempotent, also for a partial start. The type
+ * lifecycles are restored before the ServerLog is deleted, so that the
+ * deletion does not drop its records. */
 static void
 stopDriver(LogObjectDriver *lod) {
     removeLogCapture(lod);
+    restoreLogObjectTypeLifecycles(lod);
     unbindLogObjectMethods(lod);
     LogObjectEntry *entry, *tmp;
     LIST_FOREACH_SAFE(entry, &lod->logObjects, pointers, tmp) {
         unregisterLogObjectNode(lod, entry, false);
+        rememberClosedLogObject(lod, &entry->nodeId);
         if(entry != &lod->serverLog) {
             UA_NodeId_clear(&entry->nodeId);
             UA_free(entry);
@@ -242,23 +278,45 @@ startDriver(LogObjectDriver *lod) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
     res = createServerLogNodes(lod);
-    if(res != UA_STATUSCODE_GOOD || !lod->serverLogEnabled)
-        return res;
-
-    /* Register the ServerLog */
-    memset(&lod->serverLog, 0, sizeof(LogObjectEntry));
-    lod->serverLog.nodeId = UA_NS0ID(SERVERLOG);
-    lod->serverLog.settings = lod->serverLogSettings;
-    lod->serverLog.isServerLog = true;
-    res = registerLogObjectNode(lod, &lod->serverLog);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    lod->serverLogRegistered = true;
+
+    /* Register the ServerLog with the settings of the parameters */
+    if(lod->serverLogEnabled) {
+        memset(&lod->serverLog, 0, sizeof(LogObjectEntry));
+        lod->serverLog.nodeId = UA_NS0ID(SERVERLOG);
+        lod->serverLog.settings = lod->serverLogSettings;
+        lod->serverLog.isServerLog = true;
+        res = registerLogObjectNode(lod, &lod->serverLog);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        lod->serverLogRegistered = true;
+    }
+
+    /* Serve all other LogObjects of the information model */
+    res = serveLogObjectInstances(lod);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    deleteOrphanedRecords(lod);
 
     /* Capture the server logger. This is done last so that no record is
      * generated before the ServerLog is ready. */
-    installLogCapture(lod);
+    if(lod->serverLogRegistered)
+        installLogCapture(lod);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_LogObjectDriver_refresh(UA_Driver *driver) {
+    if(!isLogObjectDriver(driver) || !driver->server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    UA_StatusCode res = UA_STATUSCODE_BADINVALIDSTATE;
+    if(driver->state == UA_LIFECYCLESTATE_STARTED)
+        res = serveLogObjectInstances((LogObjectDriver*)driver);
+    el->unlock(el);
+    return res;
 }
 
 static UA_StatusCode
@@ -303,6 +361,8 @@ LogObjectDriver_free(UA_Driver *drv) {
     if(drv->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINVALIDSTATE;
     LogObjectDriver *lod = (LogObjectDriver*)drv;
+    UA_Array_delete(lod->closedIds, lod->closedIdsSize, &UA_TYPES[UA_TYPES_NODEID]);
+    clearLogObjectTypeLifecycles(lod);
     if(lod->backend.clear)
         lod->backend.clear(&lod->backend);
     UA_KeyValueMap_clear(&drv->params);
