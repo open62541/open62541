@@ -221,6 +221,7 @@ configureDriver(LogObjectDriver *lod) {
 /* Undo everything start did. Idempotent, also for a partial start. */
 static void
 stopDriver(LogObjectDriver *lod) {
+    removeLogCapture(lod);
     unbindLogObjectMethods(lod);
     LogObjectEntry *entry, *tmp;
     LIST_FOREACH_SAFE(entry, &lod->logObjects, pointers, tmp) {
@@ -250,9 +251,14 @@ startDriver(LogObjectDriver *lod) {
     lod->serverLog.settings = lod->serverLogSettings;
     lod->serverLog.isServerLog = true;
     res = registerLogObjectNode(lod, &lod->serverLog);
-    if(res == UA_STATUSCODE_GOOD)
-        lod->serverLogRegistered = true;
-    return res;
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    lod->serverLogRegistered = true;
+
+    /* Capture the server logger. This is done last so that no record is
+     * generated before the ServerLog is ready. */
+    installLogCapture(lod);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode

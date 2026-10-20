@@ -17,6 +17,24 @@ _UA_BEGIN_DECLS
 
 #define UA_DRIVER_LOGOBJECT_NAME "logobject"
 
+/* Maximum length of a message captured from the server logger. Longer
+ * messages are truncated. The buffer lives on the stack, the logging path
+ * does not allocate memory. */
+#define UA_LOGOBJECT_MAXMESSAGELENGTH 1024
+
+/* Add to an atomic counter. Returns the value before the addition. */
+static UA_INLINE uintptr_t
+logObjectAtomicAdd(UA_atomic(uintptr_t) *value, uintptr_t delta) {
+    uintptr_t current = UA_atomic_load(value);
+    for(;;) {
+        uintptr_t expected = current;
+        UA_atomic_cmpxchg(value, &expected, current + delta);
+        if(expected == current)
+            return current;
+        current = expected;
+    }
+}
+
 /* A LogObject served by the driver */
 typedef struct LogObjectEntry {
     LIST_ENTRY(LogObjectEntry) pointers;
@@ -74,6 +92,15 @@ typedef struct LogObjectDriver {
     size_t boundMethodsSize;
 
     LIST_HEAD(, LogObjectContinuationPoint) continuationPoints;
+
+    /* Capture of the server logger into the ServerLog */
+    UA_Logger *capturedLogger; /* The rewritten logger, NULL without capture */
+    UA_Logger originalLogger;  /* Content of the logger before the capture */
+    struct LogObjectDriver *captureOuter; /* Driver that captured the shared
+                                           * logger after this one */
+    UA_atomic(uintptr_t) capturing;
+    UA_atomic(uintptr_t) captureInFlight;
+    UA_atomic(uintptr_t) serverLogMinimumSeverity;
 } LogObjectDriver;
 
 /* Identify the driver before casting a generic UA_Driver */
@@ -117,6 +144,17 @@ unregisterLogObjectNode(LogObjectDriver *lod, LogObjectEntry *entry,
 
 void
 unbindLogObjectMethods(LogObjectDriver *lod);
+
+/* Capture the server logger into the ServerLog. The capture is installed last
+ * when the driver starts and removed first when it stops. */
+void
+installLogCapture(LogObjectDriver *lod);
+
+void
+removeLogCapture(LogObjectDriver *lod);
+
+UA_UInt16
+logLevelToSeverity(UA_LogLevel level);
 
 /* Methods and continuation points */
 UA_StatusCode

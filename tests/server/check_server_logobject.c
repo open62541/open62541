@@ -4,6 +4,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/driver/logobject.h>
 
@@ -172,6 +173,7 @@ typedef struct {
     UA_UInt16 maxContinuationPoints;
     const UA_LogObjectBackend *backend; /* NULL = memory backend */
     UA_UInt16 port;
+    UA_Logger *logger; /* NULL = stdout logger of the config */
 } DriverOptions;
 
 static DriverOptions
@@ -211,6 +213,7 @@ newLogObjectServer(const DriverOptions *o) {
         UA_Server_delete(server);
     UA_ServerConfig sc;
     memset(&sc, 0, sizeof(UA_ServerConfig));
+    sc.logging = o->logger;
     UA_StatusCode res = UA_ServerConfig_setMinimal(&sc, o->port, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     sc.eventLoop->dateTime_now = UA_DateTime_now_fake;
@@ -1170,6 +1173,355 @@ START_TEST(backendContract) {
     customBackendFails = false;
 } END_TEST
 
+/* --- Capture of the server logger (Part 26, 7.2) --- */
+
+/* A static logger that counts the forwarded messages */
+static int forwardedCount = 0;
+static void
+countingLog(void *context, UA_LogLevel level, UA_LogCategory category,
+            const char *msg, va_list args) {
+    forwardedCount++;
+}
+static UA_Logger countingLogger = {countingLog, NULL, NULL};
+
+static void
+resetCountingLogger(void) {
+    forwardedCount = 0;
+    countingLogger.log = countingLog;
+    countingLogger.context = NULL;
+    countingLogger.clear = NULL;
+}
+
+/* All records of the ServerLog. The caller clears the result. */
+static UA_LogRecordsDataType
+readServerLog(void) {
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&cp);
+    return results;
+}
+
+static const UA_LogRecord *
+findRecord(const UA_LogRecordsDataType *results, const char *text) {
+    for(size_t i = 0; i < results->logRecordArraySize; i++) {
+        if(stringEquals(&results->logRecordArray[i].message.text, text))
+            return &results->logRecordArray[i];
+    }
+    return NULL;
+}
+
+START_TEST(captureLogOutput) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "before start");
+    startDriver();
+
+    UA_String str = UA_STRING("abc");
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "marker %S", str);
+    UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_NETWORK, "debug marker");
+
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "before start") == NULL);
+    const UA_LogRecord *r = findRecord(&results, "marker abc");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 180);
+    ck_assert_int_eq(r->time, UA_DateTime_now_fake(NULL));
+    ck_assert_uint_eq(r->message.locale.length, 0);
+    ck_assert(r->sourceName != NULL);
+    ck_assert(stringEquals(r->sourceName, "Server"));
+    ck_assert(r->eventType == NULL);
+    ck_assert(r->sourceNode == NULL);
+    ck_assert(r->traceContext == NULL);
+    ck_assert_uint_eq(r->additionalDataSize, 0);
+#if UA_LOGLEVEL <= 200
+    /* Levels below the level of the stdout logger are captured as well, only
+     * UA_LOGLEVEL filters at compile time */
+    r = findRecord(&results, "debug marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 40);
+    ck_assert(stringEquals(r->sourceName, "Network"));
+#endif
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+/* A message longer than the buffer is stored truncated, without the
+ * terminating zero */
+START_TEST(captureTruncated) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    char longMessage[2 * UA_LOGOBJECT_MAXMESSAGELENGTH];
+    memset(longMessage, 'x', sizeof(longMessage) - 1);
+    longMessage[sizeof(longMessage) - 1] = 0;
+    UA_LOG_ERROR(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                 "%s", longMessage);
+    UA_LogRecordsDataType results = readServerLog();
+    const UA_LogRecord *r = NULL;
+    for(size_t i = 0; i < results.logRecordArraySize; i++) {
+        const UA_String *t = &results.logRecordArray[i].message.text;
+        if(t->length > 0 && t->data[0] == 'x')
+            r = &results.logRecordArray[i];
+    }
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->message.text.length, UA_LOGOBJECT_MAXMESSAGELENGTH - 1);
+    for(size_t i = 0; i < r->message.text.length; i++)
+        ck_assert_uint_eq(r->message.text.data[i], 'x');
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+START_TEST(minimumSeverityGating) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.minimumSeverity = 200;
+    newLogObjectServer(&o);
+    startDriver();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_INFO(config->logging, UA_LOGCATEGORY_SERVER, "info marker");
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "warning marker");
+    UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER, "error marker");
+
+    /* Records added via the API are gated as well */
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 100;
+    r.message = UA_LOCALIZEDTEXT("", "api below minimum");
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_GOOD);
+
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "info marker") == NULL);
+    ck_assert(findRecord(&results, "warning marker") == NULL);
+    ck_assert(findRecord(&results, "error marker") != NULL);
+    ck_assert(findRecord(&results, "api below minimum") == NULL);
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+START_TEST(severityMapping) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+#if UA_LOGLEVEL <= 100
+    UA_LOG_TRACE(config->logging, UA_LOGCATEGORY_SERVER, "trace marker");
+#endif
+#if UA_LOGLEVEL <= 200
+    UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_SESSION, "debug marker");
+#endif
+    UA_LOG_INFO(config->logging, UA_LOGCATEGORY_CLIENT, "info marker");
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURECHANNEL, "warning marker");
+    UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_PUBSUB, "error marker");
+    UA_LOG_FATAL(config->logging, UA_LOGCATEGORY_DISCOVERY, "fatal marker");
+
+    UA_LogRecordsDataType results = readServerLog();
+    const UA_LogRecord *r;
+#if UA_LOGLEVEL <= 100
+    r = findRecord(&results, "trace marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 10);
+    ck_assert(stringEquals(r->sourceName, "Server"));
+#endif
+#if UA_LOGLEVEL <= 200
+    r = findRecord(&results, "debug marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 40);
+    ck_assert(stringEquals(r->sourceName, "Session"));
+#endif
+    r = findRecord(&results, "info marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 80);
+    ck_assert(stringEquals(r->sourceName, "Client"));
+    r = findRecord(&results, "warning marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 180);
+    ck_assert(stringEquals(r->sourceName, "SecureChannel"));
+    r = findRecord(&results, "error marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 230);
+    ck_assert(stringEquals(r->sourceName, "PubSub"));
+    r = findRecord(&results, "fatal marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 500);
+    ck_assert(stringEquals(r->sourceName, "Discovery"));
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+/* The logger is wrapped while the driver runs and restored when it stops */
+START_TEST(loggerWrappedAndRestored) {
+    resetCountingLogger();
+    DriverOptions o = defaultOptions();
+    o.logger = &countingLogger;
+    newLogObjectServer(&o);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert(config->logging == &countingLogger);
+    ck_assert(countingLogger.log == countingLog);
+
+    /* Wrapped in place: same structure, different callback */
+    startDriver();
+    ck_assert(config->logging == &countingLogger);
+    ck_assert(countingLogger.log != countingLog);
+
+    /* Still forwarded to the original logger ... */
+    int before = forwardedCount;
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "forwarded");
+    ck_assert_int_eq(forwardedCount, before + 1);
+
+    /* ... and captured */
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "forwarded") != NULL);
+    UA_LogRecordsDataType_clear(&results);
+
+    /* Restored when the driver stops, wrapped again when it starts */
+    driver->stop(driver);
+    ck_assert(countingLogger.log == countingLog);
+    ck_assert(countingLogger.context == NULL);
+    ck_assert(countingLogger.clear == NULL);
+    startDriver();
+    ck_assert(countingLogger.log != countingLog);
+    driver->stop(driver);
+    ck_assert(countingLogger.log == countingLog);
+} END_TEST
+
+/* The constant stdout logger is not rewritten */
+START_TEST(constLoggerSkipped) {
+    DriverOptions o = defaultOptions();
+    o.logger = (UA_Logger*)(uintptr_t)UA_Log_Stdout;
+    newLogObjectServer(&o);
+    startDriver();
+    UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                   "not captured");
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "not captured") == NULL);
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+/* A server with a started LogObject driver that captures the logger */
+static UA_Server *
+newCapturingServer(UA_Logger *logger, UA_Driver **outDriver) {
+    UA_ServerConfig sc;
+    memset(&sc, 0, sizeof(UA_ServerConfig));
+    sc.logging = logger;
+    ck_assert_uint_eq(UA_ServerConfig_setMinimal(&sc, 4840, NULL), UA_STATUSCODE_GOOD);
+    UA_Server *s = UA_Server_newWithConfig(&sc);
+    ck_assert(s != NULL);
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, outDriver), UA_STATUSCODE_GOOD);
+    UA_UInt16 severity = 1;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&(*outDriver)->params,
+                                               UA_QUALIFIEDNAME(0, "server-log-minimum-severity"),
+                                               &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(s, *outDriver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq((*outDriver)->start(*outDriver), UA_STATUSCODE_GOOD);
+    return s;
+}
+
+/* Does the ServerLog of the server contain the message? */
+static UA_Boolean
+serverLogContains(UA_Server *s, const char *text) {
+    UA_Server *saved = server;
+    server = s;
+    UA_LogRecordsDataType results = readServerLog();
+    UA_Boolean found = (findRecord(&results, text) != NULL);
+    UA_LogRecordsDataType_clear(&results);
+    server = saved;
+    return found;
+}
+
+/* Three servers capture one shared logger. Their drivers are stopped in the
+ * given order. The remaining drivers keep capturing, the original logger keeps
+ * receiving every message and is restored when the last driver stopped. */
+static void
+checkSharedLogger(const int *stopOrder) {
+    static const char *texts[3] = {"after stop 0", "after stop 1", "after stop 2"};
+    resetCountingLogger();
+    UA_Server *s[3];
+    UA_Driver *d[3];
+    UA_Boolean capturing[3] = {true, true, true};
+    for(int i = 0; i < 3; i++)
+        s[i] = newCapturingServer(&countingLogger, &d[i]);
+
+    for(int k = 0; k < 3; k++) {
+        int i = stopOrder[k];
+        d[i]->stop(d[i]);
+        capturing[i] = false;
+        int before = forwardedCount;
+        UA_LOG_WARNING(&countingLogger, UA_LOGCATEGORY_SERVER, "%s", texts[k]);
+        ck_assert_int_eq(forwardedCount, before + 1);
+        for(int j = 0; j < 3; j++) {
+            if(capturing[j])
+                ck_assert(serverLogContains(s[j], texts[k]));
+        }
+    }
+    ck_assert(countingLogger.log == countingLog);
+    ck_assert(countingLogger.context == NULL);
+    ck_assert(countingLogger.clear == NULL);
+    for(int i = 0; i < 3; i++)
+        UA_Server_delete(s[i]);
+}
+
+START_TEST(sharedLogger) {
+    static const int creationOrder[3] = {0, 1, 2};
+    static const int reverseOrder[3] = {2, 1, 0};
+    static const int middleFirst[3] = {1, 0, 2};
+    checkSharedLogger(creationOrder);
+    checkSharedLogger(reverseOrder);
+    checkSharedLogger(middleFirst);
+} END_TEST
+
+START_TEST(maxStorageDurationExpiry) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.maxStorageDuration = 1000.0; /* 1s */
+    newLogObjectServer(&o);
+    startDriver();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "old marker");
+    UA_fakeSleep(2000);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "new marker");
+
+    /* Records older than MaxStorageDuration are dropped */
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "old marker") == NULL);
+    ck_assert(findRecord(&results, "new marker") != NULL);
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+#if UA_MULTITHREADING >= 100
+/* A second thread logs while the main thread reads and appends */
+THREAD_CALLBACK(loggerThread) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    for(int i = 0; i < 2000; i++)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND, "concurrent %d", i);
+    return 0;
+}
+
+START_TEST(logWhileGetRecordsMultithreaded) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.maxRecords = 100;
+    newLogObjectServer(&o);
+    startDriver();
+    THREAD_HANDLE logger;
+    THREAD_CREATE(logger, loggerThread);
+    for(int i = 0; i < 200; i++) {
+        UA_LogRecordsDataType results = readServerLog();
+        ck_assert_uint_le(results.logRecordArraySize, 100);
+        for(size_t j = 0; j < results.logRecordArraySize; j++)
+            ck_assert(results.logRecordArray[j].message.text.length > 0);
+        UA_LogRecordsDataType_clear(&results);
+        addRecord(300, "main thread");
+    }
+    THREAD_JOIN(logger);
+
+    /* The ring is full and every record is intact */
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert_uint_eq(results.logRecordArraySize, 100);
+    for(size_t j = 1; j < results.logRecordArraySize; j++)
+        ck_assert(results.logRecordArray[j].time >= results.logRecordArray[j - 1].time);
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s = suite_create("LogObject driver");
 
@@ -1208,6 +1560,21 @@ int main(void) {
     tcase_add_test(tc_get, releaseContinuationPoint);
     tcase_add_test(tc_get, backendContract);
     suite_add_tcase(s, tc_get);
+
+    TCase *tc_capture = tcase_create("Capture");
+    tcase_add_checked_fixture(tc_capture, setup, teardown);
+    tcase_add_test(tc_capture, captureLogOutput);
+    tcase_add_test(tc_capture, captureTruncated);
+    tcase_add_test(tc_capture, minimumSeverityGating);
+    tcase_add_test(tc_capture, severityMapping);
+    tcase_add_test(tc_capture, loggerWrappedAndRestored);
+    tcase_add_test(tc_capture, constLoggerSkipped);
+    tcase_add_test(tc_capture, sharedLogger);
+    tcase_add_test(tc_capture, maxStorageDurationExpiry);
+#if UA_MULTITHREADING >= 100
+    tcase_add_test(tc_capture, logWhileGetRecordsMultithreaded);
+#endif
+    suite_add_tcase(s, tc_capture);
 
     TCase *tc_net = tcase_create("Sessions");
     tcase_add_checked_fixture(tc_net, setup, teardown);
