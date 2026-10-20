@@ -936,6 +936,7 @@ clientGetRecords(UA_Client *client, size_t *cpLength) {
 
 START_TEST(continuationPointsReleasedWithSession) {
     ServerOptions o = apiOnlyOptions();
+    o.serverLog.anonymousAccess = true; /* The client is anonymous */
     o.maxContinuationPoints = 1;
     o.port = 4841; /* Not the default port, which many tests use */
     server = newLogObjectServer(&o);
@@ -976,6 +977,51 @@ START_TEST(continuationPointsReleasedWithSession) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     server = NULL;
+} END_TEST
+
+/* GetRecords of an anonymous Session (Part 26, 5.11). Local calls use the
+ * admin Session and are allowed in any case. */
+static void
+anonymousGetRecords(UA_Boolean anonymousAccess, UA_StatusCode expected) {
+    ServerOptions o = apiOnlyOptions();
+    o.serverLog.anonymousAccess = anonymousAccess;
+    o.port = 4841; /* Not the default port, which many tests use */
+    server = newLogObjectServer(&o);
+    addRecord(300, "record");
+    UA_Server_run_startup(server);
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode res = UA_Client_connect(client, "opc.tcp://localhost:4841");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    size_t cpLength = 0;
+    res = clientGetRecords(client, &cpLength);
+    ck_assert_uint_eq(res, expected);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 1);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+    server = NULL;
+}
+
+START_TEST(anonymousAccessDenied) {
+    anonymousGetRecords(false, UA_STATUSCODE_BADUSERACCESSDENIED);
+} END_TEST
+
+START_TEST(anonymousAccessGranted) {
+    anonymousGetRecords(true, UA_STATUSCODE_GOOD);
 } END_TEST
 
 
@@ -1234,14 +1280,14 @@ START_TEST(addLogObject) {
     server = newLogObjectServer(&o);
 
     /* Invalid settings */
-    UA_LogObjectSettings invalid = {0, 0.0, 1};
+    UA_LogObjectSettings invalid = {0, 0.0, 1, false};
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     UA_StatusCode res =
         UA_Server_addLogObject(server, UA_NODEID_NULL, UA_NODEID_NULL, UA_NODEID_NULL,
                                UA_QUALIFIEDNAME(1, "Invalid"), attr, invalid, NULL, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
 
-    UA_LogObjectSettings settings = {10, 0.0, 1};
+    UA_LogObjectSettings settings = {10, 0.0, 1, false};
     UA_NodeId logId = addApplicationLog("ApplicationLog", settings);
 
     /* Organized by the Logs Folder, an instance of the LogObjectType with
@@ -1278,7 +1324,7 @@ START_TEST(addLogObject) {
     ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "shared"), 1);
 
     /* The MinimumSeverity of every LogObject applies on its own */
-    UA_LogObjectSettings strictSettings = {10, 0.0, 500};
+    UA_LogObjectSettings strictSettings = {10, 0.0, 500, false};
     UA_NodeId strictId = addApplicationLog("StrictLog", strictSettings);
     addRecordTo(strictId, 300, "below strict");
     ck_assert_uint_eq(countRecords(strictId, NULL), 0);
@@ -1288,7 +1334,7 @@ START_TEST(addLogObject) {
 
     /* A parent other than the Logs Folder gets the Organizes reference from
      * the Logs Folder as well, the optional duration Property is exposed */
-    UA_LogObjectSettings timed = {10, 5000.0, 1};
+    UA_LogObjectSettings timed = {10, 5000.0, 1, false};
     UA_NodeId placedId;
     res = UA_Server_addLogObject(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
                                  UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "PlacedLog"),
@@ -1314,7 +1360,7 @@ START_TEST(addLogObject) {
 START_TEST(removeLogObject) {
     ServerOptions o = apiOnlyOptions();
     server = newLogObjectServer(&o);
-    UA_LogObjectSettings settings = {10, 0.0, 1};
+    UA_LogObjectSettings settings = {10, 0.0, 1, false};
     UA_NodeId logId = addApplicationLog("ApplicationLog", settings);
     for(int i = 0; i < 6; i++)
         addRecordTo(logId, 300, "record");
@@ -1497,7 +1543,7 @@ START_TEST(withoutBackendTheFeatureIsDisabled) {
     ck_assert_uint_eq(UA_Server_addLogRecord(server, UA_NS0ID(SERVERLOG), &r),
                       UA_STATUSCODE_BADNOTSUPPORTED);
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
-    UA_LogObjectSettings settings = {10, 0.0, 1};
+    UA_LogObjectSettings settings = {10, 0.0, 1, false};
     ck_assert_uint_eq(UA_Server_addLogObject(server, UA_NODEID_NULL, UA_NODEID_NULL,
                                              UA_NODEID_NULL, UA_QUALIFIEDNAME(1, "Log"),
                                              attr, settings, NULL, NULL),
@@ -1751,7 +1797,7 @@ START_TEST(optionalChildrenFromInstantiation) {
     o.nodeLifecycle = &lifecycle;
     server = newLogObjectServer(&o);
 
-    UA_LogObjectSettings settings = {7, 0.0, 200};
+    UA_LogObjectSettings settings = {7, 0.0, 200, false};
     UA_NodeId logId = addApplicationLog("InstantiatedLog", settings);
 
     /* The Properties carry the settings of the LogObject ... */
@@ -1825,6 +1871,8 @@ int main(void) {
     tcase_add_checked_fixture(tc_release, NULL, cleanupServer);
     tcase_add_test(tc_release, releaseContinuationPoint);
     tcase_add_test(tc_release, continuationPointsReleasedWithSession);
+    tcase_add_test(tc_release, anonymousAccessDenied);
+    tcase_add_test(tc_release, anonymousAccessGranted);
     suite_add_tcase(s, tc_release);
 
     TCase *tc_app = tcase_create("Application LogObjects");

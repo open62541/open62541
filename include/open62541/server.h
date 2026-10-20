@@ -2001,9 +2001,12 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * the Events of a LogObject are limited to one per
  * ``config->logOverflowEventInterval``. The Message of the Event states the
  * number of records discarded since the previous Event. Access to the
- * GetRecords Method is controlled by
- * the AccessControl plugin (``getUserExecutableOnObject``). The records are
- * not filtered per user.
+ * GetRecords Method is controlled by the AccessControl plugin
+ * (``getUserExecutableOnObject``). In addition, anonymous Sessions are denied
+ * with ``Bad_UserAccessDenied`` unless the ``anonymousAccess`` setting of the
+ * LogObject is set: the ServerLog contains security related information
+ * (Part 26, 5.11). Local calls are always allowed. The records are not
+ * filtered per user.
  *
  * Application code adds records with the following function. The record is
  * copied by the storage backend, the caller keeps the ownership. The Severity

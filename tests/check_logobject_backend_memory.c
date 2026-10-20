@@ -14,7 +14,7 @@
 
 static UA_LogObjectBackend backend;
 static UA_NodeId logId;
-static const UA_LogObjectSettings settings = {5, 0.0, 1};
+static const UA_LogObjectSettings settings = {5, 0.0, 1, false};
 
 static void setup(void) {
     backend = UA_LogObjectBackend_Memory();
@@ -62,7 +62,7 @@ START_TEST(registerAndUnregister) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADNODEIDEXISTS);
 
     UA_NodeId other = UA_NODEID_NUMERIC(1, 1001);
-    UA_LogObjectSettings invalid = {0, 0.0, 1};
+    UA_LogObjectSettings invalid = {0, 0.0, 1, false};
     res = backend.registerLogObject(NULL, backend.context, &other, &invalid);
     ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
 
@@ -211,7 +211,7 @@ START_TEST(evictionReportsOverflow) {
 
 START_TEST(expiryIsNoOverflow) {
     UA_NodeId expiring = UA_NODEID_NUMERIC(1, 1002);
-    UA_LogObjectSettings s = {5, 1000.0, 1}; /* 1s */
+    UA_LogObjectSettings s = {5, 1000.0, 1, false}; /* 1s */
     UA_StatusCode res = backend.registerLogObject(NULL, backend.context, &expiring, &s);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
@@ -406,7 +406,7 @@ START_TEST(invalidArguments) {
     UA_LogRecord r;
     UA_LogRecord_init(&r);
     r.severity = 100;
-    UA_LogObjectSettings s = {5, 0.0, 1};
+    UA_LogObjectSettings s = {5, 0.0, 1, false};
     UA_NodeId other = UA_NODEID_NUMERIC(1, 2000);
 
     ck_assert_uint_eq(backend.registerLogObject(NULL, NULL, &logId, &s),

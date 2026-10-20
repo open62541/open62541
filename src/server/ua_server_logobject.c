@@ -377,6 +377,16 @@ logObjectGetRecordsMethod(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
 
+    /* LogObjects with security related information should only be accessible
+     * to authorised users (Part 26, 5.11). The admin Session of local calls is
+     * initialized with the anonymous token type and is always allowed. */
+    if(session != &server->adminSession &&
+       session->userTokenType == UA_USERTOKENTYPE_ANONYMOUS &&
+       !entry->settings.anonymousAccess) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+
     /* Continue a previous call */
     UA_LogObjectCursor cursor = 0;
     if(continuation) {

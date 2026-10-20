@@ -43,6 +43,12 @@ typedef struct {
     UA_UInt16 minimumSeverity;    /* Records with a lower Severity are not
                                    * stored (1..1000). Enforced by the core
                                    * before addRecord is called. */
+    UA_Boolean anonymousAccess;   /* Anonymous Sessions may call GetRecords.
+                                   * LogObjects with security related
+                                   * information should only be accessible
+                                   * to authorised users (Part 26, 5.11).
+                                   * Enforced by the core, in addition to the
+                                   * AccessControl plugin. */
 } UA_LogObjectSettings;
 
 /* Position in the records of one LogObject. The cursor is opaque to the core,
