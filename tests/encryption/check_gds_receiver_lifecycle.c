@@ -577,7 +577,7 @@ START_TEST(trustListInvalidHandlePreservesOpenFile) {
         type = &UA_TYPES[UA_TYPES_BYTESTRING];
     }
     ck_assert_uint_eq(localFileOperation(methods[_i], handle + 1, argument, type, NULL),
-                      UA_STATUSCODE_BADINTERNALERROR);
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
     assertTrustListOpenCount(1);
     assertTrustListPosition(handle, 0);
     ck_assert_uint_eq(localFileOperation(APP_TRUSTLIST_ID(CLOSE), handle,
@@ -591,8 +591,15 @@ START_TEST(trustListRejectsInvalidOpenMode) {
                       UA_OPENFILEMODE_READ | UA_OPENFILEMODE_ERASEEXISTING};
     UA_Variant input;
     UA_Variant_setScalar(&input, &modes[_i], &UA_TYPES[UA_TYPES_BYTE]);
+    /* Invalid FileType modes are rejected before the TrustList (Part 20,
+     * 4.2.2). Valid modes other than Read and Write + EraseExisting are not
+     * supported by the TrustList (Part 12, 7.8.2.2). */
+    UA_StatusCode expected =
+        (modes[_i] == UA_OPENFILEMODE_WRITE ||
+         modes[_i] == (UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE)) ?
+        UA_STATUSCODE_BADNOTSUPPORTED : UA_STATUSCODE_BADINVALIDARGUMENT;
     ck_assert_uint_eq(callLocalTrustList(APP_TRUSTLIST_ID(OPEN), 1, &input, NULL),
-                      UA_STATUSCODE_BADINVALIDSTATE);
+                      expected);
     assertTrustListOpenCount(0);
 } END_TEST
 
@@ -739,13 +746,17 @@ callMethodForSession(const UA_NodeId *sessionId, UA_UInt32 objectNumericId,
     UA_NodeId methodId = UA_NODEID_NUMERIC(0, methodNumericId);
     UA_MethodCallback method = NULL;
     void *context = NULL;
+    void *objectContext = NULL;
     ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, methodId, &method),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_getNodeContext(server, methodId, &context),
                       UA_STATUSCODE_GOOD);
+    /* The file transfer driver finds the file by the Object context */
+    ck_assert_uint_eq(UA_Server_getNodeContext(server, objectId, &objectContext),
+                      UA_STATUSCODE_GOOD);
     ck_assert(method != NULL);
-    return method(server, sessionId, NULL, &methodId, context, &objectId, NULL,
-                  inputSize, input, outputSize, output);
+    return method(server, sessionId, NULL, &methodId, context, &objectId,
+                  objectContext, inputSize, input, outputSize, output);
 }
 
 static UA_StatusCode
@@ -799,7 +810,7 @@ START_TEST(trustListSessionClosurePreservesOtherReaders) {
     UA_Variant output;
     UA_Variant_init(&output);
     ck_assert_uint_eq(fileMethodForSession(&firstId, APP_TRUSTLIST_ID(GETPOSITION),
-        secondHandle, &output), UA_STATUSCODE_BADINTERNALERROR);
+        secondHandle, &output), UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert(UA_Variant_isEmpty(&output));
     runSessionCleanupTimer();
     assertTrustListOpenCount(2);
@@ -808,7 +819,7 @@ START_TEST(trustListSessionClosurePreservesOtherReaders) {
     runSessionCleanupTimer();
     assertTrustListOpenCount(1);
     ck_assert_uint_eq(fileMethodForSession(&firstId, APP_TRUSTLIST_ID(GETPOSITION),
-        firstHandle, &output), UA_STATUSCODE_BADINTERNALERROR);
+        firstHandle, &output), UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert(UA_Variant_isEmpty(&output));
     ck_assert_uint_eq(fileMethodForSession(&second->sessionId, APP_TRUSTLIST_ID(GETPOSITION),
         secondHandle, &output), UA_STATUSCODE_GOOD);
@@ -837,9 +848,11 @@ START_TEST(trustListSessionClosureDiscardsTransaction) {
     ck_assert_uint_eq(callMethodForSession(&owner->sessionId,
         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST,
         APP_TRUSTLIST_ID(WRITE), 2, input, 0, NULL), UA_STATUSCODE_GOOD);
+    /* The open write handle locks the file before the transaction is checked
+     * (Part 20, 4.2.2) */
     UA_UInt32 otherHandle = 12345;
     ck_assert_uint_eq(openTrustListForSession(&other->sessionId, mode, &otherHandle),
-                      UA_STATUSCODE_BADTRANSACTIONPENDING);
+                      UA_STATUSCODE_BADNOTWRITABLE);
     ck_assert_uint_eq(otherHandle, 12345);
     ck_assert_uint_eq(callMethodForSession(&other->sessionId,
         UA_NS0ID_SERVERCONFIGURATION, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES,
