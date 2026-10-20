@@ -80,7 +80,6 @@ static void setup(void) {
                                   attr, NULL, &outNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-#ifdef UA_ENABLE_DA
     /* Add an AnalogItem node  */
     UA_NodeId aiNodeId = UA_NODEID_STRING(1, "an AnalogItem");
     UA_QualifiedName aiName = UA_QUALIFIEDNAME(1, "an AnalogItem");
@@ -105,7 +104,6 @@ static void setup(void) {
     retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, v);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_BrowsePathResult_clear(&bpr);
-#endif /* UA_ENABLE_DA */
 
     /* Add a string (nullable) variable node */
     UA_VariableAttributes attrStr = UA_VariableAttributes_default;
@@ -160,9 +158,7 @@ static void teardown(void) {
     UA_NodeId_clear(&parentReferenceNodeId);
     UA_NodeId_clear(&outNodeId);
     UA_NodeId_clear(&outNodeIdNullable);
-#ifdef UA_ENABLE_DA
     UA_NodeId_clear(&outNodeIdAnalogItem);
-#endif /* UA_ENABLE_DA */
     pauseServer();
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -1088,7 +1084,6 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange) {
 }
 END_TEST
 
-#ifdef UA_ENABLE_DA
 START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an percent filter with deadbandvalue = 10.0 */
@@ -1225,7 +1220,6 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateDeadBandValueOutOfRange)
     UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 }
 END_TEST
-#endif /* UA_ENABLE_DA */
 
 #endif /*UA_ENABLE_SUBSCRIPTIONS*/
 
@@ -1246,10 +1240,8 @@ static Suite* testSuite_Client(void) {
 
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterNULLValue);
 
-#ifdef UA_ENABLE_DA
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreate);
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreateDeadBandValueOutOfRange);
-#endif /* UA_ENABLE_DA */
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
     suite_add_tcase(s, tc_server);

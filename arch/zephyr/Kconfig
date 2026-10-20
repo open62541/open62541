@@ -31,11 +31,6 @@ config OPEN62541_ENABLE_SUBSCRIPTIONS_EVENTS
     default y
     help
         Enable event monitoring
-config OPEN62541_ENABLE_DA
-    bool "Enable data access"
-    default y
-    help
-        Enable OPC UA DataAccess (Part 8) definitions
 config OPEN62541_ENABLE_HISTORIZING
     bool "Enable historizing"
     default y
