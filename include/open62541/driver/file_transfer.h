@@ -434,7 +434,11 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  * (ClientProcessingTimeout), Bad_SessionClosed, Bad_Shutdown when the driver
  * stops, otherwise the error that failed the generation.
  *
- * The callbacks must not stop or remove the driver. */
+ * The callbacks must not stop or remove the driver.
+ *
+ * The example ``examples/filetransfer/server_filetransfer_temporary.c`` gets
+ * and sets machine settings as a file; the client is
+ * ``examples/filetransfer/client_filetransfer_temporary.c``. */
 
 /* The temporary file of one transfer, borrowed for the duration of a
  * callback */
