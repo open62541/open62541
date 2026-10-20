@@ -649,10 +649,14 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
 
     /* Verification Step: Certificate Structure
      * This parses the entire certificate chain contained in the bytestring. */
+    UA_ByteString data = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_mbedTLS_CopyDataFormatAware(certificate, &data);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
-    int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data,
-                                         certificate->length);
+    int mbedErr = mbedtls_x509_crt_parse(&cert, data.data, data.length);
+    UA_ByteString_clear(&data);
     if(mbedErr) {
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
