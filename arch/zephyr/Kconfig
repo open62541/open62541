@@ -16,11 +16,6 @@ config OPEN62541_ENABLE_DIAGNOSTICS
     default y
     help
         Enable diagnostics information exposed by the server
-config OPEN62541_ENABLE_METHODCALLS
-    bool "Enable method calls"
-    default y
-    help
-        Enable the Method service set
 config OPEN62541_ENABLE_SUBSCRIPTIONS
     bool "Enable subscriptions"
     default y

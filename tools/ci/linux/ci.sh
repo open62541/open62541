@@ -381,7 +381,6 @@ function unit_tests_tsan {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DEBUG_SANITIZER=OFF \
           -DUA_MULTITHREADING=100 \
-          -DUA_ENABLE_METHODCALLS=ON \
           -DUA_ENABLE_SUBSCRIPTIONS=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_AUDITING=ON \
@@ -940,9 +939,6 @@ function build_option_coverage {
     build_option_cfg "UA_ENABLE_RBAC"              -DUA_ENABLE_RBAC=ON -DUA_NAMESPACE_ZERO=FULL
 
     # On by default, so only ever compiled in the enabled state
-    # The PubSub information model twin exposes methods, so it has to go as well
-    build_option_cfg "no UA_ENABLE_METHODCALLS"    -DUA_ENABLE_METHODCALLS=OFF \
-                     -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF
     build_option_cfg "no UA_ENABLE_NODEMANAGEMENT" -DUA_ENABLE_NODEMANAGEMENT=OFF
     build_option_cfg "no UA_ENABLE_AUDITING"       -DUA_ENABLE_AUDITING=OFF
     build_option_cfg "no UA_ENABLE_STATUSCODE_DESCRIPTIONS" -DUA_ENABLE_STATUSCODE_DESCRIPTIONS=OFF

@@ -186,7 +186,6 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
 #endif
 
 /** Method Service Set **/
-#ifdef UA_ENABLE_METHODCALLS
 UA_Boolean
 Service_Call(UA_Server *server, UA_Session *session,
              const void *request /* UA_CallRequest */, void *response /* UA_CallResponse */);
@@ -195,7 +194,6 @@ UA_Boolean
 Operation_CallMethod(UA_Server *server, UA_Session *session,
                      const UA_CallMethodRequest *request,
                      UA_CallMethodResult *result);
-#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 

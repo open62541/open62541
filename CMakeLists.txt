@@ -113,7 +113,6 @@ option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open6254
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 100 CACHE STRING "Minimal level for logs (in addition to the log plugin settings) (100=TRACE, 200=DEBUG, 300=INFO, 400=WARNING, 500=ERROR, 600=FATAL)")
 option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" ON)
-option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
 option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" ON)
@@ -355,9 +354,6 @@ endif()
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ${UA_ENABLE_PUBSUB})
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-    if(NOT UA_ENABLE_METHODCALLS)
-        message(FATAL_ERROR "PubSub information model representation requires UA_ENABLE_METHODCALLS.")
-    endif()
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
     endif()
@@ -1392,16 +1388,14 @@ endif()
 # The file transfer driver uses the OS-specific file handling definitions.
 # It is appended after the eventloop sources so that the amalgamation
 # integrates the architecture header before the driver code.
-if(UA_ENABLE_METHODCALLS)
-    list(APPEND lib_headers
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_internal.h)
-    list(APPEND plugin_sources
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_driver.c
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_ns0.c
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
-endif()
+list(APPEND lib_headers
+     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_internal.h)
+list(APPEND plugin_sources
+     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_driver.c
+     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_ns0.c
+     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
+     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
+     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
 
 # For file based server and client configuration
 if(UA_ENABLE_JSON_ENCODING)
@@ -1524,10 +1518,8 @@ else()
     set(UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_minimal.txt
                           ${UA_SCHEMA_DIR}/datatypes_discovery.txt)
 
-    if(UA_ENABLE_METHODCALLS)
-        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
-        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.FileTransferMinimal.xml)
-    endif()
+    list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
+    list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.FileTransferMinimal.xml)
 
     if(UA_ENABLE_DIAGNOSTICS)
         list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)

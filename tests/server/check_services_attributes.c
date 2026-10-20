@@ -162,7 +162,6 @@ static void setup(void) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                   UA_QUALIFIEDNAME(0, "Argument"), typeattr, NULL, NULL);
 
-#ifdef UA_ENABLE_METHODCALLS
     /* MethodNode */
     UA_MethodAttributes ma = UA_MethodAttributes_default;
     ma.description = UA_LOCALIZEDTEXT("en-US", "Methodtest");
@@ -173,7 +172,6 @@ static void setup(void) {
                                      UA_QUALIFIEDNAME(0, "Methodtest"), ma,
                                      NULL, 0, NULL, 0, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#endif
 
     /* Variable node with localized DisplayName and Description */
     UA_VariableAttributes lvattr = UA_VariableAttributes_default;
@@ -282,9 +280,7 @@ static const struct {
     {UA_ATTRIBUTEID_INVERSENAME, UA_WRITEMASK_INVERSENAME},
     {UA_ATTRIBUTEID_CONTAINSNOLOOPS, UA_WRITEMASK_CONTAINSNOLOOPS},
     {UA_ATTRIBUTEID_EVENTNOTIFIER, UA_WRITEMASK_EVENTNOTIFIER},
-#ifdef UA_ENABLE_METHODCALLS
     {UA_ATTRIBUTEID_EXECUTABLE, UA_WRITEMASK_EXECUTABLE},
-#endif
 };
 
 START_TEST(attributeWritePermissionPreservesRejectedValue) {
@@ -355,12 +351,10 @@ START_TEST(attributeWritePermissionPreservesRejectedValue) {
         access = UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT;
         UA_Variant_setScalar(&value.value.value, &access, &UA_TYPES[UA_TYPES_BYTE]);
         break;
-#ifdef UA_ENABLE_METHODCALLS
     case UA_ATTRIBUTEID_EXECUTABLE:
         value.nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
         UA_Variant_setScalar(&value.value.value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
-#endif
     default:
         ck_abort_msg("Unexpected attribute");
     }
@@ -848,7 +842,6 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
 } END_TEST
 
 START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
-#ifdef UA_ENABLE_METHODCALLS
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
@@ -861,11 +854,9 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
     ck_assert(*(UA_Boolean*)resp.value.data==true);
     UA_DataValue_clear(&resp);
-#endif
 } END_TEST
 
 START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
-#ifdef UA_ENABLE_METHODCALLS
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
@@ -878,7 +869,6 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
     /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type); */
     /* ck_assert(*(UA_Boolean*)resp.value.data==false); */
     UA_DataValue_clear(&resp);
-#endif
 } END_TEST
 
 START_TEST(ReadSingleDataSourceAttributeValueWithoutTimestamp) {
@@ -1974,7 +1964,6 @@ START_TEST(WriteAccessLevelEx_Success) {
     ck_assert_uint_eq(readAlEx, alEx);
 } END_TEST
 
-#ifdef UA_ENABLE_METHODCALLS
 START_TEST(WriteExecutable_Success) {
     UA_NodeId nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
     UA_StatusCode retval = UA_Server_writeExecutable(server, nodeId, false);
@@ -1989,7 +1978,6 @@ START_TEST(WriteExecutable_Success) {
     retval = UA_Server_writeExecutable(server, nodeId, true);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
-#endif
 
 START_TEST(WriteIsAbstract_Success) {
     /* Write IsAbstract on the BaseObjectType (which is abstract) */
@@ -2354,9 +2342,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_ext, WriteHistorizing_Success);
     tcase_add_test(tc_ext, WriteAccessLevel_Success);
     tcase_add_test(tc_ext, WriteAccessLevelEx_Success);
-#ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_ext, WriteExecutable_Success);
-#endif
     tcase_add_test(tc_ext, WriteIsAbstract_Success);
     tcase_add_test(tc_ext, WriteInverseName_Success);
     tcase_add_test(tc_ext, ReadSingleAttributeValue_InvalidNode);

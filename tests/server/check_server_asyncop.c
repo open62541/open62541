@@ -817,14 +817,12 @@ START_TEST(Async_setResult_badnotfound) {
     retval = UA_Server_setAsyncWriteResult(server, &value, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
 
-#ifdef UA_ENABLE_METHODCALLS
     UA_Variant output;
     UA_Variant_init(&output);
     UA_Int32 outVal = 42;
     UA_Variant_setScalar(&output, &outVal, &UA_TYPES[UA_TYPES_INT32]);
     retval = UA_Server_setAsyncCallMethodResult(server, &output, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
-#endif
 } END_TEST
 
 START_TEST(Async_queue_limit_read_direct) {
@@ -1185,7 +1183,6 @@ START_TEST(Async_call_multiple_outputs) {
     methodAttr.userExecutable = true;
 
     /* Add a method with multiple outputs if method calls enabled */
-#ifdef UA_ENABLE_METHODCALLS
     UA_StatusCode res = UA_Server_addMethodNode(server,
                                    UA_NODEID_STRING(1, "multiOutMethod"),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
@@ -1214,7 +1211,6 @@ START_TEST(Async_call_multiple_outputs) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
     }
-#endif
 } END_TEST
 
 START_TEST(Async_cancelDirectOperation) {
@@ -1485,7 +1481,6 @@ START_TEST(Async_setAsyncWriteResult_null_returnsError) {
               retval == UA_STATUSCODE_BADINTERNALERROR);
 } END_TEST
 
-#ifdef UA_ENABLE_METHODCALLS
 START_TEST(Async_setAsyncMethodResult_null_returnsError) {
     /* And for method call. */
     UA_StatusCode retval = UA_Server_setAsyncCallMethodResult(
@@ -1493,7 +1488,6 @@ START_TEST(Async_setAsyncMethodResult_null_returnsError) {
     ck_assert(retval == UA_STATUSCODE_BADNOTFOUND ||
               retval == UA_STATUSCODE_BADINTERNALERROR);
 } END_TEST
-#endif
 
 /* --- Suite registration --- */
 

@@ -141,7 +141,6 @@ addObject(const char *browseName) {
     return out;
 }
 
-#ifdef UA_ENABLE_METHODCALLS
 static UA_StatusCode
 dummyMethodCb(UA_Server *s, const UA_NodeId *sId, void *sCtx,
               const UA_NodeId *mId, void *mCtx,
@@ -170,7 +169,6 @@ addMethod(UA_NodeId parentObjectId, const char *browseName) {
     ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
     return out;
 }
-#endif
 
 /* --------------------------------------------------------------------- */
 /* 1. Call interlock — Part 3 §8.55 bit 12                               */
@@ -179,7 +177,6 @@ addMethod(UA_NodeId parentObjectId, const char *browseName) {
 /*    with that Object or ObjectType."                                   */
 /* --------------------------------------------------------------------- */
 
-#ifdef UA_ENABLE_METHODCALLS
 START_TEST(Call_interlock_objectOnly) {
     UA_NodeId roleId = addRole("CallRole_objOnly");
     assignRoleToAdminSession(roleId);
@@ -288,7 +285,6 @@ START_TEST(Call_interlock_neither) {
     UA_NodeId_clear(&roleId);
 }
 END_TEST
-#endif /* UA_ENABLE_METHODCALLS */
 
 /* --------------------------------------------------------------------- */
 /* 2. Read / Write / Browse / ReadRolePermissions are independent bits.  */
@@ -621,7 +617,7 @@ START_TEST(ReceiveEvents_grantedOnBothPropagates) {
 }
 END_TEST
 
-#if defined(UA_ENABLE_DRIVER_GDS_RECEIVER) && defined(UA_ENABLE_METHODCALLS) && \
+#if defined(UA_ENABLE_DRIVER_GDS_RECEIVER) && \
     defined(UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN)
 /* Applies the SecurityAdmin GDS RolePermissions. In a running server this is
  * invoked from the GDS driver start; the unit test applies it directly. */
@@ -1007,7 +1003,6 @@ END_TEST
 static Suite *testSuite(void) {
     Suite *s = suite_create("Server RBAC Interlocked Permissions");
 
-#ifdef UA_ENABLE_METHODCALLS
     TCase *tc_call = tcase_create("Call interlock (object + method)");
     tcase_add_unchecked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, Call_interlock_objectOnly);
@@ -1015,7 +1010,6 @@ static Suite *testSuite(void) {
     tcase_add_test(tc_call, Call_interlock_both);
     tcase_add_test(tc_call, Call_interlock_neither);
     suite_add_tcase(s, tc_call);
-#endif
 
     TCase *tc_bits = tcase_create("Permission bits are independent");
     tcase_add_unchecked_fixture(tc_bits, setup, teardown);
@@ -1055,7 +1049,7 @@ static Suite *testSuite(void) {
     tcase_add_test(tc_evt, ReceiveEvents_grantedOnBothPropagates);
     suite_add_tcase(s, tc_evt);
 
-#if defined(UA_ENABLE_DRIVER_GDS_RECEIVER) && defined(UA_ENABLE_METHODCALLS) && \
+#if defined(UA_ENABLE_DRIVER_GDS_RECEIVER) && \
     defined(UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN)
     TCase *tc_gds = tcase_create("GDS SecurityAdmin permissions");
     tcase_add_unchecked_fixture(tc_gds, setup, teardown);

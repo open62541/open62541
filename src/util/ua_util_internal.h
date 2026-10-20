@@ -318,9 +318,7 @@ typedef union {
     UA_HistoryReadRequest historyReadRequest;
     UA_HistoryUpdateRequest historyUpdateRequest;
 #endif
-#ifdef UA_ENABLE_METHODCALLS
     UA_CallRequest callRequest;
-#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_CreateMonitoredItemsRequest createMonitoredItemsRequest;
     UA_DeleteMonitoredItemsRequest deleteMonitoredItemsRequest;
@@ -361,9 +359,7 @@ typedef union {
     UA_HistoryReadResponse historyReadResponse;
     UA_HistoryUpdateResponse historyUpdateResponse;
 #endif
-#ifdef UA_ENABLE_METHODCALLS
     UA_CallResponse callResponse;
-#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_CreateMonitoredItemsResponse createMonitoredItemsResponse;
     UA_DeleteMonitoredItemsResponse deleteMonitoredItemsResponse;

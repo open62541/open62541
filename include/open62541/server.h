@@ -711,10 +711,8 @@ UA_Server_writeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
  * i=20      i=13      The method is not owned by the object type "Insect"
  * ========  ========  ===================================================== */
 
-#ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_EXPORT UA_THREADSAFE
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-#endif
 
 /**
  * View Service Set
@@ -1173,7 +1171,6 @@ typedef UA_StatusCode
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output);
 
-#ifdef UA_ENABLE_METHODCALLS
 
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
@@ -1214,7 +1211,6 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
                                 const UA_NodeId methodNodeId,
                                 UA_MethodCallback *outMethodCallback);
 
-#endif
 
 /**
  * ObjectNode
@@ -1536,7 +1532,6 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
 
-#ifdef UA_ENABLE_METHODCALLS
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
@@ -1544,7 +1539,6 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          size_t inputArgumentsSize, const UA_Argument *inputArguments,
                          size_t outputArgumentsSize, const UA_Argument *outputArguments);
 
-#endif
 
 /* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -1651,12 +1645,10 @@ UA_Server_write_async(UA_Server *server, const UA_WriteValue *operation,
                       UA_ServerAsyncWriteResultCallback callback,
                       void *asyncOpContext, UA_UInt32 timeout);
 
-#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_call_async(UA_Server *server, const UA_CallMethodRequest *operation,
                      UA_ServerAsyncMethodResultCallback callback,
                      void *asyncOpContext, UA_UInt32 timeout);
-#endif
 
 /**
  * Local async operations can be manually cancelled (besides an internal cancel
