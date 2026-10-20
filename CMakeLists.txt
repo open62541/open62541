@@ -1280,6 +1280,8 @@ if(UA_ENABLE_DRIVER_LOGOBJECT)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_internal.h)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_driver.c
+         ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_ns0.c
+         ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_methods.c
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_backend_memory.c)
 endif()
 
