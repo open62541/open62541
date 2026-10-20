@@ -9,6 +9,7 @@
 
 #ifdef UA_ENABLE_DRIVER_LOGOBJECT
 
+#include <stdio.h>
 #include <string.h>
 
 /* OPC UA Part 26 LogObjects as a driver. The driver uses only the public API of
@@ -22,9 +23,237 @@ isLogObjectDriver(const UA_Driver *driver) {
     return driver && driver->start == LogObjectDriver_start;
 }
 
+LogObjectDriver *
+findLogObjectDriver(UA_Server *server) {
+    for(UA_Driver *drv = UA_Server_getDrivers(server); drv; drv = drv->next) {
+        if(isLogObjectDriver(drv))
+            return (LogObjectDriver*)drv;
+    }
+    return NULL;
+}
+
+UA_DateTime
+logObjectNow(LogObjectDriver *lod) {
+    UA_EventLoop *el = UA_Server_getConfig(lod->driver.server)->eventLoop;
+    return el->dateTime_now(el);
+}
+
+LogObjectEntry *
+findLogObjectEntry(LogObjectDriver *lod, const UA_NodeId *logObjectId) {
+    LogObjectEntry *entry;
+    LIST_FOREACH(entry, &lod->logObjects, pointers) {
+        if(UA_NodeId_equal(&entry->nodeId, logObjectId))
+            return entry;
+    }
+    return NULL;
+}
+
+/***********/
+/* Records */
+/***********/
+
+UA_StatusCode
+addLogObjectRecord(LogObjectDriver *lod, LogObjectEntry *entry,
+                   const UA_LogRecord *record) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* The MinimumSeverity is checked when the record is generated (Part 26,
+     * 5.2). Records below the limit are dropped silently. */
+    if(record->severity >= entry->settings.minimumSeverity) {
+        UA_Boolean overflow = false;
+        res = lod->backend.addRecord(lod->driver.server, lod->backend.context,
+                                     &entry->nodeId, record, logObjectNow(lod),
+                                     &overflow);
+    }
+
+    /* The ServerLog contains the records of all LogObjects (Part 26, 7.2) */
+    if(res == UA_STATUSCODE_GOOD && !entry->isServerLog && lod->serverLogRegistered)
+        res = addLogObjectRecord(lod, &lod->serverLog, record);
+    return res;
+}
+
+UA_StatusCode
+UA_LogObjectDriver_addRecord(UA_Driver *driver, const UA_NodeId logObjectId,
+                             const UA_LogRecord *record) {
+    if(!isLogObjectDriver(driver) || !record)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(record->severity < 1 || record->severity > 1000)
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    if(!driver->server)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    LogObjectDriver *lod = (LogObjectDriver*)driver;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    UA_StatusCode res = UA_STATUSCODE_BADINVALIDSTATE;
+    if(driver->state == UA_LIFECYCLESTATE_STARTED) {
+        LogObjectEntry *entry = findLogObjectEntry(lod, &logObjectId);
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        if(entry) {
+            /* Shallow copy to fill in the time. The backend deep-copies. */
+            UA_LogRecord r = *record;
+            if(r.time == 0)
+                r.time = logObjectNow(lod);
+            res = addLogObjectRecord(lod, entry, &r);
+        }
+    }
+    el->unlock(el);
+    return res;
+}
+
+/*****************/
+/* Notifications */
+/*****************/
+
+/* A closed Session releases its continuation points */
+static void
+LogObjectDriver_notification(UA_Driver *drv, UA_ApplicationNotificationType type,
+                             const UA_KeyValueMap payload) {
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED)
+        return;
+    const UA_NodeId *sessionId = (const UA_NodeId*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "session-id"),
+                                 &UA_TYPES[UA_TYPES_NODEID]);
+    if(sessionId)
+        releaseContinuationPoints((LogObjectDriver*)drv, sessionId, NULL);
+}
+
+/**************/
+/* Parameters */
+/**************/
+
+/* A known key with another type than documented is a configuration error,
+ * not an absent value */
+static const void *
+driverParam(LogObjectDriver *lod, const char *key, const UA_DataType *type,
+            UA_StatusCode *res) {
+    const UA_Variant *value =
+        UA_KeyValueMap_get(&lod->driver.params, UA_QUALIFIEDNAME(0, (char*)(uintptr_t)key));
+    if(!value)
+        return NULL;
+    /* Also subtypes of the numeric types, e.g. a Duration for a Double */
+    if(UA_Variant_isScalar(value) && value->type->typeKind == type->typeKind &&
+       type->typeKind <= UA_DATATYPEKIND_DOUBLE)
+        return value->data;
+    UA_LOG_ERROR(UA_Server_getConfig(lod->driver.server)->logging, UA_LOGCATEGORY_SERVER,
+                 "LogObject: The parameter %s has the wrong type", key);
+    *res = UA_STATUSCODE_BADINVALIDARGUMENT;
+    return NULL;
+}
+
+/* (UA_Double)UA_INT64_MAX rounds up to 2^63, which is not an Int64. So the
+ * upper bound is exclusive. */
+UA_Boolean
+logObjectValidDuration(UA_Double ms) {
+    return ms * UA_DATETIME_MSEC >= 1.0 && ms < (UA_Double)UA_INT64_MAX / UA_DATETIME_MSEC;
+}
+
+/* A MaxStorageDuration of zero disables the limit */
+static UA_Boolean
+validSettings(const UA_LogObjectSettings *s) {
+    return s->maxRecords > 0 && s->minimumSeverity >= 1 && s->minimumSeverity <= 1000 &&
+        (s->maxStorageDuration == 0.0 || logObjectValidDuration(s->maxStorageDuration));
+}
+
+static void
+readSettingsParams(LogObjectDriver *lod, const char *prefix, UA_LogObjectSettings *s,
+                   UA_StatusCode *res) {
+    char key[64];
+    snprintf(key, sizeof(key), "%s-max-records", prefix);
+    const UA_UInt32 *maxRecords = (const UA_UInt32*)
+        driverParam(lod, key, &UA_TYPES[UA_TYPES_UINT32], res);
+    if(maxRecords)
+        s->maxRecords = *maxRecords;
+    snprintf(key, sizeof(key), "%s-max-storage-duration", prefix);
+    const UA_Double *duration = (const UA_Double*)
+        driverParam(lod, key, &UA_TYPES[UA_TYPES_DURATION], res);
+    if(duration)
+        s->maxStorageDuration = *duration;
+    snprintf(key, sizeof(key), "%s-minimum-severity", prefix);
+    const UA_UInt16 *severity = (const UA_UInt16*)
+        driverParam(lod, key, &UA_TYPES[UA_TYPES_UINT16], res);
+    if(severity)
+        s->minimumSeverity = *severity;
+}
+
+static UA_StatusCode
+configureDriver(LogObjectDriver *lod) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    lod->serverLogEnabled = true;
+    const UA_Boolean *serverLog = (const UA_Boolean*)
+        driverParam(lod, "server-log", &UA_TYPES[UA_TYPES_BOOLEAN], &res);
+    if(serverLog)
+        lod->serverLogEnabled = *serverLog;
+
+    /* Information and above (Part 26, Table 9) */
+    UA_LogObjectSettings defaultServerLog = {1000, 0.0, 51};
+    lod->serverLogSettings = defaultServerLog;
+    readSettingsParams(lod, "server-log", &lod->serverLogSettings, &res);
+
+    lod->maxRecordsPerCall = 1000;
+    const UA_UInt32 *perCall = (const UA_UInt32*)
+        driverParam(lod, "max-records-per-call", &UA_TYPES[UA_TYPES_UINT32], &res);
+    if(perCall)
+        lod->maxRecordsPerCall = *perCall;
+
+    lod->maxContinuationPoints = 32;
+    const UA_UInt16 *cps = (const UA_UInt16*)
+        driverParam(lod, "max-continuation-points", &UA_TYPES[UA_TYPES_UINT16], &res);
+    if(cps)
+        lod->maxContinuationPoints = *cps;
+
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!validSettings(&lod->serverLogSettings)) {
+        UA_LOG_ERROR(UA_Server_getConfig(lod->driver.server)->logging,
+                     UA_LOGCATEGORY_SERVER,
+                     "LogObject: Invalid settings of the ServerLog");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /*************/
 /* Lifecycle */
 /*************/
+
+/* Undo everything start did. Idempotent, also for a partial start. */
+static void
+stopDriver(LogObjectDriver *lod) {
+    unbindLogObjectMethods(lod);
+    LogObjectEntry *entry, *tmp;
+    LIST_FOREACH_SAFE(entry, &lod->logObjects, pointers, tmp) {
+        unregisterLogObjectNode(lod, entry, false);
+        if(entry != &lod->serverLog) {
+            UA_NodeId_clear(&entry->nodeId);
+            UA_free(entry);
+        }
+    }
+    lod->serverLogRegistered = false;
+    releaseContinuationPoints(lod, NULL, NULL);
+    deleteServerLogNodes(lod);
+}
+
+static UA_StatusCode
+startDriver(LogObjectDriver *lod) {
+    UA_StatusCode res = configureDriver(lod);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = createServerLogNodes(lod);
+    if(res != UA_STATUSCODE_GOOD || !lod->serverLogEnabled)
+        return res;
+
+    /* Register the ServerLog */
+    memset(&lod->serverLog, 0, sizeof(LogObjectEntry));
+    lod->serverLog.nodeId = UA_NS0ID(SERVERLOG);
+    lod->serverLog.settings = lod->serverLogSettings;
+    lod->serverLog.isServerLog = true;
+    res = registerLogObjectNode(lod, &lod->serverLog);
+    if(res == UA_STATUSCODE_GOOD)
+        lod->serverLogRegistered = true;
+    return res;
+}
 
 static UA_StatusCode
 LogObjectDriver_start(UA_Driver *drv) {
@@ -32,11 +261,20 @@ LogObjectDriver_start(UA_Driver *drv) {
         return UA_STATUSCODE_BADINVALIDSTATE;
     if(!drv->server)
         return UA_STATUSCODE_BADINTERNALERROR;
+    LogObjectDriver *lod = (LogObjectDriver*)drv;
     UA_EventLoop *el = UA_Server_getConfig(drv->server)->eventLoop;
     el->lock(el);
-    drv->state = UA_LIFECYCLESTATE_STARTED;
+    UA_StatusCode res = startDriver(lod);
+    if(res == UA_STATUSCODE_GOOD) {
+        drv->state = UA_LIFECYCLESTATE_STARTED;
+    } else {
+        stopDriver(lod);
+        UA_LOG_ERROR(UA_Server_getConfig(drv->server)->logging, UA_LOGCATEGORY_SERVER,
+                     "LogObject: Starting the driver failed with %s",
+                     UA_StatusCode_name(res));
+    }
     el->unlock(el);
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 /* Also called for a driver whose start failed and by the application before
@@ -47,6 +285,7 @@ LogObjectDriver_stop(UA_Driver *drv) {
         return;
     UA_EventLoop *el = UA_Server_getConfig(drv->server)->eventLoop;
     el->lock(el);
+    stopDriver((LogObjectDriver*)drv);
     drv->state = UA_LIFECYCLESTATE_STOPPED;
     el->unlock(el);
 }
@@ -95,10 +334,14 @@ UA_LogObjectDriver_new(const UA_LogObjectBackend *backend, UA_Driver **outDriver
             return res;
         }
     }
+    LIST_INIT(&lod->logObjects);
+    LIST_INIT(&lod->continuationPoints);
 
     UA_Driver *base = &lod->driver;
     base->driverType = UA_DRIVERTYPE_LOGOBJECT;
     base->name = UA_STRING(UA_DRIVER_LOGOBJECT_NAME);
+    base->notificationCallback = LogObjectDriver_notification;
+    base->notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_SESSION;
     base->start = LogObjectDriver_start;
     base->stop = LogObjectDriver_stop;
     base->free = LogObjectDriver_free;

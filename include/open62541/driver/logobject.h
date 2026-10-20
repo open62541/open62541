@@ -174,6 +174,61 @@ UA_LogObjectBackend_memory(UA_LogObjectBackend *backend);
 UA_EXPORT UA_StatusCode
 UA_LogObjectDriver_new(const UA_LogObjectBackend *backend, UA_Driver **outDriver);
 
+/**
+ * Parameters
+ * ~~~~~~~~~~
+ * Set ``driver->params`` before the driver starts. The parameters are read on
+ * every start, all keys use namespace 0. A known key with another type than
+ * listed, or an invalid value, fails the start with ``Bad_InvalidArgument``.
+ * Numeric types with the same encoding are accepted as well, e.g. a Double
+ * for a Duration.
+ *
+ * 0:server-log [Boolean]
+ *    Expose the well-known ServerLog (Part 26, 7.2) below the Server Object
+ *    (default: true).
+ * 0:server-log-max-records [UInt32]
+ *    MaxRecords of the ServerLog, at least 1 (default: 1000).
+ * 0:server-log-max-storage-duration [Duration]
+ *    MaxStorageDuration of the ServerLog in milliseconds. 0 disables the
+ *    time-based expiry and the Property is not exposed (default: 0).
+ * 0:server-log-minimum-severity [UInt16]
+ *    MinimumSeverity of the ServerLog, 1..1000 (default: 51, Information and
+ *    above, Part 26 Table 9).
+ * 0:max-records-per-call [UInt32]
+ *    Server-imposed limit for the LogRecords returned by one GetRecords call.
+ *    0 = only the MaxReturnRecords argument of the client applies (default:
+ *    1000).
+ * 0:max-continuation-points [UInt16]
+ *    Continuation points of the GetRecords Method per Session. 0 = no limit
+ *    (default: 32). Mirrored into the MaxLogObjectContinuationPoints
+ *    Property of the ServerCapabilities.
+ *
+ * ServerLog and GetRecords
+ * ~~~~~~~~~~~~~~~~~~~~~~~~
+ * The started driver creates the ServerLog with the NodeIds of the standard
+ * nodeset and removes it again when it stops. Every LogObject is referenced
+ * from the Logs Folder (Part 26, 7.3). The GetRecords and
+ * ReleaseContinuationPoint Methods are served by the driver. The continuation
+ * points belong to the Session and are released when the Session is closed.
+ *
+ * The ServerLog contains security related information and should only be
+ * accessible to authorised users (Part 26, 5.11). Access to the Methods and
+ * to the writable MinimumSeverity is controlled by the AccessControl plugin
+ * (``getUserExecutableOnObject``, ``getUserAccessLevel``) or by role
+ * permissions. The default AccessControl allows all users. The records are
+ * not filtered per user.
+ *
+ * Application Records
+ * ~~~~~~~~~~~~~~~~~~~
+ * Add a record to a LogObject of the started driver. The record is copied by
+ * the storage backend, the caller keeps the ownership. The Severity must be in
+ * 1..1000. A Time of zero is replaced by the current time. Records with a
+ * Severity below the MinimumSeverity of the LogObject are dropped. Every
+ * record is also added to the ServerLog (Part 26, 7.2). */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_LogObjectDriver_addRecord(UA_Driver *driver, const UA_NodeId logObjectId,
+                             const UA_LogRecord *record);
+
 #endif /* UA_ENABLE_DRIVER_LOGOBJECT */
 
 _UA_END_DECLS
