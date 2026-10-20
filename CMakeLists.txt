@@ -932,6 +932,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/alarms_conditions.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/mdns.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/file_transfer.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/logobject.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
 
@@ -1272,6 +1273,14 @@ if(UA_ENABLE_DRIVER_FILE_TRANSFER)
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
+endif()
+
+# The LogObject driver uses only the public API of the server
+if(UA_ENABLE_DRIVER_LOGOBJECT)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_internal.h)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_driver.c
+         ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_backend_memory.c)
 endif()
 
 # For file based server and client configuration

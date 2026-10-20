@@ -1977,7 +1977,8 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * can be added only once to a server. */
 typedef enum {
     UA_DRIVERTYPE_GENERIC = 0,
-    UA_DRIVERTYPE_GDS_RECEIVER
+    UA_DRIVERTYPE_GDS_RECEIVER,
+    UA_DRIVERTYPE_LOGOBJECT
 } UA_DriverType;
 
 struct UA_Driver;
