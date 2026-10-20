@@ -25,7 +25,6 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-#ifdef UA_ENABLE_DA
 
 /* Translate a percentage deadband into an absolute deadband based on the
  * UARange property of the variable */
@@ -77,7 +76,6 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif /* UA_ENABLE_DA */
 
 UA_Boolean
 Service_SetTriggering(UA_Server *server, UA_Session *session,
@@ -288,7 +286,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                    !valueType || !UA_DataType_isNumeric(valueType))
                     return UA_STATUSCODE_BADFILTERNOTALLOWED;
                 break;
-#ifdef UA_ENABLE_DA
             case UA_DEADBANDTYPE_PERCENT: {
                 if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
                    !valueType || !UA_DataType_isNumeric(valueType))
@@ -301,7 +298,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                     return res;
                 break;
             }
-#endif
             default:
                 return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
             }

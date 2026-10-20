@@ -3,6 +3,12 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Percentage deadband support is always available
+
+`UA_ENABLE_DA` is removed. Percentage deadband support is always compiled with
+subscriptions, and DataAccess datatypes and the Part 8 subset are always included
+in the reduced namespace zero.
+
 ### Discovery is controlled by server configuration
 
 `UA_ENABLE_DISCOVERY` and `UA_ENABLE_DISCOVERY_MULTICAST` are removed. Use
