@@ -35,6 +35,16 @@ START_TEST(UA_new_server_from_json) {
     ck_assert_uint_eq(config->webSocketMaxChunks, 100);
     ck_assert_uint_eq(config->webSocketMaxQueueSize, 2000000);
 #endif
+#ifdef UA_ENABLE_LOGOBJECT
+    ck_assert(config->logObjectsEnabled);
+    ck_assert_uint_eq(config->serverLog.maxRecords, 500);
+    ck_assert(config->serverLog.maxStorageDuration == 3600000.0);
+    ck_assert_uint_eq(config->serverLog.minimumSeverity, 101);
+    ck_assert(!config->serverLog.anonymousAccess);
+    ck_assert_uint_eq(config->maxLogRecordsPerCall, 250);
+    ck_assert_uint_eq(config->maxLogObjectContinuationPoints, 8);
+    ck_assert(config->logOverflowEventInterval == 30000.0);
+#endif
     UA_ByteString_clear(&json_config);
     UA_Server_delete(server);
 }

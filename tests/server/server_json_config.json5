@@ -155,6 +155,18 @@
     deleteAtTimeDataCapability: false,
   },
 
+  // LogObjects of OPC UA Part 26 (UA_ENABLE_LOGOBJECT)
+  logObjectsEnabled: true,
+  serverLog: {
+    maxRecords: 500,
+    maxStorageDuration: 3600000.0,
+    minimumSeverity: 101,
+    anonymousAccess: false
+  },
+  maxLogRecordsPerCall: 250,
+  maxLogObjectContinuationPoints: 8,
+  logOverflowEventInterval: 30000.0,
+
   // Reverse Connect
   reverseReconnectInterval: 20000,
 

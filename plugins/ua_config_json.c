@@ -724,6 +724,43 @@ PARSE_JSON(HistorizingConfigurationField) {
 }
 #endif
 
+#ifdef UA_ENABLE_LOGOBJECT
+PARSE_JSON(LogObjectSettingsField) {
+    UA_LogObjectSettings *settings = (UA_LogObjectSettings*)configField;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = nextToken(ctx);
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = nextToken(ctx);
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "maxRecords") == 0)
+                retval = UInt32Field_parseJson(ctx, &settings->maxRecords, NULL);
+            else if(strcmp(field_str, "maxStorageDuration") == 0)
+                retval = DurationField_parseJson(ctx, &settings->maxStorageDuration, NULL);
+            else if(strcmp(field_str, "minimumSeverity") == 0)
+                retval = UInt16Field_parseJson(ctx, &settings->minimumSeverity, NULL);
+            else if(strcmp(field_str, "anonymousAccess") == 0)
+                retval = BooleanField_parseJson(ctx, &settings->anonymousAccess, NULL);
+            else {
+                LOG_UNKNOWN_FIELD(ctx, field_str);
+            }
+            UA_free(field_str);
+            if(retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 static
 UA_StatusCode
 UA_SecurityPolicy_initByUri(UA_SecurityPolicy *policy,
@@ -1195,6 +1232,14 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #ifdef UA_ENABLE_LOGOBJECT
                 else if(strcmp(field, "logObjectsEnabled") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->logObjectsEnabled, NULL);
+                else if(strcmp(field, "serverLog") == 0)
+                    retval = LogObjectSettingsField_parseJson(&ctx, &config->serverLog, NULL);
+                else if(strcmp(field, "maxLogRecordsPerCall") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->maxLogRecordsPerCall, NULL);
+                else if(strcmp(field, "maxLogObjectContinuationPoints") == 0)
+                    retval = UInt16Field_parseJson(&ctx, &config->maxLogObjectContinuationPoints, NULL);
+                else if(strcmp(field, "logOverflowEventInterval") == 0)
+                    retval = DurationField_parseJson(&ctx, &config->logOverflowEventInterval, NULL);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
