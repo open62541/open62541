@@ -553,7 +553,7 @@ START_TEST(Node_ReadWrite_Class) {
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODECLASS_OBJECT);
 
     /* Minimal nodeset does not contain UA_NS0ID_SERVER_GETMONITOREDITEMS node */
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_GENERATED_NAMESPACE_ZERO)
+#if defined(UA_GENERATED_NAMESPACE_ZERO)
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), UA_NODECLASS_METHOD);
 #endif
 
@@ -1202,7 +1202,6 @@ START_TEST(Highlevel_BrowseSimplified) {
 }
 END_TEST
 
-#ifdef UA_ENABLE_METHODCALLS
 START_TEST(Highlevel_CallMethod_Error) {
     /* Call a method on a non-existent node */
     size_t outputSize = 0;
@@ -1216,7 +1215,6 @@ START_TEST(Highlevel_CallMethod_Error) {
     ck_assert(output == NULL);
 }
 END_TEST
-#endif
 
 START_TEST(Highlevel_browse_nullDescription) {
     UA_BrowseResult br = UA_Client_browse(client, NULL, 0, NULL);
@@ -1429,9 +1427,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_ext, Highlevel_translateBrowsePath_null);
     tcase_add_test(tc_ext, Highlevel_write_nullWriteValue);
     tcase_add_test(tc_ext, Highlevel_writeValueAttribute_nullVariant_returnsTypeMismatch);
-#ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_ext, Highlevel_CallMethod_Error);
-#endif
     tcase_add_test(tc_ext, Highlevel_addReference_invalidSource);
     tcase_add_test(tc_ext, Highlevel_deleteReference_invalidSource);
     tcase_add_test(tc_ext, Highlevel_deleteNode_invalidNode);

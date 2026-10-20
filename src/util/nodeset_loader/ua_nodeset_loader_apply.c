@@ -377,15 +377,11 @@ discardBegunNodes(NodeSet *nodeset) {
 
 static UA_StatusCode
 finishNode(NodeSet *nodeset, NL_Node *node) {
-#ifdef UA_ENABLE_METHODCALLS
     UA_StatusCode res;
     if(node->nodeClass == UA_NODECLASS_METHOD)
         res = UA_Server_addMethodNode_finish(nodeset->server, node->id, NULL, 0, NULL, 0, NULL);
     else
         res = UA_Server_addNode_finish(nodeset->server, node->id);
-#else
-    UA_StatusCode res = UA_Server_addNode_finish(nodeset->server, node->id);
-#endif
     if(res == UA_STATUSCODE_GOOD) {
         node->addState = NL_NODE_FINISHED;
     } else {

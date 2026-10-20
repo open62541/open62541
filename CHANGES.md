@@ -3,6 +3,12 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Method support is always available
+
+`UA_ENABLE_METHODCALLS` is removed. The Method service set, method APIs, and file
+transfer driver are always compiled. Method and file transfer definitions are
+always included in the reduced namespace zero.
+
 ### Percentage deadband support is always available
 
 `UA_ENABLE_DA` is removed. Percentage deadband support is always compiled with
