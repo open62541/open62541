@@ -1484,6 +1484,12 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                                UA_NodeTypeLifecycle lifecycle);
 
+/* Get the node-type lifecycle of an ObjectTypeNode or VariableTypeNode, e.g. to
+ * chain to it before replacing it with UA_Server_setNodeTypeLifecycle */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
+                               UA_NodeTypeLifecycle *lifecycle);
+
 /**
  * Detailed Node Construction
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~
