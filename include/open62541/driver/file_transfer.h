@@ -20,7 +20,7 @@ _UA_BEGIN_DECLS
  * FileDirectoryType Methods. Each driver owns one storage backend; built-in
  * backends serve local files and directories.
  *
- * The file transfer driver is always compiled.
+ * Linking the driver requires ``UA_ENABLE_DRIVER_FILE_TRANSFER``.
  * The reduced and full Namespace Zero include the required types; with MINIMAL
  * or NONE, load them before constructing a driver. See
  * :doc:`tutorial_server_filetransfer` for setup.

@@ -274,9 +274,15 @@ Detailed SDK Features
 **UA_ENABLE_SUBSCRIPTIONS_EVENTS**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
-The Method service set and file transfer driver are always compiled. The reduced
-and full Namespace Zero include the file transfer types. With ``MINIMAL`` or
-``NONE``, load the required types before constructing a file transfer driver.
+The Method service set is always compiled.
+
+**UA_ENABLE_DRIVER_FILE_TRANSFER**
+   Enable the file transfer driver (default ON on all architectures). The local
+   filesystem backend is available on POSIX and Win32; other architectures can
+   supply a custom backend.
+   The reduced Namespace Zero includes file transfer types when this driver is
+   enabled; the full Namespace Zero always includes them. With ``MINIMAL`` or
+   ``NONE``, load the required types before constructing a file transfer driver.
 
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime

@@ -5,9 +5,14 @@ refactorings and bug fixes are not reported here.
 
 ### Method support is always available
 
-`UA_ENABLE_METHODCALLS` is removed. The Method service set, method APIs, and file
-transfer driver are always compiled. Method and file transfer definitions are
-always included in the reduced namespace zero.
+`UA_ENABLE_METHODCALLS` is removed. The Method service set and method APIs are
+always compiled.
+
+### File transfer driver build option
+
+`UA_ENABLE_DRIVER_FILE_TRANSFER` controls the file transfer driver and defaults
+to ON on all architectures. The local filesystem backend supports POSIX and
+Win32; other architectures can supply a custom backend.
 
 ### Percentage deadband support is always available
 
