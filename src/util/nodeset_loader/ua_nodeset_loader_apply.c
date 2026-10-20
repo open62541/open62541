@@ -378,10 +378,17 @@ discardBegunNodes(NodeSet *nodeset) {
 static UA_StatusCode
 finishNode(NodeSet *nodeset, NL_Node *node) {
     UA_StatusCode res;
-    if(node->nodeClass == UA_NODECLASS_METHOD)
-        res = UA_Server_addMethodNode_finish(nodeset->server, node->id, NULL, 0, NULL, 0, NULL);
-    else
+    if(node->nodeClass == UA_NODECLASS_METHOD) {
+        /* Keep a callback that was set while the node was begun. The parent
+         * Object is finished first, so the constructor of its type may already
+         * have bound the Method. */
+        UA_MethodCallback callback = NULL;
+        UA_Server_getMethodNodeCallback(nodeset->server, node->id, &callback);
+        res = UA_Server_addMethodNode_finish(nodeset->server, node->id, callback,
+                                             0, NULL, 0, NULL);
+    } else {
         res = UA_Server_addNode_finish(nodeset->server, node->id);
+    }
     if(res == UA_STATUSCODE_GOOD) {
         node->addState = NL_NODE_FINISHED;
     } else {
