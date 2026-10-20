@@ -1285,6 +1285,7 @@ if(UA_ENABLE_DRIVER_LOGOBJECT)
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_ns0.c
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_methods.c
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_capture.c
+         ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_events.c
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_backend_memory.c)
 endif()
 

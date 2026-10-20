@@ -85,6 +85,8 @@ captureLog(void *context, UA_LogLevel level, UA_LogCategory category,
     UA_Boolean overflow = false;
     lod->backend.addRecord(lod->driver.server, lod->backend.context,
                            &lod->serverLog.nodeId, &record, record.time, &overflow);
+    if(overflow)
+        scheduleOverflowEvent(lod, &lod->serverLog);
 
  done:
     logObjectAtomicAdd(&lod->captureInFlight, (uintptr_t)-1);

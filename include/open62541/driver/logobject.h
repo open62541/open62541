@@ -212,6 +212,9 @@ UA_LogObjectDriver_new(const UA_LogObjectBackend *backend, UA_Driver **outDriver
  *    Continuation points of the GetRecords Method per Session. 0 = no limit
  *    (default: 32). Mirrored into the MaxLogObjectContinuationPoints
  *    Property of the ServerCapabilities.
+ * 0:overflow-event-interval [Duration]
+ *    Minimum time in milliseconds between two LogOverflowEventType Events of
+ *    a LogObject, greater than 0 (default: 60000). See below.
  *
  * ServerLog and GetRecords
  * ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -289,6 +292,15 @@ UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_LogObjectDriver_refresh(UA_Driver *driver);
 
 /**
+ * Overflow Events
+ * ~~~~~~~~~~~~~~~
+ * When a LogObject evicts records because MaxRecords is reached, a
+ * LogOverflowEventType Event is emitted with the LogObject as SourceNode and
+ * the SourceName "LogObject/Overflow" (Part 26, 6.4). A full ring evicts a
+ * record for every new one, so the Events of a LogObject are limited to one
+ * per overflow-event-interval. The Message of the Event states the number of
+ * records discarded since the previous Event.
+ *
  * Settings
  * ~~~~~~~~
  * Clients can write the MinimumSeverity Property of a LogObject (Part 26,

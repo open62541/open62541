@@ -410,6 +410,7 @@ START_TEST(durationParameters) {
     UA_Duration duration = 5000.0;
     setParam("server-log-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DURATION]);
     setParam("default-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DURATION]);
+    setParam("overflow-event-interval", &duration, &UA_TYPES[UA_TYPES_DURATION]);
     startDriver();
     UA_Variant v;
     ck_assert_uint_eq(UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION), &v),
@@ -1839,6 +1840,247 @@ START_TEST(setSettingsWithoutUpdate) {
                       UA_STATUSCODE_GOOD);
 } END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* --- LogOverflowEventType (Part 26, 6.4) --- */
+
+static unsigned overflowEvents = 0;
+static UA_NodeId overflowSourceNode;
+static UA_UInt32 overflowEventTypeId = 0;
+static UA_Boolean overflowSourceNameOk = false;
+static char overflowMessage[128];
+
+static void
+overflowCallback(UA_Server *s, UA_UInt32 monitoredItemId, void *context,
+                 const UA_KeyValueMap eventFields) {
+    overflowEvents++;
+    if(eventFields.mapSize != 4)
+        return;
+    const UA_Variant *v = &eventFields.map[0].value;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_NODEID]))
+        overflowEventTypeId = ((UA_NodeId*)v->data)->identifier.numeric;
+    v = &eventFields.map[1].value;
+    UA_NodeId_clear(&overflowSourceNode);
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_NODEID]))
+        UA_NodeId_copy((UA_NodeId*)v->data, &overflowSourceNode);
+    v = &eventFields.map[2].value;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_STRING]))
+        overflowSourceNameOk = stringEquals((UA_String*)v->data, "LogObject/Overflow");
+    v = &eventFields.map[3].value;
+    overflowMessage[0] = 0;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+        const UA_String *t = &((UA_LocalizedText*)v->data)->text;
+        size_t len = t->length < sizeof(overflowMessage) - 1 ?
+            t->length : sizeof(overflowMessage) - 1;
+        memcpy(overflowMessage, t->data, len);
+        overflowMessage[len] = 0;
+    }
+}
+
+/* Subscribe to the Events of the Server Object, as a typical client does */
+static UA_UInt32
+monitorOverflowEvents(void) {
+    static const char *fields[4] = {"/EventType", "/SourceNode", "/SourceName", "/Message"};
+    UA_EventFilter ef;
+    UA_EventFilter_init(&ef);
+    ef.selectClauses = (UA_SimpleAttributeOperand*)
+        UA_Array_new(4, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    ck_assert(ef.selectClauses != NULL);
+    ef.selectClausesSize = 4;
+    for(size_t i = 0; i < 4; i++)
+        ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&ef.selectClauses[i],
+                                                          UA_STRING((char*)(uintptr_t)fields[i])),
+                          UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult mon =
+        UA_Server_createEventMonitoredItem(server, UA_NS0ID(SERVER), ef, NULL,
+                                           overflowCallback);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&ef);
+    overflowEvents = 0;
+    overflowMessage[0] = 0;
+    return mon.monitoredItemId;
+}
+
+/* Run the EventLoop so that delayed callbacks, timers and local notifications
+ * are processed */
+static void
+pump(void) {
+    for(int i = 0; i < 10; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, false);
+    }
+}
+
+/* A server with the driver, started without a thread on a port that the
+ * other tests do not use */
+static void
+newOverflowServer(UA_UInt32 maxRecords, UA_UInt16 minimumSeverity, UA_Double interval) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.maxRecords = maxRecords;
+    o.serverLogSettings.minimumSeverity = minimumSeverity;
+    o.port = 4842;
+    newLogObjectServer(&o);
+    setParam("overflow-event-interval", &interval, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+}
+
+START_TEST(overflowEvent) {
+    newOverflowServer(3, 300, 1000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+
+    /* Filling the ring does not overflow */
+    addRecord(300, "one");
+    addRecord(300, "two");
+    addRecord(300, "three");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 0);
+
+    /* Two overflows in the same cycle are reported as one Event with the
+     * fields required by Part 26, 6.4 */
+    addRecord(300, "four");
+    addRecord(300, "five");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    ck_assert_uint_eq(overflowEventTypeId, UA_NS0ID_LOGOVERFLOWEVENTTYPE);
+    UA_NodeId serverLog = UA_NS0ID(SERVERLOG);
+    ck_assert(UA_NodeId_equal(&overflowSourceNode, &serverLog));
+    ck_assert(overflowSourceNameOk);
+    ck_assert_str_eq(overflowMessage,
+                     "LogObject discarded 2 records (MaxRecords reached)");
+
+    /* The next overflow is reported once the interval has elapsed */
+    addRecord(300, "six");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+    ck_assert_str_eq(overflowMessage,
+                     "LogObject discarded 1 records (MaxRecords reached)");
+
+    /* Overflow caused by the captured logger (FATAL maps to Severity 500) */
+    UA_fakeSleep(1000);
+    UA_LOG_FATAL(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                 "fatal marker");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 3);
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+} END_TEST
+
+/* Overflows within the interval are coalesced into one Event that reports
+ * the number of discarded records */
+START_TEST(overflowEventCoalesced) {
+    newOverflowServer(3, 300, 10000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+    addRecord(300, "one");
+    addRecord(300, "two");
+    addRecord(300, "three");
+    addRecord(300, "four");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+
+    /* Five more overflows, spread over several cycles within the interval */
+    for(int i = 0; i < 5; i++) {
+        addRecord(300, "more");
+        pump();
+    }
+    ck_assert_uint_eq(overflowEvents, 1);
+
+    /* The timer reports them together when the interval has elapsed */
+    for(int i = 0; i < 6; i++)
+        pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+    ck_assert_str_eq(overflowMessage,
+                     "LogObject discarded 5 records (MaxRecords reached)");
+
+    /* No further overflow, no further Event */
+    for(int i = 0; i < 20; i++)
+        pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+} END_TEST
+
+/* The emission of an Event logs at DEBUG level. When the ServerLog captures
+ * DEBUG messages and the ring is full, each Event overflows the ring again.
+ * This must not turn into one Event per EventLoop cycle. */
+START_TEST(overflowEventNoFeedbackLoop) {
+    newOverflowServer(10, 1, 1000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    for(int i = 0; i < 20; i++)
+        UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_USERLAND, "fill %d", i);
+
+    /* 10s on the fake clock in 1000 EventLoop cycles: at most one Event per
+     * interval, not one per cycle */
+    for(int i = 0; i < 1000; i++) {
+        UA_fakeSleep(10);
+        UA_Server_run_iterate(server, false);
+    }
+    ck_assert_uint_ge(overflowEvents, 1);
+    ck_assert_uint_le(overflowEvents, 11);
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+} END_TEST
+
+/* The first overflow of a LogObject is reported at once, also while the
+ * timer of the coalesced overflows of another LogObject is armed */
+START_TEST(overflowEventNotDelayedByOtherLogObject) {
+    newOverflowServer(3, 300, 10000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+    UA_NodeId id = addInstance("OtherLog", UA_NS0ID(LOGOBJECTTYPE));
+    UA_LogObjectSettings s = {2, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, id, &s), UA_STATUSCODE_GOOD);
+
+    /* The ServerLog overflows twice. The second overflow is coalesced and
+     * arms the timer. */
+    for(int i = 0; i < 4; i++)
+        addRecord(300, "fill");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    addRecord(300, "coalesced");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    ck_assert(UA_atomic_load(&((LogObjectDriver*)driver)->overflowTimerArmed) != 0);
+
+    /* The application LogObject overflows. Its records are also added to the
+     * full ServerLog, whose overflow stays coalesced. */
+    addRecordTo(id, 300, "one");
+    addRecordTo(id, 300, "two");
+    addRecordTo(id, 300, "three");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+    ck_assert(UA_NodeId_equal(&overflowSourceNode, &id));
+
+    /* The coalesced overflows of the ServerLog follow after the interval */
+    for(int i = 0; i < 10; i++)
+        pump();
+    ck_assert_uint_eq(overflowEvents, 3);
+    UA_NodeId serverLog = UA_NS0ID(SERVERLOG);
+    ck_assert(UA_NodeId_equal(&overflowSourceNode, &serverLog));
+    ck_assert_str_eq(overflowMessage,
+                     "LogObject discarded 4 records (MaxRecords reached)");
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+    UA_NodeId_clear(&id);
+} END_TEST
+
+/* An application LogObject reports its own overflow */
+START_TEST(overflowEventOfInstance) {
+    newOverflowServer(1000, 300, 1000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+    UA_NodeId id = addInstance("SmallLog", UA_NS0ID(LOGOBJECTTYPE));
+    UA_LogObjectSettings s = {2, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, id, &s), UA_STATUSCODE_GOOD);
+    addRecordTo(id, 300, "one");
+    addRecordTo(id, 300, "two");
+    addRecordTo(id, 300, "three");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    ck_assert(UA_NodeId_equal(&overflowSourceNode, &id));
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+    UA_NodeId_clear(&id);
+} END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 /* --- Contract of the storage backend --- */
 
 /* A backend that always returns every optional field. The driver has to
@@ -2357,6 +2599,17 @@ int main(void) {
     tcase_add_test(tc_settings, setSettingsWithoutUpdate);
     tcase_add_test(tc_settings, setMaxStorageDuration);
     suite_add_tcase(s, tc_settings);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    TCase *tc_overflow = tcase_create("Overflow");
+    tcase_add_checked_fixture(tc_overflow, setup, teardown);
+    tcase_add_test(tc_overflow, overflowEvent);
+    tcase_add_test(tc_overflow, overflowEventCoalesced);
+    tcase_add_test(tc_overflow, overflowEventNoFeedbackLoop);
+    tcase_add_test(tc_overflow, overflowEventOfInstance);
+    tcase_add_test(tc_overflow, overflowEventNotDelayedByOtherLogObject);
+    suite_add_tcase(s, tc_overflow);
+#endif
 
     TCase *tc_net = tcase_create("Sessions");
     tcase_add_checked_fixture(tc_net, setup, teardown);
