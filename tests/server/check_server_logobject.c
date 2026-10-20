@@ -9,6 +9,7 @@
 #include <open62541/driver/logobject.h>
 
 #include "test_helpers.h"
+#include "../common.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 #include "../../drivers/logobject/logobject_internal.h"
@@ -387,6 +388,7 @@ START_TEST(durationParameters) {
     newLogObjectServer(&o);
     UA_Duration duration = 5000.0;
     setParam("server-log-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DURATION]);
+    setParam("default-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DURATION]);
     startDriver();
     UA_Variant v;
     ck_assert_uint_eq(UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION), &v),
@@ -1063,6 +1065,551 @@ START_TEST(continuationPointsReleasedWithSession) {
     stopServer();
 } END_TEST
 
+/* --- LogObjects in the information model (Part 26, 5.2, 7.3) --- */
+
+static UA_NodeId
+addInstance(const char *name, const UA_NodeId typeId) {
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)name);
+    UA_NodeId id;
+    UA_StatusCode res =
+        UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                                UA_NS0ID(ORGANIZES),
+                                UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+                                typeId, oa, NULL, &id);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    return id;
+}
+
+static void
+addRecordTo(const UA_NodeId logObjectId, UA_UInt16 severity, const char *msg) {
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = severity;
+    r.message = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)msg);
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, logObjectId, &r),
+                      UA_STATUSCODE_GOOD);
+}
+
+static UA_StatusCode
+getRecordsStatus(const UA_NodeId logObjectId) {
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(logObjectId, 0, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    return res;
+}
+
+static UA_NodeId
+addLogObjectSubtype(UA_UInt32 id, const char *name) {
+    UA_ObjectTypeAttributes ota = UA_ObjectTypeAttributes_default;
+    ota.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)name);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, id);
+    UA_StatusCode res =
+        UA_Server_addObjectTypeNode(server, typeId, UA_NS0ID(LOGOBJECTTYPE),
+                                    UA_NS0ID(HASSUBTYPE),
+                                    UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+                                    ota, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    return typeId;
+}
+
+static void
+addProperty(const UA_NodeId parent, char *name, void *value, const UA_DataType *type) {
+    UA_VariableAttributes va = UA_VariableAttributes_default;
+    va.displayName = UA_LOCALIZEDTEXT("", name);
+    va.dataType = type->typeId;
+    va.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&va.value, value, type);
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, UA_NODEID_NULL, parent, UA_NS0ID(HASPROPERTY),
+                                  UA_QUALIFIEDNAME(0, name), UA_NS0ID(PROPERTYTYPE),
+                                  va, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+static UA_NodeId
+childOf(const UA_NodeId parent, UA_UInt16 ns, char *name) {
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(ns, name);
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, parent, 1, &qn);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    UA_NodeId id;
+    UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &id);
+    UA_BrowsePathResult_clear(&bpr);
+    return id;
+}
+
+/* An Object added with UA_Server_addObjectNode is a LogObject */
+START_TEST(plainInstance) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_NodeId id = addInstance("AppLog", UA_NS0ID(LOGOBJECTTYPE));
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), id));
+    ck_assert(hasReferenceTo(id, UA_NS0ID(HASCOMPONENT),
+                             UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT)));
+
+    /* The records are also added to the ServerLog */
+    addRecordTo(id, 300, "app record");
+    ck_assert_uint_eq(countRecords(id, "app record"), 1);
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "app record"), 1);
+
+    /* Deleting the Object deletes the LogObject */
+    ck_assert_uint_eq(UA_Server_deleteNode(server, id, true), UA_STATUSCODE_GOOD);
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 300;
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, id, &r),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert(!hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), id));
+    UA_NodeId_clear(&id);
+} END_TEST
+
+/* Instances that exist when the driver starts are served as well */
+START_TEST(instanceBeforeStart) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId id = addInstance("EarlyLog", UA_NS0ID(LOGOBJECTTYPE));
+    startDriver();
+    ck_assert_uint_eq(getRecordsStatus(id), UA_STATUSCODE_GOOD);
+    addRecordTo(id, 300, "early record");
+
+    /* Not served while stopped, served again with the records after a
+     * restart */
+    driver->stop(driver);
+    ck_assert(getRecordsStatus(id) != UA_STATUSCODE_GOOD);
+    startDriver();
+    ck_assert_uint_eq(countRecords(id, "early record"), 1);
+    UA_NodeId_clear(&id);
+} END_TEST
+
+/* The InstanceDeclaration of a type is not a LogObject. The instances of the
+ * type get their own LogObject. */
+START_TEST(instanceDeclarationNotServed) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_ObjectTypeAttributes ota = UA_ObjectTypeAttributes_default;
+    ota.displayName = UA_LOCALIZEDTEXT("", "DeviceType");
+    UA_NodeId deviceType = UA_NODEID_NUMERIC(1, 5000);
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server, deviceType,
+                                                  UA_NS0ID(BASEOBJECTTYPE),
+                                                  UA_NS0ID(HASSUBTYPE),
+                                                  UA_QUALIFIEDNAME(1, "DeviceType"),
+                                                  ota, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", "Log");
+    UA_NodeId declaration = UA_NODEID_NUMERIC(1, 5001);
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, declaration, deviceType,
+                                              UA_NS0ID(HASCOMPONENT),
+                                              UA_QUALIFIEDNAME(1, "Log"),
+                                              UA_NS0ID(LOGOBJECTTYPE), oa, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addReference(server, declaration,
+                                             UA_NS0ID(HASMODELLINGRULE),
+                                             UA_EXPANDEDNODEID_NODEID(
+                                                 UA_NS0ID(MODELLINGRULE_MANDATORY)),
+                                             true),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(getRecordsStatus(declaration), UA_STATUSCODE_BADNODEIDINVALID);
+    ck_assert(!hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), declaration));
+
+    /* The log of a device */
+    UA_NodeId device = addInstance("Device", deviceType);
+    UA_NodeId deviceLog = childOf(device, 1, "Log");
+    ck_assert(!UA_NodeId_equal(&deviceLog, &declaration));
+    ck_assert_uint_eq(getRecordsStatus(deviceLog), UA_STATUSCODE_GOOD);
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), deviceLog));
+
+    /* The Logs Folder references every LogObject (Part 26, 7.3). With this
+     * second hierarchical parent the log is not deleted with the device. It
+     * stays a LogObject until it is deleted itself. */
+    ck_assert_uint_eq(UA_Server_deleteNode(server, device, true), UA_STATUSCODE_GOOD);
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), deviceLog));
+    ck_assert_uint_eq(getRecordsStatus(deviceLog), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, deviceLog, true), UA_STATUSCODE_GOOD);
+    ck_assert(!hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), deviceLog));
+    UA_NodeId_clear(&device);
+    UA_NodeId_clear(&deviceLog);
+} END_TEST
+
+/* Subtypes have their own lifecycle. A subtype added after the start is
+ * served after a refresh. */
+START_TEST(subtypeInstances) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId knownType = addLogObjectSubtype(6000, "KnownLogType");
+    startDriver();
+    UA_NodeId a = addInstance("KnownTyped", knownType);
+    ck_assert_uint_eq(getRecordsStatus(a), UA_STATUSCODE_GOOD);
+
+    UA_NodeId laterType = addLogObjectSubtype(6001, "LaterLogType");
+    UA_NodeId b = addInstance("LaterTyped", laterType);
+    ck_assert_uint_eq(getRecordsStatus(b), UA_STATUSCODE_BADNODEIDINVALID);
+    ck_assert_uint_eq(UA_LogObjectDriver_refresh(driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(getRecordsStatus(b), UA_STATUSCODE_GOOD);
+
+    /* A new instance of the later subtype is registered by its lifecycle */
+    UA_NodeId c = addInstance("LaterTyped2", laterType);
+    ck_assert_uint_eq(getRecordsStatus(c), UA_STATUSCODE_GOOD);
+
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_LogObjectDriver_refresh(driver), UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(UA_LogObjectDriver_refresh(NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_NodeId_clear(&a);
+    UA_NodeId_clear(&b);
+    UA_NodeId_clear(&c);
+} END_TEST
+
+/* The settings come from the Properties of the instance */
+START_TEST(settingsFromProperties) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId configured = addInstance("Configured", UA_NS0ID(LOGOBJECTTYPE));
+    UA_UInt32 maxRecords = 3;
+    addProperty(configured, "MaxRecords", &maxRecords, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt16 severity = 200;
+    addProperty(configured, "MinimumSeverity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_NodeId invalid = addInstance("Invalid", UA_NS0ID(LOGOBJECTTYPE));
+    UA_UInt32 zero = 0;
+    addProperty(invalid, "MaxRecords", &zero, &UA_TYPES[UA_TYPES_UINT32]);
+    startDriver();
+
+    for(int i = 0; i < 5; i++)
+        addRecordTo(configured, 300, "record");
+    addRecordTo(configured, 100, "below");
+    ck_assert_uint_eq(countRecords(configured, "record"), 3);
+    ck_assert_uint_eq(countRecords(configured, "below"), 0);
+
+    /* An invalid value is replaced by the default and written back */
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readObjectProperty(server, invalid,
+                                                   UA_QUALIFIEDNAME(0, "MaxRecords"), &v),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)v.data, 1000);
+    UA_Variant_clear(&v);
+    UA_NodeId_clear(&configured);
+    UA_NodeId_clear(&invalid);
+} END_TEST
+
+#ifdef UA_ENABLE_XML_ENCODING
+static void
+loadCompanionNodeset(void) {
+    UA_ByteString xml = loadFile(LOGOBJECT_COMPANION_XML);
+    ck_assert(xml.length > 0);
+    ck_assert_uint_eq(UA_Server_loadNodeset(server, xml), UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&xml);
+}
+
+static UA_UInt16
+companionNamespace(void) {
+    size_t ns = 0;
+    ck_assert_uint_eq(UA_Server_getNamespaceByName(
+                          server, UA_STRING("http://example.org/LogObjectCompanion/"), &ns),
+                      UA_STATUSCODE_GOOD);
+    return (UA_UInt16)ns;
+}
+
+/* The LogObject of a companion nodeset owns its GetRecords Method and is
+ * configured by its Properties (MaxRecords 10, MinimumSeverity 200) */
+static void
+checkCompanionLogObject(void) {
+    UA_UInt16 ns = companionNamespace();
+    UA_NodeId logId = UA_NODEID_NUMERIC(ns, 1);
+    UA_NodeId methodId = UA_NODEID_NUMERIC(ns, 2);
+    UA_MethodCallback cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, methodId, &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == logObjectGetRecordsMethod);
+    ck_assert_uint_eq(getRecordsStatus(logId), UA_STATUSCODE_GOOD);
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), logId));
+    for(int i = 0; i < 12; i++)
+        addRecordTo(logId, 300, "companion");
+    addRecordTo(logId, 100, "below");
+    ck_assert_uint_eq(countRecords(logId, "companion"), 10);
+    ck_assert_uint_eq(countRecords(logId, "below"), 0);
+}
+
+START_TEST(companionNodesetBeforeStart) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    loadCompanionNodeset();
+    startDriver();
+    checkCompanionLogObject();
+
+    /* The callback of the own Method is released when the driver stops */
+    driver->stop(driver);
+    UA_MethodCallback cb = (UA_MethodCallback)(uintptr_t)1;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(
+                          server, UA_NODEID_NUMERIC(companionNamespace(), 2), &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == NULL);
+} END_TEST
+
+START_TEST(companionNodesetAtRuntime) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    loadCompanionNodeset();
+    checkCompanionLogObject();
+} END_TEST
+#endif
+
+/* The lifecycle of the application on a subtype is chained and restored */
+static unsigned appConstructed = 0;
+static unsigned appDestructed = 0;
+
+static UA_StatusCode
+appConstructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *typeNodeId, void *typeNodeContext,
+               const UA_NodeId *nodeId, void **nodeContext) {
+    appConstructed++;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+appDestructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+              const UA_NodeId *typeNodeId, void *typeNodeContext,
+              const UA_NodeId *nodeId, void **nodeContext) {
+    appDestructed++;
+}
+
+START_TEST(applicationLifecycleChained) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId appType = addLogObjectSubtype(7000, "AppLogType");
+    UA_NodeTypeLifecycle app;
+    memset(&app, 0, sizeof(UA_NodeTypeLifecycle));
+    app.constructor = appConstructor;
+    app.destructor = appDestructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, appType, app),
+                      UA_STATUSCODE_GOOD);
+    appConstructed = 0;
+    appDestructed = 0;
+    startDriver();
+
+    UA_NodeId id = addInstance("AppTyped", appType);
+    ck_assert_uint_eq(appConstructed, 1);
+    ck_assert_uint_eq(getRecordsStatus(id), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, id, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(appDestructed, 1);
+
+    driver->stop(driver);
+    UA_NodeTypeLifecycle restored;
+    ck_assert_uint_eq(UA_Server_getNodeTypeLifecycle(server, appType, &restored),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(restored.constructor == appConstructor);
+    ck_assert(restored.destructor == appDestructor);
+    UA_NodeId_clear(&id);
+} END_TEST
+
+/* Instances with copies of the Methods get the copies served */
+START_TEST(copiedMethods) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_Server_getConfig(server)->copyMethodsOnInstances = true;
+    startDriver();
+    UA_NodeId id = addInstance("CopiedLog", UA_NS0ID(LOGOBJECTTYPE));
+    UA_NodeId getRecords = childOf(id, 0, "GetRecords");
+    UA_NodeId typeMethod = UA_NS0ID(LOGOBJECTTYPE_GETRECORDS);
+    ck_assert(!UA_NodeId_equal(&getRecords, &typeMethod));
+    UA_MethodCallback cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, getRecords, &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == logObjectGetRecordsMethod);
+    ck_assert_uint_eq(getRecordsStatus(id), UA_STATUSCODE_GOOD);
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, getRecords, &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == NULL);
+    UA_NodeId_clear(&id);
+    UA_NodeId_clear(&getRecords);
+} END_TEST
+
+/* A LogObject with an own GetRecords Method with a fixed NodeId. The Method
+ * gets the Arguments of the type. */
+static void
+addLogObjectWithMethod(const UA_NodeId id, const UA_NodeId methodId) {
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", "OwnMethodLog");
+    ck_assert_uint_eq(UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, id,
+                                              UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                                              UA_QUALIFIEDNAME(1, "OwnMethodLog"),
+                                              UA_NS0ID(LOGOBJECTTYPE), &oa,
+                                              &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                              NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant in, out;
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                          UA_NS0ID(LOGOBJECTTYPE_GETRECORDS_INPUTARGUMENTS), &in),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                          UA_NS0ID(LOGOBJECTTYPE_GETRECORDS_OUTPUTARGUMENTS), &out),
+                      UA_STATUSCODE_GOOD);
+    UA_MethodAttributes ma = UA_MethodAttributes_default;
+    ma.displayName = UA_LOCALIZEDTEXT("", "GetRecords");
+    ma.executable = true;
+    ma.userExecutable = true;
+    ck_assert_uint_eq(UA_Server_addMethodNode(server, methodId, id, UA_NS0ID(HASCOMPONENT),
+                                              UA_QUALIFIEDNAME(0, "GetRecords"), ma, NULL,
+                                              in.arrayLength, (const UA_Argument*)in.data,
+                                              out.arrayLength, (const UA_Argument*)out.data,
+                                              NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&in);
+    UA_Variant_clear(&out);
+    ck_assert_uint_eq(UA_Server_addNode_finish(server, id), UA_STATUSCODE_GOOD);
+}
+
+/* A Method that is deleted with its LogObject and created again with the same
+ * NodeId is served again. The deleted Methods are forgotten. */
+START_TEST(ownMethodCreatedAgain) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    LogObjectDriver *lod = (LogObjectDriver*)driver;
+    size_t boundMethods = lod->boundMethodsSize;
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 8100);
+    UA_NodeId methodId = UA_NODEID_NUMERIC(1, 8101);
+    for(int i = 0; i < 3; i++) {
+        addLogObjectWithMethod(id, methodId);
+        UA_MethodCallback cb = NULL;
+        ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, methodId, &cb),
+                          UA_STATUSCODE_GOOD);
+        ck_assert(cb == logObjectGetRecordsMethod);
+        ck_assert_uint_eq(getRecordsStatus(id), UA_STATUSCODE_GOOD);
+        ck_assert_uint_le(lod->boundMethodsSize, boundMethods + 1);
+        ck_assert_uint_eq(UA_Server_deleteNode(server, id, true), UA_STATUSCODE_GOOD);
+        ck_assert(!nodeExists(methodId));
+    }
+} END_TEST
+
+/* The application sets the lifecycle of a LogObject type while the driver
+ * runs and chains to the driver's lifecycle */
+static UA_NodeTypeLifecycle wrappedLifecycle;
+static unsigned wrapperConstructed = 0;
+static unsigned wrapperDestructed = 0;
+
+static UA_StatusCode
+wrapperConstructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *typeNodeId, void *typeNodeContext,
+                   const UA_NodeId *nodeId, void **nodeContext) {
+    wrapperConstructed++;
+    return wrappedLifecycle.constructor(s, sessionId, sessionContext, typeNodeId,
+                                       typeNodeContext, nodeId, nodeContext);
+}
+
+static void
+wrapperDestructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_NodeId *typeNodeId, void *typeNodeContext,
+                  const UA_NodeId *nodeId, void **nodeContext) {
+    wrapperDestructed++;
+    wrappedLifecycle.destructor(s, sessionId, sessionContext, typeNodeId,
+                               typeNodeContext, nodeId, nodeContext);
+}
+
+START_TEST(applicationLifecycleWrappedAtRuntime) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId appType = addLogObjectSubtype(7100, "WrappedLogType");
+    UA_NodeTypeLifecycle app;
+    memset(&app, 0, sizeof(UA_NodeTypeLifecycle));
+    app.constructor = appConstructor;
+    app.destructor = appDestructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, appType, app),
+                      UA_STATUSCODE_GOOD);
+    appConstructed = appDestructed = wrapperConstructed = wrapperDestructed = 0;
+    startDriver();
+    ck_assert_uint_eq(UA_Server_getNodeTypeLifecycle(server, appType, &wrappedLifecycle),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeTypeLifecycle wrapper = wrappedLifecycle;
+    wrapper.constructor = wrapperConstructor;
+    wrapper.destructor = wrapperDestructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, appType, wrapper),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId a = addInstance("WrappedA", appType);
+    ck_assert_uint_eq(wrapperConstructed, 1);
+    ck_assert_uint_eq(appConstructed, 1);
+    ck_assert_uint_eq(getRecordsStatus(a), UA_STATUSCODE_GOOD);
+
+    /* The wrapper stays installed. The stopped driver forwards to the
+     * lifecycle of the application and does not serve the new LogObject. */
+    driver->stop(driver);
+    UA_NodeTypeLifecycle current;
+    ck_assert_uint_eq(UA_Server_getNodeTypeLifecycle(server, appType, &current),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(current.constructor == wrapperConstructor);
+    UA_NodeId b = addInstance("WrappedB", appType);
+    ck_assert_uint_eq(wrapperConstructed, 2);
+    ck_assert_uint_eq(appConstructed, 2);
+    ck_assert(findLogObjectEntry((LogObjectDriver*)driver, &b) == NULL);
+
+    /* After the restart every constructor runs once per node */
+    startDriver();
+    ck_assert_uint_eq(getRecordsStatus(b), UA_STATUSCODE_GOOD);
+    UA_NodeId c = addInstance("WrappedC", appType);
+    ck_assert_uint_eq(wrapperConstructed, 3);
+    ck_assert_uint_eq(appConstructed, 3);
+    ck_assert_uint_eq(getRecordsStatus(c), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, c, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(wrapperDestructed, 1);
+    ck_assert_uint_eq(appDestructed, 1);
+
+    /* A new driver finds the wrapper that chains to the static lifecycle of
+     * the driver. That does not recurse. */
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->free(driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, &driver), UA_STATUSCODE_GOOD);
+    UA_UInt16 severity = 300;
+    setParam("server-log-minimum-severity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(UA_Server_addDriver(server, driver), UA_STATUSCODE_GOOD);
+    startDriver();
+    UA_NodeId d = addInstance("WrappedD", appType);
+    ck_assert_uint_eq(wrapperConstructed, 4);
+    ck_assert_uint_eq(getRecordsStatus(d), UA_STATUSCODE_GOOD);
+
+    /* The application restores its lifecycle */
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, appType, app),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&a);
+    UA_NodeId_clear(&b);
+    UA_NodeId_clear(&c);
+    UA_NodeId_clear(&d);
+} END_TEST
+
+/* The records of a LogObject that was deleted while the driver was stopped
+ * are deleted when the driver starts again. A new LogObject with the same
+ * NodeId starts empty. */
+START_TEST(orphanedRecordsDeleted) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_NodeId fixed = UA_NODEID_NUMERIC(1, 8000);
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", "Fixed");
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, fixed, UA_NS0ID(OBJECTSFOLDER),
+                                              UA_NS0ID(ORGANIZES),
+                                              UA_QUALIFIEDNAME(1, "Fixed"),
+                                              UA_NS0ID(LOGOBJECTTYPE), oa, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    addRecordTo(fixed, 300, "old");
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, fixed, true), UA_STATUSCODE_GOOD);
+    startDriver();
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, fixed, UA_NS0ID(OBJECTSFOLDER),
+                                              UA_NS0ID(ORGANIZES),
+                                              UA_QUALIFIEDNAME(1, "Fixed"),
+                                              UA_NS0ID(LOGOBJECTTYPE), oa, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(countRecords(fixed, "old"), 0);
+} END_TEST
+
 /* --- Contract of the storage backend --- */
 
 /* A backend that always returns every optional field. The driver has to
@@ -1575,6 +2122,24 @@ int main(void) {
     tcase_add_test(tc_capture, logWhileGetRecordsMultithreaded);
 #endif
     suite_add_tcase(s, tc_capture);
+
+    TCase *tc_inst = tcase_create("Instances");
+    tcase_add_checked_fixture(tc_inst, setup, teardown);
+    tcase_add_test(tc_inst, plainInstance);
+    tcase_add_test(tc_inst, instanceBeforeStart);
+    tcase_add_test(tc_inst, instanceDeclarationNotServed);
+    tcase_add_test(tc_inst, subtypeInstances);
+    tcase_add_test(tc_inst, settingsFromProperties);
+#ifdef UA_ENABLE_XML_ENCODING
+    tcase_add_test(tc_inst, companionNodesetBeforeStart);
+    tcase_add_test(tc_inst, companionNodesetAtRuntime);
+#endif
+    tcase_add_test(tc_inst, applicationLifecycleChained);
+    tcase_add_test(tc_inst, copiedMethods);
+    tcase_add_test(tc_inst, ownMethodCreatedAgain);
+    tcase_add_test(tc_inst, applicationLifecycleWrappedAtRuntime);
+    tcase_add_test(tc_inst, orphanedRecordsDeleted);
+    suite_add_tcase(s, tc_inst);
 
     TCase *tc_net = tcase_create("Sessions");
     tcase_add_checked_fixture(tc_net, setup, teardown);

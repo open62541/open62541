@@ -149,35 +149,75 @@ deleteServerLogNodes(LogObjectDriver *lod) {
 /* Bound Methods */
 /*****************/
 
+/* Forget the Methods that were deleted together with their LogObject */
+static void
+pruneBoundMethods(LogObjectDriver *lod) {
+    UA_Server *server = lod->driver.server;
+    size_t i = 0;
+    while(i < lod->boundMethodsSize) {
+        UA_NodeClass nc = UA_NODECLASS_UNSPECIFIED;
+        if(UA_Server_readNodeClass(server, lod->boundMethods[i].methodId, &nc) !=
+           UA_STATUSCODE_BADNODEIDUNKNOWN) {
+            i++;
+            continue;
+        }
+        UA_NodeId_clear(&lod->boundMethods[i].methodId);
+        lod->boundMethods[i] = lod->boundMethods[lod->boundMethodsSize - 1];
+        lod->boundMethodsSize--;
+    }
+}
+
 static UA_StatusCode
 bindMethod(LogObjectDriver *lod, const UA_NodeId *methodId, UA_MethodCallback callback) {
-    for(size_t i = 0; i < lod->boundMethodsSize; i++) {
-        if(UA_NodeId_equal(&lod->boundMethods[i].methodId, methodId))
-            return UA_STATUSCODE_GOOD;
-    }
     UA_Server *server = lod->driver.server;
     UA_MethodCallback previous = NULL;
     UA_StatusCode res = UA_Server_getMethodNodeCallback(server, *methodId, &previous);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    LogObjectBoundMethod *bm = (LogObjectBoundMethod*)
-        UA_realloc(lod->boundMethods,
-                   (lod->boundMethodsSize + 1) * sizeof(LogObjectBoundMethod));
-    if(!bm)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    lod->boundMethods = bm;
-    bm = &lod->boundMethods[lod->boundMethodsSize];
-    res = UA_NodeId_copy(methodId, &bm->methodId);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    res = UA_Server_setMethodNodeCallback(server, *methodId, callback);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_NodeId_clear(&bm->methodId);
-        return res;
+
+    /* A Method that was deleted and created again with the same NodeId is
+     * bound anew */
+    LogObjectBoundMethod *bm = NULL;
+    for(size_t i = 0; i < lod->boundMethodsSize; i++) {
+        if(UA_NodeId_equal(&lod->boundMethods[i].methodId, methodId)) {
+            bm = &lod->boundMethods[i];
+            break;
+        }
+    }
+    if(bm && previous == bm->callback)
+        return UA_STATUSCODE_GOOD;
+
+    /* A copy of the Method of the type (copyMethodsOnInstances) inherits the
+     * callback of the driver. That is not restored when the driver stops. */
+    if(previous == logObjectGetRecordsMethod ||
+       previous == logObjectReleaseContinuationPointMethod)
+        previous = NULL;
+
+    if(!bm) {
+        pruneBoundMethods(lod);
+        bm = (LogObjectBoundMethod*)
+            UA_realloc(lod->boundMethods,
+                       (lod->boundMethodsSize + 1) * sizeof(LogObjectBoundMethod));
+        if(!bm)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        lod->boundMethods = bm;
+        bm = &lod->boundMethods[lod->boundMethodsSize];
+        res = UA_NodeId_copy(methodId, &bm->methodId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        res = UA_Server_setMethodNodeCallback(server, *methodId, callback);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_NodeId_clear(&bm->methodId);
+            return res;
+        }
+        lod->boundMethodsSize++;
+    } else {
+        res = UA_Server_setMethodNodeCallback(server, *methodId, callback);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
     bm->callback = callback;
     bm->previous = previous;
-    lod->boundMethodsSize++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -311,6 +351,300 @@ unregisterLogObjectNode(LogObjectDriver *lod, LogObjectEntry *entry,
     lod->backend.unregisterLogObject(server, lod->backend.context, &entry->nodeId,
                                      deleteRecords);
     LIST_REMOVE(entry, pointers);
+}
+
+/*************/
+/* Instances */
+/*************/
+
+/* Every instance of the LogObjectType and its subtypes is a LogObject: also
+ * the instances of companion specifications loaded from a nodeset. The driver
+ * installs the lifecycle of the types to register new instances and scans for
+ * the existing ones when it starts. */
+
+/* An InstanceDeclaration below an ObjectType or VariableType describes the
+ * instances of that type and is not a LogObject itself */
+static UA_Boolean
+isInstanceDeclaration(UA_Server *server, const UA_NodeId *nodeId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *nodeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NS0ID(HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.nodeClassMask = UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE;
+    size_t resultsSize = 0;
+    UA_ExpandedNodeId *results = NULL;
+    UA_StatusCode res = UA_Server_browseRecursive(server, &bd, &resultsSize, &results);
+    UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    return res == UA_STATUSCODE_GOOD && resultsSize > 0;
+}
+
+/* The settings of an instance come from its Properties if they are present
+ * and valid. Otherwise the defaults of the driver apply. */
+static UA_LogObjectSettings
+readInstanceSettings(LogObjectDriver *lod, const UA_NodeId *nodeId) {
+    UA_Server *server = lod->driver.server;
+    UA_LogObjectSettings s = lod->defaultSettings;
+    UA_Variant v;
+    UA_Variant_init(&v);
+    if(UA_Server_readObjectProperty(server, *nodeId, UA_QUALIFIEDNAME(0, "MaxRecords"),
+                                    &v) == UA_STATUSCODE_GOOD &&
+       UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT32]) &&
+       *(UA_UInt32*)v.data > 0)
+        s.maxRecords = *(UA_UInt32*)v.data;
+    UA_Variant_clear(&v);
+    if(UA_Server_readObjectProperty(server, *nodeId,
+                                    UA_QUALIFIEDNAME(0, "MaxStorageDuration"),
+                                    &v) == UA_STATUSCODE_GOOD &&
+       v.data && UA_Variant_isScalar(&v) && v.type->typeKind == UA_DATATYPEKIND_DOUBLE) {
+        /* Zero is invalid (Part 26, 5.2) */
+        UA_Double d = *(UA_Double*)v.data;
+        if(logObjectValidDuration(d))
+            s.maxStorageDuration = d;
+    }
+    UA_Variant_clear(&v);
+    if(UA_Server_readObjectProperty(server, *nodeId,
+                                    UA_QUALIFIEDNAME(0, "MinimumSeverity"),
+                                    &v) == UA_STATUSCODE_GOOD &&
+       UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT16])) {
+        UA_UInt16 severity = *(UA_UInt16*)v.data;
+        if(severity >= 1 && severity <= 1000)
+            s.minimumSeverity = severity;
+    }
+    UA_Variant_clear(&v);
+    return s;
+}
+
+static UA_StatusCode
+registerInstance(LogObjectDriver *lod, const UA_NodeId *nodeId) {
+    UA_Server *server = lod->driver.server;
+    if(findLogObjectEntry(lod, nodeId) || isInstanceDeclaration(server, nodeId))
+        return UA_STATUSCODE_GOOD;
+    LogObjectEntry *entry = (LogObjectEntry*)UA_calloc(1, sizeof(LogObjectEntry));
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode res = UA_NodeId_copy(nodeId, &entry->nodeId);
+    if(res == UA_STATUSCODE_GOOD) {
+        entry->settings = readInstanceSettings(lod, nodeId);
+        res = registerLogObjectNode(lod, entry);
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_NodeId_clear(&entry->nodeId);
+        UA_free(entry);
+    }
+    return res;
+}
+
+static LogObjectTypeLifecycle *
+findTypeLifecycle(LogObjectDriver *lod, const UA_NodeId *typeId) {
+    for(size_t i = 0; i < lod->typesSize; i++) {
+        if(UA_NodeId_equal(&lod->types[i].typeId, typeId))
+            return &lod->types[i];
+    }
+    return NULL;
+}
+
+/* The lifecycle of the application chains back to the driver if it was set
+ * with the driver's lifecycle (UA_Server_getNodeTypeLifecycle) as the next
+ * one. The driver does not call it again for the same node. */
+static UA_Boolean
+isSameNode(const UA_NodeId *current, const UA_NodeId *nodeId) {
+    return current && UA_NodeId_equal(current, nodeId);
+}
+
+/* The constructor of the application runs first, it may replace the context.
+ * The stopped driver only forwards to it. */
+static UA_StatusCode
+logObjectConstructor(UA_Server *server, const UA_NodeId *sessionId,
+                     void *sessionContext, const UA_NodeId *typeNodeId,
+                     void *typeNodeContext, const UA_NodeId *nodeId,
+                     void **nodeContext) {
+    LogObjectDriver *lod = findLogObjectDriver(server);
+    if(!lod)
+        return UA_STATUSCODE_GOOD;
+    LogObjectTypeLifecycle *tl = findTypeLifecycle(lod, typeNodeId);
+    if(tl && tl->application.constructor && !isSameNode(lod->constructing, nodeId)) {
+        const UA_NodeId *outer = lod->constructing;
+        lod->constructing = nodeId;
+        UA_StatusCode res =
+            tl->application.constructor(server, sessionId, sessionContext, typeNodeId,
+                                        typeNodeContext, nodeId, nodeContext);
+        lod->constructing = outer;
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+    if(lod->driver.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_GOOD;
+    /* A failed registration leaves the node in place, unserved. Only running
+     * out of memory fails the creation of the node. */
+    UA_StatusCode res = registerInstance(lod, nodeId);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                       "LogObject: Could not serve the LogObject %N (%s)",
+                       *nodeId, UA_StatusCode_name(res));
+    return (res == UA_STATUSCODE_BADOUTOFMEMORY) ? res : UA_STATUSCODE_GOOD;
+}
+
+/* A deleted LogObject loses its records. The destructor of the application
+ * runs last. */
+static void
+logObjectDestructor(UA_Server *server, const UA_NodeId *sessionId,
+                    void *sessionContext, const UA_NodeId *typeNodeId,
+                    void *typeNodeContext, const UA_NodeId *nodeId,
+                    void **nodeContext) {
+    LogObjectDriver *lod = findLogObjectDriver(server);
+    if(!lod)
+        return;
+    LogObjectEntry *entry = findLogObjectEntry(lod, nodeId);
+    if(entry) {
+        if(entry->isServerLog) {
+            removeLogCapture(lod);
+            lod->serverLogRegistered = false;
+            lod->createdServerLog = false;
+        }
+        unregisterLogObjectNode(lod, entry, true);
+        if(!entry->isServerLog) {
+            UA_NodeId_clear(&entry->nodeId);
+            UA_free(entry);
+        }
+    }
+    LogObjectTypeLifecycle *tl = findTypeLifecycle(lod, typeNodeId);
+    if(tl && tl->application.destructor && !isSameNode(lod->destructing, nodeId)) {
+        const UA_NodeId *outer = lod->destructing;
+        lod->destructing = nodeId;
+        tl->application.destructor(server, sessionId, sessionContext, typeNodeId,
+                                   typeNodeContext, nodeId, nodeContext);
+        lod->destructing = outer;
+    }
+}
+
+/* Install the lifecycle on a type that is not served yet */
+static UA_StatusCode
+installTypeLifecycle(LogObjectDriver *lod, const UA_NodeId *typeId) {
+    if(findTypeLifecycle(lod, typeId))
+        return UA_STATUSCODE_GOOD;
+    UA_Server *server = lod->driver.server;
+    UA_NodeTypeLifecycle application;
+    UA_StatusCode res = UA_Server_getNodeTypeLifecycle(server, *typeId, &application);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    LogObjectTypeLifecycle *types = (LogObjectTypeLifecycle*)
+        UA_realloc(lod->types, (lod->typesSize + 1) * sizeof(LogObjectTypeLifecycle));
+    if(!types)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    lod->types = types;
+    LogObjectTypeLifecycle *tl = &lod->types[lod->typesSize];
+    res = UA_NodeId_copy(typeId, &tl->typeId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    tl->application = application;
+    UA_NodeTypeLifecycle lifecycle = application;
+    lifecycle.constructor = logObjectConstructor;
+    lifecycle.destructor = logObjectDestructor;
+    res = UA_Server_setNodeTypeLifecycle(server, *typeId, lifecycle);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_NodeId_clear(&tl->typeId);
+        return res;
+    }
+    lod->typesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* A lifecycle that the application set after the driver started may chain to
+ * the driver's. It stays in place and the stopped driver forwards to the
+ * lifecycle the application had set before. A restart does not install the
+ * driver's lifecycle on that type again. */
+void
+restoreLogObjectTypeLifecycles(LogObjectDriver *lod) {
+    UA_Server *server = lod->driver.server;
+    size_t kept = 0;
+    for(size_t i = 0; i < lod->typesSize; i++) {
+        LogObjectTypeLifecycle *tl = &lod->types[i];
+        UA_NodeTypeLifecycle current;
+        UA_StatusCode res = UA_Server_getNodeTypeLifecycle(server, tl->typeId, &current);
+        if(res == UA_STATUSCODE_GOOD && current.constructor != logObjectConstructor) {
+            lod->types[kept++] = *tl;
+            continue;
+        }
+        if(res == UA_STATUSCODE_GOOD)
+            UA_Server_setNodeTypeLifecycle(server, tl->typeId, tl->application);
+        UA_NodeId_clear(&tl->typeId);
+    }
+    lod->typesSize = kept;
+    if(kept == 0) {
+        UA_free(lod->types);
+        lod->types = NULL;
+    }
+}
+
+void
+clearLogObjectTypeLifecycles(LogObjectDriver *lod) {
+    for(size_t i = 0; i < lod->typesSize; i++)
+        UA_NodeId_clear(&lod->types[i].typeId);
+    UA_free(lod->types);
+    lod->types = NULL;
+    lod->typesSize = 0;
+}
+
+static UA_StatusCode
+browseAll(UA_Server *server, const UA_NodeId *start, UA_BrowseDirection direction,
+          const UA_NodeId referenceType, UA_UInt32 nodeClassMask,
+          size_t *resultsSize, UA_ExpandedNodeId **results) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *start;
+    bd.browseDirection = direction;
+    bd.referenceTypeId = referenceType;
+    bd.includeSubtypes = false;
+    bd.nodeClassMask = nodeClassMask;
+    return UA_Server_browseRecursive(server, &bd, resultsSize, results);
+}
+
+UA_StatusCode
+serveLogObjectInstances(LogObjectDriver *lod) {
+    UA_Server *server = lod->driver.server;
+
+    /* The LogObjectType and its subtypes. Lifecycles are not inherited, every
+     * type gets its own. */
+    size_t subtypesSize = 0;
+    UA_ExpandedNodeId *subtypes = NULL;
+    UA_NodeId logObjectType = UA_NS0ID(LOGOBJECTTYPE);
+    UA_StatusCode res = browseAll(server, &logObjectType, UA_BROWSEDIRECTION_FORWARD,
+                                  UA_NS0ID(HASSUBTYPE), UA_NODECLASS_OBJECTTYPE,
+                                  &subtypesSize, &subtypes);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = installTypeLifecycle(lod, &logObjectType);
+    for(size_t i = 0; res == UA_STATUSCODE_GOOD && i < subtypesSize; i++) {
+        if(UA_ExpandedNodeId_isLocal(&subtypes[i]))
+            res = installTypeLifecycle(lod, &subtypes[i].nodeId);
+    }
+    UA_Array_delete(subtypes, subtypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+
+    /* The Methods of the type are referenced from the instances that do not
+     * have own Methods */
+    UA_NodeId getRecords = UA_NS0ID(LOGOBJECTTYPE_GETRECORDS);
+    UA_NodeId release = UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT);
+    if(res == UA_STATUSCODE_GOOD)
+        res = bindMethod(lod, &getRecords, logObjectGetRecordsMethod);
+    if(res == UA_STATUSCODE_GOOD)
+        res = bindMethod(lod, &release, logObjectReleaseContinuationPointMethod);
+
+    /* Register the existing instances of every type */
+    for(size_t i = 0; res == UA_STATUSCODE_GOOD && i < lod->typesSize; i++) {
+        size_t instancesSize = 0;
+        UA_ExpandedNodeId *instances = NULL;
+        res = browseAll(server, &lod->types[i].typeId, UA_BROWSEDIRECTION_INVERSE,
+                        UA_NS0ID(HASTYPEDEFINITION), UA_NODECLASS_OBJECT,
+                        &instancesSize, &instances);
+        for(size_t j = 0; res == UA_STATUSCODE_GOOD && j < instancesSize; j++) {
+            if(UA_ExpandedNodeId_isLocal(&instances[j]))
+                res = registerInstance(lod, &instances[j].nodeId);
+        }
+        UA_Array_delete(instances, instancesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    }
+    return res;
 }
 
 #endif /* UA_ENABLE_DRIVER_LOGOBJECT */
