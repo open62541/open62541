@@ -218,6 +218,31 @@ UA_LogObjectDriver_new(const UA_LogObjectBackend *backend, UA_Driver **outDriver
  * permissions. The default AccessControl allows all users. The records are
  * not filtered per user.
  *
+ * Capture of the Server Logger
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * While it runs, the driver captures every message written to the server
+ * logger (``config->logging``) into the ServerLog as a LogRecord:
+ *
+ * - Time: the current time of the EventLoop clock
+ * - Severity: mapped from the log level (TRACE 10, DEBUG 40, INFO 80,
+ *   WARNING 180, ERROR 230, FATAL 500; see Part 26, Table 9)
+ * - Message: the formatted log message, without a locale
+ * - SourceName: the log category (Network, SecureChannel, Session, Server,
+ *   Client, Application, Security, EventLoop, PubSub, Discovery)
+ *
+ * Messages below the MinimumSeverity of the ServerLog are not stored.
+ * Messages that are removed at compile time by ``UA_LOGLEVEL`` never reach the
+ * logger. The capture is installed when the driver starts and removed when it
+ * stops, so messages written before ``UA_Server_run_startup`` are not captured.
+ *
+ * The capture rewrites the ``UA_Logger`` structure that ``config->logging``
+ * points to in place (the original log callback is still called). The
+ * structure must be writable: the constant ``UA_Log_Stdout`` is not captured.
+ * Several servers can share one logger: each of their drivers captures the
+ * messages and they can be stopped in any order. Starting and stopping the
+ * driver must not run concurrently with log calls through the same logger
+ * from other threads.
+ *
  * Application Records
  * ~~~~~~~~~~~~~~~~~~~
  * Add a record to a LogObject of the started driver. The record is copied by

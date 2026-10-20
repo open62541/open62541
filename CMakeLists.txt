@@ -1275,13 +1275,15 @@ if(UA_ENABLE_DRIVER_FILE_TRANSFER)
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
 endif()
 
-# The LogObject driver uses only the public API of the server
+# The LogObject driver uses only the public API of the server. It is a plugin
+# source as it refers to the constant UA_Log_Stdout of the plugins.
 if(UA_ENABLE_DRIVER_LOGOBJECT)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_internal.h)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_driver.c
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_ns0.c
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_methods.c
+         ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_capture.c
          ${PROJECT_SOURCE_DIR}/drivers/logobject/logobject_backend_memory.c)
 endif()
 
