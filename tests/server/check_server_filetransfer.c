@@ -840,8 +840,10 @@ START_TEST(memoryBackendContract) {
 #if defined(__GLIBC__) && defined(UA_ARCHITECTURE_POSIX) && \
     !defined(UA_ARCHITECTURE_LWIP)
 # if __GLIBC_PREREQ(2, 34)
-#  define FT_TEST_READDIR_FAULTS
 #  include <dlfcn.h>
+#  ifdef RTLD_NEXT /* Not provided by TinyCC's dlfcn.h */
+#   define FT_TEST_READDIR_FAULTS
+#  endif
 # endif
 #endif
 

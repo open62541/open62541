@@ -70,7 +70,7 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
 endif()
 
-if(UA_GENERATED_NAMESPACE_ZERO)
+if(UA_ENABLE_DRIVER_FILE_TRANSFER AND UA_GENERATED_NAMESPACE_ZERO)
     add_example(tutorial_server_filetransfer tutorial_server_filetransfer.c)
     add_example(server_filetransfer_custom_backend filetransfer/server_filetransfer_custom_backend.c)
 endif()

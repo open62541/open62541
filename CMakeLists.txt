@@ -157,6 +157,8 @@ option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API
 mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 
 # Drivers
+option(UA_ENABLE_DRIVER_FILE_TRANSFER "Enable the file transfer driver" ON)
+mark_as_advanced(UA_ENABLE_DRIVER_FILE_TRANSFER)
 option(UA_ENABLE_DRIVER_GDS_RECEIVER "Enable the GDS Receiver driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_GDS_RECEIVER)
 option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
@@ -1388,14 +1390,16 @@ endif()
 # The file transfer driver uses the OS-specific file handling definitions.
 # It is appended after the eventloop sources so that the amalgamation
 # integrates the architecture header before the driver code.
-list(APPEND lib_headers
-     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_internal.h)
-list(APPEND plugin_sources
-     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_driver.c
-     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_ns0.c
-     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
-     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
-     ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
+if(UA_ENABLE_DRIVER_FILE_TRANSFER)
+    list(APPEND lib_headers
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_internal.h)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_driver.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_ns0.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
+endif()
 
 # For file based server and client configuration
 if(UA_ENABLE_JSON_ENCODING)
@@ -1519,7 +1523,9 @@ else()
                           ${UA_SCHEMA_DIR}/datatypes_discovery.txt)
 
     list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
-    list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.FileTransferMinimal.xml)
+    if(UA_ENABLE_DRIVER_FILE_TRANSFER)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.FileTransferMinimal.xml)
+    endif()
 
     if(UA_ENABLE_DIAGNOSTICS)
         list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
