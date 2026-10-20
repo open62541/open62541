@@ -95,7 +95,10 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
     set(UA_ARCHITECTURE_POSIX 1)
 endif()
 
-if("${UA_ARCHITECTURE}" STREQUAL "posix" OR "${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
+unset(UA_ARCHITECTURE_INCLUDE) # To be set by the architecture-specific cmake file
+if("${UA_ARCHITECTURE}" STREQUAL "posix" OR
+   "${UA_ARCHITECTURE}" STREQUAL "posix-lwip" OR
+   "${UA_ARCHITECTURE}" STREQUAL "win32")
     include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
 endif()
 
@@ -951,6 +954,10 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 
+if(UA_ARCHITECTURE_INCLUDE)
+    list(PREPEND lib_headers "${UA_ARCHITECTURE_INCLUDE}")
+endif()
+
 if(UA_ENABLE_AMALGAMATION OR (UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32))
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/tr_dirent.h)
 endif()
@@ -1645,10 +1652,6 @@ add_custom_target(open62541-generator-statuscode DEPENDS
                   ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                   ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                   ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c)
-
-if(UA_ARCHITECTURE_POSIX)
-    list(PREPEND lib_headers "${PROJECT_BINARY_DIR}/src_generated/arch/posix/posix.h")
-endif()
 
 if(UA_ENABLE_AMALGAMATION)
     # single-file release
