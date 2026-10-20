@@ -95,15 +95,6 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
     set(UA_ARCHITECTURE_POSIX 1)
 endif()
 
-unset(UA_ARCHITECTURE_INCLUDE) # To be set by the architecture-specific cmake file
-if("${UA_ARCHITECTURE}" STREQUAL "posix" OR
-   "${UA_ARCHITECTURE}" STREQUAL "posix-lwip" OR
-   "${UA_ARCHITECTURE}" STREQUAL "win32")
-    include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
-elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
-    include("${PROJECT_SOURCE_DIR}/arch/zephyr/zephyr.cmake")
-endif()
-
 #################
 # Build Options #
 #################
@@ -518,6 +509,18 @@ set(open62541_LIBRARIES "")
 set(open62541_PUBLIC_LIBRARIES "")
 set(pkgcfg_libsprivate "")
 set(pkgcfg_requiresprivate "")
+
+unset(UA_ARCHITECTURE_INCLUDE) # To be set by the architecture-specific cmake file
+if("${UA_ARCHITECTURE}" STREQUAL "posix" OR
+   "${UA_ARCHITECTURE}" STREQUAL "posix-lwip" OR
+   "${UA_ARCHITECTURE}" STREQUAL "win32")
+    include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
+elseif(UA_ARCHITECTURE_FREERTOS)
+    include("${PROJECT_SOURCE_DIR}/arch/freertos/freertos.cmake")
+elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
+    include("${PROJECT_SOURCE_DIR}/arch/zephyr/zephyr.cmake")
+endif()
+
 if("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
     # The default TAP interface is shared across EventLoops. Its initialization
     # is synchronized independently of UA_MULTITHREADING.
@@ -1366,19 +1369,6 @@ elseif(UA_ARCHITECTURE_POSIX OR UA_ENABLE_AMALGAMATION)
              ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib.c
              ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib_interrupt.c)
     endif()
-endif()
-
-if(UA_ARCHITECTURE_FREERTOS)
-    # Assume the FreeRTOS POSIX "Simulator".
-    # Change this to directly include the source files if required.
-    set(FREERTOS_KERNEL_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Source" CACHE STRING "")
-    set(FREERTOS_PORT_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Demo/Posix_GCC" CACHE STRING "")
-    include(arch/freertos/freertos.cmake)
-    include_directories(${FREERTOS_PORT_PATH} "${FREERTOS_KERNEL_PATH}/include")
-    include_directories("${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/Posix")
-    add_compile_definitions(projCOVERAGE_TEST=0)
-    add_compile_definitions(projENABLE_TRACING=0)
-    list(APPEND open62541_LIBRARIES freertos_config freertos_kernel)
 endif()
 
 if(UA_ENABLE_LWS)
