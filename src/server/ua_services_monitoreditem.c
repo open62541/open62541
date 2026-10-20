@@ -30,7 +30,8 @@
  * UARange property of the variable */
 static UA_StatusCode
 setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
-                                  const UA_MonitoredItem *mon, UA_DataChangeFilter *filter) {
+                                  const UA_MonitoredItem *mon,
+                                  UA_DataChangeFilter *filter) {
     /* A valid deadband? */
     if(filter->deadbandValue < 0.0 || filter->deadbandValue > 100.0)
         return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
@@ -60,7 +61,8 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
 
     /* Compute the abs deadband */
     UA_Range *euRange = (UA_Range*)rangeVal.value.data;
-    UA_Double absDeadband = (filter->deadbandValue/100.0) * (euRange->high - euRange->low);
+    UA_Double absDeadband =
+        (filter->deadbandValue/100.0) * (euRange->high - euRange->low);
 
     UA_DataValue_clear(&rangeVal);
 
@@ -99,7 +101,8 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
     }
 
     /* Get the Subscription */
-    UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
+    UA_Subscription *sub =
+        UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return true;
@@ -109,7 +112,8 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
     Subscription_resetLifetime(sub);
 
     /* Get the MonitoredItem */
-    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
+    UA_MonitoredItem *mon =
+        UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
     if(!mon) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return true;
