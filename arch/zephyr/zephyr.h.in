@@ -8,9 +8,11 @@
 #ifndef UA_ZEPHYR_H_
 #define UA_ZEPHYR_H_
 
+#cmakedefine UA_ARCHITECTURE_ZEPHYR
+
 /* Can't use <zephyr/version.h> since v2.7.0 and older stores the file in
  * another place */
-# include <version.h>
+#include <version.h>
 
 /* For 3.7.0 or higher use the k_ memory management methods */
 #if(KERNEL_VERSION_MAJOR >= 4 || \

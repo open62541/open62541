@@ -5,6 +5,19 @@
 #ifndef UA_POSIX_H_
 #define UA_POSIX_H_
 
+#cmakedefine UA_ARCHITECTURE_WIN32
+#cmakedefine UA_ARCHITECTURE_POSIX
+
+/* Is a well-known architecture selected? Manually set UA_ARCHITECTURE_DEFINED
+ * to prevent the selection of a default below. */
+#if defined(UA_ARCHITECTURE_WIN32) || defined(UA_ARCHITECTURE_POSIX)
+# ifdef _WIN32
+#  define UA_ARCHITECTURE_WIN32
+# else
+#  define UA_ARCHITECTURE_POSIX
+# endif
+#endif
+
 /**
  * POSIX Feature Flags
  * -------------------
