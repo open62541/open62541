@@ -271,7 +271,6 @@
 /**
  * Atomic Operations
  * -----------------
- *
  * Atomic operations synchronize across processor cores and enable lockless
  * multi-threading. The following macro definitions generalize the C11 atomic
  * operations for integers and pointers. But we only support void-ptr /
