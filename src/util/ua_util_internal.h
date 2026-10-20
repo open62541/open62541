@@ -284,8 +284,7 @@ getCountOfOptionalFields(const UA_DataType *type);
 
 /* Dump packet for debugging / fuzzing */
 #ifdef UA_DEBUG_DUMP_PKGS
-void UA_EXPORT
-UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
+void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
 
 /* Get pointer to leaf certificate of a specified valid chain of DER encoded

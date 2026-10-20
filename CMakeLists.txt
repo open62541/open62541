@@ -1114,10 +1114,6 @@ else()
     message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
 endif()
 
-if(UA_DEBUG_DUMP_PKGS)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
-endif()
-
 if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
     if(NOT UA_ARCHITECTURE_POSIX)
         message(FATAL_ERROR "The bundled mdnsd discovery driver requires UA_ARCHITECTURE=posix")
