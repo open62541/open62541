@@ -101,6 +101,99 @@ UA_LogObjectDriver_addRecord(UA_Driver *driver, const UA_NodeId logObjectId,
     return res;
 }
 
+/************/
+/* Settings */
+/************/
+
+/* (UA_Double)UA_INT64_MAX rounds up to 2^63, which is not an Int64. So the
+ * upper bound is exclusive. */
+UA_Boolean
+logObjectValidDuration(UA_Double ms) {
+    return ms * UA_DATETIME_MSEC >= 1.0 && ms < (UA_Double)UA_INT64_MAX / UA_DATETIME_MSEC;
+}
+
+/* A MaxStorageDuration of zero disables the limit */
+static UA_Boolean
+validSettings(const UA_LogObjectSettings *s) {
+    return s->maxRecords > 0 && s->minimumSeverity >= 1 && s->minimumSeverity <= 1000 &&
+        (s->maxStorageDuration == 0.0 || logObjectValidDuration(s->maxStorageDuration));
+}
+
+/* The change does not affect the records that are already stored (Part 26,
+ * 5.2). The capture reads the MinimumSeverity of the ServerLog without lock. */
+void
+setMinimumSeverity(LogObjectDriver *lod, LogObjectEntry *entry, UA_UInt16 severity) {
+    entry->settings.minimumSeverity = severity;
+    if(entry->isServerLog)
+        UA_atomic_store(&lod->serverLogMinimumSeverity, (uintptr_t)severity);
+}
+
+UA_StatusCode
+UA_LogObjectDriver_setSettings(UA_Driver *driver, const UA_NodeId logObjectId,
+                               const UA_LogObjectSettings *settings) {
+    if(!isLogObjectDriver(driver) || !settings || !validSettings(settings))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!driver->server)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    LogObjectDriver *lod = (LogObjectDriver*)driver;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    UA_StatusCode res = UA_STATUSCODE_BADINVALIDSTATE;
+    LogObjectEntry *entry = NULL;
+    if(driver->state == UA_LIFECYCLESTATE_STARTED) {
+        entry = findLogObjectEntry(lod, &logObjectId);
+        res = (entry) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    /* Zero is not a valid value of the MaxStorageDuration Property */
+    if(res == UA_STATUSCODE_GOOD && settings->maxStorageDuration == 0.0 &&
+       hasMaxStorageDurationValue(lod, entry))
+        res = UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* The limits of the storage */
+    if(res == UA_STATUSCODE_GOOD &&
+       (settings->maxRecords != entry->settings.maxRecords ||
+        settings->maxStorageDuration != entry->settings.maxStorageDuration)) {
+        if(!lod->backend.updateLogObject)
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+        else
+            res = lod->backend.updateLogObject(driver->server, lod->backend.context,
+                                               &entry->nodeId, settings);
+    }
+
+    if(res == UA_STATUSCODE_GOOD) {
+        entry->settings.maxRecords = settings->maxRecords;
+        entry->settings.maxStorageDuration = settings->maxStorageDuration;
+        setMinimumSeverity(lod, entry, settings->minimumSeverity);
+        mirrorLogObjectProperties(lod, entry);
+    }
+    el->unlock(el);
+    return res;
+}
+
+UA_StatusCode
+UA_LogObjectDriver_getSettings(UA_Driver *driver, const UA_NodeId logObjectId,
+                               UA_LogObjectSettings *settings) {
+    if(!isLogObjectDriver(driver) || !settings)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!driver->server)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    LogObjectDriver *lod = (LogObjectDriver*)driver;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    UA_StatusCode res = UA_STATUSCODE_BADINVALIDSTATE;
+    if(driver->state == UA_LIFECYCLESTATE_STARTED) {
+        LogObjectEntry *entry = findLogObjectEntry(lod, &logObjectId);
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        if(entry) {
+            *settings = entry->settings;
+            res = UA_STATUSCODE_GOOD;
+        }
+    }
+    el->unlock(el);
+    return res;
+}
+
 /*****************/
 /* Notifications */
 /*****************/
@@ -139,20 +232,6 @@ driverParam(LogObjectDriver *lod, const char *key, const UA_DataType *type,
                  "LogObject: The parameter %s has the wrong type", key);
     *res = UA_STATUSCODE_BADINVALIDARGUMENT;
     return NULL;
-}
-
-/* (UA_Double)UA_INT64_MAX rounds up to 2^63, which is not an Int64. So the
- * upper bound is exclusive. */
-UA_Boolean
-logObjectValidDuration(UA_Double ms) {
-    return ms * UA_DATETIME_MSEC >= 1.0 && ms < (UA_Double)UA_INT64_MAX / UA_DATETIME_MSEC;
-}
-
-/* A MaxStorageDuration of zero disables the limit */
-static UA_Boolean
-validSettings(const UA_LogObjectSettings *s) {
-    return s->maxRecords > 0 && s->minimumSeverity >= 1 && s->minimumSeverity <= 1000 &&
-        (s->maxStorageDuration == 0.0 || logObjectValidDuration(s->maxStorageDuration));
 }
 
 static void

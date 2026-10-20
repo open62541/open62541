@@ -314,6 +314,27 @@ countRecords(const UA_NodeId logObjectId, const char *msg) {
     return count;
 }
 
+/* All records of the ServerLog. The caller clears the result. */
+static UA_LogRecordsDataType
+readServerLog(void) {
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&cp);
+    return results;
+}
+
+static const UA_LogRecord *
+findRecord(const UA_LogRecordsDataType *results, const char *text) {
+    for(size_t i = 0; i < results->logRecordArraySize; i++) {
+        if(stringEquals(&results->logRecordArray[i].message.text, text))
+            return &results->logRecordArray[i];
+    }
+    return NULL;
+}
+
 static UA_Boolean
 nodeExists(const UA_NodeId id) {
     UA_NodeClass nc;
@@ -1610,6 +1631,214 @@ START_TEST(orphanedRecordsDeleted) {
     ck_assert_uint_eq(countRecords(fixed, "old"), 0);
 } END_TEST
 
+/* --- Settings (Part 26, 5.2) --- */
+
+static UA_StatusCode
+writeLocal(const UA_NodeId nodeId, const void *value, const UA_DataType *type) {
+    UA_Variant v;
+    UA_Variant_setScalar(&v, (void*)(uintptr_t)value, type);
+    return UA_Server_writeValue(server, nodeId, v);
+}
+
+static UA_UInt16
+readUInt16(const UA_NodeId nodeId) {
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId, &v), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT16]));
+    UA_UInt16 value = *(UA_UInt16*)v.data;
+    UA_Variant_clear(&v);
+    return value;
+}
+
+static UA_Boolean
+isWritable(const UA_NodeId nodeId) {
+    UA_Byte accessLevel = 0;
+    ck_assert_uint_eq(UA_Server_readAccessLevel(server, nodeId, &accessLevel),
+                      UA_STATUSCODE_GOOD);
+    return (accessLevel & UA_ACCESSLEVELMASK_WRITE) != 0;
+}
+
+START_TEST(minimumSeverityWritable) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_NodeId property = UA_NS0ID(SERVERLOG_MINIMUMSEVERITY);
+    ck_assert(isWritable(property));
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "before the change");
+
+    /* Records below the new MinimumSeverity are not stored. The stored records
+     * are kept (Part 26, 5.2). */
+    UA_UInt16 severity = 300;
+    ck_assert_uint_eq(writeLocal(property, &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readUInt16(property), 300);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "after the change");
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "before the change") != NULL);
+    ck_assert(findRecord(&results, "after the change") == NULL);
+    UA_LogRecordsDataType_clear(&results);
+    UA_LogObjectSettings s;
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(s.minimumSeverity, 300);
+
+    /* Invalid values */
+    severity = 0;
+    ck_assert_uint_eq(writeLocal(property, &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_BADOUTOFRANGE);
+    severity = 1001;
+    ck_assert_uint_eq(writeLocal(property, &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_BADOUTOFRANGE);
+    UA_Int32 wrongType = 100;
+    ck_assert(writeLocal(property, &wrongType, &UA_TYPES[UA_TYPES_INT32]) !=
+              UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readUInt16(property), 300);
+} END_TEST
+
+/* The Property of an instance becomes read-only again when the driver stops.
+ * The value written last is the setting after a restart. */
+START_TEST(minimumSeverityRestoredOnStop) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId id = addInstance("WithSeverity", UA_NS0ID(LOGOBJECTTYPE));
+    UA_UInt16 severity = 200;
+    addProperty(id, "MinimumSeverity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_NodeId property = childOf(id, 0, "MinimumSeverity");
+    ck_assert(!isWritable(property));
+    startDriver();
+    ck_assert(isWritable(property));
+    severity = 400;
+    ck_assert_uint_eq(writeLocal(property, &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_GOOD);
+
+    driver->stop(driver);
+    ck_assert(!isWritable(property));
+    ck_assert_uint_eq(readUInt16(property), 400);
+    startDriver();
+    UA_LogObjectSettings s;
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, id, &s), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(s.minimumSeverity, 400);
+    UA_NodeId_clear(&id);
+    UA_NodeId_clear(&property);
+} END_TEST
+
+START_TEST(setAndGetSettings) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_LogObjectSettings s = {5, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_BADINVALIDSTATE);
+    startDriver();
+    for(int i = 0; i < 10; i++)
+        addRecord(300, "record");
+
+    /* A smaller MaxRecords keeps the newest records */
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "record"), 5);
+    UA_LogObjectSettings got;
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, UA_NS0ID(SERVERLOG), &got),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(got.maxRecords, 5);
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MAXRECORDS), &v),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)v.data, 5);
+    UA_Variant_clear(&v);
+
+    /* The MinimumSeverity of the ServerLog gates the capture */
+    s.minimumSeverity = 500;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    UA_LOG_ERROR(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER, "error");
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "error"), 0);
+    ck_assert_uint_eq(readUInt16(UA_NS0ID(SERVERLOG_MINIMUMSEVERITY)), 500);
+
+    /* Invalid arguments */
+    UA_LogObjectSettings invalid = {0, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &invalid),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NODEID_NUMERIC(1, 4711), &s),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(NULL, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, UA_NODEID_NUMERIC(1, 4711), &got),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, UA_NS0ID(SERVERLOG), NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+} END_TEST
+
+static UA_Double
+readDuration(const UA_NodeId id) {
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, id, &v), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_isScalar(&v) && v.type->typeKind == UA_DATATYPEKIND_DOUBLE);
+    UA_Double d = *(UA_Double*)v.data;
+    UA_Variant_clear(&v);
+    return d;
+}
+
+/* The MaxStorageDuration Property follows the settings. Zero is not a valid
+ * value of the Property (Part 26, 5.2). */
+START_TEST(setMaxStorageDuration) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId id = addInstance("Expiring", UA_NS0ID(LOGOBJECTTYPE));
+    UA_Double duration = 600000.0;
+    addProperty(id, "MaxStorageDuration", &duration, &UA_TYPES[UA_TYPES_DURATION]);
+    UA_NodeId property = childOf(id, 0, "MaxStorageDuration");
+    startDriver();
+
+    /* The ServerLog created by the driver adds and removes the Property */
+    UA_LogObjectSettings s = {1000, 5000.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readDuration(UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION)) == 5000.0);
+    s.maxStorageDuration = 0.0;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(!nodeExists(UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION)));
+
+    /* The Property of another LogObject keeps a time limit */
+    s.maxStorageDuration = 300000.0;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, id, &s), UA_STATUSCODE_GOOD);
+    ck_assert(readDuration(property) == 300000.0);
+    s.maxStorageDuration = 0.0;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, id, &s),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert(readDuration(property) == 300000.0);
+    UA_LogObjectSettings got;
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, id, &got), UA_STATUSCODE_GOOD);
+    ck_assert(got.maxStorageDuration == 300000.0);
+
+    /* The setting is read back from the Property after a restart */
+    driver->stop(driver);
+    startDriver();
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, id, &got), UA_STATUSCODE_GOOD);
+    ck_assert(got.maxStorageDuration == 300000.0);
+    UA_NodeId_clear(&id);
+    UA_NodeId_clear(&property);
+} END_TEST
+
+/* Without updateLogObject the limits of the storage cannot change */
+START_TEST(setSettingsWithoutUpdate) {
+    UA_LogObjectBackend backend;
+    ck_assert_uint_eq(UA_LogObjectBackend_memory(&backend), UA_STATUSCODE_GOOD);
+    backend.updateLogObject = NULL;
+    DriverOptions o = apiOnlyOptions();
+    o.backend = &backend;
+    newLogObjectServer(&o);
+    startDriver();
+    UA_LogObjectSettings s = {5, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    s.maxRecords = 1000;
+    s.minimumSeverity = 400;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+} END_TEST
+
 /* --- Contract of the storage backend --- */
 
 /* A backend that always returns every optional field. The driver has to
@@ -1737,27 +1966,6 @@ resetCountingLogger(void) {
     countingLogger.log = countingLog;
     countingLogger.context = NULL;
     countingLogger.clear = NULL;
-}
-
-/* All records of the ServerLog. The caller clears the result. */
-static UA_LogRecordsDataType
-readServerLog(void) {
-    UA_LogRecordsDataType results;
-    UA_ByteString cp;
-    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
-                                       &results, &cp);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_ByteString_clear(&cp);
-    return results;
-}
-
-static const UA_LogRecord *
-findRecord(const UA_LogRecordsDataType *results, const char *text) {
-    for(size_t i = 0; i < results->logRecordArraySize; i++) {
-        if(stringEquals(&results->logRecordArray[i].message.text, text))
-            return &results->logRecordArray[i];
-    }
-    return NULL;
 }
 
 START_TEST(captureLogOutput) {
@@ -2140,6 +2348,15 @@ int main(void) {
     tcase_add_test(tc_inst, applicationLifecycleWrappedAtRuntime);
     tcase_add_test(tc_inst, orphanedRecordsDeleted);
     suite_add_tcase(s, tc_inst);
+
+    TCase *tc_settings = tcase_create("Settings");
+    tcase_add_checked_fixture(tc_settings, setup, teardown);
+    tcase_add_test(tc_settings, minimumSeverityWritable);
+    tcase_add_test(tc_settings, minimumSeverityRestoredOnStop);
+    tcase_add_test(tc_settings, setAndGetSettings);
+    tcase_add_test(tc_settings, setSettingsWithoutUpdate);
+    tcase_add_test(tc_settings, setMaxStorageDuration);
+    suite_add_tcase(s, tc_settings);
 
     TCase *tc_net = tcase_create("Sessions");
     tcase_add_checked_fixture(tc_net, setup, teardown);

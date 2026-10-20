@@ -281,6 +281,170 @@ hasChild(UA_Server *server, const UA_NodeId *nodeId, char *name) {
     return found;
 }
 
+/* The ServerLog created by the driver exposes the optional MaxStorageDuration
+ * Property only with a time limit */
+static void
+mirrorServerLogMaxStorageDuration(LogObjectDriver *lod, LogObjectEntry *entry) {
+    UA_Server *server = lod->driver.server;
+    UA_NodeId propertyId = UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION);
+    if(entry->settings.maxStorageDuration == 0.0) {
+        UA_Server_deleteNode(server, propertyId, true);
+        return;
+    }
+    UA_Variant v;
+    UA_Variant_setScalar(&v, &entry->settings.maxStorageDuration,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+    if(UA_Server_writeValue(server, propertyId, v) != UA_STATUSCODE_GOOD)
+        addProperty(server, propertyId, UA_NS0ID(SERVERLOG), "MaxStorageDuration",
+                    &entry->settings.maxStorageDuration, &UA_TYPES[UA_TYPES_DURATION]);
+}
+
+void
+mirrorLogObjectProperties(LogObjectDriver *lod, LogObjectEntry *entry) {
+    UA_Server *server = lod->driver.server;
+    UA_Server_writeObjectProperty_scalar(server, entry->nodeId,
+                                         UA_QUALIFIEDNAME(0, "MaxRecords"),
+                                         &entry->settings.maxRecords,
+                                         &UA_TYPES[UA_TYPES_UINT32]);
+    if(UA_NodeId_isNull(&entry->minimumSeverityId))
+        UA_Server_writeObjectProperty_scalar(server, entry->nodeId,
+                                             UA_QUALIFIEDNAME(0, "MinimumSeverity"),
+                                             &entry->settings.minimumSeverity,
+                                             &UA_TYPES[UA_TYPES_UINT16]);
+    if(entry->isServerLog && lod->createdServerLog)
+        mirrorServerLogMaxStorageDuration(lod, entry);
+    else if(entry->settings.maxStorageDuration > 0.0)
+        UA_Server_writeObjectProperty_scalar(server, entry->nodeId,
+                                             UA_QUALIFIEDNAME(0, "MaxStorageDuration"),
+                                             &entry->settings.maxStorageDuration,
+                                             &UA_TYPES[UA_TYPES_DURATION]);
+}
+
+UA_Boolean
+hasMaxStorageDurationValue(LogObjectDriver *lod, LogObjectEntry *entry) {
+    if(entry->isServerLog && lod->createdServerLog)
+        return false;
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res =
+        UA_Server_readObjectProperty(lod->driver.server, entry->nodeId,
+                                     UA_QUALIFIEDNAME(0, "MaxStorageDuration"), &v);
+    UA_Boolean hasValue = (res == UA_STATUSCODE_GOOD && !UA_Variant_isEmpty(&v));
+    UA_Variant_clear(&v);
+    return hasValue;
+}
+
+/****************************/
+/* Writable MinimumSeverity */
+/****************************/
+
+/* Clients may change the MinimumSeverity (Part 26, 5.2). The Property becomes a
+ * callback value source while the driver serves the LogObject. */
+
+static LogObjectEntry *
+findEntryOfMinimumSeverity(LogObjectDriver *lod, const UA_NodeId *propertyId) {
+    LogObjectEntry *entry;
+    LIST_FOREACH(entry, &lod->logObjects, pointers) {
+        if(UA_NodeId_equal(&entry->minimumSeverityId, propertyId))
+            return entry;
+    }
+    return NULL;
+}
+
+static UA_StatusCode
+readMinimumSeverity(UA_Server *server, const UA_NodeId *sessionId,
+                    void *sessionContext, const UA_NodeId *nodeId, void *nodeContext,
+                    UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
+                    UA_DataValue *value) {
+    LogObjectDriver *lod = findLogObjectDriver(server);
+    LogObjectEntry *entry = (lod) ? findEntryOfMinimumSeverity(lod, nodeId) : NULL;
+    if(!entry) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_GOOD;
+    }
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_StatusCode res = UA_Variant_setScalarCopy(&value->value,
+                                                 &entry->settings.minimumSeverity,
+                                                 &UA_TYPES[UA_TYPES_UINT16]);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    value->hasValue = true;
+    if(includeSourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = logObjectNow(lod);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+writeMinimumSeverity(UA_Server *server, const UA_NodeId *sessionId,
+                     void *sessionContext, const UA_NodeId *nodeId, void *nodeContext,
+                     const UA_NumericRange *range, const UA_DataValue *value) {
+    LogObjectDriver *lod = findLogObjectDriver(server);
+    LogObjectEntry *entry = (lod) ? findEntryOfMinimumSeverity(lod, nodeId) : NULL;
+    if(!entry)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    if(!value->hasValue || !UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_UINT16]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_UInt16 severity = *(UA_UInt16*)value->value.data;
+    if(severity < 1 || severity > 1000)
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    setMinimumSeverity(lod, entry, severity);
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+bindMinimumSeverity(LogObjectDriver *lod, LogObjectEntry *entry) {
+    UA_Server *server = lod->driver.server;
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "MinimumSeverity");
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, entry->nodeId, 1, &qn);
+    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize == 0) {
+        UA_BrowsePathResult_clear(&bpr);
+        return;
+    }
+    UA_NodeId propertyId = bpr.targets[0].targetId.nodeId;
+    UA_Byte accessLevel = 0;
+    UA_StatusCode res = UA_Server_readAccessLevel(server, propertyId, &accessLevel);
+    UA_CallbackValueSource source = {readMinimumSeverity, writeMinimumSeverity};
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_NodeId_copy(&propertyId, &entry->minimumSeverityId);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setVariableNode_callbackValueSource(server, propertyId, source);
+    if(res == UA_STATUSCODE_GOOD) {
+        entry->minimumSeverityAccessLevel = accessLevel;
+        UA_Server_writeAccessLevel(server, propertyId, (UA_Byte)
+                                   (accessLevel | UA_ACCESSLEVELMASK_READ |
+                                    UA_ACCESSLEVELMASK_WRITE));
+    } else {
+        UA_NodeId_clear(&entry->minimumSeverityId);
+    }
+    UA_BrowsePathResult_clear(&bpr);
+}
+
+/* Back to an internal value with the current setting */
+static void
+unbindMinimumSeverity(LogObjectDriver *lod, LogObjectEntry *entry) {
+    if(UA_NodeId_isNull(&entry->minimumSeverityId))
+        return;
+    UA_Server *server = lod->driver.server;
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_Variant_setScalar(&dv.value, &entry->settings.minimumSeverity,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    dv.hasValue = true;
+    UA_Server_setVariableNode_internalValueSource(server, entry->minimumSeverityId, &dv, NULL);
+    UA_Server_writeAccessLevel(server, entry->minimumSeverityId,
+                               entry->minimumSeverityAccessLevel);
+    UA_NodeId_clear(&entry->minimumSeverityId);
+}
+
 UA_StatusCode
 registerLogObjectNode(LogObjectDriver *lod, LogObjectEntry *entry) {
     UA_Server *server = lod->driver.server;
@@ -312,21 +476,10 @@ registerLogObjectNode(LogObjectDriver *lod, LogObjectEntry *entry) {
             entry->releaseReferenceAdded = true;
     }
 
-    /* The Properties mirror the settings */
+    /* The Properties mirror the settings. The MinimumSeverity is writable. */
     if(res == UA_STATUSCODE_GOOD) {
-        UA_Server_writeObjectProperty_scalar(server, entry->nodeId,
-                                             UA_QUALIFIEDNAME(0, "MaxRecords"),
-                                             &entry->settings.maxRecords,
-                                             &UA_TYPES[UA_TYPES_UINT32]);
-        UA_Server_writeObjectProperty_scalar(server, entry->nodeId,
-                                             UA_QUALIFIEDNAME(0, "MinimumSeverity"),
-                                             &entry->settings.minimumSeverity,
-                                             &UA_TYPES[UA_TYPES_UINT16]);
-        if(entry->settings.maxStorageDuration > 0.0)
-            UA_Server_writeObjectProperty_scalar(server, entry->nodeId,
-                                                 UA_QUALIFIEDNAME(0, "MaxStorageDuration"),
-                                                 &entry->settings.maxStorageDuration,
-                                                 &UA_TYPES[UA_TYPES_DURATION]);
+        mirrorLogObjectProperties(lod, entry);
+        bindMinimumSeverity(lod, entry);
         res = bindLogObjectMethods(lod, &entry->nodeId);
     }
 
@@ -340,6 +493,7 @@ unregisterLogObjectNode(LogObjectDriver *lod, LogObjectEntry *entry,
                         UA_Boolean deleteRecords) {
     UA_Server *server = lod->driver.server;
     releaseContinuationPoints(lod, NULL, &entry->nodeId);
+    unbindMinimumSeverity(lod, entry);
     if(entry->logsReferenceAdded)
         UA_Server_deleteReference(server, UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), true,
                                   UA_EXPANDEDNODEID_NODEID(entry->nodeId), true);

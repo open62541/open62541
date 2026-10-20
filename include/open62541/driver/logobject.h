@@ -289,6 +289,34 @@ UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_LogObjectDriver_refresh(UA_Driver *driver);
 
 /**
+ * Settings
+ * ~~~~~~~~
+ * Clients can write the MinimumSeverity Property of a LogObject (Part 26,
+ * 5.2). The value must be in 1..1000 (``Bad_OutOfRange`` otherwise). The
+ * change does not affect the records that are already stored. While the
+ * driver runs, the Property is a callback value source of the driver. When it
+ * stops, the Property gets an internal value with the current setting: a
+ * value source or notifications that the application had set are not
+ * restored.
+ *
+ * The application reads and changes all settings of a LogObject of the started
+ * driver with the functions below. A smaller MaxRecords keeps the newest
+ * records. Changing MaxRecords or MaxStorageDuration requires the
+ * ``updateLogObject`` callback of the backend (``Bad_NotSupported`` without
+ * it). The Properties are updated. Zero is not a valid value of the
+ * MaxStorageDuration Property (Part 26, 5.2): a LogObject whose Property has
+ * a value keeps a time limit (``Bad_InvalidArgument`` for zero). The settings of the ServerLog are taken
+ * from the parameters again when the driver restarts, those of the other
+ * LogObjects from their Properties. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_LogObjectDriver_getSettings(UA_Driver *driver, const UA_NodeId logObjectId,
+                               UA_LogObjectSettings *settings);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_LogObjectDriver_setSettings(UA_Driver *driver, const UA_NodeId logObjectId,
+                               const UA_LogObjectSettings *settings);
+
+/**
  * Application Records
  * ~~~~~~~~~~~~~~~~~~~
  * Add a record to a LogObject of the started driver. The record is copied by
