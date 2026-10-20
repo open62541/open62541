@@ -20,12 +20,6 @@
  * ------------
  * Definitions to enable architecture-specific includes and features. */
 
-/* Define the UA_ARCH_HEADER externally and it will get included here.
- * Such as this: gcc -DUA_ARCH_HEADER=#include \"my-arch/arch-header.h\" */
-#if defined(UA_ARCH_HEADER)
-#include UA_ARCH_HEADER
-#endif
-
 #cmakedefine UA_ARCHITECTURE_WIN32
 #cmakedefine UA_ARCHITECTURE_POSIX
 #cmakedefine UA_ARCHITECTURE_ZEPHYR
@@ -48,6 +42,9 @@
 #  define UA_ARCHITECTURE_POSIX
 # endif
 #endif
+
+/* Architecture-specific includes and settings. */
+#include "${UA_ARCHITECTURE_INCLUDE}"
 
 /**
  * Feature Options
