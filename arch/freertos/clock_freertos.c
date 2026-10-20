@@ -11,6 +11,8 @@
 
 #ifdef UA_ARCHITECTURE_FREERTOS
 
+#include "open62541/arch/freertos.h"
+
 #include <FreeRTOS.h>
 #include <task.h>
 
