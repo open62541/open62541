@@ -45,6 +45,35 @@ enable registration management and network discovery services. mDNS announcement
 and browsing require an attached driver, built with
 `UA_ENABLE_DRIVER_MDNS_MDNSD` or `UA_ENABLE_DRIVER_MDNS_AVAHI`.
 
+### OPC UA Part 26 LogObject driver (EXPERIMENTAL)
+
+With `UA_ENABLE_DRIVER_LOGOBJECT`, `UA_LogObjectDriver_new` creates a driver
+for the LogObjects of OPC UA Part 26. It exposes the ServerLog, which captures
+the server logger, and serves GetRecords and ReleaseContinuationPoint for every
+Object of the LogObjectType or a subtype, also from companion specifications.
+The records are stored by a `UA_LogObjectBackend` (an in-memory ring buffer by
+default). Access is controlled by the AccessControl plugin.
+
+### Node type lifecycles can be read
+
+`UA_Server_getNodeTypeLifecycle` returns the lifecycle of an ObjectType or
+VariableType, e.g. to chain to it before replacing it.
+
+### The nodeset loader keeps Method callbacks
+
+Methods loaded with `UA_Server_loadNodeset` keep a callback that the
+constructor of their parent Object's type set while the nodeset was loaded.
+Before, they were always finished without callback.
+
+### Optional structure fields from the NodeSet XML
+
+The datatype generator honours the `IsOptional` fields of the NodeSet XML
+passed via `FILE_XML` (`--xml`) and generates `UA_DATATYPEKIND_OPTSTRUCT`
+structures even when the .bsd omits the encoding-mask bits. The FULL namespace
+zero hands `Opc.Ua.NodeSet2.xml` to the generator. In namespace zero this
+affects only the Part 26 `UA_LogRecord`, whose optional fields are now pointer
+members.
+
 ### Optional UTC-only local time on POSIX
 
 The POSIX CMake option `UA_ARCH_LOCAL_TIME_IS_UTC` (default OFF) makes
