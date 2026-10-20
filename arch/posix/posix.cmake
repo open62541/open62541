@@ -5,6 +5,9 @@ option(UA_ARCH_LOCAL_TIME_IS_UTC "Treat local time as UTC without timezone conve
 configure_file("${CMAKE_CURRENT_LIST_DIR}/posix.h.in"
                "${PROJECT_BINARY_DIR}/src_generated/arch/posix/posix.h")
 
+set(UA_ARCHITECTURE_INCLUDE
+ .  "${PROJECT_BINARY_DIR}/src_generated/arch/posix/posix.h")
+
 # posix-lwip shares the clock configuration but retains its own library settings.
 if(NOT UA_ARCHITECTURE STREQUAL "posix")
     return()
