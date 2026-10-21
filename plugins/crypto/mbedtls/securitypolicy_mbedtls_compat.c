@@ -52,37 +52,59 @@ UA_mbedTLS_compat_isRsaKeyPair(const mbedtls_pk_context *key) {
 #endif
 }
 
-UA_Boolean
-UA_mbedTLS_compat_verifyCertificateSignature(const mbedtls_x509_crt *certificate,
-                                              mbedtls_x509_crt *issuer) {
+/* Certificates and CRLs carry the signature options only before mbedTLS 4 */
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+#define UA_MBEDTLS_SIG_OPTS(x509) NULL
+#else
+#define UA_MBEDTLS_SIG_OPTS(x509) ((x509)->MBEDTLS_PRIVATE(sig_opts))
+#endif
+
+/* Verify the signature over the TBS part of a certificate or CRL */
+static UA_Boolean
+verifyTbsSignature(const mbedtls_x509_buf *tbs, const mbedtls_x509_buf *signature,
+                   mbedtls_md_type_t md, mbedtls_pk_type_t sigPk,
+                   const void *sigOpts, mbedtls_pk_context *issuerKey) {
     size_t hashLength;
     unsigned char hash[MBEDTLS_MD_MAX_SIZE];
-    mbedtls_md_type_t md = certificate->MBEDTLS_PRIVATE(sig_md);
 #if !defined(MBEDTLS_USE_PSA_CRYPTO)
     const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(md);
     if(!mdInfo)
         return false;
     hashLength = mbedtls_md_get_size(mdInfo);
-    if(mbedtls_md(mdInfo, certificate->tbs.p, certificate->tbs.len, hash) != 0)
+    if(mbedtls_md(mdInfo, tbs->p, tbs->len, hash) != 0)
         return false;
 #else
-    if(psa_hash_compute(mbedtls_md_psa_alg_from_type(md),
-                        certificate->tbs.p, certificate->tbs.len,
+    if(psa_hash_compute(mbedtls_md_psa_alg_from_type(md), tbs->p, tbs->len,
                         hash, sizeof(hash), &hashLength) != PSA_SUCCESS)
         return false;
 #endif
 
-    const mbedtls_x509_buf *signature = &certificate->MBEDTLS_PRIVATE(sig);
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
-    return mbedtls_pk_verify_ext(certificate->MBEDTLS_PRIVATE(sig_pk),
-                                 &issuer->pk, md, hash, hashLength,
+    (void)sigOpts;
+    return mbedtls_pk_verify_ext(sigPk, issuerKey, md, hash, hashLength,
                                  signature->p, signature->len) == 0;
 #else
-    return mbedtls_pk_verify_ext(certificate->MBEDTLS_PRIVATE(sig_pk),
-                                 certificate->MBEDTLS_PRIVATE(sig_opts),
-                                 &issuer->pk, md, hash, hashLength,
+    return mbedtls_pk_verify_ext(sigPk, sigOpts, issuerKey, md, hash, hashLength,
                                  signature->p, signature->len) == 0;
 #endif
+}
+
+UA_Boolean
+UA_mbedTLS_compat_verifyCertificateSignature(const mbedtls_x509_crt *certificate,
+                                              mbedtls_x509_crt *issuer) {
+    return verifyTbsSignature(&certificate->tbs, &certificate->MBEDTLS_PRIVATE(sig),
+                              certificate->MBEDTLS_PRIVATE(sig_md),
+                              certificate->MBEDTLS_PRIVATE(sig_pk),
+                              UA_MBEDTLS_SIG_OPTS(certificate), &issuer->pk);
+}
+
+UA_Boolean
+UA_mbedTLS_compat_verifyCrlSignature(const mbedtls_x509_crl *crl,
+                                      mbedtls_x509_crt *issuer) {
+    return verifyTbsSignature(&crl->tbs, &crl->MBEDTLS_PRIVATE(sig),
+                              crl->MBEDTLS_PRIVATE(sig_md),
+                              crl->MBEDTLS_PRIVATE(sig_pk),
+                              UA_MBEDTLS_SIG_OPTS(crl), &issuer->pk);
 }
 
 int
