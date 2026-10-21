@@ -64,6 +64,19 @@ UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Returns the CertificateGroup from the transaction or NULL if the transaction
+ * does not have it */
+static UA_CertificateGroup*
+UA_GDSTransaction_findCertificateGroup(UA_GDSTransaction *transaction,
+                                       const UA_NodeId *certificateGroupId) {
+    for(size_t i = 0; i < transaction->certGroupSize; i++) {
+        UA_CertificateGroup *group = &transaction->certGroups[i];
+        if(UA_NodeId_equal(&group->certificateGroupId, certificateGroupId))
+            return group;
+    }
+    return NULL;
+}
+
 /* Returns the appropriate CertificateGroup from the transaction.
  * If the CertificateGroup does not exist in the transaction, it will be created. */
 static UA_CertificateGroup*
@@ -76,11 +89,10 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
     if(transaction->state != UA_GDSTRANSACTIONSTATE_PENDING)
         return NULL;
 
-    for(size_t i = 0; i < transaction->certGroupSize; i++) {
-        UA_CertificateGroup *group = &transaction->certGroups[i];
-        if(UA_NodeId_equal(&group->certificateGroupId, &certGroup->certificateGroupId))
-            return group;
-    }
+    UA_CertificateGroup *group =
+        UA_GDSTransaction_findCertificateGroup(transaction, &certGroup->certificateGroupId);
+    if(group)
+        return group;
 
     /* If the certGroup does not exist, create a new one */
     UA_CertificateGroup *newGroups = (UA_CertificateGroup*)
@@ -256,6 +268,60 @@ UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
     return UA_GDSReceiver_applyChanges(ctx);
 }
 
+/* Evaluate the result of the validation process of Part 4 for a certificate
+ * that is put into the TrustList or that the Server uses */
+static UA_StatusCode
+checkVerificationResult(UA_ServerConfig *sc, UA_StatusCode res, const char *method) {
+    if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
+        /* The chain is complete, but no certificate in it is trusted. Adding
+         * the certificate makes it trusted. The Server does not need to trust
+         * its own certificate. The issuer CAs of a TrustList are not trusted
+         * (Part 4, 6.1.3). */
+        res = UA_STATUSCODE_GOOD;
+    } else if(res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
+              res == UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID) {
+        /* Suppressible errors are ignored. The validity period is checked
+         * after all other steps, so the other steps passed. */
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "%s: Ignoring the suppressible error %s",
+                       method, UA_StatusCode_name(res));
+        res = UA_STATUSCODE_GOOD;
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "%s: The certificate is not valid (%s)",
+                     method, UA_StatusCode_name(res));
+    return res;
+}
+
+/* Verify every certificate of the TrustList after the update with the
+ * validation process of Part 4 (Part 12, 7.8.2.5). The update replaces the
+ * specified lists of the TrustList of the CertificateGroup. */
+static UA_StatusCode
+verifyTrustListUpdate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
+                      const UA_TrustListDataType *update) {
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    UA_StatusCode res = certGroup->getTrustList(certGroup, &trustList);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_TrustListDataType_set(update, &trustList);
+
+    const UA_ByteString *certificates[2] =
+        {trustList.trustedCertificates, trustList.issuerCertificates};
+    size_t certificatesSize[2] =
+        {trustList.trustedCertificatesSize, trustList.issuerCertificatesSize};
+    for(size_t i = 0; i < 2 && res == UA_STATUSCODE_GOOD; i++) {
+        for(size_t j = 0; j < certificatesSize[i] && res == UA_STATUSCODE_GOOD; j++) {
+            res = UA_CertificateUtils_verifyTrustListCertificate(
+                &trustList, &certificates[i][j], sc->logging);
+            res = checkVerificationResult(sc, res, "CloseAndUpdate");
+        }
+    }
+    UA_TrustListDataType_clear(&trustList);
+    return res;
+}
+
 UA_StatusCode
 UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
                                       UA_GDSTrustList *tl,
@@ -289,6 +355,22 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_TrustListDataType_clear(&trustList);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Verify the new TrustList before it is staged. The update replaces the
+     * lists of the staged or the current TrustList. Only the
+     * DefaultApplicationGroup has the Purpose ApplicationCertificateType. The
+     * validation rules of other Purposes are not defined (Part 12, 7.8.2.5). */
+    UA_ServerConfig *sc = UA_Server_getConfig(ctx->drv.server);
+    if(certGroup == &sc->secureChannelPKI) {
+        UA_CertificateGroup *current =
+            UA_GDSTransaction_findCertificateGroup(&ctx->transaction,
+                                                   &certGroup->certificateGroupId);
+        retval = verifyTrustListUpdate(sc, current ? current : certGroup, &trustList);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_TrustListDataType_clear(&trustList);
+            return retval;
+        }
     }
 
     UA_CertificateGroup *transactionCertGroup =
@@ -350,26 +432,8 @@ verifyInTrustListCopy(UA_CertificateGroup *certGroup,
 static UA_StatusCode
 verifyIssuedCertificate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
                         const UA_ByteString *certificate, const char *method) {
-    UA_StatusCode res = verifyInTrustListCopy(certGroup, certificate);
-    if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
-        /* The chain is complete, but no certificate in it is trusted. Adding
-         * the certificate makes it trusted. The Server does not need to trust
-         * its own certificate. */
-        res = UA_STATUSCODE_GOOD;
-    } else if(res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
-              res == UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID) {
-        /* Suppressible errors are ignored. The validity period is checked
-         * after all other steps, so the other steps passed. */
-        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
-                       "%s: Ignoring the suppressible error %s",
-                       method, UA_StatusCode_name(res));
-        res = UA_STATUSCODE_GOOD;
-    }
-    if(res != UA_STATUSCODE_GOOD)
-        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
-                     "%s: The certificate is not valid (%s)",
-                     method, UA_StatusCode_name(res));
-    return res;
+    return checkVerificationResult(sc, verifyInTrustListCopy(certGroup, certificate),
+                                   method);
 }
 
 static UA_GDSPendingCsr *

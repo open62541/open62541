@@ -883,7 +883,7 @@ static const UA_UInt32 trustListObjects[2] = {
 
 static UA_ByteString rollbackCertificates[2] = {
     {CERT_DER_LENGTH, CERT_DER_DATA},
-    {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA}
+    {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA}
 };
 
 static void

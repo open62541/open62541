@@ -55,6 +55,13 @@ intermediateCa(void) {
     return cert;
 }
 
+/* Issued by the intermediate CA */
+static UA_ByteString
+applicationCert(void) {
+    UA_ByteString cert = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    return cert;
+}
+
 static void
 setup(void) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
@@ -298,6 +305,43 @@ trustedCount(UA_CertificateGroup *group) {
     return count;
 }
 
+/* Write the TrustList and call CloseAndUpdate. A failed CloseAndUpdate keeps
+ * the handle open and stages nothing, like a TrustList that does not decode. */
+static UA_StatusCode
+updateList(const TrustListIds *tl, const UA_TrustListDataType *list) {
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_encodeBinary(list, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
+                                      &encoded, NULL), UA_STATUSCODE_GOOD);
+    UA_UInt32 h = openList(tl, admin(), WRITEMODE, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(writeList(tl, admin(), h, encoded), UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&encoded);
+    UA_StatusCode res = closeAndUpdate(tl, admin(), h);
+    if(res != UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(openCount(tl), 1);
+        ck_assert_uint_eq(closeList(tl, admin(), h), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_BADNOTHINGTODO);
+    }
+    return res;
+}
+
+/* A copy of the PEM certificate with a changed signature. The signature is at
+ * the end of the certificate. */
+static UA_ByteString
+brokenSignature(UA_ByteString pem) {
+    UA_ByteString copy;
+    ck_assert_uint_eq(UA_ByteString_copy(&pem, &copy), UA_STATUSCODE_GOOD);
+    const char *footer = "\n-----END";
+    size_t footerLength = strlen(footer);
+    size_t pos = 10;
+    while(pos + footerLength <= copy.length &&
+          memcmp(&copy.data[pos], footer, footerLength) != 0)
+        pos++;
+    ck_assert_uint_le(pos + footerLength, copy.length);
+    UA_Byte *c = &copy.data[pos - 10];
+    *c = (*c == 'A') ? 'B' : 'A';
+    return copy;
+}
+
 START_TEST(trustListServedByFileDrivers) {
     ck_assert_uint_eq(openCount(&appList), 0);
     UA_UInt32 h1 = openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
@@ -496,6 +540,154 @@ START_TEST(userTokenGroupTrustList) {
     ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(trustedCount(&config->sessionPKI), 1);
     ck_assert_uint_eq(trustedCount(&config->secureChannelPKI), applicationTrusted);
+} END_TEST
+
+/* CloseAndUpdate verifies every Certificate in the new TrustList of the
+ * DefaultApplicationGroup with the validation process of Part 4 (Part 12,
+ * 7.8.2.5). The new TrustList is the current one with the specified lists
+ * replaced. */
+
+/* The issuers of the trusted Certificate are not in the new TrustList */
+START_TEST(rejectIncompleteChain) {
+    UA_ByteString cert = applicationCert();
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    list.trustedCertificates = &cert;
+    list.trustedCertificatesSize = 1;
+    ck_assert_uint_eq(updateList(&appList, &list),
+                      UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+
+    /* The issuers of the current TrustList complete the chain */
+    list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* The issuer did not sign the trusted Certificate */
+START_TEST(rejectBrokenSignature) {
+    UA_ByteString cert = brokenSignature(applicationCert());
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    list.trustedCertificates = &cert;
+    list.trustedCertificatesSize = 1;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_ByteString_clear(&cert);
+} END_TEST
+
+/* The root CA did not sign the trusted intermediate CA */
+START_TEST(rejectBrokenCaSignature) {
+    UA_ByteString cert = brokenSignature(intermediateCa());
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    list.trustedCertificates = &cert;
+    list.trustedCertificatesSize = 1;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_ByteString_clear(&cert);
+} END_TEST
+
+/* The root CA did not sign the intermediate CA. Both are only issuers, so no
+ * Certificate is trusted. The intermediate CA is still rejected. */
+START_TEST(rejectBrokenIssuerSignature) {
+    UA_ByteString issuers[2] = {brokenSignature(intermediateCa()),
+                                {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA}};
+    UA_ByteString crls[2] = {
+        {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA},
+        {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA}};
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    list.issuerCertificates = issuers;
+    list.issuerCertificatesSize = 2;
+    list.issuerCrls = crls;
+    list.issuerCrlsSize = 2;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_ByteString_clear(&issuers[0]);
+
+    /* With the original intermediate CA */
+    issuers[0] = intermediateCa();
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(trustedCount(&UA_Server_getConfig(server)->secureChannelPKI), 0);
+} END_TEST
+
+/* The CRL of the intermediate CA revokes the trusted Certificate */
+START_TEST(rejectRevokedCertificate) {
+    UA_ByteString cert = applicationCert();
+    UA_ByteString crls[2] = {
+        {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA},
+        {INTERMEDIATE_CRL_PEM_LENGTH, INTERMEDIATE_CRL_PEM_DATA}};
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES |
+        UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    list.trustedCertificates = &cert;
+    list.trustedCertificatesSize = 1;
+    list.trustedCrls = crls;
+    list.trustedCrlsSize = 2;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_BADCERTIFICATEREVOKED);
+} END_TEST
+
+/* Only the CRLs change. The CRL of the root CA revokes the intermediate CA of
+ * the current TrustList. */
+START_TEST(rejectRevokedCa) {
+    UA_ByteString crls[2] = {
+        {ROOT_CRL_PEM_LENGTH, ROOT_CRL_PEM_DATA},
+        {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA}};
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    list.trustedCrls = crls;
+    list.trustedCrlsSize = 2;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_BADCERTIFICATEREVOKED);
+} END_TEST
+
+/* Suppressible errors are ignored (Part 12, 7.8.2.5). Issuer CAs that are not
+ * trusted are no error. */
+START_TEST(acceptSuppressibleErrors) {
+    UA_CertificateGroup *pki = &UA_Server_getConfig(server)->secureChannelPKI;
+    /* Self-signed, expired since 2026-02-14 */
+    UA_ByteString expired = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    list.trustedCertificates = &expired;
+    list.trustedCertificatesSize = 1;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(trustedCount(pki), 1);
+
+    UA_ByteString cert = applicationCert();
+    UA_ByteString issuers[2] = {intermediateCa(),
+                                {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA}};
+    UA_ByteString crls[2] = {
+        {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA},
+        {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA}};
+    list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    list.trustedCertificates = &cert;
+    list.issuerCertificates = issuers;
+    list.issuerCertificatesSize = 2;
+    list.issuerCrls = crls;
+    list.issuerCrlsSize = 2;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(trustedCount(pki), 1);
+} END_TEST
+
+/* Part 12 defines no validation rules for Purposes other than
+ * ApplicationCertificateType (7.8.2.5) */
+START_TEST(userTokenGroupNotVerified) {
+    UA_ByteString cert = applicationCert();
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    list.trustedCertificates = &cert;
+    list.trustedCertificatesSize = 1;
+    ck_assert_uint_eq(updateList(&userList, &list), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(trustedCount(&UA_Server_getConfig(server)->sessionPKI), 1);
 } END_TEST
 
 /* Only the Session of the transaction can open a TrustList (Part 12, 7.8.2.2).
@@ -891,6 +1083,14 @@ int main(void) {
     tcase_add_test(tc, writePositionsAndLimit);
     tcase_add_test(tc, closeAndUpdateFailures);
     tcase_add_test(tc, userTokenGroupTrustList);
+    tcase_add_test(tc, rejectIncompleteChain);
+    tcase_add_test(tc, rejectBrokenSignature);
+    tcase_add_test(tc, rejectBrokenCaSignature);
+    tcase_add_test(tc, rejectBrokenIssuerSignature);
+    tcase_add_test(tc, rejectRevokedCertificate);
+    tcase_add_test(tc, rejectRevokedCa);
+    tcase_add_test(tc, acceptSuppressibleErrors);
+    tcase_add_test(tc, userTokenGroupNotVerified);
     tcase_add_test(tc, transactionOfAnotherSession);
     tcase_add_test(tc, transactionKeptWhileWriting);
     tcase_add_test(tc, writeChunkFollowsMaxTrustListSize);
