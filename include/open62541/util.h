@@ -202,6 +202,34 @@ UA_KeyValueMap_copy(const UA_KeyValueMap *src, UA_KeyValueMap *dst);
 UA_EXPORT UA_StatusCode
 UA_KeyValueMap_merge(UA_KeyValueMap *lhs, const UA_KeyValueMap *rhs);
 
+/* Typing restriction for a key-value parameter. Plugins and EventLoop
+ * implementations list the parameters they understand in an array of
+ * restrictions and check a user-supplied map against it. */
+typedef struct {
+    UA_QualifiedName name;
+    const UA_DataType *type; /* NULL accepts a Variant of any type */
+    UA_Boolean required;
+    UA_Boolean scalar;       /* A scalar value is allowed */
+    UA_Boolean array;        /* An array value is allowed */
+} UA_KeyValueRestriction;
+
+/* Validate the map against the restrictions. Fails if a required key is
+ * missing or if a value does not have the type and shape (scalar or array) that
+ * the restriction allows. The reason is logged with the given category and a
+ * prefix identifying the component (can be NULL).
+ *
+ * The namespace zero is reserved for the keys defined by open62541. If
+ * rejectUnknown is set, a key of namespace zero without a restriction fails
+ * with BadInvalidArgument. Keys of other namespaces belong to the application
+ * and are never rejected. Without rejectUnknown, keys without a restriction
+ * are ignored. */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_validate(const UA_KeyValueMap *map,
+                        const UA_KeyValueRestriction *restrictions,
+                        size_t restrictionsSize, UA_Boolean rejectUnknown,
+                        const UA_Logger *logger, UA_LogCategory category,
+                        const char *logprefix);
+
 /**
  * Binary Connection Config Parameters
  * ----------------------------------- */
