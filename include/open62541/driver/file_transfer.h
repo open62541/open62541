@@ -424,15 +424,15 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  * application. The driver keeps it for the transfer and passes it to the later
  * callbacks; endTransfer releases it.
  *
- * endTransfer runs once for each transfer that a generate Method created, and
- * after a successful generate callback whose transfer could not be created. The
- * client handle is closed then; the file still exists and is removed
- * afterwards. The status tells how the transfer ended: Good when a read
- * transfer is closed, the result of closeAndCommit,
- * Bad_RequestCancelledByClient when a write transfer is closed, Bad_Timeout for
- * the activity-timeout (ClientProcessingTimeout), Bad_SessionClosed,
- * Bad_Shutdown when the driver stops, otherwise the error of the generate
- * Method.
+ * endTransfer runs once for each transfer that a generate Method or
+ * UA_FileTransferDriver_generateFile() created, and after a successful
+ * generate callback whose transfer could not be created. The client handle is
+ * closed then; the file still exists and is removed afterwards. The status
+ * tells how the transfer ended: Good when a read transfer is closed, the
+ * result of closeAndCommit, Bad_RequestCancelledByClient when a write
+ * transfer is closed, Bad_Timeout for the activity-timeout
+ * (ClientProcessingTimeout), Bad_SessionClosed, Bad_Shutdown when the driver
+ * stops, otherwise the error that failed the generation.
  *
  * The callbacks must not stop or remove the driver. */
 
@@ -502,6 +502,20 @@ UA_FileTransferDriver_getTransfer(UA_Driver *driver, const UA_NodeId *sessionId,
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_FileTransferDriver_setTransferContext(UA_Driver *driver, const UA_NodeId *sessionId,
                                          UA_UInt32 fileHandle, void *transferContext);
+
+/* Start a transfer like GenerateFileForRead or GenerateFileForWrite, e.g. for
+ * a Method that returns a temporary file. The callbacks, the direction rules,
+ * the limits and the activity-timeout apply; generateOptions may be NULL. The
+ * file and its handle belong to the Session: it reads or writes the file and
+ * ends the transfer with Close, or a write transfer with CloseAndCommit on the
+ * TemporaryFileTransferType Object. fileNodeId receives an owned copy. A
+ * driver that is not temporary returns Bad_NotSupported, a stopped driver
+ * Bad_InvalidState. Can be called from Method callbacks. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_generateFile(UA_Driver *driver, const UA_NodeId *sessionId,
+                                   void *sessionContext, UA_Boolean forWrite,
+                                   const UA_Variant *generateOptions,
+                                   UA_NodeId *fileNodeId, UA_UInt32 *fileHandle);
 
 _UA_END_DECLS
 

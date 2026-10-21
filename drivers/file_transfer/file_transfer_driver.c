@@ -702,6 +702,43 @@ UA_FileTransferDriver_setTransferContext(UA_Driver *driver, const UA_NodeId *ses
 }
 
 UA_StatusCode
+UA_FileTransferDriver_generateFile(UA_Driver *driver, const UA_NodeId *sessionId,
+                                   void *sessionContext, UA_Boolean forWrite,
+                                   const UA_Variant *generateOptions,
+                                   UA_NodeId *fileNodeId, UA_UInt32 *fileHandle) {
+    if(!driver || !driver->server || !isFileTransferDriver(driver) || !sessionId ||
+       !fileNodeId || !fileHandle)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Variant noOptions;
+    UA_Variant_init(&noOptions);
+    if(!generateOptions)
+        generateOptions = &noOptions;
+    UA_EventLoop *el = UA_Server_getConfig(driver->server)->eventLoop;
+    el->lock(el);
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    FTHandle *h = NULL;
+    UA_StatusCode res;
+    if(!ftd->root || ftd->root->kind != FT_ENTRY_TEMPORARY)
+        res = UA_STATUSCODE_BADNOTSUPPORTED;
+    else if(driver->state != UA_LIFECYCLESTATE_STARTED)
+        res = UA_STATUSCODE_BADINVALIDSTATE;
+    else
+        res = generateTransfer(driver->server, ftd->root, sessionId, sessionContext,
+                               generateOptions, forWrite, &h);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_NodeId_copy(&h->file->nodeId, fileNodeId);
+    if(res == UA_STATUSCODE_GOOD) {
+        *fileHandle = h->handle;
+    } else if(h) {
+        /* The caller cannot end a transfer whose file it does not receive */
+        h->file->transfer->endStatus = res;
+        closeFTHandle(driver->server, h);
+    }
+    el->unlock(el);
+    return res;
+}
+
+UA_StatusCode
 UA_FileTransferDriver_closeHandle(UA_Driver *driver, const UA_NodeId fileNodeId,
                                   const UA_NodeId *sessionId, UA_UInt32 fileHandle) {
     if(!driver || !driver->server || !isFileTransferDriver(driver) || !sessionId)
