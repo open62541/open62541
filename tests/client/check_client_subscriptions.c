@@ -369,14 +369,21 @@ START_TEST(Client_monitoreditem_create_callback_clears_subscriptions) {
         response = UA_Client_MonitoredItems_createDataChanges(
             client, request, contexts, callbacks, deleteCallbacks);
     } else {
+        /* Drive both peers on this thread. A fast client-only loop can exhaust
+         * its iterations before the server is scheduled under Valgrind. */
+        pauseServer();
+        response.responseHeader.serviceResult = UA_STATUSCODE_BADWAITINGFORINITIALDATA;
         UA_StatusCode res = UA_Client_MonitoredItems_createDataChanges_async(
             client, request, contexts, callbacks, deleteCallbacks,
             createDataChangesCallback, &response, NULL);
         ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-        for(size_t i = 0; i < 100 && response.resultsSize == 0; i++) {
+        for(size_t i = 0; i < 1000 && response.responseHeader.serviceResult ==
+                UA_STATUSCODE_BADWAITINGFORINITIALDATA; i++) {
+            UA_Server_run_iterate(server, false);
             res = UA_Client_run_iterate(client, 10);
             ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
         }
+        runServer();
         ck_assert_uint_eq(response.resultsSize, 2);
     }
     ck_assert_uint_eq(response.responseHeader.serviceResult,
