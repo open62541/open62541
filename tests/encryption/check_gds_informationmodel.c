@@ -595,12 +595,13 @@ START_TEST(update_certificate_reject_unparseable) {
 }
 END_TEST
 
-/* Helper: stage the current server certificate again with UpdateCertificate */
+/* Helper: stage the current server certificate again with UpdateCertificate
+ * for the given certificate type */
 static UA_StatusCode
-callUpdateCertificate(UA_Client *client) {
+callUpdateCertificateOfType(UA_Client *client, UA_UInt32 certificateTypeId) {
     UA_NodeId groupId = UA_NODEID_NUMERIC(0,
         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, certificateTypeId);
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
     UA_String privateKeyFormat = UA_STRING("DER");
@@ -631,6 +632,94 @@ callUpdateCertificate(UA_Client *client) {
     UA_CallResponse_clear(&response);
     return res;
 }
+
+/* Helper: stage the current server certificate again with UpdateCertificate */
+static UA_StatusCode
+callUpdateCertificate(UA_Client *client) {
+    return callUpdateCertificateOfType(client,
+                                       UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+}
+
+/* Helper: stage an empty TrustList in the transaction of the client. The CAs
+ * of the client certificate are no longer trusted after ApplyChanges. */
+static void
+stageEmptyTrustList(UA_Client *client) {
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    UA_ByteString encTrustList = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = UA_encodeBinary(&trustList,
+                                           &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
+                                           &encTrustList, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_Byte mode = UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING;
+    retval = openTrustList(client, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+    UA_Variant_clear(&fileHandler);
+    retval = writeTrustList(client, fd, encTrustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant applyRequiredVar;
+    UA_Variant_init(&applyRequiredVar);
+    retval = closeAndUpdateTrustList(client, fd, &applyRequiredVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&applyRequiredVar);
+    UA_ByteString_clear(&encTrustList);
+}
+
+/* Helper: wait until the server has closed the SecureChannel of the client */
+static UA_Boolean
+secureChannelClosed(UA_Client *client) {
+    UA_SecureChannelState channelState = UA_SECURECHANNELSTATE_OPEN;
+    for(size_t i = 0; i < 100; i++) {
+        UA_Client_run_iterate(client, 10);
+        UA_Client_getState(client, &channelState, NULL, NULL);
+        if(channelState == UA_SECURECHANNELSTATE_CLOSED)
+            return true;
+    }
+    return false;
+}
+
+/* ApplyChanges re-verifies the open SecureChannels against the new TrustList.
+ * The SecureChannel of a client that is no longer trusted is closed. */
+START_TEST(apply_trustlist_closes_untrusted_channel) {
+    UA_Client *client = createSecureClient();
+    UA_Client_getConfig(client)->noReconnect = true;
+
+    stageEmptyTrustList(client);
+    UA_StatusCode retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(secureChannelClosed(client));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Same as above, but the transaction also updates the certificate of a type
+ * the SecureChannel of the client does not use (RsaMin, the client uses
+ * Aes128_Sha256_RsaOaep with RsaSha256). The SecureChannel is still re-verified
+ * against the new TrustList and closed. */
+START_TEST(apply_trustlist_and_certificate_closes_untrusted_channel) {
+    UA_Client *client = createSecureClient();
+    UA_Client_getConfig(client)->noReconnect = true;
+
+    UA_StatusCode retval =
+        callUpdateCertificateOfType(client, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    stageEmptyTrustList(client);
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(secureChannelClosed(client));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
 
 /* Test: AddCertificate succeeds for a non-CA end-entity certificate */
 START_TEST(add_certificate_success) {
@@ -1693,6 +1782,8 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, add_certificate_reject_malformed);
     tcase_add_test(tc_cert_filestore, add_certificate_reject_unknown_issuer);
     tcase_add_test(tc_cert_filestore, add_certificate_reject_revoked);
+    tcase_add_test(tc_cert_filestore, apply_trustlist_closes_untrusted_channel);
+    tcase_add_test(tc_cert_filestore, apply_trustlist_and_certificate_closes_untrusted_channel);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
