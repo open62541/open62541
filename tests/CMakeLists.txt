@@ -201,6 +201,10 @@ add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
+add_test(generate_nodeid_header ${PYTHON_EXECUTABLE}
+         ${PROJECT_SOURCE_DIR}/tests/check_generate_nodeid_header.py
+         ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py)
+
 add_executable(check_types_builtin check_types_builtin.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_types_builtin ${LIBS})
 add_test_valgrind(types_builtin ${TESTS_BINARY_DIR}/check_types_builtin)
