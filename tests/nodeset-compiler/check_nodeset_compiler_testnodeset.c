@@ -159,6 +159,32 @@ START_TEST(checkFrameValues) {
     }
 END_TEST
 
+START_TEST(checkFrameArrayValues) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_StatusCode res =
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 15236), &out);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_THREEDFRAME]);
+    ck_assert(!UA_Variant_isScalar(&out));
+    ck_assert_uint_eq(out.arrayLength, 2);
+    UA_ThreeDFrame *f = (UA_ThreeDFrame *)out.data;
+    ck_assert(f[0].cartesianCoordinates.x == (UA_Double)1);
+    ck_assert(f[0].cartesianCoordinates.y == (UA_Double)2);
+    ck_assert(f[0].cartesianCoordinates.z == (UA_Double)3);
+    ck_assert(f[0].orientation.a == (UA_Double)4);
+    ck_assert(f[0].orientation.b == (UA_Double)5);
+    ck_assert(f[0].orientation.c == (UA_Double)6);
+    ck_assert(f[1].cartesianCoordinates.x == (UA_Double)7);
+    ck_assert(f[1].cartesianCoordinates.y == (UA_Double)8);
+    ck_assert(f[1].cartesianCoordinates.z == (UA_Double)9);
+    ck_assert(f[1].orientation.a == (UA_Double)10);
+    ck_assert(f[1].orientation.b == (UA_Double)11);
+    ck_assert(f[1].orientation.c == (UA_Double)12);
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 START_TEST(checkInputArguments) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -228,6 +254,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, check1dimValues);
     tcase_add_test(tc_server, readValueRank);
     tcase_add_test(tc_server, checkFrameValues);
+    tcase_add_test(tc_server, checkFrameArrayValues);
     tcase_add_test(tc_server, checkInputArguments);
     tcase_add_test(tc_server, checkGuid);
     tcase_add_test(tc_server, checkDataSetMetaData);
