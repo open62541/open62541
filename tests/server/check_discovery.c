@@ -81,6 +81,7 @@ configure_lds_server(UA_Server *pServer) {
     UA_CertificateGroup_AcceptAll(&config_lds->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config_lds->sessionPKI);
 
+    config_lds->registeredServersEnabled = true;
     config_lds->applicationDescription.applicationType =
         UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config_lds->applicationDescription.applicationUri);

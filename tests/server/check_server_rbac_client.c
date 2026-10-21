@@ -423,7 +423,6 @@ START_TEST(Client_userwritemask_reflects_rbac) {
 }
 END_TEST
 
-#ifdef UA_ENABLE_METHODCALLS
 /* A non-admin client over an unencrypted channel must not be able to call the
  * RoleSet AddRole Method: C2 grants CALL only to SecurityAdmin and C1 requires
  * an encrypted SecureChannel. */
@@ -457,7 +456,6 @@ START_TEST(Client_roleSetMethod_denied) {
     UA_Client_delete(client);
 }
 END_TEST
-#endif /* UA_ENABLE_METHODCALLS */
 
 static Suite *testSuite_Server_RBAC_Client(void) {
     Suite *s = suite_create("Server RBAC Client Integration");
@@ -468,9 +466,7 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_anonymous_restricted_access);
     tcase_add_test(tc, Client_guest_limited_access);
     tcase_add_test(tc, Client_userwritemask_reflects_rbac);
-#ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc, Client_roleSetMethod_denied);
-#endif
     suite_add_tcase(s, tc);
     return s;
 }

@@ -79,11 +79,58 @@ START_TEST(find_on_network_large_cache_small_stack) {
 }
 END_TEST
 
+START_TEST(discovery_runtime_flags) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_ne(server, NULL);
+
+    UA_String url = UA_STRING("opc.tcp://localhost:4841");
+    UA_LocalizedText name = UA_LOCALIZEDTEXT("en", "Registered server");
+    UA_RegisteredServer registered;
+    UA_RegisteredServer_init(&registered);
+    registered.serverUri = UA_STRING("urn:test:registered-server");
+    registered.serverNames = &name;
+    registered.serverNamesSize = 1;
+    registered.discoveryUrls = &url;
+    registered.discoveryUrlsSize = 1;
+    registered.isOnline = true;
+
+    ck_assert_uint_eq(UA_Server_registerServer(server, &registered, 0, NULL, NULL),
+                      UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+    server->config.registeredServersEnabled = true;
+    ck_assert_uint_eq(UA_Server_registerServer(server, &registered, 0, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->registeredServersSize, 1);
+
+    server->config.registeredServersEnabled = false;
+    UA_FindServersRequest request;
+    UA_FindServersRequest_init(&request);
+    UA_FindServersResponse response;
+    UA_FindServersResponse_init(&response);
+    UA_LOCK(&server->serviceMutex);
+    Service_FindServers(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.serversSize, 1);
+    UA_FindServersResponse_clear(&response);
+
+    FindServersOnNetworkContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.server = server;
+    findServersOnNetworkSmallStack(&ctx);
+    ck_assert_uint_eq(ctx.serviceResult, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    server->config.serversOnNetworkEnabled = true;
+    findServersOnNetworkSmallStack(&ctx);
+    ck_assert_uint_eq(ctx.serviceResult, UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+}
+END_TEST
+
 static Suite *
 testSuite(void) {
     Suite *suite = suite_create("FindServersOnNetwork");
     TCase *tc = tcase_create("large cache");
     tcase_add_test(tc, find_on_network_large_cache_small_stack);
+    tcase_add_test(tc, discovery_runtime_flags);
     suite_add_tcase(suite, tc);
     return suite;
 }

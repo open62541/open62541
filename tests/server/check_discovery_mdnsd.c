@@ -21,7 +21,7 @@
 #include <open62541/server_config_default.h>
 
 #include "server/ua_server_internal.h"
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+#if defined(UA_ENABLE_DRIVER_MDNS_MDNSD)
 #include "src_generated/mdnsd/mdnsd.h"
 #include "src_generated/mdnsd/sdtxt.h"
 #endif
@@ -40,11 +40,9 @@
 #include "../encryption/certificates.h"
 #endif
 
-#if defined(UA_ENABLE_DISCOVERY) && \
-    (defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD) || \
-     defined(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI))
+#if defined(UA_ENABLE_DRIVER_MDNS_MDNSD) || defined(UA_ENABLE_DRIVER_MDNS_AVAHI)
 
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+#if defined(UA_ENABLE_DRIVER_MDNS_AVAHI)
 # define MDNS_DRIVER_CONSTRUCTOR UA_MdnsDriver_Avahi
 # define MDNS_DRIVER_NAME "discovery-mdns-avahi"
 # define MDNS_DRIVER_SUITE_NAME "Discovery Avahi"
@@ -190,7 +188,7 @@ addDriverInterfaceTests(Suite *s) {
     suite_add_tcase(s, tc_driver);
 }
 
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+#if defined(UA_ENABLE_DRIVER_MDNS_MDNSD)
 
 #define TEST_UDP_CAPTURED_MESSAGES 64
 #define TEST_MDNS_RECV_CONNECTION_ID 100
@@ -1517,6 +1515,7 @@ setup_public_api_servers(void) {
     UA_ServerConfig *ldsServerConfig = UA_Server_getConfig(serverLds);
     ldsServerConfig->tcpReuseAddr = true;
     ldsServerConfig->serversOnNetworkEnabled = true;
+    ldsServerConfig->registeredServersEnabled = true;
     ldsServerConfig->applicationDescription.applicationType =
         UA_APPLICATIONTYPE_DISCOVERYSERVER;
     ldsServerConfig->discoveryNotificationCallback =
@@ -2742,7 +2741,7 @@ START_TEST(PublicApiIgnoresRecordWithTruncatedAddressField) {
 }
 END_TEST
 
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST_MDNSD */
+#endif /* UA_ENABLE_DRIVER_MDNS_MDNSD */
 
 static Suite *
 testSuite_DiscoveryMdnsd(void) {
@@ -2750,7 +2749,7 @@ testSuite_DiscoveryMdnsd(void) {
 
     addDriverInterfaceTests(s);
 
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+#if defined(UA_ENABLE_DRIVER_MDNS_MDNSD)
     TCase *regressions = tcase_create("Discovery lock regression");
     tcase_add_test(regressions, DisabledNetworkRemovalReleasesLock);
     suite_add_tcase(s, regressions);

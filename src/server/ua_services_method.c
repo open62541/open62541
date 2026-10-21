@@ -17,7 +17,6 @@
 #include "ua_services.h"
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
 #define UA_MAX_METHOD_ARGUMENTS 64
 
@@ -423,5 +422,3 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     unlockServer(server);
     return result;
 }
-
-#endif /* UA_ENABLE_METHODCALLS */

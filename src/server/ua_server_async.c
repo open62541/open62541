@@ -1026,7 +1026,6 @@ UA_Server_setAsyncWriteResult(UA_Server *server,
 /* Call */
 /********/
 
-#ifdef UA_ENABLE_METHODCALLS
 UA_Boolean
 Service_Call(UA_Server *server, UA_Session *session,
              const void *request_, void *response_) {
@@ -1158,4 +1157,3 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
     unlockServer(server);
     return (op) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
 }
-#endif

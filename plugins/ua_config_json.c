@@ -1169,14 +1169,12 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 else if(strcmp(field, "maxAsyncOperationQueueSize") == 0)
                     retval = UInt64Field_parseJson(&ctx, &config->maxAsyncOperationQueueSize, NULL);
 
-#ifdef UA_ENABLE_DISCOVERY
                 else if(strcmp(field, "registeredServersEnabled") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->registeredServersEnabled, NULL);
                 else if(strcmp(field, "registeredServerCleanupTimeout") == 0)
                     retval = UInt32Field_parseJson(&ctx, &config->registeredServerCleanupTimeout, NULL);
                 else if(strcmp(field, "serversOnNetworkEnabled") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->serversOnNetworkEnabled, NULL);
-#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
                 else if(strcmp(field, "subscriptionsEnabled") == 0)

@@ -12,7 +12,7 @@
 #include <open62541/server.h>
 #include <open62541/driver/mdns.h>
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_AVAHI
+#ifdef UA_ENABLE_DRIVER_MDNS_AVAHI
 
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
@@ -861,4 +861,4 @@ UA_MdnsDriver_Avahi(const UA_KeyValueMap params) {
     return &md->mdns;
 }
 
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST_AVAHI */
+#endif /* UA_ENABLE_DRIVER_MDNS_AVAHI */

@@ -15,8 +15,6 @@
 
 #if defined(UA_ARCHITECTURE_POSIX)
 
-#include "arch/posix/posix.h"
-
 #include <time.h>
 #include <sys/time.h>
 
