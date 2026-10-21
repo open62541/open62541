@@ -251,9 +251,18 @@ UA_StatusCode fileTransferRefresh(UA_Driver *driver,
 /* Create an empty file or directory with its basename in the info */
 UA_StatusCode createBackendEntry(UA_FileTransferBackend *b, const UA_String path,
                                  UA_Boolean isDirectory);
+/* Copy a file within the backend to a new path, without the access checks of
+ * MoveOrCopy */
+UA_StatusCode copyStoreFile(UA_FileTransferBackend *b, const UA_String fromPath,
+                            const UA_String toPath);
 
-/* temporary.c -- remove the file and the Object of a transfer whose handle is
- * closed, with the server lock held */
+/* temporary.c -- with the server lock held. generateTransfer starts a transfer
+ * like GenerateFileForRead/-Write and opens its handle for the Session.
+ * removeTransferFile removes the file and the Object of a finished transfer. */
+UA_StatusCode generateTransfer(UA_Server *server, FTEntry *root,
+                               const UA_NodeId *sessionId, void *sessionContext,
+                               const UA_Variant *generateOptions, UA_Boolean forWrite,
+                               FTHandle **outHandle);
 void removeTransferFile(UA_Server *server, FTEntry *file);
 
 /* backend_memory.c -- flat in-memory store for the files of temporary
