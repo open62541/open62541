@@ -34,6 +34,17 @@ static void stopHandler(int sign) {
 
 char *discovery_url = NULL;
 
+/* Is the LDS capability announced? */
+static UA_Boolean
+isDiscoveryServer(const UA_ServerOnNetwork *serverOnNetwork) {
+    UA_String lds = UA_STRING("LDS");
+    for(size_t i = 0; i < serverOnNetwork->serverCapabilitiesSize; i++) {
+        if(UA_String_equal(&serverOnNetwork->serverCapabilities[i], &lds))
+            return true;
+    }
+    return false;
+}
+
 static void
 serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce,
                         UA_Boolean isTxtReceived, void *data) {
@@ -50,9 +61,17 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
                 // Problem: how to handle if a Server does not announce the
                 // optional TXT?
 
-    // here you can filter for a specific LDS server, e.g. call FindServers on
-    // the serverOnNetwork to make sure you are registering with the correct
-    // LDS. We will ignore this for now
+    // Other servers on the network can also announce themselves. Register only
+    // with a server that has the LDS capability. For a specific LDS you can
+    // also call FindServers on the serverOnNetwork to make sure that you are
+    // registering with the correct one.
+    if(!isDiscoveryServer(serverOnNetwork)) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                    "Another server announced itself on %.*s. It is not an LDS. Ignoring.",
+                    (int)serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
+        return;
+    }
+
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Another server announced itself on %.*s",
                 (int)serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
 
