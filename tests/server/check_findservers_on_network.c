@@ -95,6 +95,7 @@ START_TEST(mdns_socket_without_selectable_descriptor) {
     ck_assert_ptr_ne(server, NULL);
     ck_assert_uint_eq(UA_ServerConfig_setDefault(UA_Server_getConfig(server)),
                       UA_STATUSCODE_GOOD);
+    server->config.mdnsEnabled = true; /* The delete cleans up the mDNS daemon */
 
     if(testing_fillDescriptors()) {
         UA_StatusCode res =
