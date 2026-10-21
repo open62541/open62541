@@ -718,44 +718,34 @@ secureChannel_delayedClose(void *application, void *context) {
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)application;
+    UA_Boolean trustListUpdated =
+        (*changes == UA_GDSTRANSACTIONCHANGES_TRUSTLIST ||
+         *changes == UA_GDSTRANSACTIONCHANGES_BOTH);
 
+    /* Shutdown SecureChannels that use an updated certificate type. If the
+     * TrustList was updated, re-verify the remote certificates of the other
+     * SecureChannels. Close the SecureChannel on failure. */
     ChannelMetadata *cm;
     UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
-    switch(*changes) {
-    case UA_GDSTRANSACTIONCHANGES_NOTHING:
-        break;
-
-    case UA_GDSTRANSACTIONCHANGES_BOTH:
-    case UA_GDSTRANSACTIONCHANGES_CERTIFICATE:
-        /* Shutdown SecureChannels that use an updated certificate type. */
-        LIST_FOREACH(cm, &ctx->secureChannels, pointers) {
-            UA_Boolean certificateTypeUpdated = false;
-            for(size_t i = 0; i < ctx->transaction.certificateInfosSize; i++) {
-                UA_GDSCertificateInfo *certInfo =
-                    &ctx->transaction.certificateInfos[i];
-                if(UA_NodeId_equal(&cm->certificateTypeId,
-                                   &certInfo->certificateType)) {
-                    certificateTypeUpdated = true;
-                    break;
-                }
+    LIST_FOREACH(cm, &ctx->secureChannels, pointers) {
+        UA_Boolean closeChannel = false;
+        for(size_t i = 0; i < ctx->transaction.certificateInfosSize; i++) {
+            UA_GDSCertificateInfo *certInfo =
+                &ctx->transaction.certificateInfos[i];
+            if(UA_NodeId_equal(&cm->certificateTypeId,
+                               &certInfo->certificateType)) {
+                closeChannel = true;
+                break;
             }
-            if(!certificateTypeUpdated)
-                continue;
-            UA_Server_closeSecureChannel(server, cm->channelId,
-                                         UA_SHUTDOWNREASON_CLOSE);
         }
-        break;
-
-    default:
-        /* Re-verify remote certificates. Close the SecureChannel on failure. */
-        LIST_FOREACH(cm, &ctx->secureChannels, pointers) {
+        if(!closeChannel && trustListUpdated) {
             UA_StatusCode res =
                 certGroup->verifyCertificate(certGroup, &cm->certificate);
-            if(res != UA_STATUSCODE_GOOD)
-                UA_Server_closeSecureChannel(server, cm->channelId,
-                                             UA_SHUTDOWNREASON_CLOSE);
+            closeChannel = (res != UA_STATUSCODE_GOOD);
         }
-        break;
+        if(closeChannel)
+            UA_Server_closeSecureChannel(server, cm->channelId,
+                                         UA_SHUTDOWNREASON_CLOSE);
     }
 
     UA_free(changes);
