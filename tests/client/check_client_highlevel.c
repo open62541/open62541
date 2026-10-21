@@ -74,6 +74,31 @@ START_TEST(Misc_NamespaceGetIndex) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
 } END_TEST
 
+static UA_StatusCode
+countChildren(UA_NodeId childId, UA_Boolean isInverse,
+              UA_NodeId referenceTypeId, void *handle) {
+    (*(size_t *)handle)++;
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(Misc_ForEachChildNodePaginated) {
+    UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    size_t unlimited = 0;
+    UA_StatusCode res =
+        UA_Client_forEachChildNodeCall(client, parent, countChildren, &unlimited);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(unlimited, 1);
+
+    /* The server returns one reference per page. The iterator has to follow the
+     * continuation points and see all references. */
+    UA_Server_getConfig(server)->maxReferencesPerNode = 1;
+    size_t paginated = 0;
+    res = UA_Client_forEachChildNodeCall(client, parent, countChildren, &paginated);
+    UA_Server_getConfig(server)->maxReferencesPerNode = 0;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(paginated, unlimited);
+} END_TEST
+
 UA_NodeId newReferenceTypeId;
 UA_NodeId newObjectTypeId;
 UA_NodeId newDataTypeId;
@@ -1036,6 +1061,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_checked_fixture(tc_misc, setup, teardown);
     tcase_add_test(tc_misc, Misc_State);
     tcase_add_test(tc_misc, Misc_NamespaceGetIndex);
+    tcase_add_test(tc_misc, Misc_ForEachChildNodePaginated);
     suite_add_tcase(s, tc_misc);
 
     TCase *tc_nodes = tcase_create("Client Highlevel Node Management");

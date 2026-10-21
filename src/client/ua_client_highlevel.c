@@ -58,6 +58,22 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
     return retval;
 }
 
+/* Call the callback for all references of the page. The continuation point is
+ * moved out of the result. */
+static UA_StatusCode
+iteratePage(UA_BrowseResult *br, UA_NodeIteratorCallback callback,
+            void *handle, UA_ByteString *cp) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t j = 0; j < br->referencesSize; ++j) {
+        UA_ReferenceDescription *ref = &br->references[j];
+        retval |= callback(ref->nodeId.nodeId, !ref->isForward,
+                           ref->referenceTypeId, handle);
+    }
+    *cp = br->continuationPoint;
+    UA_ByteString_init(&br->continuationPoint);
+    return retval;
+}
+
 UA_StatusCode
 UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
@@ -71,20 +87,44 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
     bReq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH;
 
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
+    UA_BrowseRequest_clear(&bReq);
 
+    UA_ByteString cp = UA_BYTESTRING_NULL;
     UA_StatusCode retval = bResp.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD) {
-        for(size_t i = 0; i < bResp.resultsSize; ++i) {
-            for(size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
-                UA_ReferenceDescription *ref = &bResp.results[i].references[j];
-                retval |= callback(ref->nodeId.nodeId, !ref->isForward,
-                                   ref->referenceTypeId, handle);
-            }
+    if(retval == UA_STATUSCODE_GOOD && bResp.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = bResp.results[0].statusCode;
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = iteratePage(&bResp.results[0], callback, handle, &cp);
+    UA_BrowseResponse_clear(&bResp);
+
+    /* The server may split the result into several pages. Request all of them. */
+    while(cp.length > 0) {
+        UA_BrowseNextRequest bnReq;
+        UA_BrowseNextRequest_init(&bnReq);
+        bnReq.continuationPoints = &cp;
+        bnReq.continuationPointsSize = 1;
+        UA_BrowseNextResponse bnResp = UA_Client_Service_browseNext(client, bnReq);
+
+        UA_StatusCode res = bnResp.responseHeader.serviceResult;
+        if(res == UA_STATUSCODE_GOOD && bnResp.resultsSize != 1)
+            res = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_BrowseNextResponse_clear(&bnResp);
+            UA_ByteString_clear(&cp);
+            return retval | res;
         }
+
+        UA_ByteString_clear(&cp);
+        res = bnResp.results[0].statusCode;
+        if(res == UA_STATUSCODE_GOOD)
+            retval |= iteratePage(&bnResp.results[0], callback, handle, &cp);
+        else
+            retval |= res;
+        UA_BrowseNextResponse_clear(&bnResp);
     }
 
-    UA_BrowseRequest_clear(&bReq);
-    UA_BrowseResponse_clear(&bResp);
     return retval;
 }
 
