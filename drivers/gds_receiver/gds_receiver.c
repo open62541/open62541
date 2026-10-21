@@ -8,6 +8,7 @@
 
 #include <open62541/plugin/certificategroup_default.h>
 #include "gds_receiver_internal.h"
+#include "../gds_common/gds_common.h"
 
 #ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
 
@@ -350,6 +351,35 @@ verifyInTrustListCopy(UA_CertificateGroup *certGroup,
     return res;
 }
 
+/* Verify a certificate that is added to the TrustList or that the Server uses
+ * with the validation process of Part 4. Its issuers must already be in the
+ * TrustList (Part 12, 7.8.2.6 and 7.10.5). Otherwise building the chain fails
+ * with Bad_CertificateChainIncomplete. */
+static UA_StatusCode
+verifyIssuedCertificate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
+                        const UA_ByteString *certificate, const char *method) {
+    UA_StatusCode res = verifyInTrustListCopy(certGroup, certificate);
+    if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
+        /* The chain is complete, but no certificate in it is trusted. Adding
+         * the certificate makes it trusted. The Server does not need to trust
+         * its own certificate. */
+        res = UA_STATUSCODE_GOOD;
+    } else if(res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
+              res == UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID) {
+        /* Suppressible errors are ignored. The validity period is checked
+         * after all other steps, so the other steps passed. */
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "%s: Ignoring the suppressible error %s",
+                       method, UA_StatusCode_name(res));
+        res = UA_STATUSCODE_GOOD;
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "%s: The certificate is not valid (%s)",
+                     method, UA_StatusCode_name(res));
+    return res;
+}
+
 /* TODO: Handle isTrustedCertificate */
 UA_StatusCode
 UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
@@ -372,40 +402,30 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
     if(UA_GDSReceiver_transactionPending(ctx))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
+    /* `certificate` might contain its own issuer as a concatenated DER or PEM
+     * certificate. This breaks the assumption that after a successful call,
+     * `certificate` will become trusted. Only the leaf is verified and added. */
+    UA_ByteString leafCertificate = UA_GDSReceiver_getLeafCertificate(*certificate);
+    if(leafCertificate.length == 0)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
     /* CA certificates cannot be added using this method because it does not
      * support adding CRLs */
-    if(UA_CertificateUtils_checkCA(certificate) == UA_STATUSCODE_GOOD) {
+    if(UA_CertificateUtils_checkCA(&leafCertificate) == UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "The certificate could not be added because it is a CA certificate. "
                      "CA certificates must be added using the FileType methods.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    res = verifyInTrustListCopy(certGroup, certificate);
-    if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
-        /* The chain is complete, but no certificate in it is trusted. Adding
-         * the certificate makes it trusted. */
-        res = UA_STATUSCODE_GOOD;
-    } else if(res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
-              res == UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID) {
-        /* Suppressible errors are ignored. The validity period is checked
-         * after all other steps, so the other steps passed. */
-        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
-                       "AddCertificate: Ignoring the suppressible error %s",
-                       UA_StatusCode_name(res));
-        res = UA_STATUSCODE_GOOD;
-    }
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
-                     "AddCertificate: The certificate is not valid (%s)",
-                     UA_StatusCode_name(res));
+    res = verifyIssuedCertificate(sc, certGroup, &leafCertificate, "AddCertificate");
+    if(res != UA_STATUSCODE_GOOD)
         return res;
-    }
 
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
-    trustList.trustedCertificates = certificate;
+    trustList.trustedCertificates = &leafCertificate;
     trustList.trustedCertificatesSize = 1;
 
     res = certGroup->addToTrustList(certGroup, &trustList);
@@ -440,6 +460,13 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     if(!UA_GDSReceiver_certificateTypeSupported(sc, certificateTypeId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* `certificate` might contain its issuers as concatenated DER or PEM
+     * certificates. The Server uses the leaf only, so only the leaf is checked
+     * and staged. */
+    UA_ByteString leafCertificate = UA_GDSReceiver_getLeafCertificate(*certificate);
+    if(leafCertificate.length == 0)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -449,14 +476,14 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
         if(!UA_String_equal(&pemFormat, privateKeyFormat) &&
            !UA_String_equal(&derFormat, privateKeyFormat))
             return UA_STATUSCODE_BADNOTSUPPORTED;
-        retval = UA_CertificateUtils_checkKeyPair(certificate, privateKey);
+        retval = UA_CertificateUtils_checkKeyPair(&leafCertificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
     } else {
         /* Validate the certificate before staging a keyless update. */
         size_t keySize = 0;
-        if(UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)certificate,
-                                          &keySize) != UA_STATUSCODE_GOOD)
+        if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
+           UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
@@ -465,17 +492,35 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     UA_GDSTransaction *transaction = &ctx->transaction;
     if(transaction->applyChangesQueued)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH &&
+       !UA_NodeId_equal(&transaction->sessionId, sessionId))
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+
+    /* Verify the certificate with the TrustList that applies after
+     * ApplyChanges. If the transaction changes the TrustList of the
+     * CertificateGroup, this is the TrustList in the transaction. The
+     * transaction is started only for a valid certificate. */
+    UA_CertificateGroup *certGroup = getCertGroup(ctx->drv.server, certificateGroupId);
+    if(!certGroup)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    for(size_t i = 0; i < transaction->certGroupSize; i++) {
+        if(UA_NodeId_equal(&transaction->certGroups[i].certificateGroupId,
+                           certificateGroupId))
+            certGroup = &transaction->certGroups[i];
+    }
+    retval = verifyIssuedCertificate(sc, certGroup, &leafCertificate,
+                                     "UpdateCertificate");
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, ctx->drv.server, *sessionId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
 
-    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
-        return UA_STATUSCODE_BADTRANSACTIONPENDING;
-
     return UA_GDSTransaction_addCertificateInfo(transaction, *certificateGroupId,
-                                                *certificateTypeId, certificate,
+                                                *certificateTypeId, &leafCertificate,
                                                 privateKey);
 }
 
@@ -961,34 +1006,47 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
     if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* The Server uses the leaf only. Issuers appended to the certificate are
+     * not used to verify it. */
+    UA_ByteString leafCertificate = UA_GDSReceiver_getLeafCertificate(certificate);
+    if(leafCertificate.length == 0)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
     if(privateKey) {
-        if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) !=
+        if(UA_CertificateUtils_checkKeyPair(&leafCertificate, privateKey) !=
            UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
         newPrivateKey = *privateKey;
     } else {
         size_t keySize = 0;
-        if(UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)&certificate,
-                                          &keySize) != UA_STATUSCODE_GOOD)
+        if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
+           UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     UA_Server *server = receiver->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
+    UA_CertificateGroup *certGroup = getCertGroup(server, &certGroupId);
+    if(!certGroup)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode res = verifyIssuedCertificate(sc, certGroup, &leafCertificate,
+                                                "UpdateCertificate");
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     CloseChannelsCallback *ccb =
         (CloseChannelsCallback*)UA_calloc(1, sizeof(CloseChannelsCallback));
     if(!ccb)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     ccb->ctx = ctx;
-    UA_StatusCode res =
-        UA_NodeId_copy(&certificateTypeId, &ccb->certificateTypeId);
+    res = UA_NodeId_copy(&certificateTypeId, &ccb->certificateTypeId);
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(ccb);
         return res;
     }
 
-    res = applyCertificateToPolicies(sc, &certificateTypeId, certificate,
+    res = applyCertificateToPolicies(sc, &certificateTypeId, leafCertificate,
                                      newPrivateKey);
     if(res != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&ccb->certificateTypeId);

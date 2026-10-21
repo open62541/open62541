@@ -1013,8 +1013,10 @@ if(UA_ENABLE_DRIVER_GDS_RECEIVER)
     list(APPEND exported_headers
          ${PROJECT_SOURCE_DIR}/include/open62541/driver/gds_receiver.h)
     list(APPEND lib_headers
+         ${PROJECT_SOURCE_DIR}/drivers/gds_common/gds_common.h
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_internal.h)
     list(APPEND lib_sources
+         ${PROJECT_SOURCE_DIR}/drivers/gds_common/gds_common.c
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver.c
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_ns0.c
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_trustlist.c)
