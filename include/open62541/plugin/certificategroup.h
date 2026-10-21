@@ -134,6 +134,20 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate);
 
+/* Verify a Certificate of a TrustList against that TrustList with the
+ * validation process of Part 4.
+ *
+ * @param trustList The TrustList with all lists.
+ * @param certificate The Certificate to verify.
+ * @param logger Optional logger.
+ * @return The StatusCode of the first failed step, or
+ *         UA_STATUSCODE_BADCERTIFICATEUNTRUSTED if no Certificate in the chain
+ *         is trusted. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trustList,
+                                               const UA_ByteString *certificate,
+                                               const UA_Logger *logger);
+
 /* Decrypt a private key in PEM format using a password. The output is the key
  * in the binary DER format. Also succeeds if the PEM private key does not
  * require a password or is already in the DER format. The outDerKey memory is

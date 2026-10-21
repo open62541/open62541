@@ -640,7 +640,8 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
 /* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
  * It defines a sequence of steps for certificate verification. */
 static UA_StatusCode
-verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                  UA_Boolean allowCa) {
     /* Check parameter */
     if(certGroup == NULL || certGroup->context == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -664,9 +665,10 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
      * Refer the test case CTT/Security/Security Certificate Validation/029.js
-     * for more details. */
+     * for more details. Only the certificates of a TrustList can be CA
+     * certificates. */
     X509 *leaf = sk_X509_value(stack, 0);
-    if(openSSLCheckCA(leaf)) {
+    if(!allowCa && openSSLCheckCA(leaf)) {
         sk_X509_pop_free(stack, X509_free);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
@@ -693,7 +695,7 @@ MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = verifyCertificate(certGroup, certificate);
+    UA_StatusCode retval = verifyCertificate(certGroup, certificate, false);
     if(retval != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -1160,6 +1162,33 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     UA_StatusCode retval = openSSLCheckCA(certificateX509) ?
         UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
     X509_free(certificateX509);
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trustList,
+                                               const UA_ByteString *certificate,
+                                               const UA_Logger *logger) {
+    if(trustList == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Load the TrustList into a temporary Memorystore */
+    UA_NodeId certificateGroupId = UA_NODEID_NULL;
+    UA_CertificateGroup certGroup;
+    memset(&certGroup, 0, sizeof(UA_CertificateGroup));
+    UA_StatusCode retval =
+        UA_CertificateGroup_Memorystore(&certGroup, &certificateGroupId,
+                                        trustList, logger, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* The Memorystore ignores certificates and CRLs that cannot be loaded */
+    retval = reloadCertificates(&certGroup);
+    if(retval == UA_STATUSCODE_BADINTERNALERROR)
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = verifyCertificate(&certGroup, certificate, true);
+    certGroup.clear(&certGroup);
     return retval;
 }
 
