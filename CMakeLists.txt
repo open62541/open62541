@@ -1383,14 +1383,8 @@ ua_generate_nodeset(
     DEPENDS_TARGET "open62541-generator-types"
 )
 
-# stack protector and optimization needs to be disabled for the huge ns0 file, otherwise debian packaging fails due to long build times.
-# We also disable optimization on Appveyor builds, since they take almost an hour otherwise
-if(UA_PACK_DEBIAN OR (NOT "$ENV{APPVEYOR}" STREQUAL "") OR (
-        (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo") AND (
-            # List of compilers which have problems with the huge ns0 optimization
-            (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_C_COMPILER_VERSION VERSION_LESS 7.0))
-        )
-   ))
+# stack protector and optimization are disabled for the huge ns0 file
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
     set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
 endif()
 
