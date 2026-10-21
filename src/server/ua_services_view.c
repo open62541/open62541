@@ -917,27 +917,28 @@ Operation_BrowseAll(UA_Server *server, UA_Session *session,
 
         /* Append the references of the next page */
         if(res == UA_STATUSCODE_GOOD && next.referencesSize > 0) {
-            if(result->referencesSize == 0) {
-                result->references = next.references;
-                result->referencesSize = next.referencesSize;
+            /* The references of an empty result are not allocated (the pointer
+             * can be the empty array sentinel). Copy both pages into a new
+             * array. The ReferenceDescriptions are moved. */
+            size_t oldSize = result->referencesSize;
+            UA_ReferenceDescription *refs = (UA_ReferenceDescription*)
+                UA_malloc((oldSize + next.referencesSize) *
+                          sizeof(UA_ReferenceDescription));
+            if(refs) {
+                if(oldSize > 0) {
+                    memcpy(refs, result->references,
+                           oldSize * sizeof(UA_ReferenceDescription));
+                    UA_free(result->references);
+                }
+                memcpy(&refs[oldSize], next.references,
+                       next.referencesSize * sizeof(UA_ReferenceDescription));
+                result->references = refs;
+                result->referencesSize = oldSize + next.referencesSize;
+                UA_free(next.references);
                 next.references = NULL;
                 next.referencesSize = 0;
             } else {
-                UA_ReferenceDescription *refs = (UA_ReferenceDescription*)
-                    UA_realloc(result->references,
-                               (result->referencesSize + next.referencesSize) *
-                               sizeof(UA_ReferenceDescription));
-                if(refs) {
-                    memcpy(&refs[result->referencesSize], next.references,
-                           next.referencesSize * sizeof(UA_ReferenceDescription));
-                    result->references = refs;
-                    result->referencesSize += next.referencesSize;
-                    UA_free(next.references); /* Moved */
-                    next.references = NULL;
-                    next.referencesSize = 0;
-                } else {
-                    res = UA_STATUSCODE_BADOUTOFMEMORY;
-                }
+                res = UA_STATUSCODE_BADOUTOFMEMORY;
             }
         }
 
