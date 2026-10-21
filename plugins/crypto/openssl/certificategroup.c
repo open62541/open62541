@@ -27,21 +27,17 @@
 #define MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE 0
 #define MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE 1
 
-static const struct {
-    UA_QualifiedName name;
-    const UA_DataType *type;
-    UA_Boolean required;
-} MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMETERSSIZE] = {
-    {{0, UA_STRING_STATIC("max-trust-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false},
-    {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false}
-};
+/* The deprecated names of the parameters follow the current names. They are the
+ * names this backend used before it was aligned with the documentation and the
+ * mbedTLS backend. */
+#define MEMORYCERTSTORE_DEPRECATEDOFFSET MEMORYCERTSTORE_PARAMETERSSIZE
 
-/* The names this backend used before it was aligned with the documentation and
- * the mbedTLS backend. They are deprecated but still accepted. The index
- * matches MemoryCertStoreParameters. */
-static const UA_String MemoryCertStoreDeprecatedNames[MEMORYCERTSTORE_PARAMETERSSIZE] = {
-    UA_STRING_STATIC("maxTrustListSize"),
-    UA_STRING_STATIC("maxRejectedListSize")
+static const UA_KeyValueRestriction
+MemoryCertStoreParameters[2 * MEMORYCERTSTORE_PARAMETERSSIZE] = {
+    {{0, UA_STRING_STATIC("max-trust-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("maxTrustListSize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("maxRejectedListSize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false}
 };
 
 struct MemoryCertStore;
@@ -681,57 +677,42 @@ MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
 }
 
 /* Keys in namespace zero are reserved for the plugin. An unknown key or a value
- * of the wrong type is an error instead of being silently ignored. Keys in other
- * namespaces belong to the application and are skipped. */
+ * of the wrong type is an error instead of being silently ignored. */
 static UA_StatusCode
 MemoryCertStore_setParameters(MemoryCertStore *context, const UA_Logger *logger,
                               const UA_KeyValueMap *params) {
-    for(size_t i = 0; i < params->mapSize; i++) {
-        const UA_KeyValuePair *kv = &params->map[i];
-        if(kv->key.namespaceIndex != 0)
-            continue;
+    UA_StatusCode res =
+        UA_KeyValueMap_validate(params, MemoryCertStoreParameters,
+                                2 * MEMORYCERTSTORE_PARAMETERSSIZE, true, logger,
+                                UA_LOGCATEGORY_SECURITYPOLICY, "CertificateGroup");
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-        size_t idx = 0;
-        UA_Boolean deprecated = false;
-        for(; idx < MEMORYCERTSTORE_PARAMETERSSIZE; idx++) {
-            if(UA_String_equal(&kv->key.name, &MemoryCertStoreParameters[idx].name.name))
-                break;
-            if(UA_String_equal(&kv->key.name, &MemoryCertStoreDeprecatedNames[idx])) {
-                deprecated = true;
-                break;
-            }
-        }
-        if(idx == MEMORYCERTSTORE_PARAMETERSSIZE) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "Unknown CertificateGroup parameter 0:%.*s",
-                         (int)kv->key.name.length, kv->key.name.data);
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        }
+    UA_UInt32 *targets[MEMORYCERTSTORE_PARAMETERSSIZE];
+    targets[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE] = &context->maxTrustListSize;
+    targets[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE] = &context->maxRejectedListSize;
 
-        if(deprecated) {
+    for(size_t i = 0; i < MEMORYCERTSTORE_PARAMETERSSIZE; i++) {
+        const UA_QualifiedName *name = &MemoryCertStoreParameters[i].name;
+        const UA_QualifiedName *oldName =
+            &MemoryCertStoreParameters[MEMORYCERTSTORE_DEPRECATEDOFFSET + i].name;
+
+        if(UA_KeyValueMap_contains(params, *oldName)) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                            "The CertificateGroup parameter 0:%.*s is deprecated, "
                            "use 0:%.*s instead",
-                           (int)kv->key.name.length, kv->key.name.data,
-                           (int)MemoryCertStoreParameters[idx].name.name.length,
-                           MemoryCertStoreParameters[idx].name.name.data);
-            /* The current name takes precedence if both are given */
-            if(UA_KeyValueMap_contains(params, MemoryCertStoreParameters[idx].name))
-                continue;
+                           (int)oldName->name.length, oldName->name.data,
+                           (int)name->name.length, name->name.data);
         }
 
-        if(!UA_Variant_hasScalarType(&kv->value, MemoryCertStoreParameters[idx].type)) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "The CertificateGroup parameter 0:%.*s has the wrong data type",
-                         (int)kv->key.name.length, kv->key.name.data);
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
-
-        UA_UInt32 value = *(const UA_UInt32*)kv->value.data;
-        if(idx == MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE)
-            context->maxTrustListSize = value;
-        else
-            context->maxRejectedListSize = value;
+        /* The current name takes precedence if both are given */
+        const UA_UInt32 *value = (const UA_UInt32*)
+            UA_KeyValueMap_getScalar(params, *name, &UA_TYPES[UA_TYPES_UINT32]);
+        if(!value)
+            value = (const UA_UInt32*)
+                UA_KeyValueMap_getScalar(params, *oldName, &UA_TYPES[UA_TYPES_UINT32]);
+        if(value)
+            *targets[i] = *value;
     }
     return UA_STATUSCODE_GOOD;
 }
