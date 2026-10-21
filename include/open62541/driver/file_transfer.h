@@ -401,11 +401,13 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  * the returned handle; closing it ends the transfer. The Methods complete
  * synchronously, completionStateMachine is always null.
  *
- * The callbacks receive the transfer and work on its file in the store. They
- * run with the server lock held.
+ * The callbacks receive the temporary file of the transfer and run with the
+ * server lock held. They set, get or copy its content with
+ * UA_FileTransferTemporaryFile_setContent(), _getContent() and _copyFrom(), or
+ * work on the file in the store directly, e.g. for large files.
  *
- * generateFileForRead writes the content into the existing empty file and
- * closes its own store handles. A Bad result fails GenerateFileForRead and
+ * generateFileForRead sets the content of the existing empty file and closes
+ * the store handles it opened. A Bad result fails GenerateFileForRead and
  * removes the file.
  *
  * generateFileForWrite runs with the existing empty file. A Bad result, e.g.
@@ -420,15 +422,15 @@ UA_FileTransferFileBackend_localFile(const UA_String filePath,
  * application. The driver keeps it for the transfer and passes it to the later
  * callbacks; endTransfer releases it.
  *
- * endTransfer runs once for each transfer that a generate Method created, and
- * after a successful generate callback whose transfer could not be created. The
- * client handle is closed then; the file still exists and is removed
- * afterwards. The status tells how the transfer ended: Good when a read
- * transfer is closed, the result of closeAndCommit,
- * Bad_RequestCancelledByClient when a write transfer is closed, Bad_Timeout for
- * the activity-timeout (ClientProcessingTimeout), Bad_SessionClosed,
- * Bad_Shutdown when the driver stops, otherwise the error of the generate
- * Method.
+ * endTransfer runs once for each transfer that a generate Method or
+ * UA_FileTransferDriver_generateFile() created, and after a successful
+ * generate callback whose transfer could not be created. The client handle is
+ * closed then; the file still exists and is removed afterwards. The status
+ * tells how the transfer ended: Good when a read transfer is closed, the
+ * result of closeAndCommit, Bad_RequestCancelledByClient when a write
+ * transfer is closed, Bad_Timeout for the activity-timeout
+ * (ClientProcessingTimeout), Bad_SessionClosed, Bad_Shutdown when the driver
+ * stops, otherwise the error that failed the generation.
  *
  * The callbacks must not stop or remove the driver. */
 
@@ -452,6 +454,20 @@ typedef void
 (*UA_FileTransferTemporaryEndCallback)(UA_Server *server, void *context,
                                        UA_FileTransferTemporaryFile *file,
                                        UA_StatusCode status);
+
+/* Set the content of the temporary file, get a copy of it, or copy another
+ * file of the store into it. Only valid during a callback. */
+UA_EXPORT UA_StatusCode
+UA_FileTransferTemporaryFile_setContent(UA_FileTransferTemporaryFile *file,
+                                        const UA_ByteString content);
+
+UA_EXPORT UA_StatusCode
+UA_FileTransferTemporaryFile_getContent(UA_FileTransferTemporaryFile *file,
+                                        UA_ByteString *content);
+
+UA_EXPORT UA_StatusCode
+UA_FileTransferTemporaryFile_copyFrom(UA_FileTransferTemporaryFile *file,
+                                      const UA_String path);
 
 typedef struct {
     UA_FileTransferTemporaryCallback generateFileForRead;  /* NULL: Bad_NotReadable */
@@ -496,6 +512,17 @@ UA_FileTransferDriver_getTransfer(UA_Driver *driver, const UA_NodeId *sessionId,
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_FileTransferDriver_setTransferContext(UA_Driver *driver, const UA_NodeId *sessionId,
                                          UA_UInt32 fileHandle, void *transferContext);
+
+/* Start a transfer like GenerateFileForRead or GenerateFileForWrite, e.g. in a
+ * Method that returns a temporary file. The callbacks and limits apply;
+ * generateOptions can be NULL. The client ends the transfer with Close, or
+ * commits a write with CloseAndCommit of the Object. fileNodeId receives an
+ * owned copy. Can be called from Method callbacks. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_generateFile(UA_Driver *driver, const UA_NodeId *sessionId,
+                                   void *sessionContext, UA_Boolean forWrite,
+                                   const UA_Variant *generateOptions,
+                                   UA_NodeId *fileNodeId, UA_UInt32 *fileHandle);
 
 _UA_END_DECLS
 

@@ -313,6 +313,12 @@ copyBackendFile(UA_FileTransferBackend *srcB, const UA_String fromPath,
     return res;
 }
 
+UA_StatusCode
+copyStoreFile(UA_FileTransferBackend *b, const UA_String fromPath,
+              const UA_String toPath) {
+    return copyBackendFile(b, fromPath, b, toPath, NULL);
+}
+
 static UA_StatusCode
 copyBackendTree(UA_FileTransferBackend *srcB, const UA_String fromPath,
                 UA_FileTransferBackend *dstB, const UA_String toPath,
