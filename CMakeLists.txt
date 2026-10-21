@@ -501,7 +501,8 @@ set(pkgcfg_libsprivate "")
 set(pkgcfg_requiresprivate "")
 
 unset(UA_ARCHITECTURE_INCLUDE) # To be set by the architecture-specific cmake file
-if("${UA_ARCHITECTURE}" STREQUAL "posix" OR
+if("${UA_ARCHITECTURE}" STREQUAL "none" OR
+   "${UA_ARCHITECTURE}" STREQUAL "posix" OR
    "${UA_ARCHITECTURE}" STREQUAL "posix-lwip" OR
    "${UA_ARCHITECTURE}" STREQUAL "win32")
     include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")

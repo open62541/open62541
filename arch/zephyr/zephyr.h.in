@@ -10,18 +10,36 @@
 
 #cmakedefine UA_ARCHITECTURE_ZEPHYR
 
+/* C99 Standard Includes */
+#include <stddef.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <float.h>
+#include <string.h>
+#include <assert.h>
+
 /* Can't use <zephyr/version.h> since v2.7.0 and older stores the file in
  * another place */
 #include <version.h>
 
-/* For 3.7.0 or higher use the k_ memory management methods */
-#if(KERNEL_VERSION_MAJOR >= 4 || \
-   (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >=7) )
-# include <zephyr/kernel.h>
-# define UA_free k_free
-# define UA_malloc k_malloc
-# define UA_calloc k_calloc
-# define UA_realloc k_realloc
+/* Zephyr 3.7 and newer use the kernel allocator. Older releases use libc. */
+#ifndef UA_malloc
+# if KERNEL_VERSION_MAJOR >= 4 || \
+     (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >= 7)
+#  include <zephyr/kernel.h>
+#  define UA_free k_free
+#  define UA_malloc k_malloc
+#  define UA_calloc k_calloc
+#  define UA_realloc k_realloc
+# else
+#  include <stdlib.h>
+#  define UA_free free
+#  define UA_malloc malloc
+#  define UA_calloc calloc
+#  define UA_realloc realloc
+# endif
 #endif
 
 #endif /* UA_ZEPHYR_H_ */
