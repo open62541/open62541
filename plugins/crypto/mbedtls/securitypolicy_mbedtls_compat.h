@@ -9,6 +9,7 @@
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
 #include <mbedtls/pk.h>
+#include <mbedtls/x509_crl.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/x509_csr.h>
 
@@ -27,6 +28,10 @@ UA_mbedTLS_compat_isRsaKeyPair(const mbedtls_pk_context *key);
 UA_Boolean
 UA_mbedTLS_compat_verifyCertificateSignature(const mbedtls_x509_crt *certificate,
                                               mbedtls_x509_crt *issuer);
+
+UA_Boolean
+UA_mbedTLS_compat_verifyCrlSignature(const mbedtls_x509_crl *crl,
+                                      mbedtls_x509_crt *issuer);
 
 int
 UA_mbedTLS_compat_writeCertificateDer(mbedtls_x509write_cert *certificate,

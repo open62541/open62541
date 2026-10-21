@@ -504,8 +504,21 @@ mbedtlsFindNextIssuer(MemoryCertStore *ctx, mbedtls_x509_crt *stack,
     return NULL;
 }
 
+/* A revocation list is only used if it is signed by the issuer (RFC 5280,
+ * 6.3.3). Otherwise it counts as not available. */
+static UA_Boolean
+mbedtlsCrlUsable(UA_CertificateGroup *cg, mbedtls_x509_crl *crl,
+                 mbedtls_x509_crt *issuer) {
+    if(UA_mbedTLS_compat_verifyCrlSignature(crl, issuer))
+        return true;
+    UA_LOG_WARNING(cg->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "Ignoring a revocation list that is not signed by the issuer");
+    return false;
+}
+
 static UA_StatusCode
-mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_crt *cert) {
+mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx,
+                    mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
     /* Parse the Issuer Name */
     char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
     int nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &cert->issuer);
@@ -525,7 +538,8 @@ mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_
     for(mbedtls_x509_crl *crl = &ctx->trustedCrls; crl; crl = crl->next) {
         /* Is the CRL for certificates from the cert issuer?
          * Is the serial number of the certificate contained in the CRL? */
-        if(mbedtlsSameName(issuerName, &crl->issuer)) {
+        if(mbedtlsSameName(issuerName, &crl->issuer) &&
+           mbedtlsCrlUsable(cg, crl, issuer)) {
             if(mbedtls_x509_crt_is_revoked(cert, crl) != 0)
                 return UA_STATUSCODE_BADCERTIFICATEREVOKED;
             res = UA_STATUSCODE_GOOD; /* There was at least one crl that did not revoke (so far) */
@@ -534,7 +548,8 @@ mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_
 
     /* Loop over the issuer crls separately */
     for(mbedtls_x509_crl *crl = &ctx->issuerCrls; crl; crl = crl->next) {
-        if(mbedtlsSameName(issuerName, &crl->issuer)) {
+        if(mbedtlsSameName(issuerName, &crl->issuer) &&
+           mbedtlsCrlUsable(cg, crl, issuer)) {
             if(mbedtls_x509_crt_is_revoked(cert, crl) != 0)
                 return UA_STATUSCODE_BADCERTIFICATEREVOKED;
             res = UA_STATUSCODE_GOOD;
@@ -592,7 +607,7 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
         }
 
         /* Verification Step: Revocation Check */
-        ret = mbedtlsCheckRevoked(cg, ctx, cert);
+        ret = mbedtlsCheckRevoked(cg, ctx, cert, issuer);
         if(depth > 0) {
             if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
                 ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;

@@ -19,6 +19,7 @@
 #include <thread_wrapper.h>
 #include "test_helpers.h"
 #include "certificates.h"
+#include "certificates_crl.h"
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 #include "mp_printf.h"
@@ -434,17 +435,9 @@ applyChanges(UA_Client *client) {
     return res;
 }
 
-/* Helper: create a secure client connected to the test server */
+/* Helper: create a secure client with the certificate, not yet connected */
 static UA_Client *
-createSecureClient(void) {
-    UA_ByteString certificate;
-    certificate.length = APPLICATION_CERT_DER_LENGTH;
-    certificate.data = APPLICATION_CERT_DER_DATA;
-
-    UA_ByteString privateKey;
-    privateKey.length = APPLICATION_KEY_DER_LENGTH;
-    privateKey.data = APPLICATION_KEY_DER_DATA;
-
+newSecureClient(UA_ByteString certificate, UA_ByteString privateKey) {
     UA_Client *client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
     UA_ClientConfig *cc = UA_Client_getConfig(client);
@@ -460,7 +453,21 @@ createSecureClient(void) {
 
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+    return client;
+}
 
+/* Helper: create a secure client connected to the test server */
+static UA_Client *
+createSecureClient(void) {
+    UA_ByteString certificate;
+    certificate.length = APPLICATION_CERT_DER_LENGTH;
+    certificate.data = APPLICATION_CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = APPLICATION_KEY_DER_LENGTH;
+    privateKey.data = APPLICATION_KEY_DER_DATA;
+
+    UA_Client *client = newSecureClient(certificate, privateKey);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     return client;
@@ -674,15 +681,12 @@ callUpdateCertificate(UA_Client *client) {
                                        UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
 }
 
-/* Helper: stage an empty TrustList in the transaction of the client. The CAs
- * of the client certificate are no longer trusted after ApplyChanges. */
+/* Helper: stage the TrustList in the transaction of the client with Open,
+ * Write and CloseAndUpdate */
 static void
-stageEmptyTrustList(UA_Client *client) {
-    UA_TrustListDataType trustList;
-    UA_TrustListDataType_init(&trustList);
-    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+stageTrustList(UA_Client *client, const UA_TrustListDataType *trustList) {
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = UA_encodeBinary(&trustList,
+    UA_StatusCode retval = UA_encodeBinary(trustList,
                                            &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
                                            &encTrustList, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -703,6 +707,16 @@ stageEmptyTrustList(UA_Client *client) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&applyRequiredVar);
     UA_ByteString_clear(&encTrustList);
+}
+
+/* Helper: stage an empty TrustList in the transaction of the client. The CAs
+ * of the client certificate are no longer trusted after ApplyChanges. */
+static void
+stageEmptyTrustList(UA_Client *client) {
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    stageTrustList(client, &trustList);
 }
 
 /* Helper: wait until the server has closed the SecureChannel of the client */
@@ -749,6 +763,136 @@ START_TEST(apply_trustlist_and_certificate_closes_untrusted_channel) {
     retval = applyChanges(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(secureChannelClosed(client));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Helper: push a TrustList with CRL_CA_CERT_DER, the trusted certificates and
+ * the CRLs, and apply it. The client of the push is no longer trusted. */
+static void
+pushCrlTestTrustList(const UA_ByteString *certificates, size_t certificatesSize,
+                     const UA_ByteString *crls, size_t crlsSize) {
+    UA_Client *client = createSecureClient();
+    UA_Client_getConfig(client)->noReconnect = true;
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    UA_ByteString ca = {CRL_CA_CERT_DER_LENGTH, CRL_CA_CERT_DER_DATA};
+    UA_StatusCode retval =
+        UA_Array_appendCopy((void**)&trustList.trustedCertificates,
+                            &trustList.trustedCertificatesSize, &ca,
+                            &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < certificatesSize; i++) {
+        retval = UA_Array_appendCopy((void**)&trustList.trustedCertificates,
+                                     &trustList.trustedCertificatesSize,
+                                     &certificates[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    trustList.trustedCrls = (UA_ByteString*)(uintptr_t)crls;
+    trustList.trustedCrlsSize = crlsSize;
+    stageTrustList(client, &trustList);
+    UA_Array_delete(trustList.trustedCertificates, trustList.trustedCertificatesSize,
+                    &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(secureChannelClosed(client));
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+
+/* Helper: connect with CRL_CLIENT_CERT_DER, which CRL_CA_CERT_DER issued */
+static UA_StatusCode
+connectCrlTestClient(void) {
+    UA_ByteString certificate = {CRL_CLIENT_CERT_DER_LENGTH, CRL_CLIENT_CERT_DER_DATA};
+    UA_ByteString privateKey = {CRL_CLIENT_KEY_DER_LENGTH, CRL_CLIENT_KEY_DER_DATA};
+    UA_Client *client = newSecureClient(certificate, privateKey);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    return retval;
+}
+
+/* The TrustList Methods push one CA and two CRLs with the same
+ * Issuer. Only one CRL is signed by the CA. The other CRL revokes a
+ * certificate of the CA that the valid CRL does not contain. The forged CRL
+ * must not revoke the certificate, so the client can connect. */
+START_TEST(push_forged_crl_accepts_client) {
+    UA_ByteString crls[2] = {
+        {CRL_CA_EMPTY_CRL_DER_LENGTH, CRL_CA_EMPTY_CRL_DER_DATA},
+        {CRL_FORGED_CRL_DER_LENGTH, CRL_FORGED_CRL_DER_DATA}};
+    pushCrlTestTrustList(NULL, 0, crls, 2);
+    ck_assert_uint_eq(connectCrlTestClient(), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+/* Same as above, with the forged CRL before the valid CRL */
+START_TEST(push_forged_crl_first_accepts_client) {
+    UA_ByteString crls[2] = {
+        {CRL_FORGED_CRL_DER_LENGTH, CRL_FORGED_CRL_DER_DATA},
+        {CRL_CA_EMPTY_CRL_DER_LENGTH, CRL_CA_EMPTY_CRL_DER_DATA}};
+    pushCrlTestTrustList(NULL, 0, crls, 2);
+    ck_assert_uint_eq(connectCrlTestClient(), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+/* A pushed CRL that is signed by the CA revokes the client certificate */
+START_TEST(push_revoking_crl_rejects_client) {
+    UA_ByteString crl = {CRL_CA_REVOKING_CRL_DER_LENGTH, CRL_CA_REVOKING_CRL_DER_DATA};
+    pushCrlTestTrustList(NULL, 0, &crl, 1);
+    ck_assert_uint_eq(connectCrlTestClient(), UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+}
+END_TEST
+
+/* CloseAndUpdate validates the trusted certificates with the CRLs of the new
+ * TrustList. The forged CRL does not revoke the client certificate. */
+START_TEST(push_trusted_certificate_ignores_forged_crl) {
+    UA_ByteString certificate = {CRL_CLIENT_CERT_DER_LENGTH, CRL_CLIENT_CERT_DER_DATA};
+    UA_ByteString crls[2] = {
+        {CRL_CA_EMPTY_CRL_DER_LENGTH, CRL_CA_EMPTY_CRL_DER_DATA},
+        {CRL_FORGED_CRL_DER_LENGTH, CRL_FORGED_CRL_DER_DATA}};
+    pushCrlTestTrustList(&certificate, 1, crls, 2);
+    ck_assert_uint_eq(connectCrlTestClient(), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+/* AddCertificate validates the certificate with the CRLs of the TrustList.
+ * The forged CRL does not revoke the client certificate. */
+START_TEST(add_certificate_ignores_forged_crl) {
+    UA_Client *client = createSecureClient();
+
+    /* Add the CA and both CRLs to the current TrustList. The certificate of
+     * the client stays trusted. */
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    readTrustListWithMask(client, UA_TRUSTLISTMASKS_ALL, &trustList);
+    UA_ByteString ca = {CRL_CA_CERT_DER_LENGTH, CRL_CA_CERT_DER_DATA};
+    UA_ByteString crls[2] = {
+        {CRL_CA_EMPTY_CRL_DER_LENGTH, CRL_CA_EMPTY_CRL_DER_DATA},
+        {CRL_FORGED_CRL_DER_LENGTH, CRL_FORGED_CRL_DER_DATA}};
+    UA_StatusCode retval =
+        UA_Array_appendCopy((void**)&trustList.trustedCertificates,
+                            &trustList.trustedCertificatesSize, &ca,
+                            &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        retval = UA_Array_appendCopy((void**)&trustList.trustedCrls,
+                                     &trustList.trustedCrlsSize, &crls[i],
+                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    stageTrustList(client, &trustList);
+    UA_TrustListDataType_clear(&trustList);
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString certificate = {CRL_CLIENT_CERT_DER_LENGTH, CRL_CLIENT_CERT_DER_DATA};
+    retval = callAddCertificate(client, &certificate, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -1806,6 +1950,11 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, remove_certificate_failure_clears_transaction);
     tcase_add_test(tc_cert, remove_issuer_certificate_removes_issuer_crls);
     tcase_add_test(tc_cert, add_remove_certificate_reject_transaction_pending);
+    tcase_add_test(tc_cert, push_forged_crl_accepts_client);
+    tcase_add_test(tc_cert, push_forged_crl_first_accepts_client);
+    tcase_add_test(tc_cert, push_revoking_crl_rejects_client);
+    tcase_add_test(tc_cert, push_trusted_certificate_ignores_forged_crl);
+    tcase_add_test(tc_cert, add_certificate_ignores_forged_crl);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
@@ -1819,6 +1968,9 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, add_certificate_reject_revoked);
     tcase_add_test(tc_cert_filestore, apply_trustlist_closes_untrusted_channel);
     tcase_add_test(tc_cert_filestore, apply_trustlist_and_certificate_closes_untrusted_channel);
+    tcase_add_test(tc_cert_filestore, push_forged_crl_accepts_client);
+    tcase_add_test(tc_cert_filestore, push_revoking_crl_rejects_client);
+    tcase_add_test(tc_cert_filestore, add_certificate_ignores_forged_crl);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
