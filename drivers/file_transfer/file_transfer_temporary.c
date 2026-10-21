@@ -194,6 +194,82 @@ removeTransferFile(UA_Server *server, FTEntry *file) {
 }
 
 /**************************************
+ * Content of Temporary Files
+ **************************************/
+
+UA_StatusCode
+UA_FileTransferTemporaryFile_setContent(UA_FileTransferTemporaryFile *file,
+                                        const UA_ByteString content) {
+    if(!file)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_FileTransferFileBackend *store = &file->store->file;
+    UA_UInt32 handle = 0;
+    UA_StatusCode res = store->open(store, file->path,
+                                    UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING,
+                                    NULL, &handle);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(content.length > 0)
+        res = store->write(store, handle, content);
+    UA_StatusCode closeRes = store->close(store, handle);
+    return (res != UA_STATUSCODE_GOOD) ? res : closeRes;
+}
+
+UA_StatusCode
+UA_FileTransferTemporaryFile_getContent(UA_FileTransferTemporaryFile *file,
+                                        UA_ByteString *content) {
+    if(!file || !content)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_ByteString_init(content);
+    UA_FileTransferFileBackend *store = &file->store->file;
+    UA_UInt32 handle = 0;
+    UA_StatusCode res = store->open(store, file->path, UA_OPENFILEMODE_READ, NULL, &handle);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    /* Read a file of known size at once; an empty chunk ends the file */
+    UA_Int32 length = UA_FILETRANSFER_COPYCHUNKSIZE;
+    UA_FileTransferFileInfo info;
+    if(backendGetInfo(store, file->path, &info) == UA_STATUSCODE_GOOD &&
+       !info.sizeUnknown && info.size > (UA_UInt64)length && info.size <= UA_INT32_MAX)
+        length = (UA_Int32)info.size;
+    res = store->read(store, handle, length, content);
+    size_t last = content->length;
+    while(res == UA_STATUSCODE_GOOD && last > 0) {
+        UA_ByteString chunk = UA_BYTESTRING_NULL;
+        res = store->read(store, handle, UA_FILETRANSFER_COPYCHUNKSIZE, &chunk);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_String_append(content, chunk);
+        last = chunk.length;
+        UA_ByteString_clear(&chunk);
+    }
+    UA_StatusCode closeRes = store->close(store, handle);
+    if(res == UA_STATUSCODE_GOOD)
+        res = closeRes;
+    if(res != UA_STATUSCODE_GOOD)
+        UA_ByteString_clear(content);
+    return res;
+}
+
+UA_StatusCode
+UA_FileTransferTemporaryFile_copyFrom(UA_FileTransferTemporaryFile *file,
+                                      const UA_String path) {
+    if(!file || UA_String_equal(&path, &file->path))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    /* The copy creates its target, so the empty transfer file is removed
+     * first, once the source exists */
+    UA_FileTransferBackend *store = file->store;
+    UA_FileTransferFileInfo info;
+    UA_StatusCode res = backendGetInfo(&store->file, path, &info);
+    if(res == UA_STATUSCODE_GOOD && info.isDirectory)
+        res = UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(res == UA_STATUSCODE_GOOD)
+        res = store->remove(store, file->path);
+    if(res == UA_STATUSCODE_GOOD)
+        res = copyStoreFile(store, path, file->path);
+    return res;
+}
+
+/**************************************
  * TemporaryFileTransferType Methods
  **************************************/
 
@@ -214,19 +290,12 @@ resolveTemporaryRoot(UA_Server *server, const UA_NodeId *objectId,
     return (root && root->kind == FT_ENTRY_TEMPORARY) ? root : NULL;
 }
 
-/* GenerateFileForRead and GenerateFileForWrite. A write transfer is exclusive
- * (Part 20, 4.4.1). Outputs: fileNodeId, fileHandle and for read transfers a
- * null completionStateMachine. */
-static UA_StatusCode
-generateFile(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
-             const UA_NodeId *objectId, void *objectContext, size_t inputSize,
-             const UA_Variant *input, size_t outputSize, UA_Variant *output,
-             UA_Boolean forWrite) {
-    FTEntry *root = resolveTemporaryRoot(server, objectId, objectContext);
-    if(!root)
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    if(inputSize < 1 || outputSize < (forWrite ? 2u : 3u))
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+/* Start a transfer and open its handle for the Session. A write transfer runs
+ * alone (Part 20, 4.4.1). */
+UA_StatusCode
+generateTransfer(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
+                 void *sessionContext, const UA_Variant *generateOptions,
+                 UA_Boolean forWrite, FTHandle **outHandle) {
     FileTransferDriver *ftd = root->driver;
     if(forWrite && (!ftd->temporary.closeAndCommit || ftd->config.readOnly ||
                     ftd->activeWrite || ftd->activeReads > 0))
@@ -238,19 +307,37 @@ generateFile(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
 
     FTEntry *file = NULL;
     UA_StatusCode res = createTransferFile(server, root, sessionId, sessionContext,
-                                           &input[0], forWrite, &file);
+                                           generateOptions, forWrite, &file);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    FTHandle *h = NULL;
     res = openFileHandle(server, file, sessionId, sessionContext,
                          forWrite ? UA_OPENFILEMODE_WRITE : UA_OPENFILEMODE_READ,
-                         NULL, &h);
+                         NULL, outHandle);
     if(res != UA_STATUSCODE_GOOD) {
         file->transfer->endStatus = res;
         removeTransferFile(server, file);
-        return res;
     }
-    res = UA_Variant_setScalarCopy(&output[0], &file->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    return res;
+}
+
+/* GenerateFileForRead and GenerateFileForWrite return fileNodeId and
+ * fileHandle, GenerateFileForRead also a null completionStateMachine. */
+static UA_StatusCode
+generateFileMethod(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *objectId, void *objectContext, size_t inputSize,
+                   const UA_Variant *input, size_t outputSize, UA_Variant *output,
+                   UA_Boolean forWrite) {
+    FTEntry *root = resolveTemporaryRoot(server, objectId, objectContext);
+    if(!root)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    if(inputSize < 1 || outputSize < (forWrite ? 2u : 3u))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    FTHandle *h = NULL;
+    UA_StatusCode res = generateTransfer(server, root, sessionId, sessionContext,
+                                         &input[0], forWrite, &h);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = UA_Variant_setScalarCopy(&output[0], &h->file->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
     if(res == UA_STATUSCODE_GOOD)
         res = UA_Variant_setScalarCopy(&output[1], &h->handle, &UA_TYPES[UA_TYPES_UINT32]);
     if(res == UA_STATUSCODE_GOOD && !forWrite) {
@@ -259,7 +346,7 @@ generateFile(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     }
     /* The client cannot end a transfer whose handle it does not receive */
     if(res != UA_STATUSCODE_GOOD) {
-        file->transfer->endStatus = res;
+        h->file->transfer->endStatus = res;
         closeFTHandle(server, h);
     }
     return res;
@@ -272,8 +359,8 @@ generateFileForReadMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                                   void *objectContext, size_t inputSize,
                                   const UA_Variant *input, size_t outputSize,
                                   UA_Variant *output) {
-    return generateFile(server, sessionId, sessionContext, objectId, objectContext,
-                        inputSize, input, outputSize, output, false);
+    return generateFileMethod(server, sessionId, sessionContext, objectId,
+                              objectContext, inputSize, input, outputSize, output, false);
 }
 
 static UA_StatusCode
@@ -283,8 +370,8 @@ generateFileForWriteMethodCallback(UA_Server *server, const UA_NodeId *sessionId
                                    void *objectContext, size_t inputSize,
                                    const UA_Variant *input, size_t outputSize,
                                    UA_Variant *output) {
-    return generateFile(server, sessionId, sessionContext, objectId, objectContext,
-                        inputSize, input, outputSize, output, true);
+    return generateFileMethod(server, sessionId, sessionContext, objectId,
+                              objectContext, inputSize, input, outputSize, output, true);
 }
 
 static UA_StatusCode
