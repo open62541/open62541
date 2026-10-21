@@ -1047,6 +1047,9 @@ START_TEST(UA_DateTime_encodeClampsToTheValidRange) {
     UA_DateTime in[5] = {-1, 0, 5, last - 1, last};
     UA_DateTime out[5] = {0, 0, 5, last - 1, UA_INT64_MAX};
 
+    /* Arrays must not be memcpy'd, or they would skip the clamping */
+    ck_assert(!UA_TYPES[UA_TYPES_DATETIME].overlayable);
+
     for(size_t i = 0; i < 5; i++) {
         UA_ByteString dst = UA_BYTESTRING_NULL;
         UA_StatusCode retval =

@@ -288,8 +288,9 @@ FUNC_ENCODE_BINARY(UInt64) {
 #define UA_DATETIME_ENCODE_MAX (265046774399LL * UA_DATETIME_SEC)
 
 /* Part 6, 5.2.2.5: a DateTime at or before 1601-01-01 00:00 UTC is encoded
- * as 0, and one at or after 9999-12-31 23:59:59 UTC as the maximum Int64.
- * This is why DateTime is not overlayable: arrays go through here too. */
+ * as 0, and one at or after 9999-12-31 23:59:59 UTC as the maximum Int64
+ * (0x7FFFFFFFFFFFFFFF). This is why DateTime is not overlayable: arrays go
+ * through here too. */
 FUNC_ENCODE_BINARY(DateTime) {
     UA_DateTime v = *(const UA_DateTime*)_src;
     if(v < 0)
