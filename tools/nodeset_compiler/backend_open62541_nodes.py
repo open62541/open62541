@@ -344,7 +344,12 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
     return [code, codeCleanup]
 
 def getTypeBrowseName(dataTypeNode):
-    typeBrowseName = makeCIdentifier(dataTypeNode.browseName.name)
+    # The SymbolicName is the name used in the generated code. It can differ
+    # from the BrowseName (e.g. 3DFrame -> ThreeDFrame).
+    typeBrowseName = dataTypeNode.browseName.name
+    if dataTypeNode.symbolicName is not None and dataTypeNode.symbolicName.value is not None:
+        typeBrowseName = dataTypeNode.symbolicName.value
+    typeBrowseName = makeCIdentifier(typeBrowseName)
     #TODO: review this
     if typeBrowseName == "NumericRange":
         # in the stack we define a separate structure for the numeric range, but

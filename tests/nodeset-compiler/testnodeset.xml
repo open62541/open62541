@@ -542,6 +542,56 @@
             </ExtensionObject>
         </Value>
     </UAVariable>
+    <UAVariable NodeId="ns=1;i=15236" BrowseName="1:FrameArray" DataType="i=18814" ValueRank="1" ArrayDimensions="2">
+        <DisplayName>FrameArray</DisplayName>
+        <Description>Array of Three Dimensional Frame data</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=18814</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <ThreeDFrame>
+                            <CartesianCoordinates>
+                                <X>1</X>
+                                <Y>2</Y>
+                                <Z>3</Z>
+                            </CartesianCoordinates>
+                            <Orientation>
+                                <A>4</A>
+                                <B>5</B>
+                                <C>6</C>
+                            </Orientation>
+                        </ThreeDFrame>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=18814</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <ThreeDFrame>
+                            <CartesianCoordinates>
+                                <X>7</X>
+                                <Y>8</Y>
+                                <Z>9</Z>
+                            </CartesianCoordinates>
+                            <Orientation>
+                                <A>10</A>
+                                <B>11</B>
+                                <C>12</C>
+                            </Orientation>
+                        </ThreeDFrame>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
     <UAObjectType NodeId="ns=1;i=1003" BrowseName="1:TestObjectType">
         <DisplayName>TestObjectType</DisplayName>
         <Description>Test object type</Description>
