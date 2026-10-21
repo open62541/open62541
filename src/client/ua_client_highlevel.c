@@ -880,6 +880,7 @@ AttributeReadCallback(UA_Client *client, void *userdata,
 
     /* Check the ServiceResult */
     UA_StatusCode res = rr->responseHeader.serviceResult;
+    UA_DataValue *dv;
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 
@@ -890,7 +891,7 @@ AttributeReadCallback(UA_Client *client, void *userdata,
     }
 
     /* A Value attribute */
-    UA_DataValue *dv = &rr->results[0];
+    dv = &rr->results[0];
     if(ctx->resultType == &UA_TYPES[UA_TYPES_DATAVALUE]) {
         ctx->userCallback(client, ctx->userContext, requestId,
                           UA_STATUSCODE_GOOD, dv);

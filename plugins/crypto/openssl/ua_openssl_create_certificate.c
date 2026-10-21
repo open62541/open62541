@@ -121,6 +121,7 @@ UA_CreateCertificate(const UA_Logger *logger,
     UA_StatusCode errRet = UA_STATUSCODE_GOOD;
 
     X509 *x509 = X509_new();
+    X509_NAME *name;
 
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
     EVP_PKEY *pkey = UA_RSA_Generate_Key(keySizeBits);
@@ -203,7 +204,7 @@ UA_CreateCertificate(const UA_Logger *logger,
         goto cleanup;
     }
 
-    X509_NAME *name = X509_get_subject_name(x509);
+    name = X509_get_subject_name(x509);
     if(name == NULL) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Getting name failed.");
