@@ -490,6 +490,63 @@ START_TEST(Client_activateSessionAnonymousUserChangeRejected) {
 }
 END_TEST
 
+static UA_Boolean rejectActivation;
+static UA_StatusCode
+(*originalActivateSession)(UA_Server *s, UA_AccessControl *ac,
+                           const UA_EndpointDescription *endpointDescription,
+                           const UA_ByteString *secureChannelRemoteCertificate,
+                           const UA_NodeId *sessionId,
+                           const UA_ExtensionObject *userIdentityToken,
+                           void **sessionContext);
+
+static UA_StatusCode
+activateSessionOrReject(UA_Server *s, UA_AccessControl *ac,
+                        const UA_EndpointDescription *endpointDescription,
+                        const UA_ByteString *secureChannelRemoteCertificate,
+                        const UA_NodeId *sessionId,
+                        const UA_ExtensionObject *userIdentityToken,
+                        void **sessionContext) {
+    if(rejectActivation) {
+        rejectActivation = false;
+        return UA_STATUSCODE_BADSERVERHALTED;
+    }
+    return originalActivateSession(s, ac, endpointDescription,
+                                   secureChannelRemoteCertificate, sessionId,
+                                   userIdentityToken, sessionContext);
+}
+
+START_TEST(Client_activateSessionRejectedOnceThenRetry) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    originalActivateSession = sc->accessControl.activateSession;
+    sc->accessControl.activateSession = activateSessionOrReject;
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The server rejects the re-activation of the Session once */
+    UA_Client_disconnectSecureChannel(client);
+    rejectActivation = true;
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSERVERHALTED);
+
+    /* The next explicit connect starts over with a new SecureChannel */
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_delete(client);
+    sc->accessControl.activateSession = originalActivateSession;
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -514,6 +571,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_reconnect, Client_activateSessionSameUserAllowed);
     tcase_add_test(tc_client_reconnect, Client_activateSessionUserChangeRejected);
     tcase_add_test(tc_client_reconnect, Client_activateSessionAnonymousUserChangeRejected);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionRejectedOnceThenRetry);
     suite_add_tcase(s,tc_client_reconnect);
     return s;
 }

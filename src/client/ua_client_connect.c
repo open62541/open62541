@@ -541,6 +541,7 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
         } else {
             /* Something else is wrong. Give up. */
             client->connectStatus = activateResponse->responseHeader.serviceResult;
+            closeSecureChannel(client);
         }
         return;
     }
