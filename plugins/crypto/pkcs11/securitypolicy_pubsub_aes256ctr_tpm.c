@@ -12,6 +12,7 @@
 
 #ifdef UA_ENABLE_TPM2_SECURITY
 #include <pkcs11.h>
+#include <stdlib.h>
 
 #if UA_MULTITHREADING >= 100
 #include <pthread.h>
@@ -62,12 +63,26 @@ pkcs11_find_object_by_label(UA_PubSubSecurityPolicy *policy,
             CK_ATTRIBUTE attrTemplate[] = {{CKA_LABEL, NULL, 0}};
             /* Obtains the value of one or more attributes of an object*/
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
-            if(attrTemplate[0].ulValueLen > 0)
+            if(attrTemplate[0].ulValueLen > 0) {
                 attrTemplate[0].pValue = (char *)UA_malloc(attrTemplate[0].ulValueLen);
+                if (!attrTemplate[0].pValue) {
+                    UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                                 "Unable to allocate memory");
+                    returnValue = UA_FALSE;
+                    break;
+                }
+            }
             /* Obtains the value of one or more attributes of an object*/
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
             if(attrTemplate[0].ulValueLen > 0) {
                 char * val = (char *)UA_malloc(attrTemplate[0].ulValueLen + 1);
+                if (!val) {
+                    UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                                 "Unable to allocate memory");
+                    UA_free(attrTemplate[0].pValue);
+                    returnValue = UA_FALSE;
+                    break;
+                }
                 strncpy(val, (const char*)attrTemplate[0].pValue, attrTemplate[0].ulValueLen);
                 val[attrTemplate[0].ulValueLen] = '\0';
                 if(strncmp(val, label, attrTemplate[0].ulValueLen) == 0)
@@ -453,6 +468,11 @@ encrypt_pubsub_aes256ctr_tpm(const UA_PubSubSecurityPolicy *policy, void *gConte
     memcpy(params_encrupt_256.cb, counterBlockEncrypt, sizeof(params_encrupt_256.cb));
     CK_MECHANISM mech_256 = {CKM_AES_CTR, &params_encrupt_256, sizeof(params_encrupt_256)};
 
+    /* Allocate first, so that no error path leaves the operation active */
+    CK_BYTE *cipherText = (CK_BYTE*)UA_malloc(data->length > 0 ? data->length : 1);
+    if(!cipherText)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     /* Initializes an encryption operation */
     rv = (UA_StatusCode)C_EncryptInit(pc->sessionHandle, &mech_256,
                                       gc->encryptingKeyHandle);
@@ -460,6 +480,7 @@ encrypt_pubsub_aes256ctr_tpm(const UA_PubSubSecurityPolicy *policy, void *gConte
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Encrypt initialization failed 0x%.8lX",
                      (long unsigned int)rv);
+        UA_free(cipherText);
         return rv;
     }
 
@@ -469,7 +490,6 @@ encrypt_pubsub_aes256ctr_tpm(const UA_PubSubSecurityPolicy *policy, void *gConte
      * is not itself a multiple of MAX_ENCRYPTION_SIZE. */
     sizeToEncrypt = data->length;
 
-    CK_BYTE *cipherText = (CK_BYTE*)UA_malloc(sizeToEncrypt > 0 ? sizeToEncrypt : 1);
     while(rv == UA_STATUSCODE_GOOD && partOffset < sizeToEncrypt) {
         CK_ULONG chunkLen = (CK_ULONG)((sizeToEncrypt - partOffset < MAX_ENCRYPTION_SIZE)
                                        ? (sizeToEncrypt - partOffset) : MAX_ENCRYPTION_SIZE);
@@ -534,12 +554,17 @@ decrypt_pubsub_aes256ctr_tpm(const UA_PubSubSecurityPolicy *policy,
     memcpy(params_decrypt_256.cb, counterBlockDecrypt, sizeof(params_decrypt_256.cb));
     CK_MECHANISM mech_256 = {CKM_AES_CTR, &params_decrypt_256, sizeof(params_decrypt_256)};
 
+    CK_BYTE *decodeCiphertext = (CK_BYTE*)UA_malloc(data->length > 0 ? data->length : 1);
+    if(!decodeCiphertext)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     rv = (UA_StatusCode)C_DecryptInit(pc->sessionHandle, &mech_256,
                                       gc->encryptingKeyHandle);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Decrypt init failed 0x%.8lX",
                      (long unsigned int)rv);
+        UA_free(decodeCiphertext);
         return rv;
     }
 
@@ -548,8 +573,6 @@ decrypt_pubsub_aes256ctr_tpm(const UA_PubSubSecurityPolicy *policy,
      * chunked at MAX_ENCRYPTION_SIZE with a shorter final chunk when data->length
      * is not itself a multiple of MAX_ENCRYPTION_SIZE. */
     sizeToDecrypt = data->length;
-
-    CK_BYTE *decodeCiphertext = (CK_BYTE*)UA_malloc(sizeToDecrypt > 0 ? sizeToDecrypt : 1);
 
     while(rv == UA_STATUSCODE_GOOD && decodePartOffset < sizeToDecrypt) {
         CK_ULONG chunkLen = (CK_ULONG)((sizeToDecrypt - decodePartOffset < MAX_ENCRYPTION_SIZE)

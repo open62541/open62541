@@ -11,6 +11,7 @@
 #include <check.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define LARGE_DISCOVERY_CACHE_SIZE 50000
 

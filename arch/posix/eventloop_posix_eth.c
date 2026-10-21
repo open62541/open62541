@@ -688,11 +688,12 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(interface->length >= 128) {
+    if(interface->length >= IFNAMSIZ ||
+       (interface->length > 0 && memchr(interface->data, 0, interface->length))) {
         UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    char ifname[128];
+    char ifname[IFNAMSIZ];
     if(interface->length)
         memcpy(ifname, interface->data, interface->length);
     ifname[interface->length] = 0;
@@ -744,8 +745,8 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         /* Get the source address for the interface */
         UA_RESET_ERRNO;
         struct ifreq ifr;
-        memcpy(ifr.ifr_name, ifname, interface->length);
-        ifr.ifr_name[interface->length] = 0;
+        memset(&ifr, 0, sizeof(ifr));
+        memcpy(ifr.ifr_name, ifname, interface->length + 1);
         int result = ioctl(conn->rfd.fd, SIOCGIFHWADDR, &ifr);
         if(result == -1) {
             UA_LOG_SOCKET_ERRNO_WRAP(

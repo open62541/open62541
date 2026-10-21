@@ -11,6 +11,7 @@
 
 #include "server/ua_server_internal.h"
 #include "client/ua_client_internal.h"
+#include "server/ua_discovery.h"
 #include "server/ua_services.h"
 #include "../encryption/certificates.h"
 
@@ -222,6 +223,26 @@ teardown_register(void) {
 }
 
 static void
+waitForRegisterRequests(void) {
+    /* Registration is asynchronous. Drive the registering server's
+     * EventLoop until the response and client cleanup have completed, rather
+     * than assuming that a fixed sleep covers the encrypted handshake.
+     * The server thread must be stopped while we iterate here. */
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server_register, UA_STRING("discovery"));
+    ck_assert_ptr_ne(dm, NULL);
+    for(size_t attempt = 0; attempt < 1000; attempt++) {
+        UA_Boolean pending = false;
+        for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++)
+            pending |= (dm->registerRequests[i].client != NULL);
+        if(!pending)
+            return;
+        UA_Server_run_iterate(server_register, true);
+    }
+    ck_abort_msg("Discovery registration did not complete");
+}
+
+static void
 registerServer(void) {
     UA_ClientConfig cc;
     UA_ClientConfig_newForUnitTestWithEncryption(&cc, registerCert, registerKey);
@@ -233,6 +254,8 @@ registerServer(void) {
         UA_Server_registerDiscovery(server_register, &cc,
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING_NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequests();
     *running_register = true;
     THREAD_CREATE(server_thread_register, serverloop_register);
 
@@ -251,6 +274,8 @@ unregisterServer(void) {
         UA_Server_deregisterDiscovery(server_register, &cc,
                                     UA_STRING("opc.tcp://localhost:4840"));
 
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequests();
     *running_register = true;
     THREAD_CREATE(server_thread_register, serverloop_register);
 
@@ -284,6 +309,8 @@ Server_register_semaphore(void) {
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING(SEMAPHORE_PATH));
 
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequests();
     *running_register = true;
     THREAD_CREATE(server_thread_register, serverloop_register);
 
@@ -740,6 +767,44 @@ START_TEST(Server_registerUnregister) {
 }
 END_TEST
 
+START_TEST(Server_registerLimit) {
+    lockServer(server_lds);
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server_lds, UA_STRING("discovery"));
+    ck_assert_ptr_ne(dm, NULL);
+    dm->maxRegisteredServers = 1;
+    unlockServer(server_lds);
+
+    UA_RegisterServerRequest request;
+    UA_RegisterServerRequest_init(&request);
+    request.server.serverNamesSize = 1;
+    UA_LocalizedText serverName = UA_LOCALIZEDTEXT("en", "Test Server");
+    request.server.serverNames = &serverName;
+    request.server.discoveryUrlsSize = 1;
+    UA_String discoveryUrl = UA_STRING("opc.tcp://localhost:16664");
+    request.server.discoveryUrls = &discoveryUrl;
+    request.server.isOnline = true;
+
+    UA_RegisterServerResponse response;
+    UA_RegisterServerResponse_init(&response);
+    request.server.serverUri = UA_STRING("urn:open62541.test.first");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession,
+                           &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_RegisterServerResponse_clear(&response);
+    request.server.serverUri = UA_STRING("urn:open62541.test.second");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession,
+                           &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    UA_RegisterServerResponse_clear(&response);
+} END_TEST
+
 START_TEST(Server_registerTimeout) {
     registerServer();
 
@@ -873,6 +938,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_register, setup_register, teardown_register);
     tcase_add_test(tc_register, Server_registerUnregister);
     tcase_add_test(tc_register, Server_findServers_mirrors_endpointUrl);
+    tcase_add_test(tc_register, Server_registerLimit);
     suite_add_tcase(s,tc_register);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -883,6 +949,11 @@ static Suite* testSuite_Client(void) {
     suite_add_tcase(s,tc_register_find);
 #endif
 
+    TCase *tc_register_noauth = tcase_create("RegisterServer without authentication");
+    tcase_add_unchecked_fixture(tc_register_noauth, setup_lds, teardown_lds);
+    tcase_add_test(tc_register_noauth, Server_registerServer2_withoutCertificate_rejected);
+    suite_add_tcase(s, tc_register_noauth);
+
     // register server again, then wait for timeout and auto unregister
     TCase *tc_register_timeout = tcase_create("RegisterServer timeout");
     tcase_add_unchecked_fixture(tc_register_timeout, setup_lds, teardown_lds);
@@ -891,10 +962,6 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register_timeout, Server_registerTimeout);
     suite_add_tcase(s,tc_register_timeout);
 
-    TCase *tc_register_noauth = tcase_create("RegisterServer without authentication");
-    tcase_add_unchecked_fixture(tc_register_noauth, setup_lds, teardown_lds);
-    tcase_add_test(tc_register_noauth, Server_registerServer2_withoutCertificate_rejected);
-    suite_add_tcase(s, tc_register_noauth);
     return s;
 }
 

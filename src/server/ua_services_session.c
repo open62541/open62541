@@ -1092,14 +1092,16 @@ getClientUserId(const UA_ExtensionObject *userIdentityToken,
 
 #define UA_SESSION_REJECT                                               \
     do {                                                                \
-        UA_String_clear(&clientUserId);                                 \
+        UA_String_clear(&clientUserId);                                  \
+        UA_ByteString_clear(&userCertificate);                           \
         server->serverDiagnosticsSummary.rejectedSessionCount++;        \
         return;                                                         \
     } while(0)
 
 #define UA_SECURITY_REJECT                                              \
     do {                                                                \
-        UA_String_clear(&clientUserId);                                 \
+        UA_String_clear(&clientUserId);                                  \
+        UA_ByteString_clear(&userCertificate);                           \
         server->serverDiagnosticsSummary.securityRejectedSessionCount++; \
         server->serverDiagnosticsSummary.rejectedSessionCount++;        \
         return;                                                         \
@@ -1112,6 +1114,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ResponseHeader *rh = &resp->responseHeader;
     UA_String clientUserId = UA_STRING_NULL;
+    UA_ByteString userCertificate = UA_BYTESTRING_NULL;
 
     /* Get the session */
     UA_Session *session =
@@ -1246,10 +1249,23 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         getClientUserId(&req->userIdentityToken, utp->tokenType, &clientUserId);
     if(rh->serviceResult != UA_STATUSCODE_GOOD)
         UA_SECURITY_REJECT;
+    /* Subject names need not uniquely identify certificates. Keep the full
+     * certificate for comparison while preserving the diagnostic user name. */
+    if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        const UA_X509IdentityToken *token = (const UA_X509IdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        rh->serviceResult =
+            UA_ByteString_copy(&token->certificateData, &userCertificate);
+        if(rh->serviceResult != UA_STATUSCODE_GOOD)
+            UA_SECURITY_REJECT;
+    }
+
     if(session->activated &&
        (utp->tokenType != session->userTokenType ||
-        !UA_String_equal(&clientUserId, &session->clientUserIdOfSession))) {
-        rh->serviceResult = UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED;
+        !UA_String_equal(&clientUserId, &session->clientUserIdOfSession) ||
+        !UA_ByteString_equal(&userCertificate, &session->userCertificate))) {
+        rh->serviceResult =
+            UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED;
         UA_SECURITY_REJECT;
     }
 
@@ -1334,7 +1350,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Activate the session */
-    if(!session->activated) {
+    UA_Boolean firstActivation = !session->activated;
+    if(firstActivation) {
         session->activated = true;
         server->activeSessionCount++;
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
@@ -1345,14 +1362,23 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     session->clientUserIdOfSession = clientUserId;
     UA_String_init(&clientUserId);
     session->userTokenType = utp->tokenType;
+    UA_ByteString_clear(&session->userCertificate);
+    session->userCertificate = userCertificate;
+    UA_ByteString_init(&userCertificate);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-    /* Add the ClientUserId to the diagnostics history. Ignoring errors in _appendCopy. */
+    /* Identity changes are rejected for active Sessions. Record the initial
+     * authenticated identity once instead of growing the history on every
+     * reactivation. */
     UA_SessionSecurityDiagnosticsDataType *ssd = &session->securityDiagnostics;
-    UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
-                        &ssd->clientUserIdHistorySize,
-                        &ssd->clientUserIdOfSession,
-                        &UA_TYPES[UA_TYPES_STRING]);
+    if(firstActivation) {
+        UA_StatusCode res =
+            UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
+                                &ssd->clientUserIdHistorySize,
+                                &session->clientUserIdOfSession,
+                                &UA_TYPES[UA_TYPES_STRING]);
+        (void)res;
+    }
 
     /* Store the auth mechanism */
     UA_String_clear(&ssd->authenticationMechanism);

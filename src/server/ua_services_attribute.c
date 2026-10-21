@@ -2410,7 +2410,7 @@ getLocalizedForSession(const UA_Session *session,
     /* Partial match, e.g. de-DE instead of de-CH */
     for(size_t i = 0; i < session->localeIdsSize; ++i) {
         if(session->localeIds[i].length < 2 ||
-           (session->localeIdsSize > 2 &&
+           (session->localeIds[i].length > 2 &&
             session->localeIds[i].data[2] != '-'))
             continue;
 

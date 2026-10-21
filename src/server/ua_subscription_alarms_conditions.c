@@ -493,6 +493,9 @@ UA_Server_getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *con
 static UA_StatusCode
 UA_Server_getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
                          UA_NodeId *outConditionBranchNodeId) {
+    if(!eventId)
+        return UA_STATUSCODE_BADEVENTIDUNKNOWN;
+
     lockServer(server);
 
     *outConditionBranchNodeId = UA_NODEID_NULL;
@@ -1788,7 +1791,8 @@ checkConditionRefreshArguments(size_t expectedInputSize, size_t inputSize,
     if(outputSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     for(size_t i = 0; i < inputSize; i++) {
-        if(!UA_Variant_hasScalarType(&input[i], &UA_TYPES[UA_TYPES_UINT32]))
+        if(!UA_Variant_hasScalarType(&input[i], &UA_TYPES[UA_TYPES_UINT32]) &&
+           !UA_Variant_hasScalarType(&input[i], &UA_TYPES[UA_TYPES_INTEGERID]))
             return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     return UA_STATUSCODE_GOOD;

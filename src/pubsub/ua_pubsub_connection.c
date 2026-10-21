@@ -22,10 +22,6 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_Boolean validate);
 
 static void
-UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            const UA_ByteString msg);
-
-static void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
 
 UA_StatusCode
@@ -78,6 +74,12 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
 UA_StatusCode
 UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfig *cc,
                            UA_NodeId *cId) {
+    if(!cc)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!UA_Variant_hasScalarType(&cc->address,
+                                 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     /* Allocate */
     UA_PubSubConnection *c = (UA_PubSubConnection*)
         UA_calloc(1, sizeof(UA_PubSubConnection));
@@ -238,7 +240,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+void
 UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             const UA_ByteString msg) {
     UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
@@ -248,43 +250,38 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
 #endif
 
     UA_Boolean processed = false;
-    UA_NetworkMessage nm;
-    memset(&nm, 0, sizeof(UA_NetworkMessage));
-
-    /* Decode the NetworkMessage with the first matching ReaderGroup */
-    UA_ReaderGroup *rg;
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    /* Each ReaderGroup must authenticate and decode with its own settings.
+     * Decryption is in-place, so retain the received ciphertext for the others. */
+    UA_ReaderGroup *rg;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
+        UA_ByteString copy = UA_BYTESTRING_NULL;
+        UA_ByteString buffer = msg;
+        if(rg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            if(UA_ByteString_copy(&msg, &copy) != UA_STATUSCODE_GOOD)
+                continue;
+            buffer = copy;
+        }
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(nm));
         if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-            res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, msg, &nm);
+            res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buffer, &nm);
         } else {
 #ifdef UA_ENABLE_JSON_ENCODING
-            res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, msg, &nm);
+            res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, buffer, &nm);
 #else
             res = UA_STATUSCODE_BADNOTSUPPORTED;
-            UA_LOG_WARNING_PUBSUB(psm->logging, c, "JSON support is not activated");
 #endif
         }
         if(res == UA_STATUSCODE_GOOD)
-            break;
+            processed |= UA_ReaderGroup_process(psm, rg, &nm);
+        UA_NetworkMessage_clear(&nm);
+        UA_ByteString_clear(&copy);
     }
 
-    if(res != UA_STATUSCODE_GOOD)
-        goto finish;
-
-    /* Process the received message for all ReaderGroups */
-    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        processed |= UA_ReaderGroup_process(psm, rg, &nm);
-    }
-    UA_NetworkMessage_clear(&nm);
-
- finish:
     if(!processed) {
         UA_DateTime nowM = UA_DateTime_nowMonotonic();
         if(c->silenceErrorUntil < nowM) {

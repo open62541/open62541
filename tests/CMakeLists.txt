@@ -361,6 +361,11 @@ endif()
 
 if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST AND NOT WIN32)
     ua_add_test(server/check_findservers_on_network.c)
+    if(UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+        ua_add_test(server/check_discovery_mdns_alloc.c)
+        target_include_directories(check_discovery_mdns_alloc PRIVATE
+                                   "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
+    endif()
     target_include_directories(check_findservers_on_network PRIVATE
                                "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
 endif()

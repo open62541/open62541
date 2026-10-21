@@ -142,7 +142,7 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     /* Check whether the channel is encrypted according to specification */
     UA_Session *session = getSessionById(server, sessionId);
     if(!session || !session->channel)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
     if(session->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
 
@@ -237,7 +237,7 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     /* Check whether the channel is encrypted according to specification */
     UA_Session *session = getSessionById(server, sessionId);
     if(!session || !session->channel)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
     if(session->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
 

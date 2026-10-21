@@ -707,6 +707,30 @@ START_TEST(kvmContain) {
     UA_KeyValueMap_delete(kvm);
 } END_TEST
 
+/* UA_KeyValueMap_clear() must leave the map in a state that can be reused
+ * through UA_KeyValueMap_set() without operating on the freed array. */
+START_TEST(kvmClearThenReuse) {
+    UA_KeyValueMap kvm = UA_KEYVALUEMAP_NULL;
+
+    UA_UInt16 value_1 = 1;
+    UA_KeyValueMap_setScalar(&kvm, UA_QUALIFIEDNAME(0, "value-1"), (void *)&value_1,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(kvm.mapSize, 1);
+
+    UA_KeyValueMap_clear(&kvm);
+    ck_assert_uint_eq(kvm.mapSize, 0);
+    ck_assert_ptr_eq(kvm.map, NULL);
+
+    UA_UInt16 value_2 = 2;
+    UA_StatusCode res =
+        UA_KeyValueMap_setScalar(&kvm, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_2,
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_KeyValueMap_contains(&kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_KeyValueMap_clear(&kvm);
+} END_TEST
+
 START_TEST(kvmRemove) {
     UA_KeyValueMap *kvm = UA_KeyValueMap_new();
 
@@ -1297,6 +1321,7 @@ static Suite* testSuite_Utils(void) {
 
     TCase *tc3 = tcase_create("test keyvaluemap");
     tcase_add_test(tc3, kvmContain);
+    tcase_add_test(tc3, kvmClearThenReuse);
     tcase_add_test(tc3, kvmRemove);
     tcase_add_test(tc3, kvmMerge);
     suite_add_tcase(s, tc3);
