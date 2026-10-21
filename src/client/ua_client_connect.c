@@ -2212,7 +2212,8 @@ resetReconnect(UA_Client *client) {
  * connection that closes again before its SecureChannel opens -- a peer that
  * accepts TCP and hangs up, a proxy without a backend, a server at its
  * connection limit -- is retried after a delay that doubles with every
- * attempt, instead of in a hot loop. */
+ * attempt, instead of in a hot loop. Only reached with a Good connectStatus.
+ * See the description of the connect behavior in UA_ClientConfig. */
 static void
 reconnect(UA_Client *client) {
     if(client->reconnectCallbackId != 0)
