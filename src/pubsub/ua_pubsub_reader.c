@@ -1306,7 +1306,7 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
 #endif
 #endif
 
-    rv = UA_NetworkMessage_decodePayload(buffer, pos, nm);
+    rv = UA_NetworkMessage_decodePayload(buffer, pos, nm, server->config.customDataTypes);
     UA_CHECK_STATUS(rv, return rv);
 
     rv = UA_NetworkMessage_decodeFooters(buffer, pos, nm);

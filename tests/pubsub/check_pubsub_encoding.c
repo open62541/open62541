@@ -1556,6 +1556,103 @@ START_TEST(UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored) {
     ck_assert_uint_ne(rv, UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* Custom datatype with three float members */
+typedef struct {
+    UA_Float x;
+    UA_Float y;
+    UA_Float z;
+} Point;
+
+static UA_DataTypeMember pointMembers[3] = {
+    {UA_TYPENAME("x") &UA_TYPES[UA_TYPES_FLOAT], 0, false, false},
+    {UA_TYPENAME("y") &UA_TYPES[UA_TYPES_FLOAT], 0, false, false},
+    {UA_TYPENAME("z") &UA_TYPES[UA_TYPES_FLOAT], 0, false, false}
+};
+
+static const UA_DataType PointType = {
+    UA_TYPENAME("Point")
+    {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {4243}}, /* binaryEncodingId */
+    sizeof(Point), UA_DATATYPEKIND_STRUCTURE, true, false, 3, pointMembers
+};
+
+static const UA_DataTypeArray customTypes = {NULL, 1, &PointType};
+
+/* 0: key frame Variant, 1: key frame DataValue, 2: delta frame Variant, 3:
+ * delta frame DataValue */
+START_TEST(UA_PubSub_Decode_CustomDataTypeInFields) {
+    UA_Boolean delta = (_i >= 2);
+    UA_Boolean dataValue = (_i % 2 == 1);
+
+    Point p = {1.5f, 2.5f, 3.5f};
+    UA_DataValue field;
+    UA_DataValue_init(&field);
+    UA_Variant_setScalar(&field.value, &p, &PointType);
+    field.hasValue = true;
+    UA_DataSetMessage_DeltaFrameField deltaField;
+    deltaField.fieldIndex = 1;
+    deltaField.fieldValue = field;
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(UA_NetworkMessage));
+    m.version = 1;
+    m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(UA_DataSetMessage));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.fieldEncoding = dataValue ? UA_FIELDENCODING_DATAVALUE : UA_FIELDENCODING_VARIANT;
+    if(delta) {
+        dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+        dsm.data.deltaFrameData.fieldCount = 1;
+        dsm.data.deltaFrameData.deltaFrameFields = &deltaField;
+    } else {
+        dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+        dsm.data.keyFrameData.fieldCount = 1;
+        dsm.data.keyFrameData.dataSetFields = &field;
+    }
+    m.payload.dataSetPayload.dataSetMessages = &dsm;
+
+    UA_ByteString buffer;
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    UA_StatusCode rv = UA_ByteString_allocBuffer(&buffer, msgSize);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    UA_Byte *bufPos = buffer.data;
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, &buffer.data[buffer.length], NULL);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+
+    /* Decode with the custom type. The field has the custom type. */
+    UA_NetworkMessage m2;
+    memset(&m2, 0, sizeof(UA_NetworkMessage));
+    size_t offset = 0;
+    rv = UA_NetworkMessage_decodeHeaders(&buffer, &offset, &m2);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    rv = UA_NetworkMessage_decodePayload(&buffer, &offset, &m2, &customTypes);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    UA_DataValue *decoded = delta ?
+        &m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue :
+        &m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0];
+    ck_assert(decoded->hasValue);
+    ck_assert_ptr_eq(decoded->value.type, &PointType);
+    Point *dp = (Point*)decoded->value.data;
+    ck_assert(dp->x == 1.5f && dp->y == 2.5f && dp->z == 3.5f);
+    UA_NetworkMessage_clear(&m2);
+
+    /* Without the custom type the value stays an ExtensionObject */
+    memset(&m2, 0, sizeof(UA_NetworkMessage));
+    offset = 0;
+    rv = UA_NetworkMessage_decodeHeaders(&buffer, &offset, &m2);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    rv = UA_NetworkMessage_decodePayload(&buffer, &offset, &m2, NULL);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    decoded = delta ?
+        &m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue :
+        &m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0];
+    ck_assert_ptr_eq(decoded->value.type, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    UA_NetworkMessage_clear(&m2);
+
+    UA_ByteString_clear(&buffer);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
@@ -1585,6 +1682,9 @@ int main(void) {
     TCase *tc_ende2 = tcase_create("encode_decode2DS");
     tcase_add_test(tc_ende2, UA_PubSub_EnDecode_ShallWorkOn2DSVariant);
 
+    TCase *tc_custom = tcase_create("custom datatypes");
+    tcase_add_loop_test(tc_custom, UA_PubSub_Decode_CustomDataTypeInFields, 0, 4);
+
     TCase *tc_sizes = tcase_create("declared sizes");
     tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_DataSetMessageSizeMustFit, 0, 4);
     tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_RawDataSetMessageSizeMustFit, 0, 3);
@@ -1598,6 +1698,7 @@ int main(void) {
     suite_add_tcase(s, tc_decode);
     suite_add_tcase(s, tc_ende1);
     suite_add_tcase(s, tc_ende2);
+    suite_add_tcase(s, tc_custom);
     suite_add_tcase(s, tc_sizes);
     
     SRunner *sr = srunner_create(s);
