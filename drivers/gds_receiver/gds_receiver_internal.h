@@ -35,7 +35,6 @@ typedef struct {
     UA_Server *server;
     UA_NodeId sessionId;
     UA_GDSTransactionState state;
-    UA_ByteString localCsrCertificate;
     size_t certGroupSize;
     UA_CertificateGroup *certGroups;
     size_t certificateInfosSize;
@@ -50,6 +49,15 @@ typedef struct ChannelMetadata {
     UA_NodeId certificateTypeId;
     UA_ByteString certificate;
 } ChannelMetadata;
+
+/* The CSR of the last CreateSigningRequest for a certificate type. The
+ * SecurityPolicies keep the private key of the CSR until a certificate for it
+ * is applied. The CSR is independent of the transactions. */
+typedef struct UA_GDSPendingCsr {
+    LIST_ENTRY(UA_GDSPendingCsr) pointers;
+    UA_NodeId certificateTypeId;
+    UA_ByteString csr;
+} UA_GDSPendingCsr;
 
 /* An open TrustList: the encoded snapshot of a read or the staged bytes of a
  * write. The file transfer driver owns the FileHandle of the client. */
@@ -83,6 +91,7 @@ struct UA_GDSReceiverContext {
     UA_GDSTransaction transaction;
     UA_GDSTrustList trustLists[UA_GDSRECEIVER_TRUSTLISTS];
     LIST_HEAD(, ChannelMetadata) secureChannels;
+    LIST_HEAD(, UA_GDSPendingCsr) pendingCsrs;
     size_t pendingDelayedCallbacks;
 };
 
