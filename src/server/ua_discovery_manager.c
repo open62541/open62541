@@ -39,6 +39,12 @@ discovery_createMulticastSocket(UA_Server* server) {
     if((s = UA_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == UA_INVALID_SOCKET)
         return UA_INVALID_SOCKET;
 
+    /* The mDNS daemon uses select. It cannot handle this descriptor. */
+    if(!UA_SOCKET_FITS_SELECT(s)) {
+        UA_close(s);
+        return UA_INVALID_SOCKET;
+    }
+
 #ifdef SO_REUSEPORT
     UA_setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
 #endif

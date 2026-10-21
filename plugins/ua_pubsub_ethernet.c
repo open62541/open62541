@@ -14,6 +14,8 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
+#include "ua_util_internal.h"
+
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
 
@@ -1136,6 +1138,13 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
 
     /* Sleep in a select call if a timeout was set */
     if(timeout > 0) {
+        /* select cannot handle the descriptor */
+        if(!UA_SOCKET_FITS_SELECT(channel->sockfd)) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "PubSub Connection receive failed. The socket %i cannot "
+                         "be used with select.", (int)channel->sockfd);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
         fd_set fdset;
         FD_ZERO(&fdset);
         UA_fd_set(channel->sockfd, &fdset);

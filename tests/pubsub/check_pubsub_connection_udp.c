@@ -11,6 +11,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_server_internal.h"
+#include "testing_descriptors.h"
 
 #include <check.h>
 
@@ -185,6 +186,31 @@ START_TEST(AddConnectionWithUnknownTransportURL){
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
+#ifdef UA_ARCHITECTURE_POSIX
+/* The receive uses select. A socket that select cannot handle is rejected. */
+START_TEST(AddConnectionWithoutSelectableDescriptor){
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.name = UA_STRING("UADP Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+
+    if(testing_fillDescriptors()) {
+        UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+        ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    }
+    testing_releaseDescriptors();
+
+    /* It works with free descriptors */
+    UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+} END_TEST
+#endif
+
 START_TEST(AddConnectionWithNullConfig){
         UA_StatusCode retVal;
         retVal = UA_Server_addPubSubConnection(server, NULL, NULL);
@@ -282,6 +308,9 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithInvalidIPv6Address);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithUnknownTransportURL);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithNullConfig);
+#ifdef UA_ARCHITECTURE_POSIX
+    tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithoutSelectableDescriptor);
+#endif
 
     TCase *tc_add_pubsub_connections_maximal_config = tcase_create("Create PubSub UDP Connections with maximal valid config");
     tcase_add_checked_fixture(tc_add_pubsub_connections_maximal_config, setup, teardown);

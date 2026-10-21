@@ -15,6 +15,8 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 
+#include "ua_util_internal.h"
+
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferUDP[RECEIVE_MSG_BUFFER_SIZE];
 
@@ -178,8 +180,19 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
 
     for(rp = requestResult; rp != NULL; rp = rp->ai_next){
         newChannel->sockfd = UA_socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if(newChannel->sockfd != UA_INVALID_SOCKET)
+        if(newChannel->sockfd == UA_INVALID_SOCKET)
+            continue;
+        if(UA_SOCKET_FITS_SELECT(newChannel->sockfd))
             break; /*success*/
+
+        /* The receive uses select. It cannot handle this descriptor. */
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Too many open files "
+                     "for select (socket %i).", (int)newChannel->sockfd);
+        UA_close(newChannel->sockfd);
+        newChannel->sockfd = UA_INVALID_SOCKET;
+        rp = NULL;
+        break;
     }
     if(!rp) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,

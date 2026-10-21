@@ -6,6 +6,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "testing_descriptors.h"
 
 #include <check.h>
 #include <pthread.h>
@@ -87,12 +88,37 @@ START_TEST(find_on_network_large_cache_small_stack) {
 }
 END_TEST
 
+/* The mDNS daemon uses select. A multicast socket that select cannot handle is
+ * rejected. */
+START_TEST(mdns_socket_without_selectable_descriptor) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_ne(server, NULL);
+    ck_assert_uint_eq(UA_ServerConfig_setDefault(UA_Server_getConfig(server)),
+                      UA_STATUSCODE_GOOD);
+
+    if(testing_fillDescriptors()) {
+        UA_StatusCode res =
+            initMulticastDiscoveryServer(&server->discoveryManager, server);
+        ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+        ck_assert(server->discoveryManager.mdnsSocket == UA_INVALID_SOCKET);
+    }
+    testing_releaseDescriptors();
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 static Suite *
 testSuite(void) {
     Suite *suite = suite_create("FindServersOnNetwork");
     TCase *tc = tcase_create("large cache");
     tcase_add_test(tc, find_on_network_large_cache_small_stack);
     suite_add_tcase(suite, tc);
+#ifdef UA_ARCHITECTURE_POSIX
+    TCase *tc_fd = tcase_create("descriptors");
+    tcase_add_test(tc_fd, mdns_socket_without_selectable_descriptor);
+    suite_add_tcase(suite, tc_fd);
+#endif
     return suite;
 }
 

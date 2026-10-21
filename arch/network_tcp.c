@@ -18,6 +18,7 @@
 
 #include "open62541_queue.h"
 #include "ua_securechannel.h"
+#include "ua_util_internal.h"
 
 #include <string.h>  // memset
 
@@ -304,6 +305,13 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
+    if(!UA_SOCKET_FITS_SELECT(newsock)) {
+        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+                       "The server socket %i cannot be used with select", (int)newsock);
+        UA_close(newsock);
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    }
+
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
      * AF_INET6 sockets only for IPv6. */
@@ -532,6 +540,15 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
         if(newsockfd == UA_INVALID_SOCKET)
             continue;
 
+        /* Reject connections that cannot be handled with select */
+        if(!UA_SOCKET_FITS_SELECT(newsockfd)) {
+            UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+                           "Connection %i | Rejected. Too many open files "
+                           "for select", (int)newsockfd);
+            UA_close(newsockfd);
+            continue;
+        }
+
         UA_LOG_TRACE(layer->logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | New TCP connection on server socket %i",
                     (int)newsockfd, (int)(layer->serverSockets[i]));
@@ -738,6 +755,14 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         if(connection->sockfd == UA_INVALID_SOCKET) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "Could not create client socket: %s", strerror(UA_ERRNO));
+            ClientNetworkLayerTCP_close(connection);
+            return UA_STATUSCODE_BADDISCONNECT;
+        }
+
+        if(!UA_SOCKET_FITS_SELECT(connection->sockfd)) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "Too many open files. The client socket %i cannot "
+                           "be used with select", (int)connection->sockfd);
             ClientNetworkLayerTCP_close(connection);
             return UA_STATUSCODE_BADDISCONNECT;
         }

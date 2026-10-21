@@ -90,6 +90,15 @@ typedef UA_UInt64 u64;
 typedef UA_Int64 i64;
 typedef UA_StatusCode status;
 
+/* select() only handles descriptors from 0 to FD_SETSIZE-1. Adding a larger
+ * descriptor to a fd_set is undefined behavior. The fd_set on Windows is an
+ * array of sockets and not limited in this way. */
+#ifdef _WIN32
+# define UA_SOCKET_FITS_SELECT(fd) (true)
+#else
+# define UA_SOCKET_FITS_SELECT(fd) ((fd) >= 0 && (fd) < FD_SETSIZE)
+#endif
+
 /**
  * Error checking macros
  */

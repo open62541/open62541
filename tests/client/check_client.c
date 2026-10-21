@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
+#include "testing_descriptors.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
@@ -490,6 +491,59 @@ START_TEST(Client_activateSessionAnonymousUserChangeRejected) {
 }
 END_TEST
 
+#ifdef UA_ARCHITECTURE_POSIX
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+/* A client socket that select() cannot handle is rejected */
+START_TEST(Client_connectWithoutSelectableDescriptor) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    if(testing_fillDescriptors()) {
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    }
+    testing_releaseDescriptors();
+
+    /* The client works again with free descriptors */
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_delete(client);
+} END_TEST
+
+/* The server closes accepted connections that select() cannot handle. It keeps
+ * serving the other connections. */
+START_TEST(Server_acceptWithoutSelectableDescriptor) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    ck_assert_int_ge(sock, 0);
+    struct timeval tv = {5, 0};
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    if(testing_fillDescriptors()) {
+        struct sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(4840);
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        ck_assert_int_eq(connect(sock, (struct sockaddr*)&addr, sizeof(addr)), 0);
+
+        /* The server accepts the connection and closes it right away */
+        char c;
+        ck_assert_int_eq((int)recv(sock, &c, 1, 0), 0);
+    }
+    testing_releaseDescriptors();
+    close(sock);
+
+    /* The server still works */
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_delete(client);
+} END_TEST
+#endif
+
 static UA_Boolean rejectActivation;
 static UA_StatusCode
 (*originalActivateSession)(UA_Server *s, UA_AccessControl *ac,
@@ -557,6 +611,10 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
+#ifdef UA_ARCHITECTURE_POSIX
+    tcase_add_test(tc_client, Client_connectWithoutSelectableDescriptor);
+    tcase_add_test(tc_client, Server_acceptWithoutSelectableDescriptor);
+#endif
     suite_add_tcase(s,tc_client);
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
