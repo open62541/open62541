@@ -671,6 +671,29 @@ function(check_add_cc_flag CC_FLAG)
     endif()
 endfunction()
 
+# The compiler may accept a stack-protector flag although the target runtime
+# cannot link instrumented code (e.g. uClibc-ng without SSP support). Build and
+# link a source that actually contains a protected stack buffer.
+include(CheckCSourceCompiles)
+function(check_add_stack_protector_flag CC_FLAG)
+    string(FIND "${CMAKE_C_FLAGS}" "${CC_FLAG}" flag_already_set)
+    if(flag_already_set EQUAL -1)
+        message(STATUS "Test CC flag ${CC_FLAG}")
+        set(CMAKE_REQUIRED_FLAGS "${CC_FLAG}")
+        check_c_source_compiles([=[
+            #include <stdio.h>
+            int main(int argc, char **argv) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "%s", argv[0]);
+                return buf[argc];
+            }]=] flag_supported)
+        if(flag_supported)
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_FLAG}" PARENT_SCOPE)
+        endif()
+        unset(flag_supported CACHE)
+    endif()
+endfunction()
+
 if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
@@ -726,7 +749,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
         if(UA_ENABLE_HARDENING)
-            check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
+            check_add_stack_protector_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
             check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
             # future use (control flow integrity protection)
             if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
