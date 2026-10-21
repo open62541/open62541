@@ -1717,6 +1717,142 @@ START_TEST(MultiPublishSubscribeInt32) {
     UA_Variant_clear(&publishedNodeData);
 } END_TEST
 
+static UA_NodeId
+addReaderWithTarget(UA_NodeId rgId, UA_UInt16 writerId, const char *name) {
+    UA_DataSetReaderConfig readerConfig;
+    memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+    readerConfig.name = UA_STRING((char*)(uintptr_t)name);
+    UA_UInt16 publisherIdentifier = PUBLISHER_ID;
+    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.writerGroupId = WRITER_GROUP_ID;
+    readerConfig.dataSetWriterId = writerId;
+    UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
+    UA_DataSetMetaDataType_init(pMetaData);
+    pMetaData->name = UA_STRING("DataSet Test");
+    pMetaData->fieldsSize = 1;
+    pMetaData->fields = (UA_FieldMetaData*)
+        UA_Array_new(pMetaData->fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    UA_FieldMetaData_init(&pMetaData->fields[0]);
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId, &pMetaData->fields[0].dataType);
+    pMetaData->fields[0].builtInType = UA_NS0ID_UINT32;
+    pMetaData->fields[0].valueRank = -1;
+    UA_NodeId readerId;
+    UA_StatusCode res = UA_Server_addDataSetReader(server, rgId, &readerConfig, &readerId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId targetId;
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("en-US", (char*)(uintptr_t)name);
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    vAttr.valueRank = -1;
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 60000 + writerId), folderId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    vAttr, NULL, &targetId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_FieldTargetVariable targetVar;
+    memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType_init(&targetVar.targetVariable);
+    targetVar.targetVariable.attributeId = UA_ATTRIBUTEID_VALUE;
+    targetVar.targetVariable.targetNodeId = targetId;
+    res = UA_Server_DataSetReader_createTargetVariables(server, readerId, 1, &targetVar);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_FieldTargetDataType_clear(&targetVar.targetVariable);
+
+    UA_Array_delete(pMetaData->fields, pMetaData->fieldsSize,
+                    &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    UA_NodeId_clear(&readerId);
+    return targetId;
+}
+
+static UA_UInt32
+readTarget(UA_NodeId target) {
+    UA_Variant v;
+    UA_Variant_init(&v);
+    ck_assert_int_eq(UA_Server_readValue(server, target, &v), UA_STATUSCODE_GOOD);
+    UA_UInt32 res = 0;
+    if(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT32]))
+        res = *(UA_UInt32*)v.data;
+    UA_Variant_clear(&v);
+    return res;
+}
+
+/* Two DataSetMessages from different writers in one NetworkMessage. Every
+ * reader gets only the DataSetMessage of its writer. */
+START_TEST(MultiDataSetMessagesInNetworkMessage) {
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup Test");
+    UA_StatusCode res =
+        UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId targetA = addReaderWithTarget(readerGroupId, 10, "ReaderA");
+    UA_NodeId targetB = addReaderWithTarget(readerGroupId, 20, "ReaderB");
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    ck_assert_ptr_ne(rg, NULL);
+
+    UA_DataValue fields[2];
+    UA_DataSetMessage dsm[2];
+    memset(dsm, 0, sizeof(dsm));
+    UA_UInt32 values[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_DataValue_init(&fields[i]);
+        UA_Variant_setScalar(&fields[i].value, &values[i], &UA_TYPES[UA_TYPES_UINT32]);
+        fields[i].hasValue = true;
+        dsm[i].header.dataSetMessageValid = true;
+        dsm[i].header.fieldEncoding = UA_FIELDENCODING_VARIANT;
+        dsm[i].header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+        dsm[i].data.keyFrameData.fieldCount = 1;
+        dsm[i].data.keyFrameData.dataSetFields = &fields[i];
+    }
+
+    UA_UInt16 writerIds[2];
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
+    nm.publisherIdEnabled = true;
+    nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+    nm.publisherId.publisherIdUInt16 = PUBLISHER_ID;
+    nm.groupHeaderEnabled = true;
+    nm.groupHeader.writerGroupIdEnabled = true;
+    nm.groupHeader.writerGroupId = WRITER_GROUP_ID;
+    nm.payloadHeaderEnabled = true;
+    nm.payloadHeader.dataSetPayloadHeader.count = 2;
+    nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
+    nm.payload.dataSetPayload.dataSetMessages = dsm;
+
+    /* Messages of both writers */
+    writerIds[0] = 10; values[0] = 1;
+    writerIds[1] = 20; values[1] = 2;
+    res = UA_Server_processNetworkMessage(server, rg, &nm);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readTarget(targetA), 1);
+    ck_assert_uint_eq(readTarget(targetB), 2);
+
+    /* Unknown writer first, the message of the second reader comes later */
+    writerIds[0] = 30; values[0] = 3;
+    writerIds[1] = 20; values[1] = 4;
+    res = UA_Server_processNetworkMessage(server, rg, &nm);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readTarget(targetA), 1);
+    ck_assert_uint_eq(readTarget(targetB), 4);
+
+    /* Reversed order */
+    writerIds[0] = 20; values[0] = 5;
+    writerIds[1] = 10; values[1] = 6;
+    res = UA_Server_processNetworkMessage(server, rg, &nm);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readTarget(targetA), 6);
+    ck_assert_uint_eq(readTarget(targetB), 5);
+
+    UA_NodeId_clear(&targetA);
+    UA_NodeId_clear(&targetB);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_readergroup, setup, teardown);
@@ -1758,6 +1894,7 @@ int main(void) {
 
     /* Test cases with several readers */
     tcase_add_test(tc_pubsub_publish_subscribe, MultiPublishSubscribeInt32);
+    tcase_add_test(tc_pubsub_publish_subscribe, MultiDataSetMessagesInNetworkMessage);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_add_pubsub_readergroup);

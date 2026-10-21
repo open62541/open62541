@@ -351,11 +351,17 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    if(reader->config.writerGroupId == msg->groupHeader.writerGroupId &&
-       reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "DataSetReader found. Process NetworkMessage");
-        return UA_STATUSCODE_GOOD;
+    if(reader->config.writerGroupId != msg->groupHeader.writerGroupId)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    /* The NetworkMessage may contain DataSetMessages of several writers */
+    for(UA_Byte i = 0; i < msg->payloadHeader.dataSetPayloadHeader.count; i++) {
+        if(reader->config.dataSetWriterId ==
+           msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i]) {
+            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "DataSetReader found. Process NetworkMessage");
+            return UA_STATUSCODE_GOOD;
+        }
     }
 
     return UA_STATUSCODE_BADNOTFOUND;
@@ -1186,6 +1192,12 @@ processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
     if(msg->payloadHeaderEnabled)
         totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
     for(UA_Byte i = 0; i < totalDataSets; i++) {
+        /* Only process the DataSetMessage of the matching DataSetWriter. Several
+         * readers can read the same NetworkMessage. */
+        if(msg->payloadHeaderEnabled &&
+           reader->config.dataSetWriterId !=
+           msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i])
+            continue;
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Process Msg with DataSetReader!");
         UA_DataSetReader_process(server, readerGroup, reader,
