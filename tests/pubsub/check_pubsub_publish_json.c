@@ -35,6 +35,8 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_NUMERIC;
+    connectionConfig.publisherId.numeric = 4321;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 }
 
@@ -95,10 +97,98 @@ START_TEST(SinglePublishDataSetField){
     UA_WriterGroup_publishCallback(server, wg);
 } END_TEST
 
+/* Capture what the connection sends instead of using the network */
+static char sentMessage[4096];
+
+static UA_StatusCode
+captureSend(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
+            const UA_ByteString *buf) {
+    ck_assert(buf->length < sizeof(sentMessage));
+    memcpy(sentMessage, buf->data, buf->length);
+    sentMessage[buf->length] = 0;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+publishWithMask(UA_JsonNetworkMessageContentMask mask) {
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+    UA_JsonWriterGroupMessageDataType settings;
+    memset(&settings, 0, sizeof(settings));
+    settings.networkMessageContentMask = mask;
+    writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    writerGroupConfig.messageSettings.content.decoded.type =
+        &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
+    writerGroupConfig.messageSettings.content.decoded.data = &settings;
+    writerGroupConfig.name = UA_STRING("WriterGroup 1");
+    writerGroupConfig.publishingInterval = 10;
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+    UA_StatusCode retVal =
+        UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_setWriterGroupOperational(server, writerGroup1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
+    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    pdsConfig.name = UA_STRING("PublishedDataSet 1");
+    UA_AddPublishedDataSetResult result =
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+    ck_assert_int_eq(result.addResult, UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig dataSetFieldConfig;
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server state");
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataSetFieldResult dsFieldResult =
+        UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+    ck_assert_int_eq(dsFieldResult.result, UA_STATUSCODE_GOOD);
+
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
+    retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1,
+                                        &dataSetWriterConfig, &dataSetWriter1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_findConnectionbyId(server, connection1);
+    ck_assert_ptr_ne(connection, NULL);
+    connection->channel->send = captureSend;
+    sentMessage[0] = 0;
+
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    ck_assert_ptr_ne(wg, NULL);
+    UA_WriterGroup_publishCallback(server, wg);
+    ck_assert(strlen(sentMessage) > 0);
+}
+
+START_TEST(PublisherIdSelectedByMask) {
+    publishWithMask((UA_JsonNetworkMessageContentMask)
+                    (UA_JSONNETWORKMESSAGECONTENTMASK_NETWORKMESSAGEHEADER |
+                     UA_JSONNETWORKMESSAGECONTENTMASK_DATASETMESSAGEHEADER |
+                     UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID));
+    ck_assert_ptr_ne(strstr(sentMessage, "\"PublisherId\""), NULL);
+    ck_assert_ptr_ne(strstr(sentMessage, "4321"), NULL);
+} END_TEST
+
+START_TEST(PublisherIdNotSelectedByMask) {
+    publishWithMask((UA_JsonNetworkMessageContentMask)
+                    (UA_JSONNETWORKMESSAGECONTENTMASK_NETWORKMESSAGEHEADER |
+                     UA_JSONNETWORKMESSAGECONTENTMASK_DATASETMESSAGEHEADER));
+    ck_assert_ptr_eq(strstr(sentMessage, "PublisherId"), NULL);
+} END_TEST
+
 int main(void) {
     TCase *tc_pubsub_publish = tcase_create("PubSub publish");
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
+    tcase_add_test(tc_pubsub_publish, PublisherIdSelectedByMask);
+    tcase_add_test(tc_pubsub_publish, PublisherIdNotSelectedByMask);
 
     Suite *s = suite_create("PubSub publishing json via udp");
     suite_add_tcase(s, tc_pubsub_publish);

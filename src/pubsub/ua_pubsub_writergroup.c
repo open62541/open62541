@@ -744,6 +744,26 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
 
+    /* Add the PublisherId if selected in the JSON message settings */
+    const UA_ExtensionObject *ms = &wg->config.messageSettings;
+    if(ms->encoding == UA_EXTENSIONOBJECT_DECODED &&
+       ms->content.decoded.type == &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE] &&
+       ms->content.decoded.data) {
+        const UA_JsonWriterGroupMessageDataType *settings =
+            (const UA_JsonWriterGroupMessageDataType*)ms->content.decoded.data;
+        if(((UA_UInt32)settings->networkMessageContentMask &
+            (UA_UInt32)UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0) {
+            nm.publisherIdEnabled = true;
+            if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
+                nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+                nm.publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
+            } else {
+                nm.publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+                nm.publisherId.publisherIdString = connection->config->publisherId.string;
+            }
+        }
+    }
+
     /* Compute the message length */
     size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);
 
