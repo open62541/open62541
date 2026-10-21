@@ -455,6 +455,24 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
     return retval;
 }
 
+/* The client is not connected. Log the request and the endpoint to be able to
+ * identify the client (the application can have several) and the caller. */
+static void
+logNotConnected(UA_Client *client, const UA_DataType *requestType) {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                "SecureChannel must be connected before sending requests "
+                "(request type %s, endpoint \"%.*s\")", requestType->typeName,
+                (int)client->endpointUrl.length, (const char*)client->endpointUrl.data);
+#else
+    UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                "SecureChannel must be connected before sending requests "
+                "(request type %" PRIu32 ", endpoint \"%.*s\")",
+                requestType->binaryEncodingId.identifier.numeric,
+                (int)client->endpointUrl.length, (const char*)client->endpointUrl.data);
+#endif
+}
+
 UA_StatusCode
 receiveResponseAsync(UA_Client *client, UA_UInt32 timeout) {
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
@@ -470,8 +488,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
     UA_init(response, responseType);
 
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "SecureChannel must be connected before sending requests");
+        logNotConnected(client, requestType);
         UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
         respHeader->serviceResult = UA_STATUSCODE_BADCONNECTIONCLOSED;
 		return;
@@ -561,8 +578,7 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
                            void *userdata, UA_UInt32 *requestId,
                            UA_UInt32 timeout) {
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "SecureChannel must be connected before sending requests");
+        logNotConnected(client, requestType);
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
 

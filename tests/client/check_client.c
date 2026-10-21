@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel_async.h>
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
@@ -544,6 +545,57 @@ START_TEST(Server_acceptWithoutSelectableDescriptor) {
 } END_TEST
 #endif
 
+static char notConnectedLog[512];
+
+static UA_FORMAT(4,0) void
+captureNotConnectedLog(void *logContext, UA_LogLevel level, UA_LogCategory category,
+                       const char *msg, va_list args) {
+    char buf[512];
+    vsnprintf(buf, sizeof(buf), msg, args);
+    if(strstr(buf, "SecureChannel must be connected"))
+        snprintf(notConnectedLog, sizeof(notConnectedLog), "%s", buf);
+}
+
+/* The log of a request on a client that is not connected has the request type
+ * and the endpoint */
+START_TEST(Client_notConnectedLogsRequestAndEndpoint) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    UA_Logger oldLogger = config->logger;
+    config->logger.log = captureNotConnectedLog;
+    config->logger.context = NULL;
+    config->logger.clear = NULL;
+    UA_String_clear(&client->endpointUrl);
+    client->endpointUrl = UA_STRING_ALLOC("opc.tcp://localhost:4840");
+
+    /* Synchronous request */
+    UA_Variant val;
+    UA_Variant_init(&val);
+    notConnectedLog[0] = 0;
+    UA_StatusCode retval =
+        UA_Client_readValueAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_ptr_ne(strstr(notConnectedLog, "opc.tcp://localhost:4840"), NULL);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    ck_assert_ptr_ne(strstr(notConnectedLog, "ReadRequest"), NULL);
+#endif
+
+    /* Asynchronous request */
+    UA_BrowseRequest request;
+    UA_BrowseRequest_init(&request);
+    notConnectedLog[0] = 0;
+    retval = UA_Client_sendAsyncBrowseRequest(client, &request, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSERVERNOTCONNECTED);
+    ck_assert_ptr_ne(strstr(notConnectedLog, "opc.tcp://localhost:4840"), NULL);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    ck_assert_ptr_ne(strstr(notConnectedLog, "BrowseRequest"), NULL);
+#endif
+
+    config->logger = oldLogger;
+    UA_Client_delete(client);
+} END_TEST
+
 static UA_Boolean rejectActivation;
 static UA_StatusCode
 (*originalActivateSession)(UA_Server *s, UA_AccessControl *ac,
@@ -611,6 +663,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
+    tcase_add_test(tc_client, Client_notConnectedLogsRequestAndEndpoint);
 #ifdef UA_ARCHITECTURE_POSIX
     tcase_add_test(tc_client, Client_connectWithoutSelectableDescriptor);
     tcase_add_test(tc_client, Server_acceptWithoutSelectableDescriptor);
