@@ -4333,6 +4333,23 @@ START_TEST(UA_Variant_Matrix_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_Variant_Matrix_EmptyElements_xml_decode) {
+    /* Enough dimensions that the tokens are allocated on the heap. The empty
+     * <Elements/> is the last token, so there is no element to take the type
+     * from. */
+    char xml[2048] = "<Variant><Value><Matrix><Dimensions>";
+    for(size_t i = 0; i < 64; i++)
+        strcat(xml, "<Int32>0</Int32>");
+    strcat(xml, "</Dimensions><Elements/></Matrix></Value></Variant>");
+
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_ByteString buf = UA_STRING(xml);
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+}
+END_TEST
+
 START_TEST(UA_Array_Variant_String_xml_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -4841,6 +4858,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_Array_Variant_String_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_String_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_Matrix_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_Variant_Matrix_EmptyElements_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_unwrapped_byte_xml_decode);
 
     /* tcase_add_test(tc_xml_decode, UA_Array_Boolean_xml_decode); */
