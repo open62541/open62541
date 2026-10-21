@@ -309,8 +309,8 @@ START_TEST(CheckKVMValidateTypeAndShape) {
     validateSetMust(kvm);
 
     /* Wrong type */
-    UA_UInt16 small = 1;
-    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "number"), &small,
+    UA_UInt16 shortValue = 1;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "number"), &shortValue,
                              &UA_TYPES[UA_TYPES_UINT16]);
     ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_BADINTERNALERROR);
 
