@@ -636,24 +636,23 @@ START_TEST(supported_private_key_formats) {
 }
 END_TEST
 
-/* Helper: stage the current server certificate again with UpdateCertificate
- * for the given certificate type */
+/* Helper: call UpdateCertificate on the DefaultApplicationGroup. An empty
+ * PrivateKey selects the update without a new private key. */
 static UA_StatusCode
-callUpdateCertificateOfType(UA_Client *client, UA_UInt32 certificateTypeId) {
+callUpdateCertificateWithKey(UA_Client *client, UA_UInt32 certificateTypeId,
+                             UA_ByteString *certificate, UA_String *privateKeyFormat,
+                             UA_ByteString *privateKey) {
     UA_NodeId groupId = UA_NODEID_NUMERIC(0,
         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, certificateTypeId);
-    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
-    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
-    UA_String privateKeyFormat = UA_STRING("PKCS8");
 
     UA_Variant inputArguments[6];
     UA_Variant_setScalar(&inputArguments[0], &groupId, &UA_TYPES[UA_TYPES_NODEID]);
     UA_Variant_setScalar(&inputArguments[1], &typeId, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalar(&inputArguments[2], &certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&inputArguments[2], certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_Variant_setArray(&inputArguments[3], NULL, 0, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_Variant_setScalar(&inputArguments[4], &privateKeyFormat, &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&inputArguments[5], &privateKey, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&inputArguments[4], privateKeyFormat, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&inputArguments[5], privateKey, &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
@@ -672,6 +671,17 @@ callUpdateCertificateOfType(UA_Client *client, UA_UInt32 certificateTypeId) {
     UA_StatusCode res = response.results[0].statusCode;
     UA_CallResponse_clear(&response);
     return res;
+}
+
+/* Helper: stage the current server certificate again with UpdateCertificate
+ * for the given certificate type */
+static UA_StatusCode
+callUpdateCertificateOfType(UA_Client *client, UA_UInt32 certificateTypeId) {
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_String privateKeyFormat = UA_STRING("PKCS8");
+    return callUpdateCertificateWithKey(client, certificateTypeId, &certificate,
+                                        &privateKeyFormat, &privateKey);
 }
 
 /* Helper: stage the current server certificate again with UpdateCertificate */
@@ -1003,10 +1013,10 @@ END_TEST
  * StatusCode is Bad_CertificateChainIncomplete (Part 4, Table 100), not
  * Bad_CertificateUntrusted. Bad_CertificateUntrusted belongs to the Trust List
  * Check, which comes after the Build Certificate Chain step. */
-START_TEST(add_certificate_reject_unknown_issuer) {
-    UA_Client *client = createSecureClient();
-
-    /* Remove the CA certificates from the TrustList */
+/* Helper: remove the CA certificates from the TrustList of the
+ * DefaultApplicationGroup. Open SecureChannels are not re-verified. */
+static void
+removeTrustedCas(void) {
     UA_TrustListDataType noCas;
     UA_TrustListDataType_init(&noCas);
     noCas.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES |
@@ -1016,13 +1026,230 @@ START_TEST(add_certificate_reject_unknown_issuer) {
     UA_StatusCode retval = certGroup->setTrustList(certGroup, &noCas);
     unlockServer(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+
+START_TEST(add_certificate_reject_unknown_issuer) {
+    UA_Client *client = createSecureClient();
+    removeTrustedCas();
 
     UA_ByteString cert = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
     ck_assert_uint_eq(verifyCertificate(&cert), UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
 
-    retval = callAddCertificate(client, &cert, true);
+    UA_StatusCode retval = callAddCertificate(client, &cert, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
     ck_assert(!isTrustedCertificate(&cert));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Helper: APPLICATION_CERT_DER followed by its issuer CAs */
+static UA_ByteString
+applicationCertificateChain(void) {
+    UA_ByteString certs[3] = {
+        {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA},
+        {INTERMEDIATE_CERT_DER_LENGTH, INTERMEDIATE_CERT_DER_DATA},
+        {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA}};
+    UA_ByteString chain;
+    UA_StatusCode retval =
+        UA_ByteString_allocBuffer(&chain, certs[0].length + certs[1].length +
+                                  certs[2].length);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    size_t pos = 0;
+    for(size_t i = 0; i < 3; i++) {
+        memcpy(&chain.data[pos], certs[i].data, certs[i].length);
+        pos += certs[i].length;
+    }
+    return chain;
+}
+
+/* Same as above, but the issuer CAs are appended to the certificate. They
+ * complete the chain, which is then only untrusted. AddCertificate verifies the
+ * leaf only, so the issuers must still be in the TrustList. */
+START_TEST(add_certificate_reject_unknown_issuer_in_chain) {
+    UA_Client *client = createSecureClient();
+    removeTrustedCas();
+
+    UA_ByteString leaf = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    UA_ByteString chain = applicationCertificateChain();
+    ck_assert_uint_eq(verifyCertificate(&chain), UA_STATUSCODE_BADCERTIFICATEUNTRUSTED);
+
+    UA_StatusCode retval = callAddCertificate(client, &chain, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    ck_assert(!isTrustedCertificate(&chain));
+    ck_assert(!isTrustedCertificate(&leaf));
+
+    UA_ByteString_clear(&chain);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* AddCertificate adds the leaf only if the issuer CAs are appended. The CAs
+ * are not added to the TrustList with it. */
+START_TEST(add_certificate_chain_adds_leaf) {
+    UA_Client *client = createSecureClient();
+
+    UA_ByteString leaf = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    UA_ByteString chain = applicationCertificateChain();
+    UA_StatusCode retval = callAddCertificate(client, &chain, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(isTrustedCertificate(&leaf));
+    ck_assert(!isTrustedCertificate(&chain));
+
+    UA_ByteString_clear(&chain);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Helper: UpdateCertificate with APPLICATION_CERT_DER, which the intermediate
+ * CA issued. Without withKey, the PrivateKey argument is empty. */
+static UA_StatusCode
+callUpdateCertificateIssuedByCa(UA_Client *client, UA_Boolean withKey) {
+    UA_ByteString cert = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    UA_ByteString key = {APPLICATION_KEY_DER_LENGTH, APPLICATION_KEY_DER_DATA};
+    UA_String keyFormat = UA_STRING("PEM");
+    if(!withKey) {
+        key = UA_BYTESTRING_NULL;
+        keyFormat = UA_STRING_NULL;
+    }
+    return callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                        &cert, &keyFormat, &key);
+}
+
+/* Part 12 §7.10.5: UpdateCertificate accepts a certificate whose issuer CA is
+ * in the TrustList */
+START_TEST(update_certificate_trusted_issuer) {
+    UA_Client *client = createSecureClient();
+
+    UA_StatusCode retval = callUpdateCertificateIssuedByCa(client, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.10.5: The Server validates the new certificate with the process
+ * of Part 4 and returns its StatusCode. The issuers must already be in the
+ * TrustList. If the issuer CA is missing, building the certificate chain fails
+ * with Bad_CertificateChainIncomplete (Part 4, Table 100) and nothing is
+ * staged. This applies to the update with and without a PrivateKey. */
+START_TEST(update_certificate_reject_unknown_issuer) {
+    UA_Client *client = createSecureClient();
+    removeTrustedCas();
+
+    UA_StatusCode retval = callUpdateCertificateIssuedByCa(client, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    retval = callUpdateCertificateIssuedByCa(client, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+
+    /* No transaction was started */
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* The issuer CA is pushed with CloseAndUpdate in the same transaction before
+ * UpdateCertificate. The certificate is validated with the TrustList of the
+ * transaction, so the update is accepted. */
+START_TEST(update_certificate_issuer_in_staged_trustlist) {
+    UA_Client *client = createSecureClient();
+    removeTrustedCas();
+
+    UA_ByteString cas[2] = {
+        {INTERMEDIATE_CERT_DER_LENGTH, INTERMEDIATE_CERT_DER_DATA},
+        {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA}};
+    UA_ByteString crls[2] = {
+        {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA},
+        {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA}};
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    trustList.trustedCertificates = cas;
+    trustList.trustedCertificatesSize = 2;
+    trustList.trustedCrls = crls;
+    trustList.trustedCrlsSize = 2;
+    stageTrustList(client, &trustList);
+
+    UA_StatusCode retval = callUpdateCertificateIssuedByCa(client, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* The issuer CA is removed with CloseAndUpdate in the same transaction before
+ * UpdateCertificate. The certificate is validated with the TrustList of the
+ * transaction, so the update is rejected although the CA is still trusted. */
+START_TEST(update_certificate_issuer_removed_in_staged_trustlist) {
+    UA_Client *client = createSecureClient();
+
+    stageEmptyTrustList(client);
+    UA_StatusCode retval = callUpdateCertificateIssuedByCa(client, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* UpdateCertificate stages the leaf only if the issuer CAs are appended. After
+ * ApplyChanges, the endpoints use the leaf. */
+START_TEST(update_certificate_chain_stages_leaf) {
+    UA_Client *client = createSecureClient();
+    UA_Client_getConfig(client)->noReconnect = true;
+
+    UA_ByteString leaf = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    UA_ByteString chain = applicationCertificateChain();
+    UA_ByteString key = {APPLICATION_KEY_DER_LENGTH, APPLICATION_KEY_DER_DATA};
+    UA_String keyFormat = UA_STRING("PEM");
+    UA_StatusCode retval =
+        callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                     &chain, &keyFormat, &key);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Assert after unlocking. A failed assertion leaves the test, and the
+     * teardown would wait for the server thread forever. */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    size_t leafEndpoints = 0;
+    size_t chainEndpoints = 0;
+    lockServer(server);
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        if(UA_ByteString_equal(&config->endpoints[i].serverCertificate, &leaf))
+            leafEndpoints++;
+        if(UA_ByteString_equal(&config->endpoints[i].serverCertificate, &chain))
+            chainEndpoints++;
+    }
+    unlockServer(server);
+    ck_assert_uint_gt(leafEndpoints, 0);
+    ck_assert_uint_eq(chainEndpoints, 0);
+
+    UA_ByteString_clear(&chain);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* A truncated certificate is invalid, also if a PrivateKey is provided */
+START_TEST(update_certificate_reject_truncated) {
+    UA_Client *client = createSecureClient();
+
+    UA_ByteString cert = {CERT_DER_LENGTH / 2, CERT_DER_DATA};
+    UA_ByteString key = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_String keyFormat = UA_STRING("PKCS8");
+    UA_StatusCode retval =
+        callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                     &cert, &keyFormat, &key);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -1935,11 +2162,19 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, add_certificate_replaced_input_metadata);
     tcase_add_test(tc_cert, update_certificate_reject_unparseable);
     tcase_add_test(tc_cert, supported_private_key_formats);
+    tcase_add_test(tc_cert, update_certificate_trusted_issuer);
+    tcase_add_test(tc_cert, update_certificate_reject_unknown_issuer);
+    tcase_add_test(tc_cert, update_certificate_issuer_in_staged_trustlist);
+    tcase_add_test(tc_cert, update_certificate_issuer_removed_in_staged_trustlist);
+    tcase_add_test(tc_cert, update_certificate_chain_stages_leaf);
+    tcase_add_test(tc_cert, update_certificate_reject_truncated);
     tcase_add_test(tc_cert, add_certificate_success);
+    tcase_add_test(tc_cert, add_certificate_chain_adds_leaf);
     tcase_add_test(tc_cert, add_certificate_reject_ca);
     tcase_add_test(tc_cert, add_certificate_reject_issuer);
     tcase_add_test(tc_cert, add_certificate_reject_malformed);
     tcase_add_test(tc_cert, add_certificate_reject_unknown_issuer);
+    tcase_add_test(tc_cert, add_certificate_reject_unknown_issuer_in_chain);
     tcase_add_test(tc_cert, add_certificate_reject_revoked);
     tcase_add_test(tc_cert, add_certificate_reject_while_open_read);
     tcase_add_test(tc_cert, add_certificate_reject_while_open_write);
@@ -1963,8 +2198,11 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert_filestore, setupFilestore, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert_filestore, add_certificate_success);
+    tcase_add_test(tc_cert_filestore, add_certificate_chain_adds_leaf);
     tcase_add_test(tc_cert_filestore, add_certificate_reject_malformed);
     tcase_add_test(tc_cert_filestore, add_certificate_reject_unknown_issuer);
+    tcase_add_test(tc_cert_filestore, add_certificate_reject_unknown_issuer_in_chain);
+    tcase_add_test(tc_cert_filestore, update_certificate_reject_unknown_issuer);
     tcase_add_test(tc_cert_filestore, add_certificate_reject_revoked);
     tcase_add_test(tc_cert_filestore, apply_trustlist_closes_untrusted_channel);
     tcase_add_test(tc_cert_filestore, apply_trustlist_and_certificate_closes_untrusted_channel);
