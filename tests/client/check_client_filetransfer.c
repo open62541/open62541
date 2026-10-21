@@ -311,18 +311,10 @@ static size_t commitCalls;
 
 static UA_StatusCode
 tempGenerateRead(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
-    UA_FileTransferFileBackend *store = transfer->store;
-    const UA_String path = transfer->path;
-    UA_UInt32 handle = 0;
-    UA_StatusCode res = store->open(store, path, UA_OPENFILEMODE_WRITE, NULL, &handle);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    res = store->write(store, handle, UA_BYTESTRING("report"));
-    store->close(store, handle);
-    return res;
+    return UA_FileTransferTemporaryFile_setContent(transfer, UA_BYTESTRING("report"));
 }
 
-/* Refuses the generateOptions 13 like an unsupported storage */
+/* Refuses generateOptions 13, as a server refuses an unsupported storage */
 static UA_StatusCode
 tempGenerateWrite(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
     const UA_Variant *options = transfer->generateOptions;
@@ -335,17 +327,9 @@ tempGenerateWrite(UA_Server *s, void *context, UA_FileTransferTemporaryFile *tra
 /* Runs in the server thread before the CloseAndCommit response is sent */
 static UA_StatusCode
 tempCommit(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
-    UA_FileTransferFileBackend *store = transfer->store;
-    const UA_String path = transfer->path;
     commitCalls++;
     UA_ByteString_clear(&committed);
-    UA_UInt32 handle = 0;
-    UA_StatusCode res = store->open(store, path, UA_OPENFILEMODE_READ, NULL, &handle);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    res = store->read(store, handle, 1024, &committed);
-    store->close(store, handle);
-    return res;
+    return UA_FileTransferTemporaryFile_getContent(transfer, &committed);
 }
 
 static UA_Driver *
