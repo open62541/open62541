@@ -145,11 +145,60 @@ START_TEST(encryption_reconnect_session) {
 }
 END_TEST
 
+static void
+countUriWarnings(void *logContext, UA_LogLevel level, UA_LogCategory category,
+                 const char *msg, va_list args) {
+    if(level == UA_LOGLEVEL_WARNING && strstr(msg, "does not match the URI"))
+        (*(unsigned *)logContext)++;
+}
+
+/* The SecurityPolicy#None has no local certificate. There is nothing to compare
+ * the ApplicationURI against. */
+START_TEST(encryption_applicationUriCheck) {
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                         &certificate, 1, NULL, 0);
+
+    unsigned uriWarnings = 0;
+    UA_Logger oldLogger = cc->logger;
+    cc->logger.log = countUriWarnings;
+    cc->logger.context = &uriWarnings;
+    cc->logger.clear = NULL;
+
+    /* The ApplicationURI matches the certificate */
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(uriWarnings, 0);
+    UA_Client_disconnect(client);
+
+    /* A wrong ApplicationURI is still reported for the policies with a
+     * certificate */
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:wrong:application");
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(uriWarnings, 0);
+    UA_Client_disconnect(client);
+
+    cc->logger = oldLogger;
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
     TCase *tc_encryption = tcase_create("Encryption basic256sha256");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
     tcase_add_test(tc_encryption, encryption_reconnect_session);
+    tcase_add_test(tc_encryption, encryption_applicationUriCheck);
     suite_add_tcase(s,tc_encryption);
     return s;
 }

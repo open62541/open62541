@@ -1208,6 +1208,11 @@ verifyClientApplicationURI(const UA_Client *client) {
 #if defined(UA_ENABLE_ENCRYPTION) && (UA_LOGLEVEL <= 400)
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
+
+        /* No local certificate, e.g. SecurityPolicy#None. Nothing to compare. */
+        if(sp->localCertificate.length == 0)
+            continue;
+
         UA_StatusCode retval =
             client->config.certificateVerification.
             verifyApplicationURI(client->config.certificateVerification.context,
