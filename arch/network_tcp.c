@@ -944,7 +944,8 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
 
     UA_StatusCode parse_retval =
         UA_parseEndpointUrl(&endpointUrl, &hostnameString, &port, &pathString);
-    if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
+    if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length == 0 ||
+       hostnameString.length > 511) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %.*s",
                        (int)endpointUrl.length, endpointUrl.data);

@@ -99,7 +99,9 @@ UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
  * @param endpointUrl The endpoint URL.
  * @param outHostname Set to the parsed hostname. The string points into the
  *        original endpointUrl, so no memory is allocated. If an IPv6 address is
- *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'
+ *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'. The
+ *        hostname can be empty (e.g. for a server that listens on all
+ *        interfaces). The caller has to check for that if it needs a hostname.
  * @param outPort Set to the port of the url or left unchanged.
  * @param outPath Set to the path if one is present in the endpointUrl.
  *        Starting or trailing '/' are NOT included in the path. The string

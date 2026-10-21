@@ -596,6 +596,39 @@ START_TEST(Client_notConnectedLogsRequestAndEndpoint) {
     UA_Client_delete(client);
 } END_TEST
 
+/* A client needs a hostname. The URL is rejected before the name resolution. */
+static char urlLog[512];
+
+static UA_FORMAT(4,0) void
+captureUrlLog(void *logContext, UA_LogLevel level, UA_LogCategory category,
+              const char *msg, va_list args) {
+    char buf[512];
+    vsnprintf(buf, sizeof(buf), msg, args);
+    if(strstr(buf, "Server url is invalid") || strstr(buf, "DNS lookup"))
+        snprintf(urlLog, sizeof(urlLog), "%s", buf);
+}
+
+START_TEST(Client_connectWithoutHostname) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    UA_Logger oldLogger = config->logger;
+    config->logger.log = captureUrlLog;
+    config->logger.context = NULL;
+    config->logger.clear = NULL;
+
+    urlLog[0] = 0;
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp:///127.0.0.1:4840");
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(strstr(urlLog, "Server url is invalid"), NULL);
+
+    /* A normal URL still works */
+    config->logger = oldLogger;
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_delete(client);
+} END_TEST
+
 static UA_Boolean rejectActivation;
 static UA_StatusCode
 (*originalActivateSession)(UA_Server *s, UA_AccessControl *ac,
@@ -664,6 +697,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
     tcase_add_test(tc_client, Client_notConnectedLogsRequestAndEndpoint);
+    tcase_add_test(tc_client, Client_connectWithoutHostname);
 #ifdef UA_ARCHITECTURE_POSIX
     tcase_add_test(tc_client, Client_connectWithoutSelectableDescriptor);
     tcase_add_test(tc_client, Server_acceptWithoutSelectableDescriptor);
