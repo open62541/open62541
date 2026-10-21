@@ -45,9 +45,14 @@ key takes precedence if both are given.
 
 Keys in namespace zero are reserved for the plugin. `UA_CertificateGroup_Memorystore`
 and `UA_CertificateGroup_Filestore` now fail with `BadInvalidArgument` for an
-unknown namespace zero key and with `BadTypeMismatch` if a known key does not
-hold a `UInt32` scalar. Before, such parameters were silently ignored. Keys in
-other namespaces are still ignored.
+unknown namespace zero key and fail if a known key does not hold a `UInt32`
+scalar. Before, such parameters were silently ignored. Keys in other namespaces are still ignored.
+
+The validation is done with the new public `UA_KeyValueMap_validate` in
+`open62541/util.h`, which plugins can use to check their parameters against an
+array of `UA_KeyValueRestriction` (previously internal to the EventLoop
+implementations). With `rejectUnknown` set, it fails for unknown keys in
+namespace zero.
 
 ### Session and subscription diagnostics are named in the server namespace
 
