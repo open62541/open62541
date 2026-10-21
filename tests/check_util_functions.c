@@ -5,6 +5,7 @@
 #include <open62541/types.h>
 #include <open62541/util.h>
 #include <open62541/types_generated.h>
+#include <stdlib.h>
 #include <check.h>
 
 /* === Random seed deterministic === */

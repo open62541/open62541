@@ -4,6 +4,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <stdlib.h>
 
 #include "check.h"
 #include "namespace_tests_adi_generated.h"

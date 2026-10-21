@@ -1161,6 +1161,70 @@ START_TEST(Server_HistorizingRandomIndexBackend)
 }
 END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+static size_t constructorAllocation;
+static void *(*constructorCalloc)(size_t, size_t);
+
+static void *
+failConstructorCalloc(size_t count, size_t size) {
+    if(--constructorAllocation == 0)
+        return NULL;
+    return constructorCalloc(count, size);
+}
+
+START_TEST(History_constructors_allocationFailure) {
+    constructorCalloc = UA_callocSingleton;
+    constructorAllocation = (_i == 1 || _i == 3) ? 2 : 1;
+    UA_callocSingleton = failConstructorCalloc;
+    void *context;
+    if(_i < 2) {
+        UA_HistoryDataGathering result = UA_HistoryDataGathering_Default(1);
+        context = result.context;
+    } else if(_i < 4) {
+        UA_HistoryDataBackend result = UA_HistoryDataBackend_Memory(1, 1);
+        context = result.context;
+    } else {
+        UA_HistoryDataGathering gatheringConfig;
+        memset(&gatheringConfig, 0, sizeof(gatheringConfig));
+        UA_HistoryDatabase result = UA_HistoryDatabase_default(gatheringConfig);
+        context = result.context;
+    }
+    UA_callocSingleton = constructorCalloc;
+    ck_assert_uint_eq(constructorAllocation, 0);
+    ck_assert_ptr_eq(context, NULL);
+} END_TEST
+
+START_TEST(History_store_allocationFailure) {
+    UA_Server *historyServer = UA_Server_newForUnitTest();
+    UA_HistoryDataBackend backend = (_i == 1) ?
+        UA_HistoryDataBackend_Memory_Circular(1, 4) : UA_HistoryDataBackend_Memory(1, 4);
+    ck_assert_ptr_ne(backend.context, NULL);
+    UA_NodeId node = UA_NODEID_NUMERIC(1, 42);
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.hasSourceTimestamp = true;
+    value.sourceTimestamp = 1;
+    ck_assert_uint_eq(backend.serverSetHistoryData(historyServer, backend.context,
+        NULL, NULL, &node, true, &value), UA_STATUSCODE_GOOD);
+
+    constructorCalloc = UA_callocSingleton;
+    constructorAllocation = 1;
+    UA_callocSingleton = failConstructorCalloc;
+    value.sourceTimestamp = 2;
+    UA_StatusCode res = (_i == 2) ?
+        backend.insertDataValue(historyServer, backend.context, NULL, NULL, &node, &value) :
+        backend.serverSetHistoryData(historyServer, backend.context, NULL, NULL,
+                                     &node, true, &value);
+    UA_callocSingleton = constructorCalloc;
+    size_t end = backend.getEnd(historyServer, backend.context, NULL, NULL, &node);
+    backend.deleteMembers(&backend);
+    UA_Server_delete(historyServer);
+    ck_assert_uint_eq(constructorAllocation, 0);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(end, 1);
+} END_TEST
+#endif
+
 static Suite *
 testSuite_Client(void) {
     Suite *s = suite_create("Server Historical Data");
@@ -1179,6 +1243,11 @@ testSuite_Client(void) {
     suite_add_tcase(s, tc_server);
 
 #ifdef UA_ENABLE_MALLOC_SINGLETON
+    TCase *tc_constructors = tcase_create("History constructor allocation failures");
+    tcase_add_loop_test(tc_constructors, History_constructors_allocationFailure, 0, 5);
+    tcase_add_loop_test(tc_constructors, History_store_allocationFailure, 0, 3);
+    suite_add_tcase(s, tc_constructors);
+
     TCase *tc_oom = tcase_create("Server Historical Data Out Of Memory");
     tcase_add_checked_fixture(tc_oom, setup, teardown);
     tcase_add_test(tc_oom, Server_HistorizingReadHistoryDataOutOfMemory);

@@ -12,6 +12,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <stdlib.h>
 
 #include "test_helpers.h"
 #include "certificates.h"

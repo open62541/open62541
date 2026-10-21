@@ -44,6 +44,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/nodesetloader.h>
+#include <stdlib.h>
 
 #include "check.h"
 #include "testing_clock.h"
