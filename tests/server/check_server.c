@@ -79,6 +79,107 @@ START_TEST(checkServer_run) {
     ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
 } END_TEST
 
+static UA_Server *
+newServerWithMaxReferences(UA_UInt32 maxReferencesPerNode) {
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
+    UA_StatusCode res = UA_ServerConfig_setDefault(&config);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    config.maxReferencesPerNode = maxReferencesPerNode;
+    return UA_Server_newWithConfig(&config);
+}
+
+/* Browsing is paginated for a low limit. The internal lookups during startup
+ * and node instantiation must not run out of continuation points. */
+START_TEST(checkLowMaxReferencesPerNode) {
+    UA_UInt32 caps[] = {1, 2, 10};
+    for(size_t i = 0; i < 3; i++) {
+        UA_Server *s = newServerWithMaxReferences(caps[i]);
+        ck_assert_ptr_ne(s, NULL);
+        ck_assert_uint_eq(s->adminSession.availableContinuationPoints,
+                          UA_MAXCONTINUATIONPOINTS);
+        UA_Server_delete(s);
+    }
+} END_TEST
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+START_TEST(checkInstantiateWithLowMaxReferencesPerNode) {
+    UA_Server *s = newServerWithMaxReferences(1);
+    ck_assert_ptr_ne(s, NULL);
+
+    /* A type with several mandatory children */
+    UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("", "ManyChildrenType");
+    UA_StatusCode res =
+        UA_Server_addObjectTypeNode(s, UA_NODEID_NUMERIC(1, 6000),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                    UA_QUALIFIEDNAME(1, "ManyChildrenType"),
+                                    otAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    const size_t childCount = 4;
+    for(UA_UInt32 i = 0; i < childCount; i++) {
+        char name[16];
+        snprintf(name, sizeof(name), "Child%u", (unsigned)i);
+        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+        oAttr.displayName = UA_LOCALIZEDTEXT("", name);
+        res = UA_Server_addObjectNode(s, UA_NODEID_NUMERIC(1, 6001 + i),
+                                      UA_NODEID_NUMERIC(1, 6000),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                      UA_QUALIFIEDNAME(1, name),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                      oAttr, NULL, NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        res = UA_Server_addReference(s, UA_NODEID_NUMERIC(1, 6001 + i),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY),
+                                     true);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+
+    /* Instantiate the type */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("", "Instance");
+    UA_NodeId instanceId;
+    res = UA_Server_addObjectNode(s, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "Instance"),
+                                  UA_NODEID_NUMERIC(1, 6000), oAttr, NULL, &instanceId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* All children have been copied */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = instanceId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.resultMask = UA_BROWSERESULTMASK_NONE;
+    UA_BrowseResult br = UA_Server_browse(s, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    size_t found = br.referencesSize;
+    while(br.continuationPoint.length > 0) {
+        UA_ByteString cp = br.continuationPoint;
+        UA_ByteString_init(&br.continuationPoint);
+        UA_BrowseResult_clear(&br);
+        br = UA_Server_browseNext(s, false, &cp);
+        ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+        found += br.referencesSize;
+        UA_ByteString_clear(&cp);
+    }
+    UA_BrowseResult_clear(&br);
+    ck_assert_uint_eq(found, childCount);
+
+    /* No continuation point is leaked */
+    ck_assert_uint_eq(s->adminSession.availableContinuationPoints,
+                      UA_MAXCONTINUATIONPOINTS);
+
+    UA_NodeId_clear(&instanceId);
+    UA_Server_delete(s);
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s = suite_create("server");
 
@@ -88,6 +189,10 @@ int main(void) {
     tcase_add_test(tc_call, checkGetNamespaceByName);
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
+    tcase_add_test(tc_call, checkLowMaxReferencesPerNode);
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    tcase_add_test(tc_call, checkInstantiateWithLowMaxReferencesPerNode);
+#endif
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);
