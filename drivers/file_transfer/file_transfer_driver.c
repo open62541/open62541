@@ -195,12 +195,14 @@ configureDriver(FileTransferDriver *ftd) {
         driverParam(ftd, "max-nodes", &UA_TYPES[UA_TYPES_UINT32], &res);
     if(maxNodes)
         ftd->config.maxNodes = *maxNodes;
+    /* New entries use the namespace of the root, but never Namespace Zero */
+    ftd->config.namespaceIndex = ftd->root->nodeId.namespaceIndex;
+    if(ftd->config.namespaceIndex == 0)
+        ftd->config.namespaceIndex = 1;
     const UA_UInt16 *ns = (const UA_UInt16*)
         driverParam(ftd, "namespace-index", &UA_TYPES[UA_TYPES_UINT16], &res);
     if(ns)
         ftd->config.namespaceIndex = *ns;
-    else if(ftd->root->kind == FT_ENTRY_TEMPORARY)
-        ftd->config.namespaceIndex = ftd->root->nodeId.namespaceIndex; /* Not ns0 */
     ftd->config.refreshInterval = 1000;
     const UA_Double *interval = (const UA_Double*)
         driverParam(ftd, "refresh-interval", &UA_TYPES[UA_TYPES_DOUBLE], &res);
