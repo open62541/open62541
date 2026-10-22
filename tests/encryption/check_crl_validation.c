@@ -17,6 +17,7 @@
 
 #include "test_helpers.h"
 #include "certificates.h"
+#include "certificates_crl.h"
 #include "check.h"
 #include "thread_wrapper.h"
 
@@ -216,6 +217,56 @@ static void setup3(void) {
     THREAD_CREATE(server_thread, serverloop);
 }
 
+/* The server trusts CRL_CA_CERT_DER and has the CRLs */
+static void startCrlTestServer(UA_ByteString *revocationList,
+                               size_t revocationListSize) {
+    UA_atomic_store(&running, true);
+
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_ByteString ca = {CRL_CA_CERT_DER_LENGTH, CRL_CA_CERT_DER_DATA};
+
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
+                                                   &ca, 1, NULL, 0,
+                                                   revocationList, revocationListSize);
+
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri =
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
+
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+/* Test case 081: One CA and two CRLs with the same Issuer. Only one CRL is
+ * signed by the CA. The other CRL revokes a certificate of the CA that the
+ * valid CRL does not contain. */
+static void setupForgedCrl(void) {
+    UA_ByteString revocationList[2] = {
+        {CRL_CA_EMPTY_CRL_DER_LENGTH, CRL_CA_EMPTY_CRL_DER_DATA},
+        {CRL_FORGED_CRL_DER_LENGTH, CRL_FORGED_CRL_DER_DATA}};
+    startCrlTestServer(revocationList, 2);
+}
+
+/* Same as above, with the forged CRL before the valid CRL */
+static void setupForgedCrlFirst(void) {
+    UA_ByteString revocationList[2] = {
+        {CRL_FORGED_CRL_DER_LENGTH, CRL_FORGED_CRL_DER_DATA},
+        {CRL_CA_EMPTY_CRL_DER_LENGTH, CRL_CA_EMPTY_CRL_DER_DATA}};
+    startCrlTestServer(revocationList, 2);
+}
+
+/* The CRL is signed by the CA and revokes the client certificate */
+static void setupRevokingCrl(void) {
+    UA_ByteString revocationList[1] = {
+        {CRL_CA_REVOKING_CRL_DER_LENGTH, CRL_CA_REVOKING_CRL_DER_DATA}};
+    startCrlTestServer(revocationList, 1);
+}
+
 static void teardown(void) {
     UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
@@ -348,6 +399,43 @@ START_TEST(encryption_connect_issuer_revoked) {
 }
 END_TEST
 
+/* Connect with CRL_CLIENT_CERT_DER, which CRL_CA_CERT_DER issued */
+static UA_StatusCode
+connectCrlTestClient(void) {
+    UA_ByteString certificate = {CRL_CLIENT_CERT_DER_LENGTH, CRL_CLIENT_CERT_DER_DATA};
+    UA_ByteString privateKey = {CRL_CLIENT_KEY_DER_LENGTH, CRL_CLIENT_KEY_DER_DATA};
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert(client != NULL);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                         NULL, 0, NULL, 0);
+    cc->certificateVerification.clear(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    cc->securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:unconfigured:application");
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    return retval;
+}
+
+/* The forged CRL is not signed by the CA. It must not revoke the client
+ * certificate. */
+START_TEST(encryption_connect_forged_crl) {
+    ck_assert_uint_eq(connectCrlTestClient(), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(encryption_connect_crl_revoked) {
+    ck_assert_uint_eq(connectCrlTestClient(), UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Certificate Revocation List");
     TCase *tc_encryption_valid = tcase_create("Certificate Revocation Valid");
@@ -356,14 +444,27 @@ static Suite* testSuite_encryption(void) {
     tcase_add_checked_fixture(tc_encryption_revoked, setup2, teardown);
     TCase *tc_encryption_revoked2 = tcase_create("Certificate Revocation Revoked2");
     tcase_add_checked_fixture(tc_encryption_revoked2, setup3, teardown);
+    TCase *tc_encryption_forged = tcase_create("Certificate Revocation Forged CRL");
+    tcase_add_checked_fixture(tc_encryption_forged, setupForgedCrl, teardown);
+    TCase *tc_encryption_forged_first =
+        tcase_create("Certificate Revocation Forged CRL First");
+    tcase_add_checked_fixture(tc_encryption_forged_first, setupForgedCrlFirst, teardown);
+    TCase *tc_encryption_ca_revoked = tcase_create("Certificate Revocation CA CRL");
+    tcase_add_checked_fixture(tc_encryption_ca_revoked, setupRevokingCrl, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption_valid, encryption_connect_valid);
     tcase_add_test(tc_encryption_revoked, encryption_connect_revoked);
     tcase_add_test(tc_encryption_revoked2, encryption_connect_issuer_revoked);
+    tcase_add_test(tc_encryption_forged, encryption_connect_forged_crl);
+    tcase_add_test(tc_encryption_forged_first, encryption_connect_forged_crl);
+    tcase_add_test(tc_encryption_ca_revoked, encryption_connect_crl_revoked);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_valid);
     suite_add_tcase(s,tc_encryption_revoked);
     suite_add_tcase(s,tc_encryption_revoked2);
+    suite_add_tcase(s,tc_encryption_forged);
+    suite_add_tcase(s,tc_encryption_forged_first);
+    suite_add_tcase(s,tc_encryption_ca_revoked);
     return s;
 }
 

@@ -77,7 +77,25 @@ MemoryCertStore_getTrustList(UA_CertificateGroup *certGroup, UA_TrustListDataTyp
     }
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
-    return UA_TrustListDataType_copy(&context->trustList, trustList);
+    UA_TrustListDataType masked = context->trustList;
+    masked.specifiedLists = trustList->specifiedLists & UA_TRUSTLISTMASKS_ALL;
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES)) {
+        masked.trustedCertificatesSize = 0;
+        masked.trustedCertificates = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS)) {
+        masked.trustedCrlsSize = 0;
+        masked.trustedCrls = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES)) {
+        masked.issuerCertificatesSize = 0;
+        masked.issuerCertificates = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS)) {
+        masked.issuerCrlsSize = 0;
+        masked.issuerCrls = NULL;
+    }
+    return UA_TrustListDataType_copy(&masked, trustList);
 }
 
 static UA_StatusCode
@@ -476,8 +494,20 @@ openSSLCheckCA(X509 *cert) {
     return true;
 }
 
+/* A revocation list is only used if it is signed by the issuer (RFC 5280,
+ * 6.3.3). Otherwise it counts as not available. */
+static UA_Boolean
+openSSLCrlUsable(UA_CertificateGroup *cg, X509_CRL *crl, X509 *issuer) {
+    if(X509_CRL_verify(crl, X509_get0_pubkey(issuer)) == 1)
+        return true;
+    UA_LOG_WARNING(cg->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "Ignoring a revocation list that is not signed by the issuer");
+    return false;
+}
+
 static UA_StatusCode
-openSSLCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, X509 *cert) {
+openSSLCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx,
+                    X509 *cert, X509 *issuer) {
     const ASN1_INTEGER *sn = X509_get0_serialNumber(cert);
     const X509_NAME *in = X509_get_issuer_name(cert);
     int size = sk_X509_CRL_num(ctx->crls);
@@ -494,7 +524,8 @@ openSSLCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, X509 *cert) {
     for(int i = 0; i < size; i++) {
         /* The crl contains a list of serial numbers from the same issuer */
         X509_CRL *crl = sk_X509_CRL_value(ctx->crls, i);
-        if(X509_NAME_cmp(in, X509_CRL_get_issuer(crl)) != 0)
+        if(X509_NAME_cmp(in, X509_CRL_get_issuer(crl)) != 0 ||
+           !openSSLCrlUsable(cg, crl, issuer))
             continue;
         STACK_OF(X509_REVOKED) *rs = X509_CRL_get_REVOKED(crl);
         int rsize = sk_X509_REVOKED_num(rs);
@@ -558,7 +589,7 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
         }
 
         /* Verification Step: Revocation Check */
-        ret = openSSLCheckRevoked(cg, ctx, cert);
+        ret = openSSLCheckRevoked(cg, ctx, cert, issuer);
         if(depth > 0) {
             if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
                 ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
@@ -609,7 +640,8 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
 /* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
  * It defines a sequence of steps for certificate verification. */
 static UA_StatusCode
-verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                  UA_Boolean allowCa) {
     /* Check parameter */
     if(certGroup == NULL || certGroup->context == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -633,9 +665,10 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
      * Refer the test case CTT/Security/Security Certificate Validation/029.js
-     * for more details. */
+     * for more details. Only the certificates of a TrustList can be CA
+     * certificates. */
     X509 *leaf = sk_X509_value(stack, 0);
-    if(openSSLCheckCA(leaf)) {
+    if(!allowCa && openSSLCheckCA(leaf)) {
         sk_X509_pop_free(stack, X509_free);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
@@ -662,7 +695,7 @@ MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = verifyCertificate(certGroup, certificate);
+    UA_StatusCode retval = verifyCertificate(certGroup, certificate, false);
     if(retval != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -1129,6 +1162,33 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     UA_StatusCode retval = openSSLCheckCA(certificateX509) ?
         UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
     X509_free(certificateX509);
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trustList,
+                                               const UA_ByteString *certificate,
+                                               const UA_Logger *logger) {
+    if(trustList == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Load the TrustList into a temporary Memorystore */
+    UA_NodeId certificateGroupId = UA_NODEID_NULL;
+    UA_CertificateGroup certGroup;
+    memset(&certGroup, 0, sizeof(UA_CertificateGroup));
+    UA_StatusCode retval =
+        UA_CertificateGroup_Memorystore(&certGroup, &certificateGroupId,
+                                        trustList, logger, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* The Memorystore ignores certificates and CRLs that cannot be loaded */
+    retval = reloadCertificates(&certGroup);
+    if(retval == UA_STATUSCODE_BADINTERNALERROR)
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = verifyCertificate(&certGroup, certificate, true);
+    certGroup.clear(&certGroup);
     return retval;
 }
 

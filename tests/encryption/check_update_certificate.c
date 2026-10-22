@@ -340,6 +340,39 @@ START_TEST(update_certificate_noKey_invalid) {
 }
 END_TEST
 
+/* Part 12 §7.10.5: The issuers of the new certificate must be in the
+ * TrustList. The TrustList of the server is empty, so the intermediate CA
+ * that issued APPLICATION_CERT_DER is missing. Building the certificate chain
+ * fails with Bad_CertificateChainIncomplete and the endpoints keep the old
+ * certificate. */
+START_TEST(update_certificate_reject_unknown_issuer) {
+    UA_ByteString newCertificate = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    UA_ByteString newPrivateKey = {APPLICATION_KEY_DER_LENGTH, APPLICATION_KEY_DER_DATA};
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert_uint_gt(config->endpointsSize, 0);
+    UA_ByteString oldCertificate;
+    ck_assert_uint_eq(UA_ByteString_copy(&config->endpoints[0].serverCertificate,
+                                         &oldCertificate), UA_STATUSCODE_GOOD);
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, &newPrivateKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    retval = UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup,
+                                              certTypRsaSha256, newCertificate, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+
+    for(size_t i = 0; i < config->endpointsSize; i++)
+        ck_assert(UA_ByteString_equal(&config->endpoints[i].serverCertificate,
+                                      &oldCertificate));
+    UA_ByteString_clear(&oldCertificate);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Update Certificate");
     TCase *tc_cert = tcase_create("Update Certificate");
@@ -354,6 +387,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate_preflightsAllEndpoints);
     tcase_add_test(tc_cert, update_certificate_noneEndpoint);
     tcase_add_test(tc_cert, update_certificate_noKey_invalid);
+    tcase_add_test(tc_cert, update_certificate_reject_unknown_issuer);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
