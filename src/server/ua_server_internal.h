@@ -1162,6 +1162,10 @@ UA_StatusCode initNS0(UA_Server *server);
 /* Connect data sources to existing NS0 nodes */
 UA_StatusCode initNS0_dataSources(UA_Server *server);
 
+/* Write the ServerConfiguration variables that mirror the
+ * ApplicationDescription of the server config */
+UA_StatusCode writeNs0ApplicationDescription(UA_Server *server);
+
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);
 
