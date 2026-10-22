@@ -188,10 +188,16 @@ struct UA_Client {
     /* Callback ID to remove it from the EventLoop */
     UA_UInt64 houseKeepingCallbackId;
 
-    /* Reconnect backoff: re-dials since the SecureChannel was last open, and
-     * the timer of a delayed re-dial (0 if none) */
+    /* Reconnect backoff: re-dials since the client was last connected, and the
+     * timer of a delayed re-dial (0 if none). reconnectAtMax is set when the
+     * pending or running re-dial waited the maximum interval. reconnectLost is
+     * set when a fully connected client lost its connection. reconnectStatus is
+     * the reason the last connection attempt closed. */
     UA_UInt32 reconnectAttempts;
     UA_UInt64 reconnectCallbackId;
+    UA_Boolean reconnectAtMax;
+    UA_Boolean reconnectLost;
+    UA_StatusCode reconnectStatus;
 
     /* Overall connection status */
     UA_StatusCode connectStatus;
