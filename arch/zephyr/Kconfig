@@ -69,6 +69,7 @@ config OPEN62541_ENABLE_ENCRYPTION_MBEDTLS
         Enable encryption support with mbedTLS (UA_ENABLE_ENCRYPTION=MBEDTLS).
         With MBEDTLS_BUILTIN the library is built against the mbedTLS of the
         Zephyr build.
+rsource "Kconfig.mbedtls"
 config OPEN62541_ENABLE_QUERY
     bool "Enable query"
     default n
