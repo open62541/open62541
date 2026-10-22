@@ -15,6 +15,8 @@ LOG_MODULE_REGISTER(open62541_test, LOG_LEVEL_DBG);
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
+#include <stdlib.h>
+
 int main(void) {
   k_sleep(K_MSEC(1000));
   struct net_if *iface = net_if_get_default();

@@ -132,8 +132,9 @@ clearSubscriptionsMonitoredItemDeleteHandler(UA_Client *client,
 
 static UA_Client *
 newConnectedClient(void) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    /* Use the same fake clock as the server and the Valgrind-safe timeout. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert(client != NULL);
     ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
                       UA_STATUSCODE_GOOD);
     return client;

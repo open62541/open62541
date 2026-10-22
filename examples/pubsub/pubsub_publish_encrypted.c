@@ -7,6 +7,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
+#include <stdlib.h>
 #include <stdio.h>
 
 #define UA_AES128CTR_SIGNING_KEY_LENGTH 32
