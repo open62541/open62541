@@ -992,7 +992,10 @@ UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
  * connections to the same broker in the background. Hence adding multiple
  * connections for the same broker is "cheap". To have individual control,
  * separate connections are created for each topic and for each direction
- * (publishing / subscribing).
+ * (publishing / subscribing). Publishers become established after CONNACK;
+ * subscribers become established after SUBACK. TLS in the native manager
+ * requires the Mbed TLS encryption backend (3.6.0 or newer) and an explicit CA.
+ * Unsupported TLS configurations fail instead of falling back to plaintext.
  *
  * **Open Connection Parameters:**
  *
@@ -1000,7 +1003,10 @@ UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
  *    Hostname or IPv4/v6 address of the MQTT broker (required).
  *
  * 0:port [uint16]
- *    Port of the MQTT broker (default: 1883).
+ *    Port of the MQTT broker (default: 1883, or 8883 with TLS).
+ *
+ * 0:client-id [string]
+ *    MQTT client identifier (default: broker-assigned, clean session).
  *
  * 0:username [string]
  *    Username to use (default: none)
@@ -1012,18 +1018,23 @@ UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
  *    Encrypt the broker connection with TLS (default: false).
  *
  * 0:certificate [bytestring]
- *    DER or PEM encoded client certificate for mutual TLS.
+ *    DER or PEM encoded client certificate for mutual TLS (LWS only).
  *
  * 0:private-key [bytestring]
- *    DER or PEM encoded private key for ``certificate``.
+ *    DER or PEM encoded private key for ``certificate`` (LWS only).
  *
  * 0:private-key-password [string]
- *    Password for an encrypted private key.
+ *    Password for an encrypted private key (LWS only).
  *
  * 0:ca-certificate [bytestring]
- *    DER or PEM encoded CA certificate used to validate the broker
- *    certificate. If omitted, the system trust store is used. The broker
- *    certificate and hostname are always validated for TLS connections.
+ *    The native manager requires this parameter or ``ca-file-path`` for TLS.
+ *    Provide a DER or PEM encoded CA certificate to validate the broker.
+ *    Only the LWS manager uses the system trust store when this is omitted.
+ *    The broker certificate and hostname are always validated for TLS.
+ *
+ * 0:ca-file-path [string]
+ *    CA certificate file (PEM or DER) for the native Mbed TLS manager.
+ *    Requires Mbed TLS filesystem support. ``ca-certificate`` takes precedence.
  *
  * 0:keep-alive [uint16]
  *   Number of seconds for the keep-alive (ping) (default: 400).

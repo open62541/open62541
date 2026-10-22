@@ -14,6 +14,12 @@
 
 #include "../../deps/open62541_queue.h"
 #include <limits.h>
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include <mbedtls/version.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/x509_crt.h>
+#include <psa/crypto.h>
+#endif
 
 #if defined(_MSC_VER)
 # include <BaseTsd.h>
@@ -71,20 +77,23 @@ static ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t buf
 #include "../../deps/mqtt-c/src/mqtt.c"
 
 #define MQTT_MESSAGE_MAXLEN (1u << 20) /* 1MB */
-#define MQTT_PARAMETERSSIZE 8
-#define MQTT_BROKERPARAMETERSSIZE 5 /* Parameters shared by topic connections
+#define MQTT_BROKERPARAMETERSSIZE 9 /* Parameters shared by topic connections
                                      * connected to the same broker */
 
 static const struct {
     UA_QualifiedName name;
     const UA_DataType *type;
     UA_Boolean required;
-} MQTTConnectionParameters[MQTT_PARAMETERSSIZE] = {
+} MQTTConnectionParameters[] = {
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], true},
     {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], false},
     {{0, UA_STRING_STATIC("keep-alive")}, &UA_TYPES[UA_TYPES_UINT16], false},
     {{0, UA_STRING_STATIC("username")}, &UA_TYPES[UA_TYPES_STRING], false},
     {{0, UA_STRING_STATIC("password")}, &UA_TYPES[UA_TYPES_STRING], false},
+    {{0, UA_STRING_STATIC("client-id")}, &UA_TYPES[UA_TYPES_STRING], false},
+    {{0, UA_STRING_STATIC("useSSL")}, &UA_TYPES[UA_TYPES_BOOLEAN], false},
+    {{0, UA_STRING_STATIC("ca-file-path")}, &UA_TYPES[UA_TYPES_STRING], false},
+    {{0, UA_STRING_STATIC("ca-certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false},
     {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false},
     {{0, UA_STRING_STATIC("subscribe")}, &UA_TYPES[UA_TYPES_BOOLEAN], false},
     {{0, UA_STRING_STATIC("topic")}, &UA_TYPES[UA_TYPES_STRING], true}
@@ -103,6 +112,16 @@ struct MQTTBrokerConnection {
     uintptr_t tcpConnectionId;
     UA_ConnectionState tcpConnectionState;
     struct mqtt_client client;
+    UA_Boolean connected;
+    UA_Boolean useTLS;
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_config sslConfig;
+    mbedtls_x509_crt ca;
+    UA_ByteString tlsInput;
+    size_t tlsInputOffset;
+    UA_Boolean tlsReady;
+#endif
 
     UA_DateTime lastSendTime; /* When was the last packet sent out? */
     UA_UInt16 keepalive;      /* Seconds between keepalives */
@@ -131,6 +150,7 @@ struct MQTTTopicConnection {
 
     UA_String topic;      /* Name of the topic */
     UA_Boolean subscribe; /* Subscribe or publish? */
+    uint16_t subscriptionId;
 
     /* Backpointer to the broker; NULL after topic removal */
     MQTTBrokerConnection *brokerConnection;
@@ -153,8 +173,8 @@ struct MQTTConnectionManager {
 };
 
 /* Send via the underlying TCP connection */
-ssize_t
-mqtt_pal_sendall(MQTTBrokerConnection *bc, const void* buf, size_t len, int flags) {
+static ssize_t
+MQTT_sendTCP(MQTTBrokerConnection *bc, const void* buf, size_t len) {
     if(bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED)
         return MQTT_ERROR_SOCKET_ERROR;
 
@@ -172,6 +192,118 @@ mqtt_pal_sendall(MQTTBrokerConnection *bc, const void* buf, size_t len, int flag
 
     bc->lastSendTime = UA_DateTime_nowMonotonic();
     return (ssize_t)len;
+}
+
+static char *
+MQTT_stringParameter(const UA_KeyValueMap *params, const char *name) {
+    const UA_String *value = (const UA_String*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, (char*)(uintptr_t)name), &UA_TYPES[UA_TYPES_STRING]);
+    if(!value)
+        return NULL;
+    char *str = (char*)UA_malloc(value->length + 1);
+    if(str) {
+        memcpy(str, value->data, value->length);
+        str[value->length] = 0;
+    }
+    return str;
+}
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+static int
+MQTT_tlsSend(void *context, const unsigned char *buf, size_t len) {
+    ssize_t ret = MQTT_sendTCP((MQTTBrokerConnection*)context, buf, len);
+    return ret < 0 ? MBEDTLS_ERR_SSL_INTERNAL_ERROR : (int)ret;
+}
+
+static int
+MQTT_tlsRecv(void *context, unsigned char *buf, size_t len) {
+    MQTTBrokerConnection *bc = (MQTTBrokerConnection*)context;
+    size_t available = bc->tlsInput.length - bc->tlsInputOffset;
+    if(available == 0)
+        return MBEDTLS_ERR_SSL_WANT_READ;
+    if(len > available)
+        len = available;
+    memcpy(buf, bc->tlsInput.data + bc->tlsInputOffset, len);
+    bc->tlsInputOffset += len;
+    return (int)len;
+}
+
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+static int
+MQTT_tlsRandom(void *context, unsigned char *buf, size_t len) {
+    (void)context;
+    return psa_generate_random(buf, len) == PSA_SUCCESS ? 0 : MBEDTLS_ERR_SSL_INTERNAL_ERROR;
+}
+#endif
+
+static UA_StatusCode
+MQTT_initTLS(MQTTBrokerConnection *bc) {
+    mbedtls_ssl_init(&bc->ssl);
+    mbedtls_ssl_config_init(&bc->sslConfig);
+    mbedtls_x509_crt_init(&bc->ca);
+    if(psa_crypto_init() != PSA_SUCCESS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    char *hostname = MQTT_stringParameter(&bc->params, "address");
+    char *caPath = MQTT_stringParameter(&bc->params, "ca-file-path");
+    const UA_ByteString *ca = (const UA_ByteString*)UA_KeyValueMap_getScalar(
+        &bc->params, UA_QUALIFIEDNAME(0, "ca-certificate"), &UA_TYPES[UA_TYPES_BYTESTRING]);
+    int ret = -1;
+    if(ca && ca->length) {
+        /* PEM parsing requires a terminating zero, DER does not. */
+        UA_Byte *data = (UA_Byte*)UA_calloc(ca->length + 1, 1);
+        if(data) {
+            memcpy(data, ca->data, ca->length);
+            size_t len = ca->length;
+            if(strstr((const char*)data, "-----BEGIN CERTIFICATE-----"))
+                len++;
+            ret = mbedtls_x509_crt_parse(&bc->ca, data, len);
+            UA_free(data);
+        }
+    } else if(caPath) {
+#if defined(MBEDTLS_FS_IO)
+        ret = mbedtls_x509_crt_parse_file(&bc->ca, caPath);
+#endif
+    }
+    UA_free(caPath);
+    if(!hostname)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(ret == 0 && hostname) {
+        ret = mbedtls_ssl_config_defaults(&bc->sslConfig, MBEDTLS_SSL_IS_CLIENT,
+                                         MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
+        if(ret == 0) {
+            mbedtls_ssl_conf_authmode(&bc->sslConfig, MBEDTLS_SSL_VERIFY_REQUIRED);
+            mbedtls_ssl_conf_ca_chain(&bc->sslConfig, &bc->ca, NULL);
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+            mbedtls_ssl_conf_rng(&bc->sslConfig, MQTT_tlsRandom, NULL);
+#endif
+            ret = mbedtls_ssl_setup(&bc->ssl, &bc->sslConfig);
+        }
+        if(ret == 0)
+            ret = mbedtls_ssl_set_hostname(&bc->ssl, hostname);
+        mbedtls_ssl_set_bio(&bc->ssl, bc, MQTT_tlsSend, MQTT_tlsRecv, NULL);
+    }
+    UA_free(hostname);
+    return ret == 0 ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+}
+#endif
+
+ssize_t
+mqtt_pal_sendall(MQTTBrokerConnection *bc, const void *buf, size_t len, int flags) {
+    (void)flags;
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    if(bc->useTLS) {
+        if(!bc->tlsReady || bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED)
+            return MQTT_ERROR_SOCKET_ERROR;
+        int ret;
+        do {
+            ret = mbedtls_ssl_write(&bc->ssl, (const unsigned char*)buf, len);
+        } while(ret == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET);
+        if(ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+            return 0;
+        return ret < 0 ? MQTT_ERROR_SOCKET_ERROR : ret;
+    }
+#endif
+    return MQTT_sendTCP(bc, buf, len);
 }
 
 /* Always return zero. The received messages are "manually" added to the buffer.
@@ -222,15 +354,8 @@ shutdownBrokerConnection(MQTTBrokerConnection *bc) {
                  "MQTT-TCP %u\t| Closing the broker connection",
                  (unsigned)bc->tcpConnectionId);
 
-    /* Shutdown and delete all associated topic connections. We immediately send
-     * the DISCONNECT and clear up the topic connections without sending an
-     * explicit unsubscribe.
-     *
-     * while(bc->topicConnections)
-     *     removeTopicConnection(bc->topicConnections); */
-
     /* Send the DISCONNECT packet */
-    if(bc->tcpConnectionState == UA_CONNECTIONSTATE_ESTABLISHED) {
+    if(bc->connected && bc->tcpConnectionState == UA_CONNECTIONSTATE_ESTABLISHED) {
         mqtt_disconnect(&bc->client);
         __mqtt_send(&bc->client);
     }
@@ -365,6 +490,12 @@ removeBrokerConnectionDelayed(void *application, void *context) {
         removeTopicConnection(tc);
     }
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    mbedtls_ssl_free(&bc->ssl);
+    mbedtls_ssl_config_free(&bc->sslConfig);
+    mbedtls_x509_crt_free(&bc->ca);
+    UA_ByteString_clear(&bc->tlsInput);
+#endif
     UA_KeyValueMap_clear(&bc->params);
     UA_free(bc->client.recv_buffer.mem_start);
     UA_free(bc->client.mq.mem_start);
@@ -442,15 +573,58 @@ static void
 MQTTKeepAliveCallback(void *app, void *context) {
     (void)app;
     MQTTBrokerConnection *bc = (MQTTBrokerConnection*)context;
-    if(bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED)
+    if(!bc->connected || bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED)
         return;
     mqtt_ping(&bc->client);
     __mqtt_send(&bc->client);
 }
 
 static void
+MQTT_acknowledgeTopics(MQTTBrokerConnection *bc) {
+    if(!bc->connected || bc->client.error != MQTT_OK ||
+       bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED)
+        return;
+    MQTTTopicConnection *tc;
+    LIST_FOREACH(tc, &bc->topicConnections, next) {
+        if(tc->topicConnectionState != UA_CONNECTIONSTATE_OPENING)
+            continue;
+        if(tc->subscribe) {
+            if(!tc->subscriptionId)
+                continue;
+            struct mqtt_queued_message *message = mqtt_mq_find(
+                &bc->client.mq, MQTT_CONTROL_SUBSCRIBE, &tc->subscriptionId);
+            /* Completed entries may already be compacted by an application send. */
+            if(message && message->state != MQTT_QUEUED_COMPLETE)
+                continue;
+        }
+        tc->topicConnectionState = UA_CONNECTIONSTATE_ESTABLISHED;
+        tc->callback(&bc->mcm->cm, tc->topicConnectionId, tc->application, &tc->context,
+                     UA_CONNECTIONSTATE_ESTABLISHED, &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        if(bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED)
+            break;
+    }
+}
+
+static enum MQTTErrors
+MQTT_subscribeTopics(MQTTBrokerConnection *bc) {
+    MQTTTopicConnection *tc;
+    LIST_FOREACH(tc, &bc->topicConnections, next) {
+        if(tc->topicConnectionState != UA_CONNECTIONSTATE_OPENING ||
+           !tc->subscribe || tc->subscriptionId)
+            continue;
+        enum MQTTErrors err = mqtt_subscribe(&bc->client, (const char*)tc->topic.data, 0);
+        if(err != MQTT_OK)
+            return err;
+        tc->subscriptionId = bc->client.mq.queue_tail->packet_id;
+    }
+    return MQTT_OK;
+}
+
+static void
 MQTTPublishResponseCallback(void** state, struct mqtt_response_publish *publish) {
     MQTTBrokerConnection *bc = *(MQTTBrokerConnection**)state;
+
+    MQTT_acknowledgeTopics(bc);
 
     /* Find matching TopicConnection */
     UA_String topic = {publish->topic_name_size,
@@ -470,24 +644,14 @@ MQTTPublishResponseCallback(void** state, struct mqtt_response_publish *publish)
     /* Notify all matching topic connections */
     MQTTTopicConnection *tc;
     LIST_FOREACH(tc, &bc->topicConnections, next) {
-        if(!tc->subscribe || !UA_String_equal(&topic, &tc->topic))
+        if(!tc->subscribe || tc->topicConnectionState != UA_CONNECTIONSTATE_ESTABLISHED ||
+           bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED ||
+           !UA_String_equal(&topic, &tc->topic))
             continue;
 
         UA_LOG_DEBUG(tc->brokerConnection->mcm->cm.eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_NETWORK, "MQTT %u\t| Received a message of "
                      "%u bytes", (unsigned)tc->topicConnectionId, (unsigned)msg.length);
-
-        /* Notify the application that the connection is now established. The
-         * only way to know about this is to receive the first message for the
-         * topic (MQTT-C receives a SUBACK message but does not forward that
-         * information). */
-        if(tc->topicConnectionState != UA_CONNECTIONSTATE_ESTABLISHED) {
-            tc->topicConnectionState = UA_CONNECTIONSTATE_ESTABLISHED;
-            tc->callback(&bc->mcm->cm, tc->topicConnectionId,
-                         tc->application, &tc->context,
-                         UA_CONNECTIONSTATE_ESTABLISHED, &kvm,
-                         UA_BYTESTRING_NULL);
-        }
 
         /* Forward the received message */
         tc->callback(&bc->mcm->cm, tc->topicConnectionId, tc->application,
@@ -495,130 +659,147 @@ MQTTPublishResponseCallback(void** state, struct mqtt_response_publish *publish)
     }
 }
 
-static void
-MQTTNetworkCallback(UA_ConnectionManager *tcpCM, uintptr_t connectionId,
-                    void *application, void **connectionContext, UA_ConnectionState state,
-                    const UA_KeyValueMap *params, UA_ByteString msg) {
-    MQTTBrokerConnection *bc = *(MQTTBrokerConnection**)connectionContext;
-    MQTTConnectionManager *mcm = bc->mcm;
-    UA_assert(bc);
-
-    /* Set the new TCP state */
-    UA_ConnectionState oldState = bc->tcpConnectionState;
-    bc->tcpConnectionState = state;
-
-    /* The first callback. Initialize the bc. */
-    if(oldState == UA_CONNECTIONSTATE_CLOSED) {
-        /* Store the tcp connection id */
-        bc->tcpConnectionId = connectionId;
-
-        /* Set the context pointer for the mqtt client */
-        bc->client.publish_response_callback_state = bc;
+static enum MQTTErrors
+MQTT_connect(MQTTBrokerConnection *bc) {
+    uint8_t *sendBuf = (uint8_t*)UA_calloc(1, 4096);
+    uint8_t *recvBuf = (uint8_t*)UA_calloc(1, 4096);
+    if(!sendBuf || !recvBuf) {
+        UA_free(sendBuf);
+        UA_free(recvBuf);
+        return MQTT_ERROR_SOCKET_ERROR;
     }
+    mqtt_init(&bc->client, bc, sendBuf, 4096, recvBuf, 4096, MQTTPublishResponseCallback);
+    bc->client.publish_response_callback_state = bc;
+    char *clientId = MQTT_stringParameter(&bc->params, "client-id");
+    char *username = MQTT_stringParameter(&bc->params, "username");
+    char *password = MQTT_stringParameter(&bc->params, "password");
+    enum MQTTErrors ret = MQTT_ERROR_SOCKET_ERROR;
+    if((clientId || !UA_KeyValueMap_contains(&bc->params, UA_QUALIFIEDNAME(0, "client-id"))) &&
+       (username || !UA_KeyValueMap_contains(&bc->params, UA_QUALIFIEDNAME(0, "username"))) &&
+       (password || !UA_KeyValueMap_contains(&bc->params, UA_QUALIFIEDNAME(0, "password"))))
+        ret = mqtt_connect(&bc->client, clientId, NULL, NULL, 0, username, password,
+                           MQTT_CONNECT_CLEAN_SESSION, bc->keepalive);
+    UA_free(clientId);
+    UA_free(username);
+    UA_free(password);
+    return ret == MQTT_OK ? (enum MQTTErrors)__mqtt_send(&bc->client) : ret;
+}
 
-    UA_LOG_DEBUG(bc->mcm->cm.eventSource.eventLoop->logger,
-                 UA_LOGCATEGORY_NETWORK, "MQTT-TCP %u\t| Network callback",
-                 (unsigned)bc->tcpConnectionId);
-
-    /* TCP Connection is closing. Clean up all the topic connections as well.
-     * Reconnecting must be handled on the application level. */
-    if(state == UA_CONNECTIONSTATE_CLOSING || state == UA_CONNECTIONSTATE_CLOSED) {
-        removeBrokerConnection(bc);
-        return;
-    }
-
-    /* The connection has fully opened for the first time. Connect the MQTT client. */
-    if(state == UA_CONNECTIONSTATE_ESTABLISHED &&
-       oldState != UA_CONNECTIONSTATE_ESTABLISHED) {
-        /* Initialize the MQTT client with two fully allocated buffers. */
-        uint8_t *send_buf = (uint8_t*)UA_calloc(1, 1024);
-        uint8_t *recv_buf = (uint8_t*)UA_calloc(1, 1024);
-        if(!send_buf || !recv_buf) {
-            UA_free(send_buf);
-            UA_free(recv_buf);
-            bc->tcpConnectionState = UA_CONNECTIONSTATE_OPENING;
-            shutdownBrokerConnection(bc);
-            return;
-        }
-        mqtt_init(&bc->client, bc, send_buf, 1024,
-                  recv_buf, 1024, MQTTPublishResponseCallback);
-
-        /* Queue the connect message with the configured keep-alive value. */
-        enum MQTTErrors err = mqtt_connect(&bc->client, NULL, NULL, NULL, 0,
-                                           NULL, NULL, MQTT_CONNECT_CLEAN_SESSION,
-                                           (uint16_t)bc->keepalive);
-        if(err != MQTT_OK) {
-            bc->tcpConnectionState = UA_CONNECTIONSTATE_OPENING; /* avoid sending DISCONNECT */
-            shutdownBrokerConnection(bc);
-            return;
-        }
-
-        /* Handle topic connections already registered on the opening broker
-         * connection */
-        MQTTTopicConnection *tc, *tc_tmp;
-        LIST_FOREACH_SAFE(tc, &bc->topicConnections, next, tc_tmp) {
-            if(tc->subscribe) {
-                /* Subscribe-connections call mqtt_subscribe but wait until the
-                 * first received message to signal that they successfully
-                 * opened */
-                err = mqtt_subscribe(&bc->client, (const char*)tc->topic.data, 0);
-                if(err == MQTT_OK)
-                    err = (enum MQTTErrors)__mqtt_send(&bc->client);
-                if(err != MQTT_OK) {
-                    UA_Boolean last = (tc == LIST_FIRST(&bc->topicConnections) &&
-                                       LIST_NEXT(tc, next) == NULL);
-                    removeTopicConnection(tc);
-                    if(last)
-                        return;
-                    continue;
-                }
-                UA_LOG_INFO(bc->mcm->cm.eventSource.eventLoop->logger,
-                            UA_LOGCATEGORY_NETWORK, "MQTT %u\t| Created connection "
-                            "subscribed on topic \"%s\"",
-                            (unsigned)tc->topicConnectionId, (char*)tc->topic.data);
-            } else {
-                /* Publish-connections are signaling their state to the
-                 * application immediately with a callback */
-                UA_LOG_INFO(bc->mcm->cm.eventSource.eventLoop->logger,
-                            UA_LOGCATEGORY_NETWORK, "MQTT %u\t| Created connection "
-                            "publishing on topic \"%s\"",
-                            (unsigned)tc->topicConnectionId, (char*)tc->topic.data);
-                tc->topicConnectionState = UA_CONNECTIONSTATE_ESTABLISHED;
-                tc->callback(&mcm->cm, tc->topicConnectionId, tc->application, &tc->context,
-                             tc->topicConnectionState, &UA_KEYVALUEMAP_NULL,
-                             UA_BYTESTRING_NULL);
-            }
-        }
-    }
-
-    /* No message to process? */
-    if(msg.length == 0)
-        return;
-
-    /* Append the received message to the receive buffer. Increase the recv
-     * buffer if necessary. */
-    if(bc->client.recv_buffer.curr_sz < msg.length) {
-        if(bc->client.recv_buffer.mem_size + msg.length > MQTT_MESSAGE_MAXLEN)
-            return;
-        uint8_t *mem = (uint8_t*)
-            UA_realloc(bc->client.recv_buffer.mem_start,
-                       bc->client.recv_buffer.mem_size + msg.length);
+static enum MQTTErrors
+MQTT_receive(MQTTBrokerConnection *bc, UA_ByteString msg) {
+    /* MQTT-C rejects incomplete packets that fill the receive buffer. */
+    if(bc->client.recv_buffer.curr_sz <= msg.length) {
+        size_t used = bc->client.recv_buffer.mem_size - bc->client.recv_buffer.curr_sz;
+        if(msg.length > MQTT_MESSAGE_MAXLEN - used)
+            return MQTT_ERROR_SOCKET_ERROR;
+        size_t size = bc->client.recv_buffer.mem_size + msg.length;
+        if(size > MQTT_MESSAGE_MAXLEN)
+            size = MQTT_MESSAGE_MAXLEN;
+        uint8_t *mem = (uint8_t*)UA_realloc(bc->client.recv_buffer.mem_start, size);
         if(!mem)
-            return;
-        size_t prev_len = bc->client.recv_buffer.mem_size - bc->client.recv_buffer.curr_sz;
+            return MQTT_ERROR_SOCKET_ERROR;
         bc->client.recv_buffer.mem_start = mem;
-        bc->client.recv_buffer.mem_size += msg.length;
-        bc->client.recv_buffer.curr = &mem[prev_len];
-        bc->client.recv_buffer.curr_sz += msg.length;
+        bc->client.recv_buffer.mem_size = size;
+        bc->client.recv_buffer.curr = &mem[used];
+        bc->client.recv_buffer.curr_sz = size - used;
     }
     memcpy(bc->client.recv_buffer.curr, msg.data, msg.length);
     bc->client.recv_buffer.curr += msg.length;
     bc->client.recv_buffer.curr_sz -= msg.length;
+    enum MQTTErrors ret = (enum MQTTErrors)__mqtt_recv(&bc->client);
+    if(ret != MQTT_OK)
+        return ret;
+    if(!bc->connected && !mqtt_mq_find(&bc->client.mq, MQTT_CONTROL_CONNECT, NULL)) {
+        bc->connected = true;
+        ret = MQTT_subscribeTopics(bc);
+        if(ret != MQTT_OK)
+            return ret;
+    }
+    MQTT_acknowledgeTopics(bc);
+    if(bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED)
+        return MQTT_OK;
+    return (enum MQTTErrors)__mqtt_send(&bc->client);
+}
 
-    /* Process the message. The internal mqtt_pal_recvall does nothing (as we
-     * already have added the message to the buffer. But then the entire buffer
-     * is processed. */
-    __mqtt_recv(&bc->client);
+static void
+MQTTNetworkCallback(UA_ConnectionManager *tcpCM, uintptr_t connectionId,
+                    void *application, void **connectionContext, UA_ConnectionState state,
+                    const UA_KeyValueMap *params, UA_ByteString msg) {
+    MQTTBrokerConnection *bc = (MQTTBrokerConnection*)*connectionContext;
+    if(!bc)
+        return;
+    UA_ConnectionState oldState = bc->tcpConnectionState;
+    bc->tcpConnectionId = connectionId;
+    if(state == UA_CONNECTIONSTATE_CLOSING || state == UA_CONNECTIONSTATE_CLOSED) {
+        bc->tcpConnectionState = state;
+        *connectionContext = NULL;
+        removeBrokerConnection(bc);
+        return;
+    }
+    if(oldState == UA_CONNECTIONSTATE_CLOSING)
+        return;
+    bc->tcpConnectionState = state;
+    if(state != UA_CONNECTIONSTATE_ESTABLISHED)
+        return;
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    if(bc->useTLS) {
+        size_t pending = bc->tlsInput.length - bc->tlsInputOffset;
+        if(msg.length > MQTT_MESSAGE_MAXLEN - pending)
+            goto fail;
+        if(pending && bc->tlsInputOffset)
+            memmove(bc->tlsInput.data, bc->tlsInput.data + bc->tlsInputOffset, pending);
+        if(msg.length) {
+            UA_Byte *data = (UA_Byte*)UA_realloc(bc->tlsInput.data, pending + msg.length);
+            if(!data)
+                goto fail;
+            bc->tlsInput.data = data;
+            memcpy(data + pending, msg.data, msg.length);
+        }
+        bc->tlsInput.length = pending + msg.length;
+        bc->tlsInputOffset = 0;
+        if(!bc->tlsReady) {
+            int ret = mbedtls_ssl_handshake(&bc->ssl);
+            if(ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+                return;
+            if(ret != 0) {
+                UA_LOG_WARNING(bc->mcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                               "MQTT TLS handshake failed: -0x%04x (verify flags 0x%x)",
+                               (unsigned)-ret, (unsigned)mbedtls_ssl_get_verify_result(&bc->ssl));
+                goto fail;
+            }
+            bc->tlsReady = true;
+            if(MQTT_connect(bc) != MQTT_OK)
+                goto fail;
+        }
+        unsigned char data[1024];
+        while(bc->tcpConnectionState == UA_CONNECTIONSTATE_ESTABLISHED) {
+            int ret = mbedtls_ssl_read(&bc->ssl, data, sizeof(data));
+            if(ret == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET)
+                continue;
+            if(ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+                return;
+            if(ret <= 0) {
+                UA_LOG_WARNING(bc->mcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                               "MQTT TLS read failed: -0x%04x", (unsigned)-ret);
+                goto fail;
+            }
+            UA_ByteString plain = {(size_t)ret, data};
+            if(MQTT_receive(bc, plain) != MQTT_OK)
+                goto fail;
+        }
+        return;
+    }
+#endif
+    if(oldState != UA_CONNECTIONSTATE_ESTABLISHED && MQTT_connect(bc) != MQTT_OK)
+        goto fail;
+    if(msg.length && MQTT_receive(bc, msg) != MQTT_OK)
+        goto fail;
+    return;
+fail:
+    UA_LOG_WARNING(bc->mcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                   "MQTT-TCP %u\t| TLS or MQTT connection failed", (unsigned)connectionId);
+    shutdownBrokerConnection(bc);
 }
 
 static MQTTBrokerConnection *
@@ -643,6 +824,21 @@ createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
     /* Add to the linked list (use removeBrokerConnection from here on) */
     LIST_INSERT_HEAD(&mcm->connections, bc, next);
 
+    const UA_Boolean *useTLS = (const UA_Boolean*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "useSSL"), &UA_TYPES[UA_TYPES_BOOLEAN]);
+    bc->useTLS = useTLS && *useTLS;
+    if(bc->useTLS) {
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+        if(MQTT_initTLS(bc) != UA_STATUSCODE_GOOD) {
+            removeBrokerConnection(bc);
+            return NULL;
+        }
+#else
+        removeBrokerConnection(bc);
+        return NULL;
+#endif
+    }
+
     /* Extract the parameters */
     UA_String *broker = (UA_String*)(uintptr_t)
         UA_KeyValueMap_getScalar(params,
@@ -654,7 +850,7 @@ createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params,
                                  UA_QUALIFIEDNAME(0, "port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
-    UA_UInt16 _port = 1883;
+    UA_UInt16 _port = bc->useTLS ? 8883 : 1883;
     if(!port)
         port = &_port;
 
@@ -665,7 +861,7 @@ createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
 
     /* Register the KeepAlive */
     bc->keepalive = 400; /* Default */
-    if(keepAlive && *keepAlive > 0)
+    if(keepAlive)
         bc->keepalive = *keepAlive;
 
     /* Open the Connection. This also sets the broker connection id to the TCP id. */
@@ -691,12 +887,15 @@ createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
         return (MQTTBrokerConnection*)0x01;
     }
 
+    if(bc->tcpConnectionState == UA_CONNECTIONSTATE_CLOSING)
+        return NULL;
     UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
-    res = el->addTimer(el, MQTTKeepAliveCallback, NULL, bc,
+    if(bc->keepalive)
+        res = el->addTimer(el, MQTTKeepAliveCallback, NULL, bc,
                        (UA_Double)bc->keepalive * 750.0,
                        NULL, UA_TIMERPOLICY_CURRENTTIME, &bc->keepAliveCallbackId);
     if(res != UA_STATUSCODE_GOOD) {
-        removeBrokerConnection(bc);
+        shutdownBrokerConnection(bc);
         return NULL;
     }
 
@@ -745,31 +944,7 @@ createTopicConnection(MQTTConnectionManager *mcm, MQTTBrokerConnection *bc,
     tc->topic.data[topic->length] = 0;
     tc->topic.length = topic->length;
 
-    /* Subscribe the MQTT client if the client is already connected. Otherwise
-     * defer mqtt_subscribe until the TCP socket is fully opened and we
-     * connect. */
-    if(bc->tcpConnectionState == UA_CONNECTIONSTATE_ESTABLISHED) {
-        tc->topicConnectionState = UA_CONNECTIONSTATE_ESTABLISHED;
-        if(subscribe) {
-            enum MQTTErrors err = mqtt_subscribe(&bc->client, (const char*)topic->data, 0);
-            if(err != MQTT_OK) {
-                UA_String_clear(&tc->topic);
-                UA_free(tc);
-                return NULL;
-            }
-            UA_LOG_INFO(bc->mcm->cm.eventSource.eventLoop->logger,
-                        UA_LOGCATEGORY_NETWORK, "MQTT %u\t| Created connection "
-                        "subscribed on topic \"%s\"",
-                        (unsigned)tc->topicConnectionId, (char*)topic->data);
-        } else {
-            UA_LOG_INFO(bc->mcm->cm.eventSource.eventLoop->logger,
-                        UA_LOGCATEGORY_NETWORK, "MQTT %u\t| Created connection "
-                        "publishing on topic \"%s\"",
-                        (unsigned)tc->topicConnectionId, (char*)topic->data);
-        }
-    } else {
-        tc->topicConnectionState = UA_CONNECTIONSTATE_OPENING;
-    }
+    tc->topicConnectionState = UA_CONNECTIONSTATE_OPENING;
 
     /* Add to the linked list */
     LIST_INSERT_HEAD(&bc->topicConnections, tc, next);
@@ -780,6 +955,12 @@ createTopicConnection(MQTTConnectionManager *mcm, MQTTBrokerConnection *bc,
     connectionCallback(&mcm->cm, tc->topicConnectionId, application, &tc->context,
                        tc->topicConnectionState, &UA_KEYVALUEMAP_NULL,
                        UA_BYTESTRING_NULL);
+    if(bc->connected) {
+        if(MQTT_subscribeTopics(bc) != MQTT_OK || __mqtt_send(&bc->client) != MQTT_OK)
+            shutdownBrokerConnection(bc);
+        else
+            MQTT_acknowledgeTopics(bc);
+    }
     return tc;
 }
 
@@ -794,13 +975,36 @@ MQTT_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Ensure the required parameters exist if required. And if they exist, they
      * have to be scalars of the correct type. */
-    for(size_t i = 0; i < MQTT_PARAMETERSSIZE; i++) {
+    for(size_t i = 0; i < sizeof(MQTTConnectionParameters) / sizeof(MQTTConnectionParameters[0]); i++) {
         const UA_Variant *val =
             UA_KeyValueMap_get(params, MQTTConnectionParameters[i].name);
         if((!val && MQTTConnectionParameters[i].required) ||
            (val && !UA_Variant_hasScalarType(val, MQTTConnectionParameters[i].type)))
-        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+            return UA_STATUSCODE_BADCONNECTIONREJECTED;
+        if(val && MQTTConnectionParameters[i].type == &UA_TYPES[UA_TYPES_STRING]) {
+            const UA_String *str = (const UA_String*)val->data;
+            if(str->length > UA_UINT16_MAX || (str->length && memchr(str->data, 0, str->length)))
+                return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
     }
+
+    if(UA_KeyValueMap_contains(params, UA_QUALIFIEDNAME(0, "certificate")) ||
+       UA_KeyValueMap_contains(params, UA_QUALIFIEDNAME(0, "private-key")) ||
+       UA_KeyValueMap_contains(params, UA_QUALIFIEDNAME(0, "private-key-password")))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+#if !defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || !defined(MBEDTLS_FS_IO)
+    const UA_Variant *tls = UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "useSSL"));
+#ifndef UA_ENABLE_ENCRYPTION_MBEDTLS
+    if(tls && *(UA_Boolean*)tls->data)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+#elif !defined(MBEDTLS_FS_IO)
+    const UA_ByteString *ca = (const UA_ByteString*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "ca-certificate"), &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(tls && *(UA_Boolean*)tls->data && (!ca || ca->length == 0) &&
+       UA_KeyValueMap_contains(params, UA_QUALIFIEDNAME(0, "ca-file-path")))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+#endif
 
     const UA_Boolean *validate = (const UA_Boolean*)
         UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "validate"),
@@ -841,7 +1045,8 @@ MQTT_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     MQTTBrokerConnection *bc = tc->brokerConnection;
-    if(bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED) {
+    if(tc->topicConnectionState != UA_CONNECTIONSTATE_ESTABLISHED ||
+       bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED) {
         MQTT_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }

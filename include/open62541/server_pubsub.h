@@ -359,6 +359,9 @@ typedef struct {
     UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
+    /* MQTT forwards client-id, username, password, useSSL, ca-file-path,
+     * ca-certificate and keep-alive to the ConnectionManager. Legacy aliases:
+     * mqttClientId, mqttUsername, mqttPassword, mqttUseTLS, mqttCaFilePath. */
     UA_KeyValueMap connectionProperties;
     UA_Variant connectionTransportSettings;
 } UA_PubSubConnectionConfig;
