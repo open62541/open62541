@@ -260,6 +260,220 @@ START_TEST(Server_LocalMonitoredItem_deleteInCallback) {
 }
 END_TEST
 
+/* The callback of a local MonitoredItem can re-enter the server. It writes to a
+ * node (once), and deletes MonitoredItems (once). The write may trigger a
+ * notification for the same or for another MonitoredItem in the (shared admin)
+ * Subscription. This can evict (delete) notifications that are queued behind
+ * the one that is currently delivered. */
+#define REENTRY_MAX_DELETES 2
+typedef struct {
+    size_t calls;
+    UA_UInt32 lastValue;
+    UA_Boolean triggered;
+    UA_NodeId writeNodeId;
+    UA_UInt32 writeValue;   /* First value that is written */
+    size_t writeCount;      /* Number of writes with increasing value */
+    UA_UInt32 deleteIds[REENTRY_MAX_DELETES];
+    UA_StatusCode deleteStatus[REENTRY_MAX_DELETES];
+    size_t deleteIdsSize;
+} ReentryContext;
+
+static void
+reentryCallback(UA_Server *thisServer, UA_UInt32 monitoredItemId,
+                void *monitoredItemContext, const UA_NodeId *nodeId,
+                void *nodeContext, UA_UInt32 attributeId,
+                const UA_DataValue *value) {
+    ReentryContext *ctx = (ReentryContext*)monitoredItemContext;
+    ctx->calls++;
+    ctx->lastValue = *(UA_UInt32*)value->value.data;
+    if(ctx->triggered)
+        return;
+    ctx->triggered = true;
+
+    for(size_t i = 0; i < ctx->writeCount; i++) {
+        UA_UInt32 v = ctx->writeValue + (UA_UInt32)i;
+        UA_Variant var;
+        UA_Variant_setScalar(&var, &v, &UA_TYPES[UA_TYPES_UINT32]);
+        ASSERT_STATUSCODE(UA_Server_writeValue(thisServer, ctx->writeNodeId, var),
+                          UA_STATUSCODE_GOOD);
+    }
+
+    for(size_t i = 0; i < ctx->deleteIdsSize; i++)
+        ctx->deleteStatus[i] =
+            UA_Server_deleteMonitoredItem(thisServer, ctx->deleteIds[i]);
+
+    /* The value is still valid after the MonitoredItem was deleted */
+    ck_assert_uint_eq(*(UA_UInt32*)value->value.data, ctx->lastValue);
+}
+
+static UA_NodeId
+reentryAddNode(const char *name) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_UInt32 initial = 40;
+    UA_Variant_setScalar(&attr.value, &initial, &UA_TYPES[UA_TYPES_UINT32]);
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId nodeId = UA_NODEID_STRING(1, (char*)(uintptr_t)name);
+    ASSERT_STATUSCODE(UA_Server_addVariableNode(server, nodeId, parentNodeId,
+                                                parentReferenceNodeId,
+                                                UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                attr, NULL, NULL), UA_STATUSCODE_GOOD);
+    return nodeId;
+}
+
+static UA_UInt32
+reentryCreateItem(UA_NodeId nodeId, UA_UInt32 queueSize, UA_Boolean discardOldest,
+                  ReentryContext *ctx) {
+    UA_MonitoredItemCreateRequest request =
+        UA_MonitoredItemCreateRequest_default(nodeId);
+    request.requestedParameters.samplingInterval = 0.0;
+    request.requestedParameters.queueSize = queueSize;
+    request.requestedParameters.discardOldest = discardOldest;
+    UA_MonitoredItemCreateResult result =
+        UA_Server_createDataChangeMonitoredItem(
+            server, UA_TIMESTAMPSTORETURN_BOTH, request, ctx, reentryCallback);
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    return result.monitoredItemId;
+}
+
+static void
+reentryIterate(void) {
+    /* Callbacks can create further notifications that are delivered in a
+     * following EventLoop iteration */
+    for(size_t i = 0; i < 5; i++)
+        UA_Server_run_iterate(server, false);
+}
+
+/* The callback of item A writes to the node of item B. This evicts notifications
+ * from the queue of B. B was queued right behind A in the Subscription. */
+static void
+evictLookaheadInCallback(UA_UInt32 queueSizeB, UA_Boolean discardOldestB) {
+    UA_NodeId nodeB = reentryAddNode("the.other.answer");
+
+    ReentryContext ctxA, ctxB;
+    memset(&ctxA, 0, sizeof(ctxA));
+    memset(&ctxB, 0, sizeof(ctxB));
+    ctxA.writeNodeId = nodeB;
+    ctxA.writeValue = 100;
+    ctxA.writeCount = queueSizeB; /* One more notification than fits in B */
+
+    /* A is created first. Its initial notification is first in the queue of the
+     * Subscription, followed by the initial notification of B. */
+    UA_UInt32 idA = reentryCreateItem(outNodeId, 1, true, &ctxA);
+    UA_UInt32 idB = reentryCreateItem(nodeB, queueSizeB, discardOldestB, &ctxB);
+
+    reentryIterate();
+    ck_assert_uint_eq(ctxA.calls, 1);
+    ck_assert_uint_eq(ctxB.calls, queueSizeB);
+    ck_assert_uint_eq(ctxB.lastValue, 100 + queueSizeB - 1);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, idA), UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, idB), UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(UA_Server_deleteNode(server, nodeB, true), UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false); /* Clean up the deleted items */
+}
+
+START_TEST(Server_LocalMonitoredItem_evictOtherItemInCallback) {
+    evictLookaheadInCallback(1, true);
+}
+END_TEST
+
+START_TEST(Server_LocalMonitoredItem_evictOtherItemInCallbackDiscardNewest) {
+    evictLookaheadInCallback(1, false);
+}
+END_TEST
+
+START_TEST(Server_LocalMonitoredItem_evictOtherItemInCallbackQueueSize) {
+    evictLookaheadInCallback(3, true);
+    evictLookaheadInCallback(3, false);
+}
+END_TEST
+
+/* The callback of item A deletes item B. B was queued right behind A. */
+START_TEST(Server_LocalMonitoredItem_deleteOtherItemInCallback) {
+    UA_NodeId nodeB = reentryAddNode("the.other.answer");
+    ReentryContext ctxA, ctxB;
+    memset(&ctxA, 0, sizeof(ctxA));
+    memset(&ctxB, 0, sizeof(ctxB));
+
+    reentryCreateItem(outNodeId, 1, true, &ctxA);
+    UA_UInt32 idB = reentryCreateItem(nodeB, 1, true, &ctxB);
+    ctxA.deleteIds[0] = idB;
+    ctxA.deleteIdsSize = 1;
+
+    reentryIterate();
+    ck_assert_uint_eq(ctxA.calls, 1);
+    ck_assert_uint_eq(ctxB.calls, 0);
+    ASSERT_STATUSCODE(ctxA.deleteStatus[0], UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, idB),
+                      UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+}
+END_TEST
+
+/* The callback of item A deletes all MonitoredItems of the Subscription (itself
+ * and B). */
+START_TEST(Server_LocalMonitoredItem_deleteAllItemsInCallback) {
+    UA_NodeId nodeB = reentryAddNode("the.other.answer");
+    ReentryContext ctxA, ctxB;
+    memset(&ctxA, 0, sizeof(ctxA));
+    memset(&ctxB, 0, sizeof(ctxB));
+
+    UA_UInt32 idA = reentryCreateItem(outNodeId, 3, true, &ctxA);
+    UA_UInt32 idB = reentryCreateItem(nodeB, 3, true, &ctxB);
+    ctxA.deleteIds[0] = idB;
+    ctxA.deleteIds[1] = idA;
+    ctxA.deleteIdsSize = 2;
+
+    reentryIterate();
+    ck_assert_uint_eq(ctxA.calls, 1);
+    ck_assert_uint_eq(ctxB.calls, 0);
+    ASSERT_STATUSCODE(ctxA.deleteStatus[0], UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(ctxA.deleteStatus[1], UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, idA),
+                      UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, idB),
+                      UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+}
+END_TEST
+
+/* The callback writes to the node of its own MonitoredItem. The new notifications
+ * are queued behind the (detached) current one. With queue size one, the second
+ * write evicts the notification of the first. */
+START_TEST(Server_LocalMonitoredItem_writeSameNodeInCallback) {
+    ReentryContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.writeNodeId = outNodeId;
+    ctx.writeValue = 100;
+    ctx.writeCount = 2;
+
+    UA_UInt32 id = reentryCreateItem(outNodeId, 1, true, &ctx);
+    reentryIterate();
+    ck_assert_uint_eq(ctx.calls, 2);
+    ck_assert_uint_eq(ctx.lastValue, 101);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, id), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+/* The callback writes to its own node and then deletes its own MonitoredItem. The
+ * notification created by the write is deleted with the MonitoredItem. */
+START_TEST(Server_LocalMonitoredItem_writeSameNodeAndDeleteInCallback) {
+    ReentryContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.writeNodeId = outNodeId;
+    ctx.writeValue = 100;
+    ctx.writeCount = 2;
+
+    UA_UInt32 id = reentryCreateItem(outNodeId, 3, true, &ctx);
+    ctx.deleteIds[0] = id;
+    ctx.deleteIdsSize = 1;
+
+    reentryIterate();
+    ck_assert_uint_eq(ctx.calls, 1);
+    ASSERT_STATUSCODE(ctx.deleteStatus[0], UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, id),
+                      UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+}
+END_TEST
+
 static UA_UInt32 staticUInt32 = 1337;
 
 static UA_StatusCode
@@ -596,6 +810,16 @@ static Suite * testSuite_Client(void) {
     tcase_add_test(tc_server,
                    Server_LocalMonitoredItem_deleteFromDeleteNotification);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteInCallback);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_evictOtherItemInCallback);
+    tcase_add_test(tc_server,
+                   Server_LocalMonitoredItem_evictOtherItemInCallbackDiscardNewest);
+    tcase_add_test(tc_server,
+                   Server_LocalMonitoredItem_evictOtherItemInCallbackQueueSize);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteOtherItemInCallback);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteAllItemsInCallback);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_writeSameNodeInCallback);
+    tcase_add_test(tc_server,
+                   Server_LocalMonitoredItem_writeSameNodeAndDeleteInCallback);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_dataSource);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_EventNotifierRejected);

@@ -631,8 +631,8 @@ static char *nodeClassNames[] = {
 };
 
 static void
-exploreRecursive(char *pathString, size_t pos, const UA_NodeId current,
-                 UA_NodeClass nc, size_t depth) {
+exploreRecursive(char *pathString, size_t pathSize, size_t pos,
+                 const UA_NodeId current, UA_NodeClass nc, size_t depth) {
     size_t targetlevel = 0;
     while(nc) {
         ++targetlevel;
@@ -667,10 +667,25 @@ exploreRecursive(char *pathString, size_t pos, const UA_NodeId current,
         sao.browsePathSize = 1;
         sao.browsePath = &rd->browseName;
         sao.attributeId = UA_ATTRIBUTEID_VALUE; /* Prevent printing */
-        UA_SimpleAttributeOperand_print(&sao, &bnString);
+        UA_StatusCode res = UA_SimpleAttributeOperand_print(&sao, &bnString);
+        if(res != UA_STATUSCODE_GOOD) {
+            fprintf(stderr, "Could not print a BrowseName below %.*s: %s\n",
+                    (int)pos, pathString, UA_StatusCode_name(res));
+            return_value = EXIT_FAILURE;
+            continue;
+        }
+
+        /* The path buffer has a fixed size */
+        if(bnString.length > pathSize - pos) {
+            fprintf(stderr, "The path below %.*s exceeds %u characters, "
+                    "not exploring further\n", (int)pos, pathString,
+                    (unsigned)pathSize);
+            return_value = EXIT_FAILURE;
+            continue;
+        }
         memcpy(pathString + pos, browseName, bnString.length);
 
-        exploreRecursive(pathString, pos + bnString.length,
+        exploreRecursive(pathString, pathSize, pos + bnString.length,
                          rd->nodeId.nodeId, rd->nodeClass, depth-1);
     }
 
@@ -707,6 +722,21 @@ explore(void) {
 
         /* Unknown */
         usage();
+        return;
+    }
+
+    /* The path is required */
+    if(!pathArg) {
+        usage();
+        return;
+    }
+
+    /* The path is copied into a fixed-size buffer below */
+    char relativepath[512];
+    size_t pos = strlen(pathArg);
+    if(pos > sizeof(relativepath)) {
+        abortWithMessage("The path is too long (maximum %u characters)\n",
+                         (unsigned)sizeof(relativepath));
         return;
     }
 
@@ -774,13 +804,12 @@ explore(void) {
         abortWithStatus(res);
 
     /* Forward the current path, remove trailing slash */
-    char relativepath[512];
-    size_t pos = strlen(pathArg);
     if(pos > 0 && pathArg[pos-1] == '/')
         pos--;
     memcpy(relativepath, pathArg, pos);
 
-    exploreRecursive(relativepath, pos, ao.nodeId, nc, depth);
+    exploreRecursive(relativepath, sizeof(relativepath), pos,
+                     ao.nodeId, nc, depth);
 
     UA_AttributeOperand_clear(&ao);
 }

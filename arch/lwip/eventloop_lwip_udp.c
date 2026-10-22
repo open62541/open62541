@@ -1106,6 +1106,11 @@ UDP_openSendConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *para
              "UDP\t| Open a connection to \"%s\" on port %s", hostname, portStr);
 
     info = (struct addrinfo*)UA_calloc(1, sizeof(struct addrinfo));
+    if(!info) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP\t| Error allocating memory for the address info");
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 #if UA_IPV6
     info->ai_family = AF_UNSPEC; /* Allow IPv4 and IPv6 */
 #else

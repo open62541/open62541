@@ -12,6 +12,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include "test_helpers.h"
 #include "certificates.h"
 
@@ -145,6 +146,54 @@ START_TEST(update_certificate_noKey) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+/* Same layout as the (private) UpdateCertInfo in ua_server.c */
+typedef struct {
+    UA_Server *server;
+    UA_NodeId certificateTypeId;
+} UpdateCertInfoLayout;
+
+static UA_Boolean failCertInfoAllocation;
+static size_t certInfoAllocationCount;
+
+static void *
+certInfoTestCalloc(size_t nelem, size_t elsize) {
+    if(failCertInfoAllocation && nelem == 1 && elsize == sizeof(UpdateCertInfoLayout)) {
+        /* The UA_DelayedCallback is allocated first. Don't fail that one if it
+         * has the same size. */
+        certInfoAllocationCount++;
+        size_t failAt = (sizeof(UpdateCertInfoLayout) == sizeof(UA_DelayedCallback)) ? 2 : 1;
+        if(certInfoAllocationCount == failAt) {
+            failCertInfoAllocation = false;
+            return NULL;
+        }
+    }
+    return calloc(nelem, elsize);
+}
+
+START_TEST(update_certificate_outOfMemory) {
+    UA_ByteString newCertificate;
+    newCertificate.length = CERT_DER_LENGTH;
+    newCertificate.data = CERT_DER_DATA;
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    void *(*callocFunc)(size_t, size_t) = UA_callocSingleton;
+    UA_callocSingleton = certInfoTestCalloc;
+    failCertInfoAllocation = true;
+    certInfoAllocationCount = 0;
+    UA_StatusCode retval =
+            UA_Server_updateCertificate(server, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, NULL);
+    UA_callocSingleton = callocFunc;
+
+    ck_assert(!failCertInfoAllocation);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADOUTOFMEMORY);
+}
+END_TEST
+#endif /* UA_ENABLE_MALLOC_SINGLETON */
+
 START_TEST(update_certificate_noKey_invalid) {
     UA_ByteString newCertificate = UA_BYTESTRING("not a certificate");
 
@@ -167,6 +216,9 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate_wrongKey);
     tcase_add_test(tc_cert, update_certificate_noKey);
     tcase_add_test(tc_cert, update_certificate_noKey_invalid);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    tcase_add_test(tc_cert, update_certificate_outOfMemory);
+#endif
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 

@@ -330,8 +330,17 @@ removeListenSockets(void *application, UA_RegisteredFD *rfd) {
 
         if(!alreadyAdded) {
             listenFd = (UA_DeregisteredListenFD*)UA_calloc(1, sizeof(UA_DeregisteredListenFD));
-            listenFd->listenFd = rfd;
-            LIST_INSERT_HEAD(&pcm->listenFDs, listenFd, pointers);
+            if(listenFd) {
+                listenFd->listenFd = rfd;
+                LIST_INSERT_HEAD(&pcm->listenFDs, listenFd, pointers);
+            } else {
+                /* The listen socket cannot be remembered for reopening. Release
+                 * it together with the closed socket below. */
+                UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                               "TCP %u\t| Out of memory, the listen socket "
+                               "cannot be reopened", (unsigned)rfd->fd);
+                alreadyAdded = UA_TRUE;
+            }
         }
 
         /* Ensure reuse is possible right away. Port-stealing is no longer an issue
