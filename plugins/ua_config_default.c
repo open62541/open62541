@@ -2102,7 +2102,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     if(config->maxAsyncServiceCalls == 0)
         config->maxAsyncServiceCalls = 32;
     if(config->reconnectInterval == 0)
-        config->reconnectInterval = 500; /* 500ms */
+        config->reconnectInterval = 250; /* 250ms */
     if(config->reconnectIntervalMax == 0)
         config->reconnectIntervalMax = 10 * 1000; /* 10 seconds */
 

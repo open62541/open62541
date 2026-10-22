@@ -1994,6 +1994,9 @@ END_TEST
 
 START_TEST(Client_subscription_timeout) {
     UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->reconnectInterval = 10;
+    cc->reconnectIntervalMax = 40;
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -2028,10 +2031,15 @@ START_TEST(Client_subscription_timeout) {
     UA_Server_run_shutdown(server);
 
     /* The client tries to reconnect, but has to fail eventually as the server
-     * is down */
+     * is down. Advance the clock for the delay between the re-dials. */
     do {
+        UA_fakeSleep(10);
         UA_Client_run_iterate(client, 1);
     } while(client->connectStatus == UA_STATUSCODE_GOOD);
+
+    /* The refused re-dials were repeated before giving up */
+    ck_assert_uint_eq(client->connectStatus, UA_STATUSCODE_BADCONNECTIONREJECTED);
+    ck_assert_uint_gt(client->reconnectAttempts, 1);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
