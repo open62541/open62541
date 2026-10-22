@@ -1228,6 +1228,14 @@ UA_Server_run_startup(UA_Server *server) {
     UA_NodeId serverArray = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY);
     writeValueAttribute(server, serverArray, &var);
 
+    /* Right before startup so a changed application description reflects here */
+    UA_StatusCode adRes = writeNs0ApplicationDescription(server);
+    if(adRes != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                       "Could not write the ApplicationDescription to the "
+                       "ServerConfiguration object (%s)",
+                       UA_StatusCode_name(adRes));
+
     /* Sample the start time and set it to the Server object */
     server->startTime = el->dateTime_now(el);
     UA_Variant_init(&var);
