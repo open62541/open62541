@@ -1141,6 +1141,51 @@ START_TEST(attributeOperandPrint) {
     UA_String_clear(&out);
 } END_TEST
 
+START_TEST(operandPrintLongNodeId) {
+    /* String and ByteString identifiers must survive printing beyond the
+     * former 512-byte temporary buffer, including percent/base64 expansion. */
+    UA_Byte identifier[768];
+    memset(identifier, '%', sizeof(identifier));
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 0);
+    id.identifierType = (_i % 2) ? UA_NODEIDTYPE_BYTESTRING : UA_NODEIDTYPE_STRING;
+    id.identifier.string = (UA_String){sizeof(identifier), identifier};
+    UA_String out = UA_STRING_NULL;
+
+    if(_i < 2) {
+        UA_AttributeOperand operand;
+        UA_AttributeOperand_init(&operand);
+        operand.nodeId = id;
+        operand.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_AttributeOperand_print(&operand, &out), UA_STATUSCODE_GOOD);
+        UA_AttributeOperand parsed;
+        ck_assert_uint_eq(UA_AttributeOperand_parse(&parsed, out), UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parsed.nodeId, &id));
+        UA_AttributeOperand_clear(&parsed);
+    } else if(_i < 4) {
+        UA_SimpleAttributeOperand operand;
+        UA_SimpleAttributeOperand_init(&operand);
+        operand.typeDefinitionId = id;
+        operand.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_SimpleAttributeOperand_print(&operand, &out), UA_STATUSCODE_GOOD);
+        UA_SimpleAttributeOperand parsed;
+        ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&parsed, out), UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parsed.typeDefinitionId, &id));
+        UA_SimpleAttributeOperand_clear(&parsed);
+    } else {
+        UA_ReadValueId operand;
+        UA_ReadValueId_init(&operand);
+        operand.nodeId = id;
+        operand.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_ReadValueId_print(&operand, &out), UA_STATUSCODE_GOOD);
+        UA_ReadValueId parsed;
+        ck_assert_uint_eq(UA_ReadValueId_parse(&parsed, out), UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parsed.nodeId, &id));
+        UA_ReadValueId_clear(&parsed);
+    }
+    ck_assert_uint_gt(out.length, 512);
+    UA_String_clear(&out);
+} END_TEST
+
 START_TEST(attributeId_name_roundtrip) {
     /* Round-trip every valid AttributeId through name() and fromName(). The
      * names must round-trip exactly. */
@@ -1354,6 +1399,7 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc8, trustListDataTypeOperations);
     tcase_add_test(tc8, simpleAttributeOperandPrint);
     tcase_add_test(tc8, attributeOperandPrint);
+    tcase_add_loop_test(tc8, operandPrintLongNodeId, 0, 6);
     suite_add_tcase(s, tc8);
 
     TCase *tc9 = tcase_create("attribute id name round-trip");
