@@ -25,6 +25,8 @@ _UA_BEGIN_DECLS
      UA_OPENFILEMODE_ERASEEXISTING | UA_OPENFILEMODE_APPEND)
 
 #define UA_FILETRANSFER_COPYCHUNKSIZE 65536
+#define UA_FILETRANSFER_CLIENTPROCESSINGTIMEOUT_DEFAULT 60000.0 /* ms */
+#define UA_FILETRANSFER_MAXTRANSFERSIZE_DEFAULT (16u << 20) /* 16 MiB */
 
 typedef struct FileTransferDriver FileTransferDriver;
 typedef struct FTEntry FTEntry;
@@ -49,13 +51,32 @@ typedef struct FTHandle {
     UA_DateTime lastActivity; /* Monotonic, for the activity-timeout */
 } FTHandle;
 
+/* Storage entries mirror the backend tree; the other kinds have no storage
+ * parent */
+typedef enum {
+    FT_ENTRY_STORAGE = 0,  /* FileType or FileDirectoryType Object */
+    FT_ENTRY_TEMPORARY,    /* TemporaryFileTransferType Object */
+    FT_ENTRY_TRANSFERFILE  /* Temporary file of one transfer */
+} FTEntryKind;
+
+/* One transfer of a TemporaryFileTransferType Object */
+typedef struct {
+    UA_NodeId sessionId;        /* Of the generate Method */
+    UA_Boolean forWrite;
+    UA_Boolean committing;      /* The handle is closed for CloseAndCommit */
+    UA_StatusCode endStatus;    /* Passed to endTransfer */
+    void *transferContext;      /* Of the application */
+    UA_Variant generateOptions;
+} FTTransfer;
+
 ZIP_HEAD(FTEntriesById, FTEntry);
 ZIP_HEAD(FTChildrenByName, FTEntry);
 ZIP_HEAD(FTHandlesById, FTHandle);
 ZIP_HEAD(FTHandlesBySession, FTHandle);
 
-/* One entry per driver-managed FileType/FileDirectoryType Object.
- * The Object context points to the owning driver. */
+/* One entry per driver-managed Object: the FileType and FileDirectoryType
+ * Objects of the storage, a TemporaryFileTransferType root and its transfer
+ * files. The Object context points to the owning driver. */
 struct FTEntry {
     ZIP_ENTRY(FTEntry) idTreeEntry;
     ZIP_ENTRY(FTEntry) nameTreeEntry;
@@ -65,6 +86,7 @@ struct FTEntry {
     UA_NodeId nodeId;
     FileTransferDriver *driver;
     UA_String path; /* Relative to the mount root */
+    UA_Byte kind; /* FTEntryKind */
     UA_Boolean isDirectory;
     UA_Boolean created;         /* Object was created by this driver */
     UA_Boolean contextBound;
@@ -75,7 +97,8 @@ struct FTEntry {
     UA_UInt32 subtreeHandleCount; /* OpenCount for files; sum below directories */
     UA_Boolean openForWrite; /* Files only */
     UA_Boolean scanSeen; /* Temporary mark during directory reconciliation */
-    struct FTFileBinding *binding; /* Files only; owned by the model layer */
+    struct FTFileBinding *binding; /* Property bindings; owned by the model layer */
+    FTTransfer *transfer; /* Transfer files only */
 };
 
 /* Configuration read from drv.params on start. */
@@ -88,7 +111,9 @@ typedef struct {
     UA_UInt16 maxHandlesPerSession;
     UA_UInt16 maxHandlesPerFile;
     UA_UInt32 maxReadLength;
-    UA_Double activityTimeout;
+    UA_Double activityTimeout;         /* ClientProcessingTimeout when temporary */
+    UA_Boolean exclusiveReads;         /* Temporary transfers */
+    UA_UInt64 maxTransferSize;         /* Temporary transfers, 0 is unlimited */
 } FTConfig;
 
 /* One driver owns one backend and one root Object for its entire lifetime. */
@@ -107,6 +132,13 @@ struct FileTransferDriver {
     struct FTHandlesBySession handlesBySession;
     UA_UInt32 entryCount; /* Includes retained zombie entries */
     UA_UInt32 nextHandle;
+
+    /* A TemporaryFileTransferType root serves one write transfer or up to
+     * max-open-handles-per-file read transfers (one with exclusive-reads) */
+    UA_FileTransferTemporaryOptions temporary; /* Without the store */
+    UA_UInt32 nextTransferId;
+    UA_UInt32 activeReads;
+    UA_Boolean activeWrite;
 };
 
 static UA_INLINE enum ZIP_CMP
@@ -150,23 +182,29 @@ FTEntry *resolveFTEntry(UA_Server *server, const UA_NodeId *objectId,
                         void *objectContext);
 FTEntry *resolveFTEntryById(UA_Server *server, const UA_NodeId *objectId);
 
+/* The type (definition) has to be base or one of its subtypes */
 UA_StatusCode checkFileTransferType(UA_Server *server,
                                     const UA_NodeId typeDefinition,
-                                    UA_Boolean isDirectory);
+                                    const UA_NodeId base);
 UA_StatusCode checkFileTransferObject(UA_Server *server, const UA_NodeId nodeId,
-                                      UA_Boolean isDirectory);
+                                      const UA_NodeId base);
 UA_StatusCode mirrorObject(UA_Server *server, FTEntry *directory,
                            const UA_String name,
                            const UA_FileTransferFileInfo *info, FTEntry **outNode);
 UA_StatusCode bindObjectContext(UA_Server *server, FTEntry *node);
+/* Bind the Properties of the entry kind. info sets the MimeType of files. */
 UA_StatusCode setupFileNode(UA_Server *server, FTEntry *node,
                             const UA_FileTransferFileInfo *info);
 /* Idempotent rollback/release: Property callbacks must not outlive the entry. */
 void releaseFileNode(UA_Server *server, FTEntry *node);
 
-/* Shared type Methods and copied/subtype Methods have separate bindings. */
+/* Shared type Methods and copied/subtype Methods have separate bindings. The
+ * TemporaryFileTransferType Methods are registered by temporary drivers only,
+ * so other drivers work without these Namespace Zero nodes. */
 UA_StatusCode registerFileTransferMethodCallbacks(UA_Server *server);
 void unregisterFileTransferMethodCallbacks(UA_Server *server);
+UA_StatusCode registerTemporaryMethodCallbacks(UA_Server *server);
+void unregisterTemporaryMethodCallbacks(UA_Server *server);
 UA_StatusCode bindObjectMethods(UA_Server *server, FTEntry *node);
 void unbindObjectMethods(UA_Server *server, FTEntry *node);
 
@@ -178,6 +216,7 @@ typedef struct {
 } FTMethod;
 extern const FTMethod fileTypeMethods[6];
 extern const FTMethod fileDirectoryTypeMethods[4];
+extern const FTMethod temporaryFileTransferTypeMethods[3];
 
 /* file.c -- permissions and Session handles */
 /* Query the backend with a zero-initialized FileInfo. */
@@ -192,6 +231,8 @@ UA_StatusCode checkFTAccess(UA_Server *server, const FTEntry *node,
                             UA_FileAccessRights required, UA_StatusCode deniedStatus);
 FTHandle *findFTHandle(FileTransferDriver *ftd, const UA_NodeId *sessionId,
                        UA_UInt32 handle);
+UA_Boolean sessionHandleLimitReached(FileTransferDriver *ftd,
+                                     const UA_NodeId *sessionId);
 /* mode combines UA_OPENFILEMODE_* flags in the protocol's Byte representation. */
 UA_StatusCode openFileHandle(UA_Server *server, FTEntry *node,
                              const UA_NodeId *sessionId, void *sessionContext,
@@ -209,6 +250,22 @@ void closeSessionHandles(UA_Server *server, FileTransferDriver *ftd,
  * summary changes, otherwise at debug level only. */
 UA_StatusCode fileTransferRefresh(UA_Driver *driver,
                                   const UA_NodeId directoryNodeId);
+/* Create an empty file or directory with its basename in the info */
+UA_StatusCode createBackendEntry(UA_FileTransferBackend *b, const UA_String path,
+                                 UA_Boolean isDirectory);
+
+/* temporary.c -- with the server lock held. Start a transfer of the root
+ * like GenerateFileForRead/-Write with an open handle of the Session. Remove
+ * the file and the Object of a transfer whose handle is closed. */
+UA_StatusCode generateTransfer(UA_Server *server, FTEntry *root,
+                               const UA_NodeId *sessionId, void *sessionContext,
+                               const UA_Variant *generateOptions, UA_Boolean forWrite,
+                               FTHandle **outHandle);
+void removeTransferFile(UA_Server *server, FTEntry *file);
+
+/* backend_memory.c -- flat in-memory store for the files of temporary
+ * transfers. Without listing, rename and copy; clear frees it. */
+UA_StatusCode memStoreInit(UA_FileTransferBackend *out);
 
 /* Shared helpers independent of driver state. */
 /* Entry names must not contain path separators or navigate the hierarchy */

@@ -81,7 +81,7 @@ typedef struct {
 } UA_FileTransferFileInfo;
 
 /* The caller of an open. The driver passes the Session of the Method call for
- * Open, CreateFile, the copies of MoveOrCopy and
+ * Open, CreateFile, GenerateFileForRead/-Write, the copies of MoveOrCopy and
  * UA_FileTransferDriver_openHandle(). Direct calls of the application pass
  * NULL. */
 typedef struct {
@@ -232,13 +232,23 @@ struct UA_FileTransferBackend {
  *    Open-handle limit per Session in this driver (default: 64).
  * 0:max-open-handles-per-file [UInt16]
  *    Open-handle limit per file (default: 16). Either handle limit makes
- *    Open return Bad_ResourceUnavailable when reached.
+ *    Open return Bad_ResourceUnavailable when reached. Temporary drivers count
+ *    their concurrent transfers against it.
  * 0:activity-timeout [Double]
  *    Close handles without a Method call for longer than this many
  *    milliseconds like Close, e.g. for the ActivityTimeout of a TrustList
  *    (Part 12, 7.8.2.1). The FileType Methods, openHandle and getHandleInfo
  *    count as calls. Idle handles are closed within twice the timeout. 0
- *    disables it (default); otherwise at least 0.0001.
+ *    disables it (default); otherwise at least 0.0001. Temporary drivers
+ *    publish it as ClientProcessingTimeout (default: 60000) and cancel an idle
+ *    transfer; closing the Session ends the transfers in any case.
+ * 0:exclusive-reads [Boolean]
+ *    Temporary drivers: one read transfer at a time (default: false). A write
+ *    transfer is always exclusive.
+ * 0:max-transfer-size [UInt64]
+ *    Temporary drivers: maximum size of a transfer file in bytes (default:
+ *    16777216, 0 is unlimited). Larger writes and prepared files fail with
+ *    Bad_ResourceUnavailable.
  * 0:max-read-length [UInt32]
  *    Maximum bytes per Read or Write (default, also when zero: 1048576).
  *    Published as MaxByteStringLength. Reads are capped at this length;
@@ -286,8 +296,8 @@ typedef struct {
  * Methods of subtypes stay with the application, see
  * UA_FileTransferDriver_getHandleInfo(). The drivers own these Method nodes:
  * the first start replaces callbacks set by the application, the last stop
- * removes them. FileType Objects of the application that are served without a
- * driver need their own Method nodes.
+ * removes them. FileType and TemporaryFileTransferType Objects of the
+ * application that are served without a driver need their own Method nodes.
  *
  * On success, the backend struct is copied and its context becomes owned by
  * the driver. On failure, created nodes are removed, *outDriver is NULL and
@@ -383,6 +393,133 @@ UA_FileTransferBackend_localDirectory(const UA_String rootPath,
 UA_EXPORT UA_StatusCode
 UA_FileTransferFileBackend_localFile(const UA_String filePath,
                                      UA_FileTransferFileBackend *out);
+
+/**
+ * Temporary File Transfer
+ * ~~~~~~~~~~~~~~~~~~~~~~~
+ * A TemporaryFileTransferType Object (Part 20, 4.4) transfers a file in a
+ * handshake. With GenerateFileForRead the application prepares a file that the
+ * client reads and closes. With GenerateFileForWrite the client writes a file
+ * that the application processes on CloseAndCommit; Close aborts the transfer.
+ * The transfer files are not browsable and only the generating Session can use
+ * the returned handle; closing it ends the transfer. The Methods complete
+ * synchronously, completionStateMachine is always null.
+ *
+ * The callbacks receive the transfer and work on its file in the store. They
+ * run with the server lock held.
+ *
+ * generateFileForRead writes the content into the existing empty file and
+ * closes its own store handles. A Bad result fails GenerateFileForRead and
+ * removes the file.
+ *
+ * generateFileForWrite runs with the existing empty file. A Bad result, e.g.
+ * Bad_InvalidState or Bad_InvalidArgument for unsupported generateOptions,
+ * fails GenerateFileForWrite and removes the file.
+ *
+ * closeAndCommit runs after the client handle is closed. Its result is the
+ * result of CloseAndCommit. The file is removed afterwards in any case; the
+ * application copies or moves what it keeps.
+ *
+ * The generate callbacks and closeAndCommit can set the transferContext of the
+ * application. The driver keeps it for the transfer and passes it to the later
+ * callbacks; endTransfer releases it.
+ *
+ * endTransfer runs once for each transfer that a generate Method or
+ * UA_FileTransferDriver_generateFile() created, and after a successful
+ * generate callback whose transfer could not be created. The client handle is
+ * closed then; the file still exists and is removed afterwards. The status
+ * tells how the transfer ended: Good when a read transfer is closed, the
+ * result of closeAndCommit, Bad_RequestCancelledByClient when a write
+ * transfer is closed, Bad_Timeout for the activity-timeout
+ * (ClientProcessingTimeout), Bad_SessionClosed, Bad_Shutdown when the driver
+ * stops, otherwise the error that failed the generation.
+ *
+ * The callbacks must not stop or remove the driver.
+ *
+ * The example ``examples/filetransfer/server_filetransfer_temporary.c`` gets
+ * and sets machine settings as a file; the client is
+ * ``examples/filetransfer/client_filetransfer_temporary.c``. */
+
+/* The temporary file of one transfer, borrowed for the duration of a
+ * callback */
+typedef struct {
+    const UA_NodeId *sessionId;
+    void *sessionContext;              /* NULL in endTransfer */
+    const UA_Variant *generateOptions; /* May be an empty Variant */
+    UA_FileTransferFileBackend *store;
+    UA_String path;                    /* Of the transfer file in the store */
+    UA_Boolean forWrite;
+    void *transferContext;             /* Of the application, initially NULL */
+} UA_FileTransferTemporaryFile;
+
+typedef UA_StatusCode
+(*UA_FileTransferTemporaryCallback)(UA_Server *server, void *context,
+                                    UA_FileTransferTemporaryFile *file);
+
+typedef void
+(*UA_FileTransferTemporaryEndCallback)(UA_Server *server, void *context,
+                                       UA_FileTransferTemporaryFile *file,
+                                       UA_StatusCode status);
+
+typedef struct {
+    UA_FileTransferTemporaryCallback generateFileForRead;  /* NULL: Bad_NotReadable */
+    UA_FileTransferTemporaryCallback generateFileForWrite; /* Optional */
+    UA_FileTransferTemporaryCallback closeAndCommit;       /* NULL: Bad_NotWritable */
+    UA_FileTransferTemporaryEndCallback endTransfer;       /* Optional */
+    void *context;                                         /* Passed to the callbacks */
+    /* Storage of the transfer files, NULL selects an internal memory store.
+     * Needs the file operations, create and remove; listDirectory, rename and
+     * copy are not used. The access callbacks get the random NodeIds of the
+     * transfer files; authorize the generate Methods with the access control
+     * plugin instead. */
+    const UA_FileTransferBackend *store;
+} UA_FileTransferTemporaryOptions;
+
+/* Construct a stopped driver for a TemporaryFileTransferType Object.
+ * generateFileForRead or closeAndCommit is required. The description, reuse and
+ * ownership rules of UA_FileTransferDriver_newFile() apply to the root Object
+ * and the store; the default type is TemporaryFileTransferType, the default
+ * BrowseName 1:TemporaryFileTransfer. The parameters namespace-index (for the
+ * transfer files, default: the namespace of the root NodeId), the handle
+ * limits, max-read-length, activity-timeout and read-only (rejects
+ * GenerateFileForWrite) apply. UA_FileTransferDriver_refresh() returns
+ * Bad_NotSupported. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_newTemporary(UA_Server *server,
+                                   const UA_FileTransferTemporaryOptions *options,
+                                   const UA_FileTransferNodeDescription *description,
+                                   UA_NodeId *outNodeId, UA_Driver **outDriver);
+
+/* Methods of a TemporaryFileTransferType subtype can take the FileHandle of a
+ * running transfer, e.g. SendProductionDatasetInformation of EUROMAP 83.
+ * getTransfer resolves it for the Session to the direction and the
+ * transferContext (both optional); setTransferContext replaces the context. A
+ * transfer runs from the generate Method until its handle is closed; other
+ * handles return Bad_InvalidArgument, a driver that is not temporary
+ * Bad_NotSupported. Both count as calls for the activity-timeout and can be
+ * called from Method callbacks. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_getTransfer(UA_Driver *driver, const UA_NodeId *sessionId,
+                                  UA_UInt32 fileHandle, UA_Boolean *forWrite,
+                                  void **transferContext);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_setTransferContext(UA_Driver *driver, const UA_NodeId *sessionId,
+                                         UA_UInt32 fileHandle, void *transferContext);
+
+/* Start a transfer like GenerateFileForRead or GenerateFileForWrite, e.g. for
+ * a Method that returns a temporary file. The callbacks, the direction rules,
+ * the limits and the activity-timeout apply; generateOptions may be NULL. The
+ * file and its handle belong to the Session: it reads or writes the file and
+ * ends the transfer with Close, or a write transfer with CloseAndCommit on the
+ * TemporaryFileTransferType Object. fileNodeId receives an owned copy. A
+ * driver that is not temporary returns Bad_NotSupported, a stopped driver
+ * Bad_InvalidState. Can be called from Method callbacks. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_FileTransferDriver_generateFile(UA_Driver *driver, const UA_NodeId *sessionId,
+                                   void *sessionContext, UA_Boolean forWrite,
+                                   const UA_Variant *generateOptions,
+                                   UA_NodeId *fileNodeId, UA_UInt32 *fileHandle);
 
 _UA_END_DECLS
 
