@@ -237,6 +237,10 @@ function(ua_add_test test_path_relative)
     endif()
 endfunction()
 
+add_test(generate_nodeid_header ${Python3_EXECUTABLE}
+         ${PROJECT_SOURCE_DIR}/tests/check_generate_nodeid_header.py
+         ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py)
+
 ua_add_test(check_types_builtin.c)
 ua_add_test(check_ziptree.c)
 
