@@ -1621,6 +1621,12 @@ endif()
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     target_include_directories(open62541-object SYSTEM PRIVATE ${MBEDTLS_INCLUDE_DIRS})
     target_include_directories(open62541-plugins SYSTEM PRIVATE ${MBEDTLS_INCLUDE_DIRS})
+    if(UA_ARCHITECTURE_ZEPHYR AND CONFIG_MBEDTLS_BUILTIN)
+        # Compile with the mbedTLS configuration of the Zephyr build
+        # (MBEDTLS_CONFIG_FILE), which its interface target provides.
+        target_link_libraries(open62541-object PRIVATE mbedTLS)
+        target_link_libraries(open62541-plugins PRIVATE mbedTLS)
+    endif()
 endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     include_directories_private(${OPENSSL_INCLUDE_DIR})
