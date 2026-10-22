@@ -201,9 +201,7 @@ static UA_ConnectionManager *testUdpCmRegister;
 static UA_Server *serverLds;
 static UA_Server *serverRegister;
 static UA_atomic(uintptr_t) runningLds;
-static UA_atomic(uintptr_t) runningRegister;
 static THREAD_HANDLE serverThreadLds;
-static THREAD_HANDLE serverThreadRegister;
 
 typedef struct {
     size_t openedListenConnections;
@@ -227,6 +225,9 @@ typedef struct {
 } MdnsMessageExpectation;
 
 typedef struct {
+    UA_UInt32 registerServerAddCalls;
+    UA_UInt32 registerServerUpdateCalls;
+    UA_UInt32 registerServerRemoveCalls;
     UA_UInt32 serverOnNetworkCalls;
     UA_UInt32 serverOnNetworkAnnounceCalls;
     UA_UInt32 serverOnNetworkRemoveCalls;
@@ -1424,16 +1425,67 @@ serverDiscoveryNotificationCallback(UA_Server *server,
                      sizeof(counters->lastCapabilities));
 }
 
+/* Count the RegisterServer(2) requests that the LDS accepts */
+static void
+ldsGlobalNotificationCallback(UA_Server *server,
+                              UA_ApplicationNotificationType type,
+                              const UA_KeyValueMap payload) {
+    (void)server;
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_REGISTERSERVER)
+        return;
+
+    const UA_Boolean *serverAdded = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "server-added"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    const UA_Boolean *serverUpdated = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "server-updated"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    const UA_Boolean *serverRemoved = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "server-removed"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(!serverAdded || !serverUpdated || !serverRemoved) {
+        recordWorkerCallbackFailure(UA_STATUSCODE_BADINTERNALERROR);
+        return;
+    }
+
+    if(*serverAdded)
+        discoveryCounters.registerServerAddCalls++;
+    if(*serverUpdated)
+        discoveryCounters.registerServerUpdateCalls++;
+    if(*serverRemoved)
+        discoveryCounters.registerServerRemoveCalls++;
+}
+
+static void
+sleepRealMs(unsigned ms) {
+#ifndef UA_ARCHITECTURE_WIN32
+    struct timespec ts = {0, (long)ms * 1000000};
+    nanosleep(&ts, NULL);
+#else
+    Sleep(ms);
+#endif
+}
+
 THREAD_CALLBACK(serverloop_lds_public) {
-    while(UA_atomic_load(&runningLds))
-        UA_Server_run_iterate(serverLds, true);
+    while(UA_atomic_load(&runningLds)) {
+        UA_Server_run_iterate(serverLds, false);
+        sleepRealMs(1);
+    }
     return 0;
 }
 
-THREAD_CALLBACK(serverloop_register_public) {
-    while(UA_atomic_load(&runningRegister))
-        UA_Server_run_iterate(serverRegister, true);
-    return 0;
+static void
+startLdsThread(void) {
+    UA_atomic_store(&runningLds, true);
+    THREAD_CREATE(serverThreadLds, serverloop_lds_public);
+}
+
+static void
+stopLdsThread(void) {
+    if(!UA_atomic_load(&runningLds))
+        return;
+    UA_atomic_store(&runningLds, false);
+    THREAD_JOIN(serverThreadLds);
 }
 
 static void
@@ -1442,21 +1494,9 @@ iterateDiscoveryServers(size_t iterations) {
         UA_fakeSleep(1000);
         if(serverLds && !UA_atomic_load(&runningLds))
             UA_Server_run_iterate(serverLds, false);
-        if(serverRegister && !UA_atomic_load(&runningRegister))
+        if(serverRegister)
             UA_Server_run_iterate(serverRegister, false);
-        /* The dedicated server threads (serverThreadLds, serverThreadRegister)
-         * run a blocking iterate and drive the EventLoop continuously. We must
-         * not call iterate from the test thread concurrently -- the EventLoop
-         * mutex is not held across the blocking select, so a second caller
-         * re-enters the run method and logs "Cannot run EventLoop from the
-         * run method itself", which also prevents event delivery. Just sleep
-         * to give the server threads time to process the fake-clock advance. */
-#ifndef UA_ARCHITECTURE_WIN32
-        struct timespec ts = {0, 1000000}; /* 1ms */
-        nanosleep(&ts, NULL);
-#else
-        Sleep(1);
-#endif
+        sleepRealMs(1); /* Give the kernel time to deliver loopback data */
     }
 }
 
@@ -1467,12 +1507,7 @@ waitForServerOnNetworkCalls(UA_UInt32 expectedCalls, UA_UInt32 timeoutMs) {
         i++) {
         UA_fakeSleep(1);
         UA_Server_run_iterate(serverLds, false);
-#ifndef UA_ARCHITECTURE_WIN32
-        struct timespec ts = {0, 1000000}; /* 1ms */
-        nanosleep(&ts, NULL);
-#else
-        Sleep(1);
-#endif
+        sleepRealMs(1);
     }
 }
 
@@ -1506,6 +1541,10 @@ createRegisterCertificate(void) {
     ck_assert_uint_eq(status, UA_STATUSCODE_GOOD);
 }
 #endif
+
+/* We don't include an explicit MdnsDiscoveryConfiguration. In this case the
+ * mDNS name will be taken from the ApplicationName set here. */
+#define REGISTERED_SERVER_NAME "RegisterServer2_public_api"
 
 static void
 setup_public_api_servers(void) {
@@ -1543,6 +1582,8 @@ setup_public_api_servers(void) {
     ck_assert_ptr_ne(serverLds, NULL);
 
     UA_ServerConfig *ldsServerConfig = UA_Server_getConfig(serverLds);
+    ldsServerConfig->eventLoop->dateTime_now = UA_DateTime_now_fake;
+    ldsServerConfig->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     ldsServerConfig->tcpReuseAddr = true;
     ldsServerConfig->serversOnNetworkEnabled = true;
     ldsServerConfig->registeredServersEnabled = true;
@@ -1550,6 +1591,7 @@ setup_public_api_servers(void) {
         UA_APPLICATIONTYPE_DISCOVERYSERVER;
     ldsServerConfig->discoveryNotificationCallback =
         serverDiscoveryNotificationCallback;
+    ldsServerConfig->globalNotificationCallback = ldsGlobalNotificationCallback;
 
     replaceUdpConnectionManagerFor(serverLds, &testUdpCmLds, &testUdpInterceptLds);
     addMdnsDriver(serverLds, true, true);
@@ -1567,11 +1609,16 @@ setup_public_api_servers(void) {
     ck_assert_ptr_ne(serverRegister, NULL);
 
     UA_ServerConfig *registerServerConfig = UA_Server_getConfig(serverRegister);
+    registerServerConfig->eventLoop->dateTime_now = UA_DateTime_now_fake;
+    registerServerConfig->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     registerServerConfig->tcpReuseAddr = true;
     registerServerConfig->serversOnNetworkEnabled = true;
     UA_String_clear(&registerServerConfig->applicationDescription.applicationUri);
     registerServerConfig->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_register_public_api");
+    UA_LocalizedText_clear(&registerServerConfig->applicationDescription.applicationName);
+    registerServerConfig->applicationDescription.applicationName =
+        UA_LOCALIZEDTEXT_ALLOC("en", REGISTERED_SERVER_NAME);
 
     replaceUdpConnectionManagerFor(serverRegister, &testUdpCmRegister,
                                    &testUdpInterceptRegister);
@@ -1582,36 +1629,11 @@ setup_public_api_servers(void) {
     const char *registerCaps[] = {"NA"};
     registerServerOnNetwork(serverRegister, "Register_public_api",
                             "opc.tcp://localhost:16664", registerCaps, 1);
-    UA_atomic_store(&runningLds, true);
-    THREAD_CREATE(serverThreadLds, serverloop_lds_public);
-    UA_atomic_store(&runningRegister, true);
-    THREAD_CREATE(serverThreadRegister, serverloop_register_public);
-}
-
-/* Injection tests drive both event loops from the test thread. This keeps
- * captured packets and notification counters stable while assertions read them. */
-static void
-stopPublicApiThreads(void) {
-    if(UA_atomic_load(&runningRegister)) {
-        UA_atomic_store(&runningRegister, false);
-        THREAD_JOIN(serverThreadRegister);
-    }
-
-    if(UA_atomic_load(&runningLds)) {
-        UA_atomic_store(&runningLds, false);
-        THREAD_JOIN(serverThreadLds);
-    }
-}
-
-static void
-setup_injection_servers(void) {
-    setup_public_api_servers();
-    stopPublicApiThreads();
 }
 
 static void
 teardown_public_api_servers(void) {
-    stopPublicApiThreads();
+    stopLdsThread();
 
     /* The mdnsd backend shares its multicast sockets globally. Shut down the
      * LDS server first because it owns the sockets, otherwise the register
@@ -1666,18 +1688,25 @@ setDiscoveryRegisterClientDefaults(UA_ClientConfig *cc) {
 #endif
 }
 
-/* Called with the registering server's background thread stopped. The public
- * API only queues the request; finish it before querying the LDS or submitting
- * another request. The LDS continues to run on its own thread. */
 static UA_Boolean
 finishDiscoveryRequest(void) {
     UA_DateTime deadline = UA_DateTime_nowMonotonic() + 60 * UA_DATETIME_SEC;
-    while(UA_DiscoveryManager_getPendingRegistration(serverRegister, NULL)) {
-        if(UA_DateTime_nowMonotonic() >= deadline)
-            return false;
+    UA_Boolean inTime = true;
+
+    startLdsThread();
+    while(inTime && UA_DiscoveryManager_getPendingRegistration(serverRegister, NULL)) {
         UA_Server_run_iterate(serverRegister, true);
+        inTime = (UA_DateTime_nowMonotonic() < deadline);
     }
-    return true;
+    stopLdsThread();
+
+    while(inTime && UA_Server_getStatistics(serverLds).scs.currentChannelCount > 0) {
+        UA_Server_run_iterate(serverRegister, false);
+        UA_Server_run_iterate(serverLds, false);
+        sleepRealMs(1);
+        inTime = (UA_DateTime_nowMonotonic() < deadline);
+    }
+    return inTime;
 }
 
 static void
@@ -1686,21 +1715,13 @@ registerWithLdsPublicApi(void) {
     memset(&cc, 0, sizeof(cc));
     setDiscoveryRegisterClientDefaults(&cc);
 
-    UA_atomic_store(&runningRegister, false);
-    THREAD_JOIN(serverThreadRegister);
-
     UA_StatusCode retval =
         UA_Server_registerDiscovery(serverRegister, &cc,
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING_NULL);
-
-    UA_Boolean completed = (retval == UA_STATUSCODE_GOOD) && finishDiscoveryRequest();
-
-    UA_atomic_store(&runningRegister, true);
-    THREAD_CREATE(serverThreadRegister, serverloop_register_public);
-
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_msg(completed, "Timed out waiting for the discovery request to finish");
+    ck_assert_msg(finishDiscoveryRequest(),
+                  "Timed out waiting for the discovery request to finish");
 }
 
 static void
@@ -1709,20 +1730,12 @@ deregisterFromLdsPublicApi(void) {
     memset(&cc, 0, sizeof(cc));
     setDiscoveryRegisterClientDefaults(&cc);
 
-    UA_atomic_store(&runningRegister, false);
-    THREAD_JOIN(serverThreadRegister);
-
     UA_StatusCode retval =
         UA_Server_deregisterDiscovery(serverRegister, &cc,
                                       UA_STRING("opc.tcp://localhost:4840"));
-
-    UA_Boolean completed = (retval == UA_STATUSCODE_GOOD) && finishDiscoveryRequest();
-
-    UA_atomic_store(&runningRegister, true);
-    THREAD_CREATE(serverThreadRegister, serverloop_register_public);
-
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_msg(completed, "Timed out waiting for the discovery request to finish");
+    ck_assert_msg(finishDiscoveryRequest(),
+                  "Timed out waiting for the discovery request to finish");
 }
 
 static UA_Boolean
@@ -1734,20 +1747,15 @@ isServerRegisteredAtLds(void) {
     UA_ApplicationDescription *servers = NULL;
     size_t serversSize = 0;
 
-    /* The dedicated server thread drives the LDS EventLoop continuously, so
-     * we must not also call iterate from the test thread -- the EventLoop's
-     * "executing" flag is already set and a second call would log an error
-     * and return immediately. The server thread wakes from select() on
-     * incoming connection data, so it handles the findServers request. */
+    /* The LDS thread answers while the client call blocks */
+    startLdsThread();
     UA_StatusCode retval =
         UA_Client_findServers(client, "opc.tcp://localhost:4840",
                               0, NULL, 0, NULL,
                               &serversSize, &servers);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        return false;
-    }
+    UA_Client_delete(client);
+    stopLdsThread();
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_String uri = UA_STRING("urn:open62541.test.server_register_public_api");
     UA_Boolean found = false;
@@ -1759,7 +1767,6 @@ isServerRegisteredAtLds(void) {
     }
 
     UA_Array_delete(servers, serversSize, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
-    UA_Client_delete(client);
     return found;
 }
 
@@ -1793,10 +1800,14 @@ findServersOnNetworkAndCheck(const char *endpointUrl,
             serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
     }
 
+    /* The LDS thread answers while the client call blocks */
+    startLdsThread();
     UA_StatusCode retval =
         UA_Client_findServersOnNetwork(client, endpointUrl, 0, 0,
                                        filterCapabilitiesSize, serverCapabilityFilter,
                                        &serverOnNetworkSize, &serverOnNetwork);
+    UA_Client_delete(client);
+    stopLdsThread();
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(serverOnNetworkSize, expectedServerNamesSize);
 
@@ -1817,10 +1828,11 @@ findServersOnNetworkAndCheck(const char *endpointUrl,
                     &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_delete(serverOnNetwork, serverOnNetworkSize,
                     &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-    UA_Client_delete(client);
 }
 
-START_TEST(MdnsStartupTriggersSendPath) {
+/* The fixture registers LDS_mdnsd_test after the startup. The record is
+ * announced with the default TTL of the driver. */
+START_TEST(MdnsAnnouncesRegisteredRecordWithDefaultTtl) {
     ck_assert_ptr_ne(server->discoveryDriver, NULL);
     ck_assert_uint_eq(TestConnectionManager_getCounters(testUdpCm,
                                                         TEST_MDNS_RECV_CONNECTION_ID,
@@ -2054,7 +2066,7 @@ START_TEST(PublicApiFindServersOnNetworkListsRegisteredServers) {
 #ifndef DISCOVERY_TEST_AUTHENTICATED_REGISTER
     return; /* RegisterServer(2) needs an authenticated SecureChannel */
 #endif
-    const char *expectedServerNames[1];
+    const char *expectedServerNames[2];
     const char *capsLds[] = {"LDS"};
     const char *capsNa[] = {"NA"};
     const char *capsMultipleNone[] = {"LDS", "NA"};
@@ -2062,25 +2074,27 @@ START_TEST(PublicApiFindServersOnNetworkListsRegisteredServers) {
     const char *capsMultipleCustomIgnoreCase[] = {"LDS", "myfancycap"};
 
     expectedServerNames[0] = "LDS_public_api";
+    expectedServerNames[1] = REGISTERED_SERVER_NAME;
 
     registerWithLdsPublicApi();
     ck_assert(isServerRegisteredAtLds());
 
-    UA_fakeSleep(4000);
-    iterateDiscoveryServers(1);
-
+    /* The LDS itself and the server registered at the LDS */
     findServersOnNetworkAndCheck("opc.tcp://localhost:4840",
-                                 expectedServerNames, 1, NULL, 0);
+                                 expectedServerNames, 2, NULL, 0);
+    /* Only the LDS */
     findServersOnNetworkAndCheck("opc.tcp://localhost:4840",
-                                 expectedServerNames, 1, capsLds, 1);
+                                 &expectedServerNames[0], 1, capsLds, 1);
+    /* Only the registered server. It registers without capabilities. */
     findServersOnNetworkAndCheck("opc.tcp://localhost:4840",
-                                 NULL, 0, capsNa, 1);
+                                 &expectedServerNames[1], 1, capsNa, 1);
+    /* No server */
     findServersOnNetworkAndCheck("opc.tcp://localhost:4840",
                                  NULL, 0, capsMultipleNone, 2);
     findServersOnNetworkAndCheck("opc.tcp://localhost:4840",
-                                 expectedServerNames, 1, capsMultipleCustom, 2);
+                                 &expectedServerNames[0], 1, capsMultipleCustom, 2);
     findServersOnNetworkAndCheck("opc.tcp://localhost:4840",
-                                 expectedServerNames, 1,
+                                 &expectedServerNames[0], 1,
                                  capsMultipleCustomIgnoreCase, 2);
 }
 END_TEST
@@ -2223,14 +2237,19 @@ START_TEST(MdnsUpdateOnlineOfflineTriggersSendPath) {
     size_t previousSendCount = UA_atomic_load(&globalInterceptedMdnsMessages);
     MdnsMessageExpectation onlineExpectation =
         {"RemoteTestServer", "/", "NA", 16664, true, 0, false};
+    MdnsMessageExpectation offlineExpectation =
+        {"RemoteTestServer", "/", "NA", 16664, false, 0, true};
 
     updateMdnsForDiscoveryUrl(server, "RemoteTestServer",
-                              "opc.tcp://localhost:16664", true);
+                             "opc.tcp://localhost:16664", true);
     waitForMdnsMessageAndAssert(intercepts, 1, previousSendCount,
                                 &onlineExpectation);
 
+    size_t sendsAfterOnline = UA_atomic_load(&globalInterceptedMdnsMessages);
     updateMdnsForDiscoveryUrl(server, "RemoteTestServer",
-                              "opc.tcp://localhost:16664", false);
+                             "opc.tcp://localhost:16664", false);
+    waitForMdnsMessageAndAssert(intercepts, 1, sendsAfterOnline,
+                                &offlineExpectation);
 }
 END_TEST
 
@@ -2238,11 +2257,33 @@ START_TEST(PublicApiRegisterDeregisterCallback) {
 #ifndef DISCOVERY_TEST_AUTHENTICATED_REGISTER
     return; /* RegisterServer(2) needs an authenticated SecureChannel */
 #endif
+    /* Count only the notifications of the registration. The setup notified
+     * the ServerOnNetwork entry of the LDS itself. */
+    resetDiscoveryCounters();
+
+    /* One registration adds one RegisteredServer and one ServerOnNetwork */
     registerWithLdsPublicApi();
     ck_assert(isServerRegisteredAtLds());
+    ck_assert_uint_eq(discoveryCounters.registerServerAddCalls, 1);
+    ck_assert_uint_eq(discoveryCounters.registerServerUpdateCalls, 0);
+    ck_assert_uint_eq(discoveryCounters.registerServerRemoveCalls, 0);
+    ck_assert_uint_eq(discoveryCounters.serverOnNetworkCalls, 1);
+    ck_assert_uint_eq(discoveryCounters.serverOnNetworkAnnounceCalls, 1);
+    ck_assert(discoveryCounters.lastIsServerAnnounce);
+    ck_assert_str_eq(discoveryCounters.lastServerName, REGISTERED_SERVER_NAME);
+    ck_assert_uint_eq(countServersOnNetworkByName(serverLds, REGISTERED_SERVER_NAME), 1);
 
+    /* One deregistration removes both again */
     deregisterFromLdsPublicApi();
     ck_assert(!isServerRegisteredAtLds());
+    ck_assert_uint_eq(discoveryCounters.registerServerAddCalls, 1);
+    ck_assert_uint_eq(discoveryCounters.registerServerUpdateCalls, 0);
+    ck_assert_uint_eq(discoveryCounters.registerServerRemoveCalls, 1);
+    ck_assert_uint_eq(discoveryCounters.serverOnNetworkCalls, 2);
+    ck_assert_uint_eq(discoveryCounters.serverOnNetworkRemoveCalls, 1);
+    ck_assert(!discoveryCounters.lastIsServerAnnounce);
+    ck_assert_str_eq(discoveryCounters.lastServerName, REGISTERED_SERVER_NAME);
+    ck_assert_uint_eq(countServersOnNetworkByName(serverLds, REGISTERED_SERVER_NAME), 0);
 }
 END_TEST
 
@@ -2250,15 +2291,48 @@ START_TEST(PublicApiDeregisterDiscoveryKeepsLocalMdnsRecord) {
 #ifndef DISCOVERY_TEST_AUTHENTICATED_REGISTER
     return; /* RegisterServer(2) needs an authenticated SecureChannel */
 #endif
+    TestUdpIntercept *intercepts[] = {testUdpInterceptRegister};
+    MdnsMessageExpectation localGoodbyeExpectation =
+        {"Register_public_api", "/", "NA", 16664, false, 0, true};
+
     registerWithLdsPublicApi();
     ck_assert(isServerRegisteredAtLds());
     ck_assert_uint_eq(countServersOnNetworkByName(serverRegister,
                                                   "Register_public_api"), 1);
 
+    /* The deregistration at the LDS must not retract the record that the
+     * registering server announces itself. Neither the entry nor the mDNS
+     * record goes away. */
+    size_t sendsBeforeDeregister = UA_atomic_load(&globalInterceptedMdnsMessages);
     deregisterFromLdsPublicApi();
     ck_assert(!isServerRegisteredAtLds());
     ck_assert_uint_eq(countServersOnNetworkByName(serverRegister,
                                                   "Register_public_api"), 1);
+    ck_assert(!hasMdnsMessageMatching(intercepts, 1, sendsBeforeDeregister,
+                                      &localGoodbyeExpectation));
+}
+END_TEST
+
+START_TEST(PublicApiRegisterDeregisterTriggersLdsMdnsSendPath) {
+#ifndef DISCOVERY_TEST_AUTHENTICATED_REGISTER
+    return; /* RegisterServer(2) needs an authenticated SecureChannel */
+#endif
+    /* Watch only the LDS. The announcement must come from the LDS, not from
+     * the registering server. */
+    TestUdpIntercept *intercepts[] = {testUdpInterceptLds};
+    size_t initialSends = UA_atomic_load(&globalInterceptedMdnsMessages);
+    MdnsMessageExpectation registerExpectation =
+        {REGISTERED_SERVER_NAME, "/", "NA", 16664, true, 0, false};
+    MdnsMessageExpectation deregisterExpectation =
+        {REGISTERED_SERVER_NAME, "/", "NA", 16664, false, 0, true};
+
+    registerWithLdsPublicApi();
+    waitForMdnsMessageAndAssert(intercepts, 1, initialSends, &registerExpectation);
+
+    size_t sendsAfterRegister = UA_atomic_load(&globalInterceptedMdnsMessages);
+    deregisterFromLdsPublicApi();
+    waitForMdnsMessageAndAssert(intercepts, 1, sendsAfterRegister,
+                                &deregisterExpectation);
 }
 END_TEST
 
@@ -2670,9 +2744,6 @@ START_TEST(PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath) {
         {"Register_public_api", "/", "NA", 16664, true, 0, false};
     MdnsMessageExpectation deregisterExpectation =
         {"Register_public_api", "/", "NA", 16664, false, 0, true};
-    UA_Boolean announce = true;
-    UA_KeyValuePair announcePair;
-    UA_KeyValueMap announceParams = {1, &announcePair};
     UA_ServerOnNetwork son;
     UA_ServerOnNetwork_init(&son);
 
@@ -2684,12 +2755,8 @@ START_TEST(PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath) {
     ck_assert_ptr_ne(son.serverCapabilities, NULL);
     son.serverCapabilities[0] = UA_String_fromChars("NA");
 
-    announcePair.key = UA_QUALIFIEDNAME(0, "announce");
-    UA_Variant_setScalar(&announcePair.value, &announce,
-                         &UA_TYPES[UA_TYPES_BOOLEAN]);
-
     ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &son,
-                                                        announceParams),
+                                                        UA_KEYVALUEMAP_NULL),
                       UA_STATUSCODE_GOOD);
     waitForMdnsMessageAndAssert(intercepts, 1, initialSends, &registerExpectation);
 
@@ -2719,26 +2786,26 @@ START_TEST(MdnsUpdateOnlineOfflineIsIdempotent) {
         {"RemoteStableServer", "/", "NA", 16665, true, 0, false};
 
     updateMdnsForDiscoveryUrl(server, "RemoteStableServer",
-                              "opc.tcp://localhost:16665", true);
+                             "opc.tcp://localhost:16665", true);
     waitForMdnsMessageAndAssert(intercepts, 1, initialSendCount, &expectation);
     ck_assert_uint_eq(countServersOnNetworkByName(server, "RemoteStableServer"), 1);
     ck_assert_uint_eq(countServersOnNetwork(server), initialEntries + 1);
 
     size_t sendsAfterFirstAdd = UA_atomic_load(&globalInterceptedMdnsMessages);
     updateMdnsForDiscoveryUrl(server, "RemoteStableServer",
-                              "opc.tcp://localhost:16665", true);
+                             "opc.tcp://localhost:16665", true);
     ck_assert_uint_eq(UA_atomic_load(&globalInterceptedMdnsMessages), sendsAfterFirstAdd);
     ck_assert_uint_eq(countServersOnNetworkByName(server, "RemoteStableServer"), 1);
     ck_assert_uint_eq(countServersOnNetwork(server), initialEntries + 1);
 
     updateMdnsForDiscoveryUrl(server, "RemoteStableServer",
-                              "opc.tcp://localhost:16665", false);
+                             "opc.tcp://localhost:16665", false);
     ck_assert_uint_eq(countServersOnNetworkByName(server, "RemoteStableServer"), 0);
     ck_assert_uint_eq(countServersOnNetwork(server), initialEntries);
 
     size_t sendsAfterFirstRemove = UA_atomic_load(&globalInterceptedMdnsMessages);
     updateMdnsForDiscoveryUrl(server, "RemoteStableServer",
-                              "opc.tcp://localhost:16665", false);
+                             "opc.tcp://localhost:16665", false);
     ck_assert_uint_eq(UA_atomic_load(&globalInterceptedMdnsMessages), sendsAfterFirstRemove);
     ck_assert_uint_eq(countServersOnNetworkByName(server, "RemoteStableServer"), 0);
     ck_assert_uint_eq(countServersOnNetwork(server), initialEntries);
@@ -2879,7 +2946,7 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_unchecked_fixture(tc, setup_server, teardown_server);
     tcase_add_test(tc, MdnsStartupOpensReceiveAndSendConnections);
     tcase_add_test(tc, MdnsShortDatagramUsesParserSizedBuffer);
-    tcase_add_test(tc, MdnsStartupTriggersSendPath);
+    tcase_add_test(tc, MdnsAnnouncesRegisteredRecordWithDefaultTtl);
     tcase_add_test(tc, MdnsShutdownSendsSelfGoodbyeAndDrainsQueue);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineTriggersSendPath);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineIsIdempotent);
@@ -2913,17 +2980,20 @@ testSuite_DiscoveryMdnsd(void) {
                    PublicApiFindServersOnNetworkAppliesLimitAfterCapabilityFilter);
     suite_add_tcase(s, tc_public_api_core);
 
+    /* Fresh servers for every test. A registration that a failed test leaves
+     * at the LDS must not satisfy the next test. */
     TCase *tc_integration = tcase_create("Public discovery API integration");
-    tcase_add_unchecked_fixture(tc_integration,
-                                setup_public_api_servers,
-                                teardown_public_api_servers);
+    tcase_add_checked_fixture(tc_integration,
+                              setup_public_api_servers,
+                              teardown_public_api_servers);
     tcase_add_test(tc_integration, PublicApiRegisterDeregisterCallback);
     tcase_add_test(tc_integration, PublicApiDeregisterDiscoveryKeepsLocalMdnsRecord);
+    tcase_add_test(tc_integration, PublicApiRegisterDeregisterTriggersLdsMdnsSendPath);
     tcase_add_test(tc_integration, PublicApiFindServersOnNetworkListsRegisteredServers);
     suite_add_tcase(s, tc_integration);
 
     tc_integration = tcase_create("Injected discovery messages");
-    tcase_add_unchecked_fixture(tc_integration, setup_injection_servers,
+    tcase_add_unchecked_fixture(tc_integration, setup_public_api_servers,
                                 teardown_public_api_servers);
     tcase_add_test(tc_integration, PublicApiInjectedPtrIsIgnoredWithoutDetails);
     tcase_add_test(tc_integration,
