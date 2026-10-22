@@ -62,11 +62,13 @@ config OPEN62541_ENABLE_INLINABLE_EXPORT
     help
         Export 'static inline' methods as regular API
 config OPEN62541_ENABLE_ENCRYPTION_MBEDTLS
-    bool "Enable mbedTLS"
+    bool "Enable encryption (mbedTLS)"
     default n
     depends on MBEDTLS
     help
-        Deprecated: Enable encryption support (uses mbedTLS)
+        Enable encryption support with mbedTLS (UA_ENABLE_ENCRYPTION=MBEDTLS).
+        With MBEDTLS_BUILTIN the library is built against the mbedTLS of the
+        Zephyr build.
 config OPEN62541_ENABLE_QUERY
     bool "Enable query"
     default n
