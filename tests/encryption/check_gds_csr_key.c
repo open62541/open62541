@@ -30,10 +30,7 @@
 #elif defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 #include <mbedtls/version.h>
 #if MBEDTLS_VERSION_NUMBER >= 0x03050000
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/x509_crt.h>
-#include <mbedtls/x509_csr.h>
+#include "crypto/mbedtls/securitypolicy_mbedtls_compat.h"
 #define CAN_SIGN_CSR
 #endif
 #endif
@@ -351,27 +348,20 @@ signCsr(const UA_ByteString *csr, UA_ByteString *certificate) {
 #define MAX_SAN_ENTRIES 8
 static void
 signCsr(const UA_ByteString *csr, UA_ByteString *certificate) {
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context drbg;
     mbedtls_x509_csr req;
     mbedtls_x509_crt issuer;
     mbedtls_pk_context issuerKey;
     mbedtls_x509write_cert crt;
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&drbg);
     mbedtls_x509_csr_init(&req);
     mbedtls_x509_crt_init(&issuer);
     mbedtls_pk_init(&issuerKey);
     mbedtls_x509write_crt_init(&crt);
 
-    ck_assert_int_eq(mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func,
-                                           &entropy, NULL, 0), 0);
     ck_assert_int_eq(mbedtls_x509_csr_parse_der(&req, csr->data, csr->length), 0);
     ck_assert_int_eq(mbedtls_x509_crt_parse_der(&issuer, CSR_CA_CERT_DER_DATA,
                                                 CSR_CA_CERT_DER_LENGTH), 0);
-    ck_assert_int_eq(mbedtls_pk_parse_key(&issuerKey, CSR_CA_KEY_DER_DATA,
-                                          CSR_CA_KEY_DER_LENGTH, NULL, 0,
-                                          mbedtls_ctr_drbg_random, &drbg), 0);
+    ck_assert_int_eq(UA_mbedTLS_compat_parsePrivateKey(&issuerKey, CSR_CA_KEY_DER_DATA,
+                                                       CSR_CA_KEY_DER_LENGTH, NULL, 0), 0);
 
     mbedtls_x509write_crt_set_version(&crt, MBEDTLS_X509_CRT_VERSION_3);
     mbedtls_x509write_crt_set_md_alg(&crt, MBEDTLS_MD_SHA256);
@@ -407,8 +397,7 @@ signCsr(const UA_ByteString *csr, UA_ByteString *certificate) {
         ck_assert_int_eq(mbedtls_x509write_crt_set_subject_alternative_name(&crt, san), 0);
 
     unsigned char buf[4096];
-    int len = mbedtls_x509write_crt_der(&crt, buf, sizeof(buf),
-                                        mbedtls_ctr_drbg_random, &drbg);
+    int len = UA_mbedTLS_compat_writeCertificateDer(&crt, buf, sizeof(buf));
     ck_assert_int_gt(len, 0);
     UA_StatusCode res = UA_ByteString_allocBuffer(certificate, (size_t)len);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -420,8 +409,6 @@ signCsr(const UA_ByteString *csr, UA_ByteString *certificate) {
     mbedtls_pk_free(&issuerKey);
     mbedtls_x509_crt_free(&issuer);
     mbedtls_x509_csr_free(&req);
-    mbedtls_ctr_drbg_free(&drbg);
-    mbedtls_entropy_free(&entropy);
 }
 #endif
 

@@ -52,17 +52,21 @@ UA_mbedTLS_compat_isRsaKeyPair(const mbedtls_pk_context *key) {
 #endif
 }
 
-/* Certificates and CRLs carry the signature options only before mbedTLS 4 */
+/* Certificates and CRLs carry the signature options only before mbedTLS 4.
+ * mbedTLS 4 replaces mbedtls_pk_type_t with mbedtls_pk_sigalg_t for the
+ * signature algorithm. */
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
+typedef mbedtls_pk_sigalg_t UA_mbedTLS_SigPk;
 #define UA_MBEDTLS_SIG_OPTS(x509) NULL
 #else
+typedef mbedtls_pk_type_t UA_mbedTLS_SigPk;
 #define UA_MBEDTLS_SIG_OPTS(x509) ((x509)->MBEDTLS_PRIVATE(sig_opts))
 #endif
 
 /* Verify the signature over the TBS part of a certificate or CRL */
 static UA_Boolean
 verifyTbsSignature(const mbedtls_x509_buf *tbs, const mbedtls_x509_buf *signature,
-                   mbedtls_md_type_t md, mbedtls_pk_type_t sigPk,
+                   mbedtls_md_type_t md, UA_mbedTLS_SigPk sigPk,
                    const void *sigOpts, mbedtls_pk_context *issuerKey) {
     size_t hashLength;
     unsigned char hash[MBEDTLS_MD_MAX_SIZE];
