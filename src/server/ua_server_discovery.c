@@ -337,7 +337,7 @@ discoveryClientStateCallback(UA_Client *client,
                 asyncRegisterRequest_clearAsync(ar); /* Clean up */
             } else {
                 ar->connectSuccess = false;
-                UA_Client_connectAsync(client, NULL);   /* Reconnect */
+                UA_Client_connectSecureChannelAsync(client, NULL); /* Reconnect */
             }
         }
         return;
@@ -469,9 +469,6 @@ registerDiscovery(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister,
 #endif
     }
 
-    /* Open only a SecureChannel */
-    cc->noSession = true;
-
     /* Move the endpoint url */
     UA_String_clear(&cc->endpointUrl);
     UA_String_copy(&discoveryServerUrl, &cc->endpointUrl);
@@ -493,10 +490,9 @@ registerDiscovery(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister,
     ar->register2 = true; /* Try register2 first */
     UA_String_copy(&semaphoreFilePath, &ar->semaphoreFilePath);
 
-    /* Connect asynchronously. The register service is called once the
-     * connection is open. */
+    /* Connect asynchronously and without a session. */
     ar->connectSuccess = false;
-    return UA_Client_connectAsync(ar->client, NULL);
+    return UA_Client_connectSecureChannelAsync(ar->client, NULL);
 }
 
 UA_StatusCode
