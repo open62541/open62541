@@ -392,8 +392,13 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 
     /* Inform application about state change */
     if(server->config.pubSubConfig.stateChangeCallback) {
+        const UA_NodeId identifier = c->head.identifier;
         server->config.pubSubConfig.
-            stateChangeCallback(server, c->head.identifier, c->head.state, ret);
+            stateChangeCallback(server, identifier, c->head.state, ret);
+
+        /* The callback may remove this connection. */
+        if(UA_PubSubConnection_find(psm, identifier) != c)
+            return ret;
     }
 
     /* Children evaluate their state machine after the state change of the parent.

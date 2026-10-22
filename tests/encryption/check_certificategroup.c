@@ -299,6 +299,7 @@ START_TEST(get_rejectedlist) {
 
     /* Set server config */
     UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert_uint_eq(config->maxRejectedListSize, 100);
     /* Load certificate and private key */
     UA_ByteString issuerCertificate;
     issuerCertificate.length = CERT_DER_LENGTH;
