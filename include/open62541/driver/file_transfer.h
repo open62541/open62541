@@ -218,16 +218,16 @@ struct UA_FileTransferBackend {
  *    for targets beyond the limit. Lowering the limit keeps deeper Objects,
  *    but they are no longer refreshed.
  * 0:max-nodes [UInt32]
- *    Maximum mirrored Objects, including the root; 0 means unlimited
- *    (default). Lowering the limit does not remove existing Objects.
+ *    Maximum number of mirrored Objects, the root included; 0 means no limit
+ *    (default). A lower limit does not remove existing Objects.
  * 0:namespace-index [UInt16]
- *    Namespace for new entry BrowseNames and NodeIds (default: 0).
- *    Standard Properties and Methods remain in namespace 0.
+ *    Namespace of the BrowseNames and NodeIds of new entries (default: the
+ *    namespace of the root Object, 1 for a root in Namespace Zero). Standard
+ *    Properties and Methods stay in namespace 0.
  * 0:refresh-interval [Double]
- *    Directory refresh interval in milliseconds (default: 1000), at least
- *    0.0001. 0 disables the periodic refresh, see
- *    UA_FileTransferDriver_refresh(). Vanished files with open handles remain
- *    until closed.
+ *    How often directories are compared with the backend (default: 1000). 0
+ *    turns the periodic refresh off; then call UA_FileTransferDriver_refresh().
+ *    A file that disappears while it is open stays until it is closed.
  * 0:max-open-handles-per-session [UInt16]
  *    Open handles per Session in this driver (default: 64).
  * 0:max-open-handles-per-file [UInt16]
@@ -483,15 +483,11 @@ typedef struct {
     const UA_FileTransferBackend *store;
 } UA_FileTransferTemporaryOptions;
 
-/* Construct a stopped driver for a TemporaryFileTransferType Object.
- * generateFileForRead or closeAndCommit is required. The description, reuse and
- * ownership rules of UA_FileTransferDriver_newFile() apply to the root Object
- * and the store; the default type is TemporaryFileTransferType, the default
- * BrowseName 1:TemporaryFileTransfer. The parameters namespace-index (for the
- * transfer files, default: the namespace of the root NodeId), the handle
- * limits, max-read-length, activity-timeout and read-only (rejects
- * GenerateFileForWrite) apply. UA_FileTransferDriver_refresh() returns
- * Bad_NotSupported. */
+/* Construct a stopped driver for a TemporaryFileTransferType Object (default
+ * BrowseName 1:TemporaryFileTransfer). generateFileForRead or closeAndCommit is
+ * required. The rules of UA_FileTransferDriver_newFile() apply to the
+ * description and the store. read-only refuses GenerateFileForWrite;
+ * max-scan-depth, max-nodes and refresh-interval do not apply. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_FileTransferDriver_newTemporary(UA_Server *server,
                                    const UA_FileTransferTemporaryOptions *options,

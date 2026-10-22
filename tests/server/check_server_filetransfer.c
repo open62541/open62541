@@ -1099,14 +1099,8 @@ tryResolveChild(UA_Server *s, const UA_NodeId parent, const char *name,
 /* Helper: resolve a child of a node by BrowseName */
 static UA_NodeId
 resolveChild(UA_Server *s, const UA_NodeId parent, const char *name) {
-    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, (char*)(uintptr_t)name);
-    UA_BrowsePathResult bpr =
-        UA_Server_browseSimplifiedBrowsePath(s, parent, 1, &qn);
-    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
-    ck_assert_uint_ge(bpr.targetsSize, 1);
-    UA_NodeId result;
-    UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &result);
-    UA_BrowsePathResult_clear(&bpr);
+    UA_NodeId result = UA_NODEID_NULL;
+    ck_assert(tryResolveChild(s, parent, name, &result));
     return result;
 }
 
@@ -1761,18 +1755,23 @@ START_TEST(removeFileClosesHandles) {
  * FileDirectoryType Method Tests
  **************************************/
 
-/* Non-asserting child resolution */
+/* Resolve a child without asserting. Standard Properties are in namespace 0,
+ * mirrored entries in the namespace of their root: the one of the parent, or
+ * 1. */
 static UA_Boolean
 tryResolveChild(UA_Server *s, const UA_NodeId parent, const char *name,
                 UA_NodeId *out) {
-    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, (char*)(uintptr_t)name);
-    UA_BrowsePathResult bpr =
-        UA_Server_browseSimplifiedBrowsePath(s, parent, 1, &qn);
-    UA_Boolean found = (bpr.statusCode == UA_STATUSCODE_GOOD &&
-                        bpr.targetsSize >= 1);
-    if(found && out)
-        UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, out);
-    UA_BrowsePathResult_clear(&bpr);
+    UA_UInt16 namespaces[3] = {0, parent.namespaceIndex, 1};
+    UA_Boolean found = false;
+    for(size_t i = 0; i < 3 && !found; i++) {
+        UA_QualifiedName qn = UA_QUALIFIEDNAME(namespaces[i], (char*)(uintptr_t)name);
+        UA_BrowsePathResult bpr =
+            UA_Server_browseSimplifiedBrowsePath(s, parent, 1, &qn);
+        found = (bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize >= 1);
+        if(found && out)
+            UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, out);
+        UA_BrowsePathResult_clear(&bpr);
+    }
     return found;
 }
 
@@ -4846,7 +4845,7 @@ START_TEST(replacingEntryIsNotZombie) {
                       UA_STATUSCODE_GOOD);
 
     /* The new file d is served while the old directory d is a zombie */
-    UA_QualifiedName dName = UA_QUALIFIEDNAME(0, "d");
+    UA_QualifiedName dName = UA_QUALIFIEDNAME(fsId.namespaceIndex, "d");
     UA_BrowsePathResult bpr =
         UA_Server_browseSimplifiedBrowsePath(server_ft, fsId, 1, &dName);
     ck_assert_uint_eq(bpr.targetsSize, 2);
@@ -5627,6 +5626,36 @@ START_TEST(directoryBackendCastsFileBackend) {
     UA_NodeId_clear(&root);
 } END_TEST
 
+/* Mirrored entries use the namespace of their root, 1 for a root in
+ * Namespace Zero, unless namespace-index selects another one */
+static void
+expectEntryNamespace(UA_NodeId requested, const FTConfig *options,
+                     UA_UInt16 expected) {
+    UA_NodeId fsId = UA_NODEID_NULL;
+    ck_assert_uint_eq(testAddDirectory(requested, UA_NS0ID(OBJECTSFOLDER),
+                          UA_QUALIFIEDNAME(1, "NamespaceFS"),
+                          backendArg(memBackendWithTree()), options, &fsId),
+                      UA_STATUSCODE_GOOD);
+    UA_QualifiedName readme = UA_QUALIFIEDNAME(expected, "readme.txt");
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(server_ft, fsId, 1, &readme);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    ck_assert_uint_eq(bpr.targets[0].targetId.nodeId.namespaceIndex, expected);
+    UA_BrowsePathResult_clear(&bpr);
+    ck_assert_uint_eq(testRemove(driverForRoot(fsId), fsId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fsId);
+}
+
+START_TEST(entriesUseRootNamespace) {
+    UA_UInt16 ns = UA_Server_addNamespace(server_ft, "urn:test:entry-namespace");
+    expectEntryNamespace(UA_NODEID_STRING(ns, "NamespaceFS"), NULL, ns);
+    expectEntryNamespace(UA_NODEID_NUMERIC(0, 4711000), NULL, 1);
+    FTConfig options;
+    memset(&options, 0, sizeof(options));
+    expectEntryNamespace(UA_NODEID_STRING(ns, "ZeroFS"), &options, 0);
+} END_TEST
+
 START_TEST(defaultNodeDescriptions) {
     UA_FileTransferBackend backend = memBackendWithTree();
     UA_Driver *driver = NULL;
@@ -5776,10 +5805,16 @@ START_TEST(reuseFileRestoresProperties) {
     UA_NodeId_clear(&size);
 } END_TEST
 
+/* The NodeIds stay below the generated ones (from 50000). A deleted driver
+ * entry can pass its NodeId on to a new node, and the lifecycle records of the
+ * tests must not mistake that node for a recorded Object. */
+static UA_UInt32 modelObjectIds = 10000;
+
 static UA_NodeId
 modelObject(UA_NodeId parent, UA_NodeId type, UA_UInt16 ns, char *name) {
     UA_NodeId out;
-    ck_assert_uint_eq(UA_Server_addObjectNode(server_ft, UA_NODEID_NUMERIC(ns, 0),
+    ck_assert_uint_eq(UA_Server_addObjectNode(server_ft,
+        UA_NODEID_NUMERIC(ns, modelObjectIds++),
         parent, UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(ns, name), type,
         UA_ObjectAttributes_default, NULL, &out), UA_STATUSCODE_GOOD);
     return out;
@@ -6080,14 +6115,14 @@ START_TEST(reuseNestedDirectoryStructure) {
     ck_assert_uint_eq(UA_FileTransferDriver_newDirectory(server_ft, &backend,
         &description, NULL, &driver), UA_STATUSCODE_GOOD);
     registerTestDriver(driver);
-    /* Namespace 0 is used for new entries; existing entries use another ns. */
-    ck_assert(!tryResolveChild(server_ft, root, "docs", NULL));
-    ck_assert(!tryResolveChild(server_ft, docs, "a.txt", NULL));
     UA_ByteString data = readFileContent(file);
     ck_assert_uint_eq(data.length, 9);
     UA_ByteString_clear(&data);
+    /* New entries use the namespace of the root like the reused ones */
     UA_NodeId created = resolveChild(server_ft, docs, "sub");
     UA_NodeId createdFile = resolveChild(server_ft, created, "b.txt");
+    ck_assert_uint_eq(created.namespaceIndex, ns);
+    ck_assert_uint_eq(createdFile.namespaceIndex, ns);
     UA_NodeId objects[5] = {root, docs, file, created, createdFile};
     void *context = NULL;
     for(size_t i = 0; i < sizeof(objects) / sizeof(objects[0]); i++) {
@@ -7862,6 +7897,7 @@ int main(void) {
     tcase_add_test(tc_lifecycle, driverParametersRequireTheirTypes);
     tcase_add_test(tc_lifecycle, directoryBackendCastsFileBackend);
     tcase_add_test(tc_lifecycle, defaultNodeDescriptions);
+    tcase_add_test(tc_lifecycle, entriesUseRootNamespace);
     tcase_add_test(tc_lifecycle, reuseFileRestoresProperties);
     tcase_add_test(tc_lifecycle, reuseDerivedPropertyDataTypes);
     tcase_add_test(tc_lifecycle, reuseNestedDirectoryStructure);
