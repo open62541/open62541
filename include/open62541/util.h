@@ -170,7 +170,9 @@ UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
  * @param endpointUrl The endpoint URL.
  * @param outHostname Set to the parsed hostname. The string points into the
  *        original endpointUrl, so no memory is allocated. If an IPv6 address is
- *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'
+ *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'. The
+ *        hostname can be empty (e.g. for a server that listens on all
+ *        interfaces). The caller has to check for that if it needs a hostname.
  * @param outPort Set to the port of the url or left unchanged.
  * @param outPath Set to the path if one is present in the endpointUrl. Can be
  *        NULL. Then not path is returned. Starting or trailing '/' are NOT

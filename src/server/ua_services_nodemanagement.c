@@ -488,8 +488,7 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    Operation_BrowseAll(server, session, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -821,8 +820,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    Operation_BrowseAll(server, session, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1269,8 +1267,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    Operation_BrowseAll(server, session, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1445,8 +1442,7 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
     bd.nodeClassMask = UA_NODECLASS_METHOD;
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    Operation_BrowseAll(server, session, &bd, &br);
     UA_Boolean hasParentMethod = (br.referencesSize > 0);
     UA_BrowseResult_clear(&br);
     if(hasParentMethod)
@@ -2621,8 +2617,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, &server->adminSession, &maxrefs, &bd, &br);
+    Operation_BrowseAll(server, &server->adminSession, &bd, &br);
 
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {

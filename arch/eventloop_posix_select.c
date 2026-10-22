@@ -15,6 +15,22 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Registering fd: %u", (unsigned)rfd->fd);
 
+    /* select can only handle descriptors from 0 to FD_SETSIZE-1. Adding a
+     * larger descriptor to a fd_set is undefined behavior. The fd_set on
+     * Windows is an array of sockets. It is limited by the number of sockets and
+     * not by their value. */
+#ifdef UA_ARCHITECTURE_WIN32
+    UA_Boolean fits = (el->fdsSize < FD_SETSIZE);
+#else
+    UA_Boolean fits = (rfd->fd >= 0 && rfd->fd < FD_SETSIZE);
+#endif
+    if(!fits) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                       "Cannot register fd %u. It is not supported by select",
+                       (unsigned)rfd->fd);
+        return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
+    }
+
     /* Realloc */
     UA_RegisteredFD **fds_tmp = (UA_RegisteredFD**)
         UA_realloc(el->fds, sizeof(UA_RegisteredFD*) * (el->fdsSize + 1));

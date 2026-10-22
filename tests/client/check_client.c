@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel_async.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 
@@ -10,7 +11,9 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"
@@ -481,6 +484,76 @@ START_TEST(Client_activateSessionLocaleIds) {
 }
 END_TEST
 
+static char notConnectedLog[512];
+
+static UA_FORMAT(4,0) void
+captureNotConnectedLog(void *logContext, UA_LogLevel level, UA_LogCategory category,
+                       const char *msg, va_list args) {
+    char buf[512];
+    vsnprintf(buf, sizeof(buf), msg, args);
+    if(strstr(buf, "SecureChannel must be connected"))
+        snprintf(notConnectedLog, sizeof(notConnectedLog), "%s", buf);
+}
+
+/* The log of a request on a client that is not connected has the request type
+ * and the endpoint */
+START_TEST(Client_notConnectedLogsRequestAndEndpoint) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    UA_Logger *oldLogger = config->logging;
+    UA_Logger captureLogger = {captureNotConnectedLog, NULL, NULL};
+    config->logging = &captureLogger;
+    UA_String_clear(&config->endpointUrl);
+    config->endpointUrl = UA_STRING_ALLOC("opc.tcp://localhost:4840");
+
+    UA_BrowseRequest request;
+    UA_BrowseRequest_init(&request);
+    notConnectedLog[0] = 0;
+    UA_StatusCode retval =
+        UA_Client_sendAsyncBrowseRequest(client, &request, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSERVERNOTCONNECTED);
+    ck_assert_ptr_ne(strstr(notConnectedLog, "opc.tcp://localhost:4840"), NULL);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    ck_assert_ptr_ne(strstr(notConnectedLog, "BrowseRequest"), NULL);
+#endif
+
+    config->logging = oldLogger;
+    UA_Client_delete(client);
+} END_TEST
+
+/* A client needs a hostname. The URL is rejected before the name resolution. */
+static char invalidUrlLog[512];
+
+static UA_FORMAT(4,0) void
+captureInvalidUrlLog(void *logContext, UA_LogLevel level, UA_LogCategory category,
+                     const char *msg, va_list args) {
+    char buf[512];
+    vsnprintf(buf, sizeof(buf), msg, args);
+    if(strstr(buf, "OPC UA URL is invalid"))
+        snprintf(invalidUrlLog, sizeof(invalidUrlLog), "%s", buf);
+}
+
+START_TEST(Client_connectWithoutHostname) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    UA_Logger *oldLogger = config->logging;
+    UA_Logger captureLogger = {captureInvalidUrlLog, NULL, NULL};
+    config->logging = &captureLogger;
+
+    invalidUrlLog[0] = 0;
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp:///127.0.0.1:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
+    ck_assert_ptr_ne(strstr(invalidUrlLog, "opc.tcp:///127.0.0.1:4840"), NULL);
+    config->logging = oldLogger;
+
+    /* A normal URL still works */
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_delete(client);
+} END_TEST
+
 START_TEST(Client_closes_on_server_error) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -669,6 +742,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
+    tcase_add_test(tc_client, Client_notConnectedLogsRequestAndEndpoint);
+    tcase_add_test(tc_client, Client_connectWithoutHostname);
     tcase_add_test(tc_client, Client_closes_on_server_error);
     suite_add_tcase(s,tc_client);
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");

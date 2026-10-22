@@ -1072,6 +1072,71 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 }
 
 void
+Operation_BrowseAll(UA_Server *server, UA_Session *session,
+                    const UA_BrowseDescription *descr, UA_BrowseResult *result) {
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, descr, result);
+
+    /* The maximum references per node can limit the first result. Fetch the
+     * remaining pages. The continuation points are freed on the way. */
+    while(result->statusCode == UA_STATUSCODE_GOOD &&
+          result->continuationPoint.length > 0) {
+        UA_ByteString cp = result->continuationPoint;
+        UA_ByteString_init(&result->continuationPoint);
+
+        UA_BrowseResult next;
+        UA_BrowseResult_init(&next);
+        UA_Boolean release = false;
+        Operation_BrowseNext(server, session, &release, &cp, &next);
+        UA_StatusCode res = next.statusCode;
+
+        /* Append the references of the next page */
+        if(res == UA_STATUSCODE_GOOD && next.referencesSize > 0) {
+            /* The references of an empty result are not allocated (the pointer
+             * can be the empty array sentinel). Copy both pages into a new
+             * array. The ReferenceDescriptions are moved. */
+            size_t oldSize = result->referencesSize;
+            UA_ReferenceDescription *refs = (UA_ReferenceDescription*)
+                UA_malloc((oldSize + next.referencesSize) *
+                          sizeof(UA_ReferenceDescription));
+            if(refs) {
+                if(oldSize > 0) {
+                    memcpy(refs, result->references,
+                           oldSize * sizeof(UA_ReferenceDescription));
+                }
+                if(result->references != (UA_ReferenceDescription*)UA_EMPTY_ARRAY_SENTINEL)
+                    UA_free(result->references);
+                memcpy(&refs[oldSize], next.references,
+                       next.referencesSize * sizeof(UA_ReferenceDescription));
+                result->references = refs;
+                result->referencesSize = oldSize + next.referencesSize;
+                UA_free(next.references);
+                next.references = NULL;
+                next.referencesSize = 0;
+            } else {
+                res = UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+        }
+
+        if(res != UA_STATUSCODE_GOOD) {
+            /* Release the continuation point if it still exists */
+            release = true;
+            UA_BrowseResult tmp;
+            UA_BrowseResult_init(&tmp);
+            Operation_BrowseNext(server, session, &release, &cp, &tmp);
+            UA_BrowseResult_clear(&tmp);
+            UA_BrowseResult_clear(result);
+            result->statusCode = res;
+        } else {
+            result->continuationPoint = next.continuationPoint; /* Moved */
+            UA_ByteString_init(&next.continuationPoint);
+        }
+        UA_ByteString_clear(&cp);
+        UA_BrowseResult_clear(&next);
+    }
+}
+
+void
 Service_BrowseNext(UA_Server *server, UA_Session *session,
                    const UA_BrowseNextRequest *request,
                    UA_BrowseNextResponse *response) {
