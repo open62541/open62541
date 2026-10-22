@@ -1812,6 +1812,11 @@ initConnect(UA_Client *client) {
     UA_UInt16 port = 4840;
 
     res = UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
+
+    /* The parser accepts an empty hostname (server listeners use this to bind
+     * all interfaces). A client needs a hostname to connect to. */
+    if(res == UA_STATUSCODE_GOOD && hostname.length == 0)
+        res = UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
                        "OPC UA URL is invalid: %.*s",
