@@ -1484,6 +1484,12 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                                UA_NodeTypeLifecycle lifecycle);
 
+/* Get the node-type lifecycle of an ObjectTypeNode or VariableTypeNode, e.g. to
+ * chain to it before replacing it with UA_Server_setNodeTypeLifecycle */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
+                               UA_NodeTypeLifecycle *lifecycle);
+
 /**
  * Detailed Node Construction
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1971,7 +1977,8 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * can be added only once to a server. */
 typedef enum {
     UA_DRIVERTYPE_GENERIC = 0,
-    UA_DRIVERTYPE_GDS_RECEIVER
+    UA_DRIVERTYPE_GDS_RECEIVER,
+    UA_DRIVERTYPE_LOGOBJECT
 } UA_DriverType;
 
 struct UA_Driver;

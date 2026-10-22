@@ -1,0 +1,2631 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/driver/logobject.h>
+
+#include "test_helpers.h"
+#include "../common.h"
+#include "testing_clock.h"
+#include "thread_wrapper.h"
+#include "../../drivers/logobject/logobject_internal.h"
+
+#include <check.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef UA_ENABLE_DRIVER_LOGOBJECT
+
+static UA_Server *server = NULL;
+static UA_Driver *driver = NULL;
+static UA_Boolean running = false;
+THREAD_HANDLE server_thread;
+
+THREAD_CALLBACK(serverloop) {
+    while(running)
+        UA_Server_run_iterate(server, true);
+    return 0;
+}
+
+static void
+setup(void) {
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+}
+
+/* Runs after every test, also when a test aborted on a failed assertion.
+ * Without this a leaked server thread would keep iterating a deleted server
+ * and the next test would fail instead of this one. */
+static void
+teardown(void) {
+    if(running) {
+        running = false;
+        THREAD_JOIN(server_thread);
+    }
+    if(!server)
+        return;
+    if(UA_Server_getLifecycleState(server) != UA_LIFECYCLESTATE_STOPPED) {
+        UA_Server_run_shutdown(server);
+    } else {
+        /* A LogObject driver started without the server */
+        for(UA_Driver *drv = UA_Server_getDrivers(server); drv; drv = drv->next) {
+            if(isLogObjectDriver(drv))
+                drv->stop(drv);
+        }
+    }
+    UA_Server_delete(server);
+    server = NULL;
+    driver = NULL;
+}
+
+static UA_Boolean
+stringEquals(const UA_String *s, const char *expected) {
+    UA_String e = UA_STRING((char*)(uintptr_t)expected);
+    return UA_String_equal(s, &e);
+}
+
+/* --- Driver lifecycle --- */
+
+START_TEST(driverLifecycle) {
+    UA_Driver *drv = NULL;
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, &drv), UA_STATUSCODE_GOOD);
+    ck_assert(drv != NULL);
+    ck_assert(isLogObjectDriver(drv));
+    ck_assert_uint_eq(drv->driverType, UA_DRIVERTYPE_LOGOBJECT);
+    ck_assert_uint_eq(UA_Server_addDriver(server, drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(drv->state, UA_LIFECYCLESTATE_STOPPED);
+
+    /* Started with the server */
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(drv->state, UA_LIFECYCLESTATE_STARTED);
+    ck_assert_uint_eq(drv->start(drv), UA_STATUSCODE_BADINVALIDSTATE);
+
+    /* Stopping is idempotent, the driver can be started again */
+    drv->stop(drv);
+    ck_assert_uint_eq(drv->state, UA_LIFECYCLESTATE_STOPPED);
+    drv->stop(drv);
+    ck_assert_uint_eq(drv->start(drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(drv->state, UA_LIFECYCLESTATE_STARTED);
+
+    /* Stopped with the server, freed with the server in the teardown */
+    UA_Server_run_shutdown(server);
+    ck_assert_uint_eq(drv->state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+START_TEST(onlyOneDriver) {
+    UA_Driver *first = NULL;
+    UA_Driver *second = NULL;
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, &first), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, &second), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(server, first), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(server, second), UA_STATUSCODE_BADALREADYEXISTS);
+    ck_assert_uint_eq(second->free(second), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(removeAtRuntime) {
+    UA_Driver *drv = NULL;
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, &drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(server, drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    /* A started driver cannot be removed */
+    ck_assert(UA_Server_removeDriver(server, drv) != UA_STATUSCODE_GOOD);
+    drv->stop(drv);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(drv->free(drv), UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+} END_TEST
+
+/* A driver that never was added to a server can be freed */
+START_TEST(freeUnregisteredDriver) {
+    UA_Driver *drv = NULL;
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, &drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(drv->free(drv), UA_STATUSCODE_GOOD);
+} END_TEST
+
+static unsigned backendClears = 0;
+
+static void
+countingClear(UA_LogObjectBackend *backend) {
+    backendClears++;
+    UA_LogObjectBackend inner = *(UA_LogObjectBackend*)backend->context;
+    UA_free(backend->context);
+    inner.clear(&inner);
+    backend->context = NULL;
+}
+
+/* The driver takes over a complete backend and clears it when freed */
+START_TEST(backendOwnership) {
+    UA_Driver *drv = NULL;
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* An incomplete backend is rejected, the caller keeps it */
+    UA_LogObjectBackend incomplete;
+    memset(&incomplete, 0, sizeof(UA_LogObjectBackend));
+    ck_assert_uint_eq(UA_LogObjectDriver_new(&incomplete, &drv),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert(drv == NULL);
+
+    /* Wrap the memory backend to count the clear */
+    UA_LogObjectBackend inner;
+    ck_assert_uint_eq(UA_LogObjectBackend_memory(&inner), UA_STATUSCODE_GOOD);
+    UA_LogObjectBackend wrapper = inner;
+    wrapper.context = UA_malloc(sizeof(UA_LogObjectBackend));
+    ck_assert(wrapper.context != NULL);
+    *(UA_LogObjectBackend*)wrapper.context = inner;
+    wrapper.clear = countingClear;
+    backendClears = 0;
+    ck_assert_uint_eq(UA_LogObjectDriver_new(&wrapper, &drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(drv->free(drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(backendClears, 1);
+} END_TEST
+
+/* --- Test server with a LogObject driver --- */
+
+/* Options of the test server. They are passed as driver parameters. */
+typedef struct {
+    UA_Boolean serverLog;
+    UA_LogObjectSettings serverLogSettings;
+    UA_UInt32 maxRecordsPerCall;
+    UA_UInt16 maxContinuationPoints;
+    const UA_LogObjectBackend *backend; /* NULL = memory backend */
+    UA_UInt16 port;
+    UA_Logger *logger; /* NULL = stdout logger of the config */
+} DriverOptions;
+
+static DriverOptions
+defaultOptions(void) {
+    DriverOptions o;
+    memset(&o, 0, sizeof(DriverOptions));
+    o.serverLog = true;
+    o.serverLogSettings.maxRecords = 1000;
+    o.serverLogSettings.minimumSeverity = 1;
+    o.maxRecordsPerCall = 1000;
+    o.maxContinuationPoints = 32;
+    o.port = 4840;
+    return o;
+}
+
+/* The records added by the tests have Severity 300 and above */
+static DriverOptions
+apiOnlyOptions(void) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.minimumSeverity = 300;
+    return o;
+}
+
+static void
+setParam(const char *key, const void *value, const UA_DataType *type) {
+    UA_StatusCode res =
+        UA_KeyValueMap_setScalar(&driver->params, UA_QUALIFIEDNAME(0, (char*)(uintptr_t)key),
+                                 value, type);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+/* Replace the server of the fixture by one with the fake clock and a stopped
+ * LogObject driver configured from the options */
+static void
+newLogObjectServer(const DriverOptions *o) {
+    if(server)
+        UA_Server_delete(server);
+    UA_ServerConfig sc;
+    memset(&sc, 0, sizeof(UA_ServerConfig));
+    sc.logging = o->logger;
+    UA_StatusCode res = UA_ServerConfig_setMinimal(&sc, o->port, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    sc.eventLoop->dateTime_now = UA_DateTime_now_fake;
+    sc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    sc.tcpReuseAddr = true;
+    server = UA_Server_newWithConfig(&sc);
+    ck_assert(server != NULL);
+
+    ck_assert_uint_eq(UA_LogObjectDriver_new(o->backend, &driver), UA_STATUSCODE_GOOD);
+    setParam("server-log", &o->serverLog, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    setParam("server-log-max-records", &o->serverLogSettings.maxRecords,
+             &UA_TYPES[UA_TYPES_UINT32]);
+    setParam("server-log-max-storage-duration", &o->serverLogSettings.maxStorageDuration,
+             &UA_TYPES[UA_TYPES_DOUBLE]);
+    setParam("server-log-minimum-severity", &o->serverLogSettings.minimumSeverity,
+             &UA_TYPES[UA_TYPES_UINT16]);
+    setParam("max-records-per-call", &o->maxRecordsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
+    setParam("max-continuation-points", &o->maxContinuationPoints,
+             &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(UA_Server_addDriver(server, driver), UA_STATUSCODE_GOOD);
+}
+
+/* Start the driver without opening the network */
+static void
+startDriver(void) {
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_GOOD);
+}
+
+/* Add a record to the ServerLog with the current (fake) time */
+static void
+addRecord(UA_UInt16 severity, const char *msg) {
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = severity;
+    r.message = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)msg);
+    UA_StatusCode res = UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+/* Call GetRecords on a LogObject through the Call service (admin Session).
+ * The results and the continuation point are copied out. */
+static UA_StatusCode
+callGetRecords(const UA_NodeId objectId, UA_DateTime start, UA_DateTime end,
+               UA_UInt32 maxReturn, UA_UInt16 minSeverity, UA_UInt32 mask,
+               const UA_ByteString *cpIn, UA_LogRecordsDataType *results,
+               UA_ByteString *cpOut) {
+    UA_Variant inputs[6];
+    for(size_t i = 0; i < 6; i++)
+        UA_Variant_init(&inputs[i]);
+    UA_Variant_setScalar(&inputs[0], &start, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&inputs[1], &end, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&inputs[2], &maxReturn, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputs[3], &minSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&inputs[4], &mask, &UA_TYPES[UA_TYPES_LOGRECORDMASK]);
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    UA_Variant_setScalar(&inputs[5], (void*)(uintptr_t)(cpIn ? cpIn : &empty),
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = objectId;
+    req.methodId = UA_NS0ID(LOGOBJECTTYPE_GETRECORDS);
+    req.inputArgumentsSize = 6;
+    req.inputArguments = inputs;
+    UA_CallMethodResult r = UA_Server_call(server, &req);
+    UA_StatusCode res = r.statusCode;
+    UA_LogRecordsDataType_init(results);
+    UA_ByteString_init(cpOut);
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(r.outputArgumentsSize, 2);
+        ck_assert(UA_Variant_hasScalarType(&r.outputArguments[0],
+                                           &UA_TYPES[UA_TYPES_LOGRECORDSDATATYPE]));
+        UA_LogRecordsDataType_copy((UA_LogRecordsDataType*)r.outputArguments[0].data,
+                                   results);
+        ck_assert(UA_Variant_hasScalarType(&r.outputArguments[1],
+                                           &UA_TYPES[UA_TYPES_BYTESTRING]));
+        UA_ByteString_copy((UA_ByteString*)r.outputArguments[1].data, cpOut);
+    }
+    UA_CallMethodResult_clear(&r);
+    return res;
+}
+
+/* Number of records of a LogObject with the given message */
+static size_t
+countRecords(const UA_NodeId logObjectId, const char *msg) {
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(logObjectId, 0, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    size_t count = 0;
+    for(size_t i = 0; i < results.logRecordArraySize; i++) {
+        if(stringEquals(&results.logRecordArray[i].message.text, msg))
+            count++;
+    }
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    return count;
+}
+
+/* All records of the ServerLog. The caller clears the result. */
+static UA_LogRecordsDataType
+readServerLog(void) {
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&cp);
+    return results;
+}
+
+static const UA_LogRecord *
+findRecord(const UA_LogRecordsDataType *results, const char *text) {
+    for(size_t i = 0; i < results->logRecordArraySize; i++) {
+        if(stringEquals(&results->logRecordArray[i].message.text, text))
+            return &results->logRecordArray[i];
+    }
+    return NULL;
+}
+
+static UA_Boolean
+nodeExists(const UA_NodeId id) {
+    UA_NodeClass nc;
+    return UA_Server_readNodeClass(server, id, &nc) == UA_STATUSCODE_GOOD;
+}
+
+/* Browse the HasComponent / Organizes targets of a node by BrowseName */
+static UA_Boolean
+hasReferenceTo(const UA_NodeId source, const UA_NodeId refType, const UA_NodeId target) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = source;
+    bd.referenceTypeId = refType;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &target))
+            found = true;
+    }
+    UA_BrowseResult_clear(&br);
+    return found;
+}
+
+/* --- Parameters --- */
+
+START_TEST(invalidParameters) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+
+    /* Wrong type */
+    UA_Int32 wrongType = 5;
+    setParam("server-log-max-records", &wrongType, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(driver->state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert(!nodeExists(UA_NS0ID(SERVERLOG)));
+
+    /* Invalid values */
+    UA_UInt32 zero = 0;
+    setParam("server-log-max-records", &zero, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_UInt32 thousand = 1000;
+    setParam("server-log-max-records", &thousand, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt16 severity = 1001;
+    setParam("server-log-minimum-severity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    severity = 0;
+    setParam("server-log-minimum-severity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+    severity = 51;
+    setParam("server-log-minimum-severity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Double duration = -1.0;
+    setParam("server-log-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* (UA_Double)UA_INT64_MAX is 2^63 and does not fit into the tick count */
+    duration = (UA_Double)UA_INT64_MAX / UA_DATETIME_MSEC;
+    setParam("server-log-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(driver->start(driver), UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Valid again */
+    duration = 0.0;
+    setParam("server-log-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DOUBLE]);
+    startDriver();
+    ck_assert(nodeExists(UA_NS0ID(SERVERLOG)));
+} END_TEST
+
+/* The durations can be given as Duration, the OPC UA type of the settings */
+START_TEST(durationParameters) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    UA_Duration duration = 5000.0;
+    setParam("server-log-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DURATION]);
+    setParam("default-max-storage-duration", &duration, &UA_TYPES[UA_TYPES_DURATION]);
+    setParam("overflow-event-interval", &duration, &UA_TYPES[UA_TYPES_DURATION]);
+    startDriver();
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION), &v),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_isScalar(&v) && v.type->typeKind == UA_DATATYPEKIND_DOUBLE);
+    ck_assert(*(UA_Double*)v.data == 5000.0);
+    UA_Variant_clear(&v);
+} END_TEST
+
+/* --- ServerLog --- */
+
+START_TEST(serverLogNodes) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.maxRecords = 500;
+    o.serverLogSettings.maxStorageDuration = 2000.0;
+    o.serverLogSettings.minimumSeverity = 100;
+    o.maxContinuationPoints = 7;
+    newLogObjectServer(&o);
+
+    /* Created by the started driver */
+    ck_assert(!nodeExists(UA_NS0ID(SERVERLOG)));
+    startDriver();
+    ck_assert(nodeExists(UA_NS0ID(SERVERLOG)));
+    ck_assert(nodeExists(UA_NS0ID(SERVERLOG_GETRECORDS)));
+    ck_assert(nodeExists(UA_NS0ID(SERVERLOG_GETRECORDS_INPUTARGUMENTS)));
+    ck_assert(nodeExists(UA_NS0ID(SERVERLOG_GETRECORDS_OUTPUTARGUMENTS)));
+    ck_assert(hasReferenceTo(UA_NS0ID(SERVER), UA_NS0ID(HASCOMPONENT),
+                             UA_NS0ID(SERVERLOG)));
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), UA_NS0ID(SERVERLOG)));
+    ck_assert(hasReferenceTo(UA_NS0ID(SERVERLOG), UA_NS0ID(HASCOMPONENT),
+                             UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT)));
+
+    /* The Properties mirror the parameters */
+    UA_Variant v;
+    UA_StatusCode res = UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MAXRECORDS), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)v.data, 500);
+    UA_Variant_clear(&v);
+    res = UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MINIMUMSEVERITY), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert_uint_eq(*(UA_UInt16*)v.data, 100);
+    UA_Variant_clear(&v);
+    res = UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_isScalar(&v) && v.type->typeKind == UA_DATATYPEKIND_DOUBLE);
+    ck_assert(*(UA_Double*)v.data == 2000.0);
+    UA_Variant_clear(&v);
+    res = UA_Server_readValue(server,
+        UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXLOGOBJECTCONTINUATIONPOINTS), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert_uint_eq(*(UA_UInt16*)v.data, 7);
+    UA_Variant_clear(&v);
+
+    /* Removed when the driver stops */
+    driver->stop(driver);
+    ck_assert(!nodeExists(UA_NS0ID(SERVERLOG)));
+    ck_assert(!nodeExists(UA_NS0ID(SERVERLOG_GETRECORDS)));
+    ck_assert(!nodeExists(UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXLOGOBJECTCONTINUATIONPOINTS)));
+    ck_assert(!hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), UA_NS0ID(SERVERLOG)));
+    ck_assert(nodeExists(UA_NS0ID(LOGOBJECTTYPE)));
+    ck_assert(nodeExists(UA_NS0ID(LOGS)));
+} END_TEST
+
+START_TEST(noMaxStorageDurationProperty) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    /* Zero is not a valid MaxStorageDuration, the Property is not exposed */
+    ck_assert(!nodeExists(UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION)));
+    ck_assert(nodeExists(UA_NS0ID(SERVERLOG_MAXRECORDS)));
+} END_TEST
+
+START_TEST(serverLogDisabled) {
+    DriverOptions o = defaultOptions();
+    o.serverLog = false;
+    newLogObjectServer(&o);
+    startDriver();
+    ck_assert(!nodeExists(UA_NS0ID(SERVERLOG)));
+    ck_assert(nodeExists(UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXLOGOBJECTCONTINUATIONPOINTS)));
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 100;
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+} END_TEST
+
+/* A ServerLog created by the application is served and kept on stop */
+START_TEST(applicationServerLog) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", "ServerLog");
+    UA_StatusCode res =
+        UA_Server_addObjectNode(server, UA_NS0ID(SERVERLOG), UA_NS0ID(SERVER),
+                                UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(0, "ServerLog"),
+                                UA_NS0ID(LOGOBJECTTYPE), oa, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    startDriver();
+    addRecord(300, "app");
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "app"), 1);
+    driver->stop(driver);
+    ck_assert(nodeExists(UA_NS0ID(SERVERLOG)));
+} END_TEST
+
+/* --- UA_LogObjectDriver_addRecord --- */
+
+START_TEST(addRecordApi) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 120;
+    r.message = UA_LOCALIZEDTEXT("en-US", "api record");
+
+    /* Not started */
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_BADINVALIDSTATE);
+    startDriver();
+
+    /* Invalid arguments */
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(NULL, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* The Severity must be in 1..1000 */
+    r.severity = 0;
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_BADOUTOFRANGE);
+    r.severity = 1001;
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_BADOUTOFRANGE);
+
+    /* Unknown LogObject */
+    r.severity = 120;
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NODEID_NUMERIC(1, 9999), &r),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+    /* All optional fields, the time is filled in */
+    UA_NodeId eventType = UA_NS0ID(BASEEVENTTYPE);
+    UA_NodeId sourceNode = UA_NS0ID(SERVER);
+    UA_String sourceName = UA_STRING("Test");
+    UA_TraceContextDataType traceContext;
+    UA_TraceContextDataType_init(&traceContext);
+    traceContext.spanId = 7;
+    UA_NameValuePair pair;
+    UA_NameValuePair_init(&pair);
+    pair.name = UA_STRING("key");
+    UA_Int32 value = 1;
+    UA_Variant_setScalar(&pair.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    r.eventType = &eventType;
+    r.sourceNode = &sourceNode;
+    r.sourceName = &sourceName;
+    r.traceContext = &traceContext;
+    r.additionalData = &pair;
+    r.additionalDataSize = 1;
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_GOOD);
+
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    ck_assert_uint_eq(callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                     &results, &cp), UA_STATUSCODE_GOOD);
+    const UA_LogRecord *stored = NULL;
+    for(size_t i = 0; i < results.logRecordArraySize; i++) {
+        if(stringEquals(&results.logRecordArray[i].message.text, "api record"))
+            stored = &results.logRecordArray[i];
+    }
+    ck_assert(stored != NULL);
+    ck_assert_int_eq(stored->time, UA_DateTime_now_fake(NULL));
+    ck_assert_uint_eq(stored->severity, 120);
+    ck_assert(stringEquals(&stored->message.locale, "en-US"));
+    ck_assert(stored->eventType != NULL);
+    ck_assert(UA_NodeId_equal(stored->eventType, &eventType));
+    ck_assert(stored->sourceNode != NULL);
+    ck_assert(UA_NodeId_equal(stored->sourceNode, &sourceNode));
+    ck_assert(stored->sourceName != NULL);
+    ck_assert(stringEquals(stored->sourceName, "Test"));
+    ck_assert(stored->traceContext != NULL);
+    ck_assert_uint_eq(stored->traceContext->spanId, 7);
+    ck_assert_uint_eq(stored->additionalDataSize, 1);
+    ck_assert(stringEquals(&stored->additionalData[0].name, "key"));
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+/* The records survive a restart of the driver */
+START_TEST(recordsSurviveRestart) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    addRecord(300, "before");
+    driver->stop(driver);
+    startDriver();
+    addRecord(300, "after");
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "before"), 1);
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "after"), 1);
+} END_TEST
+
+/* --- GetRecords Method (Part 26, 5.3) --- */
+
+START_TEST(getRecordsArguments) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+
+    /* Severity outside 1..1000 */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFRANGE);
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1001, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFRANGE);
+
+    /* StartTime after EndTime */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 20, 10, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Unknown bits in the RequestMask */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x20, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Bogus continuation point */
+    UA_ByteString bogus = UA_BYTESTRING("0123456789abcdef");
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, &bogus, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+
+    /* An empty ServerLog returns an empty array and no continuation point */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 0);
+    ck_assert_uint_eq(cp.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+START_TEST(getRecordsTimeRange) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_DateTime t1 = UA_DateTime_now_fake(NULL);
+    addRecord(300, "one");
+    UA_fakeSleep(1000);
+    UA_DateTime t2 = UA_DateTime_now_fake(NULL);
+    addRecord(300, "two");
+    UA_fakeSleep(1000);
+    UA_DateTime t3 = UA_DateTime_now_fake(NULL);
+    addRecord(300, "three");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+
+    /* Everything, oldest first */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 3);
+    ck_assert_int_eq(results.logRecordArray[0].time, t1);
+    ck_assert_int_eq(results.logRecordArray[2].time, t3);
+    ck_assert(stringEquals(&results.logRecordArray[0].message.text, "one"));
+    ck_assert_uint_eq(cp.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* [t2, t3] */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), t2, t3, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    ck_assert_int_eq(results.logRecordArray[0].time, t2);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* StartTime == EndTime returns the records at exactly that time */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), t2, t2, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 1);
+    ck_assert(stringEquals(&results.logRecordArray[0].message.text, "two"));
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* Open ranges */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), t2, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, t2, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* Nothing after t3 */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), t3 + 1, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+START_TEST(getRecordsSeverityFilter) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    addRecord(300, "critical");
+    addRecord(400, "alert");
+    addRecord(500, "emergency");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 400, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    ck_assert_uint_eq(results.logRecordArray[0].severity, 400);
+    ck_assert_uint_eq(results.logRecordArray[1].severity, 500);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+START_TEST(getRecordsRequestMask) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+
+    UA_NodeId eventType = UA_NS0ID(BASEEVENTTYPE);
+    UA_NodeId sourceNode = UA_NS0ID(SERVER);
+    UA_String sourceName = UA_STRING("Test");
+    UA_TraceContextDataType traceContext;
+    UA_TraceContextDataType_init(&traceContext);
+    traceContext.spanId = 7;
+    UA_NameValuePair pair;
+    UA_NameValuePair_init(&pair);
+    pair.name = UA_STRING("key");
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 300;
+    r.message = UA_LOCALIZEDTEXT("", "full");
+    r.eventType = &eventType;
+    r.sourceNode = &sourceNode;
+    r.sourceName = &sourceName;
+    r.traceContext = &traceContext;
+    r.additionalData = &pair;
+    r.additionalDataSize = 1;
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_GOOD);
+
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    const UA_UInt32 masks[7] = {0, 1, 2, 4, 8, 16, 0x1F};
+    for(size_t i = 0; i < 7; i++) {
+        UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, masks[i],
+                                           NULL, &results, &cp);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(results.logRecordArraySize, 1);
+        const UA_LogRecord *s = &results.logRecordArray[0];
+        ck_assert_uint_eq(s->severity, 300);
+        ck_assert((s->eventType != NULL) == ((masks[i] & 1) != 0));
+        ck_assert((s->sourceNode != NULL) == ((masks[i] & 2) != 0));
+        ck_assert((s->sourceName != NULL) == ((masks[i] & 4) != 0));
+        ck_assert((s->traceContext != NULL) == ((masks[i] & 8) != 0));
+        ck_assert((s->additionalDataSize == 1) == ((masks[i] & 16) != 0));
+        UA_LogRecordsDataType_clear(&results);
+        UA_ByteString_clear(&cp);
+    }
+} END_TEST
+
+START_TEST(getRecordsContinuation) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    for(int i = 0; i < 25; i++) {
+        addRecord(300, "record");
+        UA_fakeSleep(10);
+    }
+    UA_LogRecordsDataType results;
+    UA_ByteString cp, cp2;
+    UA_DateTime last = 0;
+
+    /* First page */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 10, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 10);
+    ck_assert_uint_eq(cp.length, 16);
+    last = results.logRecordArray[9].time;
+    UA_LogRecordsDataType_clear(&results);
+
+    /* Second page continues after the first, the arguments of the original
+     * call apply */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp, &results, &cp2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 10);
+    ck_assert(results.logRecordArray[0].time > last);
+    ck_assert_uint_eq(cp2.length, 16);
+    last = results.logRecordArray[9].time;
+    UA_LogRecordsDataType_clear(&results);
+
+    /* A continuation point can be used only once */
+    UA_ByteString cp3;
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp, &results, &cp3);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_ByteString_clear(&cp);
+
+    /* Last page */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp2, &results, &cp3);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 5);
+    ck_assert(results.logRecordArray[0].time > last);
+    ck_assert_uint_eq(cp3.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp2);
+    UA_ByteString_clear(&cp3);
+} END_TEST
+
+START_TEST(getRecordsServerLimit) {
+    DriverOptions o = apiOnlyOptions();
+    o.maxRecordsPerCall = 5;
+    newLogObjectServer(&o);
+    startDriver();
+    for(int i = 0; i < 12; i++)
+        addRecord(300, "record");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+
+    /* No client limit: the server limit applies and a continuation point is
+     * returned */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 5);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* A smaller client limit wins */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 3, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 3);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* A larger client limit is capped */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 100, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 5);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+/* Without a client limit and without a server limit the records are bounded
+ * by MaxRecords of the LogObject */
+START_TEST(getRecordsWithoutLimits) {
+    DriverOptions o = apiOnlyOptions();
+    o.maxRecordsPerCall = 0;
+    newLogObjectServer(&o);
+    startDriver();
+    for(int i = 0; i < 12; i++)
+        addRecord(300, "record");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 12);
+    ck_assert_uint_eq(cp.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+START_TEST(noContinuationPoints) {
+    DriverOptions o = apiOnlyOptions();
+    o.maxContinuationPoints = 1;
+    newLogObjectServer(&o);
+    startDriver();
+    for(int i = 0; i < 6; i++)
+        addRecord(300, "record");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp, cp2;
+
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+
+    /* The Session has no continuation point left */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL, &results, &cp2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOCONTINUATIONPOINTS);
+
+    /* Consuming the first one frees the slot */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp, &results, &cp2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    ck_assert_uint_eq(cp2.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_ByteString_clear(&cp2);
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+/* Stopping the driver releases the continuation points */
+START_TEST(continuationPointsReleasedOnStop) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    for(int i = 0; i < 6; i++)
+        addRecord(300, "record");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp, cp2;
+    ck_assert_uint_eq(callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL,
+                                     &results, &cp), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+    driver->stop(driver);
+    startDriver();
+    ck_assert_uint_eq(callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp,
+                                     &results, &cp2),
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+/* --- ReleaseContinuationPoint Method (Part 26, 5.4) --- */
+
+static UA_StatusCode
+callReleaseContinuationPoint(const UA_NodeId objectId, const UA_ByteString *cp) {
+    UA_Variant input;
+    UA_Variant_setScalar(&input, (void*)(uintptr_t)cp, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = objectId;
+    req.methodId = UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT);
+    req.inputArgumentsSize = 1;
+    req.inputArguments = &input;
+    UA_CallMethodResult r = UA_Server_call(server, &req);
+    UA_StatusCode res = r.statusCode;
+    UA_CallMethodResult_clear(&r);
+    return res;
+}
+
+START_TEST(releaseContinuationPoint) {
+    DriverOptions o = apiOnlyOptions();
+    o.maxContinuationPoints = 1;
+    newLogObjectServer(&o);
+    startDriver();
+    for(int i = 0; i < 6; i++)
+        addRecord(300, "record");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp, cp2;
+
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+
+    /* Unknown and empty identifiers */
+    UA_ByteString bogus = UA_BYTESTRING("0123456789abcdef");
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &bogus),
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &empty),
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+
+    /* Release frees the slot of the Session, a second release fails */
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &cp),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &cp),
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp, &results, &cp2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_ByteString_clear(&cp);
+
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+} END_TEST
+
+/* --- Sessions over the network --- */
+
+/* GetRecords over the network with MaxReturnRecords=4. Returns the length of
+ * the continuation point or the error. */
+static UA_StatusCode
+clientGetRecords(UA_Client *client, size_t *cpLength) {
+    UA_DateTime zero = 0;
+    UA_UInt32 maxReturn = 4;
+    UA_UInt16 minSeverity = 1;
+    UA_UInt32 mask = 0x1F;
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    UA_Variant inputs[6];
+    for(size_t i = 0; i < 6; i++)
+        UA_Variant_init(&inputs[i]);
+    UA_Variant_setScalar(&inputs[0], &zero, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&inputs[1], &zero, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&inputs[2], &maxReturn, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputs[3], &minSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&inputs[4], &mask, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputs[5], &empty, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode res = UA_Client_call(client, UA_NS0ID(SERVERLOG),
+                                       UA_NS0ID(LOGOBJECTTYPE_GETRECORDS),
+                                       6, inputs, &outputSize, &output);
+    *cpLength = 0;
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(outputSize, 2);
+        ck_assert(UA_Variant_hasScalarType(&output[1], &UA_TYPES[UA_TYPES_BYTESTRING]));
+        *cpLength = ((UA_ByteString*)output[1].data)->length;
+    }
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    return res;
+}
+
+/* Run the server with the network on a port that the other tests do not use */
+static void
+runServer(void) {
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void
+stopServer(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+}
+
+START_TEST(continuationPointsReleasedWithSession) {
+    DriverOptions o = apiOnlyOptions();
+    o.maxContinuationPoints = 1;
+    o.port = 4841;
+    newLogObjectServer(&o);
+    runServer();
+    for(int i = 0; i < 6; i++)
+        addRecord(300, "record");
+
+    /* The first Session takes the only continuation point */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode res = UA_Client_connect(client, "opc.tcp://localhost:4841");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    size_t cpLength = 0;
+    res = clientGetRecords(client, &cpLength);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cpLength, 16);
+    res = clientGetRecords(client, &cpLength);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOCONTINUATIONPOINTS);
+
+    /* Closing the Session releases its continuation points. A new Session
+     * starts with a free slot. */
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    stopServer();
+    ck_assert(LIST_EMPTY(&((LogObjectDriver*)driver)->continuationPoints));
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    client = UA_Client_newForUnitTest();
+    res = UA_Client_connect(client, "opc.tcp://localhost:4841");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = clientGetRecords(client, &cpLength);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cpLength, 16);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    stopServer();
+} END_TEST
+
+/* --- LogObjects in the information model (Part 26, 5.2, 7.3) --- */
+
+static UA_NodeId
+addInstance(const char *name, const UA_NodeId typeId) {
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)name);
+    UA_NodeId id;
+    UA_StatusCode res =
+        UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                                UA_NS0ID(ORGANIZES),
+                                UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+                                typeId, oa, NULL, &id);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    return id;
+}
+
+static void
+addRecordTo(const UA_NodeId logObjectId, UA_UInt16 severity, const char *msg) {
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = severity;
+    r.message = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)msg);
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, logObjectId, &r),
+                      UA_STATUSCODE_GOOD);
+}
+
+static UA_StatusCode
+getRecordsStatus(const UA_NodeId logObjectId) {
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(logObjectId, 0, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    return res;
+}
+
+static UA_NodeId
+addLogObjectSubtype(UA_UInt32 id, const char *name) {
+    UA_ObjectTypeAttributes ota = UA_ObjectTypeAttributes_default;
+    ota.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)name);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, id);
+    UA_StatusCode res =
+        UA_Server_addObjectTypeNode(server, typeId, UA_NS0ID(LOGOBJECTTYPE),
+                                    UA_NS0ID(HASSUBTYPE),
+                                    UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+                                    ota, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    return typeId;
+}
+
+static void
+addProperty(const UA_NodeId parent, char *name, void *value, const UA_DataType *type) {
+    UA_VariableAttributes va = UA_VariableAttributes_default;
+    va.displayName = UA_LOCALIZEDTEXT("", name);
+    va.dataType = type->typeId;
+    va.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&va.value, value, type);
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, UA_NODEID_NULL, parent, UA_NS0ID(HASPROPERTY),
+                                  UA_QUALIFIEDNAME(0, name), UA_NS0ID(PROPERTYTYPE),
+                                  va, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+static UA_NodeId
+childOf(const UA_NodeId parent, UA_UInt16 ns, char *name) {
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(ns, name);
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, parent, 1, &qn);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    UA_NodeId id;
+    UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &id);
+    UA_BrowsePathResult_clear(&bpr);
+    return id;
+}
+
+/* An Object added with UA_Server_addObjectNode is a LogObject */
+START_TEST(plainInstance) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_NodeId id = addInstance("AppLog", UA_NS0ID(LOGOBJECTTYPE));
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), id));
+    ck_assert(hasReferenceTo(id, UA_NS0ID(HASCOMPONENT),
+                             UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT)));
+
+    /* The records are also added to the ServerLog */
+    addRecordTo(id, 300, "app record");
+    ck_assert_uint_eq(countRecords(id, "app record"), 1);
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "app record"), 1);
+
+    /* Deleting the Object deletes the LogObject */
+    ck_assert_uint_eq(UA_Server_deleteNode(server, id, true), UA_STATUSCODE_GOOD);
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 300;
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, id, &r),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert(!hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), id));
+    UA_NodeId_clear(&id);
+} END_TEST
+
+/* Instances that exist when the driver starts are served as well */
+START_TEST(instanceBeforeStart) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId id = addInstance("EarlyLog", UA_NS0ID(LOGOBJECTTYPE));
+    startDriver();
+    ck_assert_uint_eq(getRecordsStatus(id), UA_STATUSCODE_GOOD);
+    addRecordTo(id, 300, "early record");
+
+    /* Not served while stopped, served again with the records after a
+     * restart */
+    driver->stop(driver);
+    ck_assert(getRecordsStatus(id) != UA_STATUSCODE_GOOD);
+    startDriver();
+    ck_assert_uint_eq(countRecords(id, "early record"), 1);
+    UA_NodeId_clear(&id);
+} END_TEST
+
+/* The InstanceDeclaration of a type is not a LogObject. The instances of the
+ * type get their own LogObject. */
+START_TEST(instanceDeclarationNotServed) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_ObjectTypeAttributes ota = UA_ObjectTypeAttributes_default;
+    ota.displayName = UA_LOCALIZEDTEXT("", "DeviceType");
+    UA_NodeId deviceType = UA_NODEID_NUMERIC(1, 5000);
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server, deviceType,
+                                                  UA_NS0ID(BASEOBJECTTYPE),
+                                                  UA_NS0ID(HASSUBTYPE),
+                                                  UA_QUALIFIEDNAME(1, "DeviceType"),
+                                                  ota, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", "Log");
+    UA_NodeId declaration = UA_NODEID_NUMERIC(1, 5001);
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, declaration, deviceType,
+                                              UA_NS0ID(HASCOMPONENT),
+                                              UA_QUALIFIEDNAME(1, "Log"),
+                                              UA_NS0ID(LOGOBJECTTYPE), oa, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addReference(server, declaration,
+                                             UA_NS0ID(HASMODELLINGRULE),
+                                             UA_EXPANDEDNODEID_NODEID(
+                                                 UA_NS0ID(MODELLINGRULE_MANDATORY)),
+                                             true),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(getRecordsStatus(declaration), UA_STATUSCODE_BADNODEIDINVALID);
+    ck_assert(!hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), declaration));
+
+    /* The log of a device */
+    UA_NodeId device = addInstance("Device", deviceType);
+    UA_NodeId deviceLog = childOf(device, 1, "Log");
+    ck_assert(!UA_NodeId_equal(&deviceLog, &declaration));
+    ck_assert_uint_eq(getRecordsStatus(deviceLog), UA_STATUSCODE_GOOD);
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), deviceLog));
+
+    /* The Logs Folder references every LogObject (Part 26, 7.3). With this
+     * second hierarchical parent the log is not deleted with the device. It
+     * stays a LogObject until it is deleted itself. */
+    ck_assert_uint_eq(UA_Server_deleteNode(server, device, true), UA_STATUSCODE_GOOD);
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), deviceLog));
+    ck_assert_uint_eq(getRecordsStatus(deviceLog), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, deviceLog, true), UA_STATUSCODE_GOOD);
+    ck_assert(!hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), deviceLog));
+    UA_NodeId_clear(&device);
+    UA_NodeId_clear(&deviceLog);
+} END_TEST
+
+/* Subtypes have their own lifecycle. A subtype added after the start is
+ * served after a refresh. */
+START_TEST(subtypeInstances) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId knownType = addLogObjectSubtype(6000, "KnownLogType");
+    startDriver();
+    UA_NodeId a = addInstance("KnownTyped", knownType);
+    ck_assert_uint_eq(getRecordsStatus(a), UA_STATUSCODE_GOOD);
+
+    UA_NodeId laterType = addLogObjectSubtype(6001, "LaterLogType");
+    UA_NodeId b = addInstance("LaterTyped", laterType);
+    ck_assert_uint_eq(getRecordsStatus(b), UA_STATUSCODE_BADNODEIDINVALID);
+    ck_assert_uint_eq(UA_LogObjectDriver_refresh(driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(getRecordsStatus(b), UA_STATUSCODE_GOOD);
+
+    /* A new instance of the later subtype is registered by its lifecycle */
+    UA_NodeId c = addInstance("LaterTyped2", laterType);
+    ck_assert_uint_eq(getRecordsStatus(c), UA_STATUSCODE_GOOD);
+
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_LogObjectDriver_refresh(driver), UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(UA_LogObjectDriver_refresh(NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_NodeId_clear(&a);
+    UA_NodeId_clear(&b);
+    UA_NodeId_clear(&c);
+} END_TEST
+
+/* The settings come from the Properties of the instance */
+START_TEST(settingsFromProperties) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId configured = addInstance("Configured", UA_NS0ID(LOGOBJECTTYPE));
+    UA_UInt32 maxRecords = 3;
+    addProperty(configured, "MaxRecords", &maxRecords, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt16 severity = 200;
+    addProperty(configured, "MinimumSeverity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_NodeId invalid = addInstance("Invalid", UA_NS0ID(LOGOBJECTTYPE));
+    UA_UInt32 zero = 0;
+    addProperty(invalid, "MaxRecords", &zero, &UA_TYPES[UA_TYPES_UINT32]);
+    startDriver();
+
+    for(int i = 0; i < 5; i++)
+        addRecordTo(configured, 300, "record");
+    addRecordTo(configured, 100, "below");
+    ck_assert_uint_eq(countRecords(configured, "record"), 3);
+    ck_assert_uint_eq(countRecords(configured, "below"), 0);
+
+    /* An invalid value is replaced by the default and written back */
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readObjectProperty(server, invalid,
+                                                   UA_QUALIFIEDNAME(0, "MaxRecords"), &v),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)v.data, 1000);
+    UA_Variant_clear(&v);
+    UA_NodeId_clear(&configured);
+    UA_NodeId_clear(&invalid);
+} END_TEST
+
+#ifdef UA_ENABLE_XML_ENCODING
+static void
+loadCompanionNodeset(void) {
+    UA_ByteString xml = loadFile(LOGOBJECT_COMPANION_XML);
+    ck_assert(xml.length > 0);
+    ck_assert_uint_eq(UA_Server_loadNodeset(server, xml), UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&xml);
+}
+
+static UA_UInt16
+companionNamespace(void) {
+    size_t ns = 0;
+    ck_assert_uint_eq(UA_Server_getNamespaceByName(
+                          server, UA_STRING("http://example.org/LogObjectCompanion/"), &ns),
+                      UA_STATUSCODE_GOOD);
+    return (UA_UInt16)ns;
+}
+
+/* The LogObject of a companion nodeset owns its GetRecords Method and is
+ * configured by its Properties (MaxRecords 10, MinimumSeverity 200) */
+static void
+checkCompanionLogObject(void) {
+    UA_UInt16 ns = companionNamespace();
+    UA_NodeId logId = UA_NODEID_NUMERIC(ns, 1);
+    UA_NodeId methodId = UA_NODEID_NUMERIC(ns, 2);
+    UA_MethodCallback cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, methodId, &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == logObjectGetRecordsMethod);
+    ck_assert_uint_eq(getRecordsStatus(logId), UA_STATUSCODE_GOOD);
+    ck_assert(hasReferenceTo(UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), logId));
+    for(int i = 0; i < 12; i++)
+        addRecordTo(logId, 300, "companion");
+    addRecordTo(logId, 100, "below");
+    ck_assert_uint_eq(countRecords(logId, "companion"), 10);
+    ck_assert_uint_eq(countRecords(logId, "below"), 0);
+}
+
+START_TEST(companionNodesetBeforeStart) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    loadCompanionNodeset();
+    startDriver();
+    checkCompanionLogObject();
+
+    /* The callback of the own Method is released when the driver stops */
+    driver->stop(driver);
+    UA_MethodCallback cb = (UA_MethodCallback)(uintptr_t)1;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(
+                          server, UA_NODEID_NUMERIC(companionNamespace(), 2), &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == NULL);
+} END_TEST
+
+START_TEST(companionNodesetAtRuntime) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    loadCompanionNodeset();
+    checkCompanionLogObject();
+} END_TEST
+#endif
+
+/* The lifecycle of the application on a subtype is chained and restored */
+static unsigned appConstructed = 0;
+static unsigned appDestructed = 0;
+
+static UA_StatusCode
+appConstructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *typeNodeId, void *typeNodeContext,
+               const UA_NodeId *nodeId, void **nodeContext) {
+    appConstructed++;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+appDestructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+              const UA_NodeId *typeNodeId, void *typeNodeContext,
+              const UA_NodeId *nodeId, void **nodeContext) {
+    appDestructed++;
+}
+
+START_TEST(applicationLifecycleChained) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId appType = addLogObjectSubtype(7000, "AppLogType");
+    UA_NodeTypeLifecycle app;
+    memset(&app, 0, sizeof(UA_NodeTypeLifecycle));
+    app.constructor = appConstructor;
+    app.destructor = appDestructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, appType, app),
+                      UA_STATUSCODE_GOOD);
+    appConstructed = 0;
+    appDestructed = 0;
+    startDriver();
+
+    UA_NodeId id = addInstance("AppTyped", appType);
+    ck_assert_uint_eq(appConstructed, 1);
+    ck_assert_uint_eq(getRecordsStatus(id), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, id, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(appDestructed, 1);
+
+    driver->stop(driver);
+    UA_NodeTypeLifecycle restored;
+    ck_assert_uint_eq(UA_Server_getNodeTypeLifecycle(server, appType, &restored),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(restored.constructor == appConstructor);
+    ck_assert(restored.destructor == appDestructor);
+    UA_NodeId_clear(&id);
+} END_TEST
+
+/* Instances with copies of the Methods get the copies served */
+START_TEST(copiedMethods) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_Server_getConfig(server)->copyMethodsOnInstances = true;
+    startDriver();
+    UA_NodeId id = addInstance("CopiedLog", UA_NS0ID(LOGOBJECTTYPE));
+    UA_NodeId getRecords = childOf(id, 0, "GetRecords");
+    UA_NodeId typeMethod = UA_NS0ID(LOGOBJECTTYPE_GETRECORDS);
+    ck_assert(!UA_NodeId_equal(&getRecords, &typeMethod));
+    UA_MethodCallback cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, getRecords, &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == logObjectGetRecordsMethod);
+    ck_assert_uint_eq(getRecordsStatus(id), UA_STATUSCODE_GOOD);
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, getRecords, &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == NULL);
+    UA_NodeId_clear(&id);
+    UA_NodeId_clear(&getRecords);
+} END_TEST
+
+/* A LogObject with an own GetRecords Method with a fixed NodeId. The Method
+ * gets the Arguments of the type. */
+static void
+addLogObjectWithMethod(const UA_NodeId id, const UA_NodeId methodId) {
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", "OwnMethodLog");
+    ck_assert_uint_eq(UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, id,
+                                              UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                                              UA_QUALIFIEDNAME(1, "OwnMethodLog"),
+                                              UA_NS0ID(LOGOBJECTTYPE), &oa,
+                                              &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                              NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant in, out;
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                          UA_NS0ID(LOGOBJECTTYPE_GETRECORDS_INPUTARGUMENTS), &in),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                          UA_NS0ID(LOGOBJECTTYPE_GETRECORDS_OUTPUTARGUMENTS), &out),
+                      UA_STATUSCODE_GOOD);
+    UA_MethodAttributes ma = UA_MethodAttributes_default;
+    ma.displayName = UA_LOCALIZEDTEXT("", "GetRecords");
+    ma.executable = true;
+    ma.userExecutable = true;
+    ck_assert_uint_eq(UA_Server_addMethodNode(server, methodId, id, UA_NS0ID(HASCOMPONENT),
+                                              UA_QUALIFIEDNAME(0, "GetRecords"), ma, NULL,
+                                              in.arrayLength, (const UA_Argument*)in.data,
+                                              out.arrayLength, (const UA_Argument*)out.data,
+                                              NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&in);
+    UA_Variant_clear(&out);
+    ck_assert_uint_eq(UA_Server_addNode_finish(server, id), UA_STATUSCODE_GOOD);
+}
+
+/* A Method that is deleted with its LogObject and created again with the same
+ * NodeId is served again. The deleted Methods are forgotten. */
+START_TEST(ownMethodCreatedAgain) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    LogObjectDriver *lod = (LogObjectDriver*)driver;
+    size_t boundMethods = lod->boundMethodsSize;
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 8100);
+    UA_NodeId methodId = UA_NODEID_NUMERIC(1, 8101);
+    for(int i = 0; i < 3; i++) {
+        addLogObjectWithMethod(id, methodId);
+        UA_MethodCallback cb = NULL;
+        ck_assert_uint_eq(UA_Server_getMethodNodeCallback(server, methodId, &cb),
+                          UA_STATUSCODE_GOOD);
+        ck_assert(cb == logObjectGetRecordsMethod);
+        ck_assert_uint_eq(getRecordsStatus(id), UA_STATUSCODE_GOOD);
+        ck_assert_uint_le(lod->boundMethodsSize, boundMethods + 1);
+        ck_assert_uint_eq(UA_Server_deleteNode(server, id, true), UA_STATUSCODE_GOOD);
+        ck_assert(!nodeExists(methodId));
+    }
+} END_TEST
+
+/* The application sets the lifecycle of a LogObject type while the driver
+ * runs and chains to the driver's lifecycle */
+static UA_NodeTypeLifecycle wrappedLifecycle;
+static unsigned wrapperConstructed = 0;
+static unsigned wrapperDestructed = 0;
+
+static UA_StatusCode
+wrapperConstructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *typeNodeId, void *typeNodeContext,
+                   const UA_NodeId *nodeId, void **nodeContext) {
+    wrapperConstructed++;
+    return wrappedLifecycle.constructor(s, sessionId, sessionContext, typeNodeId,
+                                       typeNodeContext, nodeId, nodeContext);
+}
+
+static void
+wrapperDestructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_NodeId *typeNodeId, void *typeNodeContext,
+                  const UA_NodeId *nodeId, void **nodeContext) {
+    wrapperDestructed++;
+    wrappedLifecycle.destructor(s, sessionId, sessionContext, typeNodeId,
+                               typeNodeContext, nodeId, nodeContext);
+}
+
+START_TEST(applicationLifecycleWrappedAtRuntime) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId appType = addLogObjectSubtype(7100, "WrappedLogType");
+    UA_NodeTypeLifecycle app;
+    memset(&app, 0, sizeof(UA_NodeTypeLifecycle));
+    app.constructor = appConstructor;
+    app.destructor = appDestructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, appType, app),
+                      UA_STATUSCODE_GOOD);
+    appConstructed = appDestructed = wrapperConstructed = wrapperDestructed = 0;
+    startDriver();
+    ck_assert_uint_eq(UA_Server_getNodeTypeLifecycle(server, appType, &wrappedLifecycle),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeTypeLifecycle wrapper = wrappedLifecycle;
+    wrapper.constructor = wrapperConstructor;
+    wrapper.destructor = wrapperDestructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, appType, wrapper),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId a = addInstance("WrappedA", appType);
+    ck_assert_uint_eq(wrapperConstructed, 1);
+    ck_assert_uint_eq(appConstructed, 1);
+    ck_assert_uint_eq(getRecordsStatus(a), UA_STATUSCODE_GOOD);
+
+    /* The wrapper stays installed. The stopped driver forwards to the
+     * lifecycle of the application and does not serve the new LogObject. */
+    driver->stop(driver);
+    UA_NodeTypeLifecycle current;
+    ck_assert_uint_eq(UA_Server_getNodeTypeLifecycle(server, appType, &current),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(current.constructor == wrapperConstructor);
+    UA_NodeId b = addInstance("WrappedB", appType);
+    ck_assert_uint_eq(wrapperConstructed, 2);
+    ck_assert_uint_eq(appConstructed, 2);
+    ck_assert(findLogObjectEntry((LogObjectDriver*)driver, &b) == NULL);
+
+    /* After the restart every constructor runs once per node */
+    startDriver();
+    ck_assert_uint_eq(getRecordsStatus(b), UA_STATUSCODE_GOOD);
+    UA_NodeId c = addInstance("WrappedC", appType);
+    ck_assert_uint_eq(wrapperConstructed, 3);
+    ck_assert_uint_eq(appConstructed, 3);
+    ck_assert_uint_eq(getRecordsStatus(c), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, c, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(wrapperDestructed, 1);
+    ck_assert_uint_eq(appDestructed, 1);
+
+    /* A new driver finds the wrapper that chains to the static lifecycle of
+     * the driver. That does not recurse. */
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->free(driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, &driver), UA_STATUSCODE_GOOD);
+    UA_UInt16 severity = 300;
+    setParam("server-log-minimum-severity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(UA_Server_addDriver(server, driver), UA_STATUSCODE_GOOD);
+    startDriver();
+    UA_NodeId d = addInstance("WrappedD", appType);
+    ck_assert_uint_eq(wrapperConstructed, 4);
+    ck_assert_uint_eq(getRecordsStatus(d), UA_STATUSCODE_GOOD);
+
+    /* The application restores its lifecycle */
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server, appType, app),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&a);
+    UA_NodeId_clear(&b);
+    UA_NodeId_clear(&c);
+    UA_NodeId_clear(&d);
+} END_TEST
+
+/* The records of a LogObject that was deleted while the driver was stopped
+ * are deleted when the driver starts again. A new LogObject with the same
+ * NodeId starts empty. */
+START_TEST(orphanedRecordsDeleted) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_NodeId fixed = UA_NODEID_NUMERIC(1, 8000);
+    UA_ObjectAttributes oa = UA_ObjectAttributes_default;
+    oa.displayName = UA_LOCALIZEDTEXT("", "Fixed");
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, fixed, UA_NS0ID(OBJECTSFOLDER),
+                                              UA_NS0ID(ORGANIZES),
+                                              UA_QUALIFIEDNAME(1, "Fixed"),
+                                              UA_NS0ID(LOGOBJECTTYPE), oa, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    addRecordTo(fixed, 300, "old");
+    driver->stop(driver);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, fixed, true), UA_STATUSCODE_GOOD);
+    startDriver();
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, fixed, UA_NS0ID(OBJECTSFOLDER),
+                                              UA_NS0ID(ORGANIZES),
+                                              UA_QUALIFIEDNAME(1, "Fixed"),
+                                              UA_NS0ID(LOGOBJECTTYPE), oa, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(countRecords(fixed, "old"), 0);
+} END_TEST
+
+/* --- Settings (Part 26, 5.2) --- */
+
+static UA_StatusCode
+writeLocal(const UA_NodeId nodeId, const void *value, const UA_DataType *type) {
+    UA_Variant v;
+    UA_Variant_setScalar(&v, (void*)(uintptr_t)value, type);
+    return UA_Server_writeValue(server, nodeId, v);
+}
+
+static UA_UInt16
+readUInt16(const UA_NodeId nodeId) {
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId, &v), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT16]));
+    UA_UInt16 value = *(UA_UInt16*)v.data;
+    UA_Variant_clear(&v);
+    return value;
+}
+
+static UA_Boolean
+isWritable(const UA_NodeId nodeId) {
+    UA_Byte accessLevel = 0;
+    ck_assert_uint_eq(UA_Server_readAccessLevel(server, nodeId, &accessLevel),
+                      UA_STATUSCODE_GOOD);
+    return (accessLevel & UA_ACCESSLEVELMASK_WRITE) != 0;
+}
+
+START_TEST(minimumSeverityWritable) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_NodeId property = UA_NS0ID(SERVERLOG_MINIMUMSEVERITY);
+    ck_assert(isWritable(property));
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "before the change");
+
+    /* Records below the new MinimumSeverity are not stored. The stored records
+     * are kept (Part 26, 5.2). */
+    UA_UInt16 severity = 300;
+    ck_assert_uint_eq(writeLocal(property, &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readUInt16(property), 300);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "after the change");
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "before the change") != NULL);
+    ck_assert(findRecord(&results, "after the change") == NULL);
+    UA_LogRecordsDataType_clear(&results);
+    UA_LogObjectSettings s;
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(s.minimumSeverity, 300);
+
+    /* Invalid values */
+    severity = 0;
+    ck_assert_uint_eq(writeLocal(property, &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_BADOUTOFRANGE);
+    severity = 1001;
+    ck_assert_uint_eq(writeLocal(property, &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_BADOUTOFRANGE);
+    UA_Int32 wrongType = 100;
+    ck_assert(writeLocal(property, &wrongType, &UA_TYPES[UA_TYPES_INT32]) !=
+              UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readUInt16(property), 300);
+} END_TEST
+
+/* The Property of an instance becomes read-only again when the driver stops.
+ * The value written last is the setting after a restart. */
+START_TEST(minimumSeverityRestoredOnStop) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId id = addInstance("WithSeverity", UA_NS0ID(LOGOBJECTTYPE));
+    UA_UInt16 severity = 200;
+    addProperty(id, "MinimumSeverity", &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_NodeId property = childOf(id, 0, "MinimumSeverity");
+    ck_assert(!isWritable(property));
+    startDriver();
+    ck_assert(isWritable(property));
+    severity = 400;
+    ck_assert_uint_eq(writeLocal(property, &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_GOOD);
+
+    driver->stop(driver);
+    ck_assert(!isWritable(property));
+    ck_assert_uint_eq(readUInt16(property), 400);
+    startDriver();
+    UA_LogObjectSettings s;
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, id, &s), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(s.minimumSeverity, 400);
+    UA_NodeId_clear(&id);
+    UA_NodeId_clear(&property);
+} END_TEST
+
+START_TEST(setAndGetSettings) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_LogObjectSettings s = {5, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_BADINVALIDSTATE);
+    startDriver();
+    for(int i = 0; i < 10; i++)
+        addRecord(300, "record");
+
+    /* A smaller MaxRecords keeps the newest records */
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "record"), 5);
+    UA_LogObjectSettings got;
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, UA_NS0ID(SERVERLOG), &got),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(got.maxRecords, 5);
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MAXRECORDS), &v),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)v.data, 5);
+    UA_Variant_clear(&v);
+
+    /* The MinimumSeverity of the ServerLog gates the capture */
+    s.minimumSeverity = 500;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    UA_LOG_ERROR(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER, "error");
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "error"), 0);
+    ck_assert_uint_eq(readUInt16(UA_NS0ID(SERVERLOG_MINIMUMSEVERITY)), 500);
+
+    /* Invalid arguments */
+    UA_LogObjectSettings invalid = {0, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &invalid),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NODEID_NUMERIC(1, 4711), &s),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(NULL, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, UA_NODEID_NUMERIC(1, 4711), &got),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, UA_NS0ID(SERVERLOG), NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+} END_TEST
+
+static UA_Double
+readDuration(const UA_NodeId id) {
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, id, &v), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_isScalar(&v) && v.type->typeKind == UA_DATATYPEKIND_DOUBLE);
+    UA_Double d = *(UA_Double*)v.data;
+    UA_Variant_clear(&v);
+    return d;
+}
+
+/* The MaxStorageDuration Property follows the settings. Zero is not a valid
+ * value of the Property (Part 26, 5.2). */
+START_TEST(setMaxStorageDuration) {
+    DriverOptions o = apiOnlyOptions();
+    newLogObjectServer(&o);
+    UA_NodeId id = addInstance("Expiring", UA_NS0ID(LOGOBJECTTYPE));
+    UA_Double duration = 600000.0;
+    addProperty(id, "MaxStorageDuration", &duration, &UA_TYPES[UA_TYPES_DURATION]);
+    UA_NodeId property = childOf(id, 0, "MaxStorageDuration");
+    startDriver();
+
+    /* The ServerLog created by the driver adds and removes the Property */
+    UA_LogObjectSettings s = {1000, 5000.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readDuration(UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION)) == 5000.0);
+    s.maxStorageDuration = 0.0;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(!nodeExists(UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION)));
+
+    /* The Property of another LogObject keeps a time limit */
+    s.maxStorageDuration = 300000.0;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, id, &s), UA_STATUSCODE_GOOD);
+    ck_assert(readDuration(property) == 300000.0);
+    s.maxStorageDuration = 0.0;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, id, &s),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert(readDuration(property) == 300000.0);
+    UA_LogObjectSettings got;
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, id, &got), UA_STATUSCODE_GOOD);
+    ck_assert(got.maxStorageDuration == 300000.0);
+
+    /* The setting is read back from the Property after a restart */
+    driver->stop(driver);
+    startDriver();
+    ck_assert_uint_eq(UA_LogObjectDriver_getSettings(driver, id, &got), UA_STATUSCODE_GOOD);
+    ck_assert(got.maxStorageDuration == 300000.0);
+    UA_NodeId_clear(&id);
+    UA_NodeId_clear(&property);
+} END_TEST
+
+/* Without updateLogObject the limits of the storage cannot change */
+START_TEST(setSettingsWithoutUpdate) {
+    UA_LogObjectBackend backend;
+    ck_assert_uint_eq(UA_LogObjectBackend_memory(&backend), UA_STATUSCODE_GOOD);
+    backend.updateLogObject = NULL;
+    DriverOptions o = apiOnlyOptions();
+    o.backend = &backend;
+    newLogObjectServer(&o);
+    startDriver();
+    UA_LogObjectSettings s = {5, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    s.maxRecords = 1000;
+    s.minimumSeverity = 400;
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, UA_NS0ID(SERVERLOG), &s),
+                      UA_STATUSCODE_GOOD);
+} END_TEST
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* --- LogOverflowEventType (Part 26, 6.4) --- */
+
+static unsigned overflowEvents = 0;
+static UA_NodeId overflowSourceNode;
+static UA_UInt32 overflowEventTypeId = 0;
+static UA_Boolean overflowSourceNameOk = false;
+static char overflowMessage[128];
+
+static void
+overflowCallback(UA_Server *s, UA_UInt32 monitoredItemId, void *context,
+                 const UA_KeyValueMap eventFields) {
+    overflowEvents++;
+    if(eventFields.mapSize != 4)
+        return;
+    const UA_Variant *v = &eventFields.map[0].value;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_NODEID]))
+        overflowEventTypeId = ((UA_NodeId*)v->data)->identifier.numeric;
+    v = &eventFields.map[1].value;
+    UA_NodeId_clear(&overflowSourceNode);
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_NODEID]))
+        UA_NodeId_copy((UA_NodeId*)v->data, &overflowSourceNode);
+    v = &eventFields.map[2].value;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_STRING]))
+        overflowSourceNameOk = stringEquals((UA_String*)v->data, "LogObject/Overflow");
+    v = &eventFields.map[3].value;
+    overflowMessage[0] = 0;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+        const UA_String *t = &((UA_LocalizedText*)v->data)->text;
+        size_t len = t->length < sizeof(overflowMessage) - 1 ?
+            t->length : sizeof(overflowMessage) - 1;
+        memcpy(overflowMessage, t->data, len);
+        overflowMessage[len] = 0;
+    }
+}
+
+/* Subscribe to the Events of the Server Object, as a typical client does */
+static UA_UInt32
+monitorOverflowEvents(void) {
+    static const char *fields[4] = {"/EventType", "/SourceNode", "/SourceName", "/Message"};
+    UA_EventFilter ef;
+    UA_EventFilter_init(&ef);
+    ef.selectClauses = (UA_SimpleAttributeOperand*)
+        UA_Array_new(4, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    ck_assert(ef.selectClauses != NULL);
+    ef.selectClausesSize = 4;
+    for(size_t i = 0; i < 4; i++)
+        ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&ef.selectClauses[i],
+                                                          UA_STRING((char*)(uintptr_t)fields[i])),
+                          UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult mon =
+        UA_Server_createEventMonitoredItem(server, UA_NS0ID(SERVER), ef, NULL,
+                                           overflowCallback);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&ef);
+    overflowEvents = 0;
+    overflowMessage[0] = 0;
+    return mon.monitoredItemId;
+}
+
+/* Run the EventLoop so that delayed callbacks, timers and local notifications
+ * are processed */
+static void
+pump(void) {
+    for(int i = 0; i < 10; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, false);
+    }
+}
+
+/* A server with the driver, started without a thread on a port that the
+ * other tests do not use */
+static void
+newOverflowServer(UA_UInt32 maxRecords, UA_UInt16 minimumSeverity, UA_Double interval) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.maxRecords = maxRecords;
+    o.serverLogSettings.minimumSeverity = minimumSeverity;
+    o.port = 4842;
+    newLogObjectServer(&o);
+    setParam("overflow-event-interval", &interval, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+}
+
+START_TEST(overflowEvent) {
+    newOverflowServer(3, 300, 1000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+
+    /* Filling the ring does not overflow */
+    addRecord(300, "one");
+    addRecord(300, "two");
+    addRecord(300, "three");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 0);
+
+    /* Two overflows in the same cycle are reported as one Event with the
+     * fields required by Part 26, 6.4 */
+    addRecord(300, "four");
+    addRecord(300, "five");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    ck_assert_uint_eq(overflowEventTypeId, UA_NS0ID_LOGOVERFLOWEVENTTYPE);
+    UA_NodeId serverLog = UA_NS0ID(SERVERLOG);
+    ck_assert(UA_NodeId_equal(&overflowSourceNode, &serverLog));
+    ck_assert(overflowSourceNameOk);
+    ck_assert_str_eq(overflowMessage,
+                     "LogObject discarded 2 records (MaxRecords reached)");
+
+    /* The next overflow is reported once the interval has elapsed */
+    addRecord(300, "six");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+    ck_assert_str_eq(overflowMessage,
+                     "LogObject discarded 1 records (MaxRecords reached)");
+
+    /* Overflow caused by the captured logger (FATAL maps to Severity 500) */
+    UA_fakeSleep(1000);
+    UA_LOG_FATAL(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                 "fatal marker");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 3);
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+} END_TEST
+
+/* Overflows within the interval are coalesced into one Event that reports
+ * the number of discarded records */
+START_TEST(overflowEventCoalesced) {
+    newOverflowServer(3, 300, 10000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+    addRecord(300, "one");
+    addRecord(300, "two");
+    addRecord(300, "three");
+    addRecord(300, "four");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+
+    /* Five more overflows, spread over several cycles within the interval */
+    for(int i = 0; i < 5; i++) {
+        addRecord(300, "more");
+        pump();
+    }
+    ck_assert_uint_eq(overflowEvents, 1);
+
+    /* The timer reports them together when the interval has elapsed */
+    for(int i = 0; i < 6; i++)
+        pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+    ck_assert_str_eq(overflowMessage,
+                     "LogObject discarded 5 records (MaxRecords reached)");
+
+    /* No further overflow, no further Event */
+    for(int i = 0; i < 20; i++)
+        pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+} END_TEST
+
+/* The emission of an Event logs at DEBUG level. When the ServerLog captures
+ * DEBUG messages and the ring is full, each Event overflows the ring again.
+ * This must not turn into one Event per EventLoop cycle. */
+START_TEST(overflowEventNoFeedbackLoop) {
+    newOverflowServer(10, 1, 1000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    for(int i = 0; i < 20; i++)
+        UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_USERLAND, "fill %d", i);
+
+    /* 10s on the fake clock in 1000 EventLoop cycles: at most one Event per
+     * interval, not one per cycle */
+    for(int i = 0; i < 1000; i++) {
+        UA_fakeSleep(10);
+        UA_Server_run_iterate(server, false);
+    }
+    ck_assert_uint_ge(overflowEvents, 1);
+    ck_assert_uint_le(overflowEvents, 11);
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+} END_TEST
+
+/* The first overflow of a LogObject is reported at once, also while the
+ * timer of the coalesced overflows of another LogObject is armed */
+START_TEST(overflowEventNotDelayedByOtherLogObject) {
+    newOverflowServer(3, 300, 10000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+    UA_NodeId id = addInstance("OtherLog", UA_NS0ID(LOGOBJECTTYPE));
+    UA_LogObjectSettings s = {2, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, id, &s), UA_STATUSCODE_GOOD);
+
+    /* The ServerLog overflows twice. The second overflow is coalesced and
+     * arms the timer. */
+    for(int i = 0; i < 4; i++)
+        addRecord(300, "fill");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    addRecord(300, "coalesced");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    ck_assert(UA_atomic_load(&((LogObjectDriver*)driver)->overflowTimerArmed) != 0);
+
+    /* The application LogObject overflows. Its records are also added to the
+     * full ServerLog, whose overflow stays coalesced. */
+    addRecordTo(id, 300, "one");
+    addRecordTo(id, 300, "two");
+    addRecordTo(id, 300, "three");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+    ck_assert(UA_NodeId_equal(&overflowSourceNode, &id));
+
+    /* The coalesced overflows of the ServerLog follow after the interval */
+    for(int i = 0; i < 10; i++)
+        pump();
+    ck_assert_uint_eq(overflowEvents, 3);
+    UA_NodeId serverLog = UA_NS0ID(SERVERLOG);
+    ck_assert(UA_NodeId_equal(&overflowSourceNode, &serverLog));
+    ck_assert_str_eq(overflowMessage,
+                     "LogObject discarded 4 records (MaxRecords reached)");
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+    UA_NodeId_clear(&id);
+} END_TEST
+
+/* An application LogObject reports its own overflow */
+START_TEST(overflowEventOfInstance) {
+    newOverflowServer(1000, 300, 1000.0);
+    UA_UInt32 monId = monitorOverflowEvents();
+    UA_NodeId id = addInstance("SmallLog", UA_NS0ID(LOGOBJECTTYPE));
+    UA_LogObjectSettings s = {2, 0.0, 300};
+    ck_assert_uint_eq(UA_LogObjectDriver_setSettings(driver, id, &s), UA_STATUSCODE_GOOD);
+    addRecordTo(id, 300, "one");
+    addRecordTo(id, 300, "two");
+    addRecordTo(id, 300, "three");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    ck_assert(UA_NodeId_equal(&overflowSourceNode, &id));
+    UA_Server_deleteMonitoredItem(server, monId);
+    UA_NodeId_clear(&overflowSourceNode);
+    UA_NodeId_clear(&id);
+} END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+/* --- Contract of the storage backend --- */
+
+/* A backend that always returns every optional field. The driver has to
+ * remove the fields that were not requested. */
+static UA_Boolean customBackendFails = false;
+
+static UA_StatusCode
+customRegister(UA_Server *s, void *ctx, const UA_NodeId *id,
+               const UA_LogObjectSettings *settings) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+customUnregister(UA_Server *s, void *ctx, const UA_NodeId *id, UA_Boolean deleteRecords) {
+}
+
+static UA_StatusCode
+customAddRecord(UA_Server *s, void *ctx, const UA_NodeId *id, const UA_LogRecord *r,
+                UA_DateTime now, UA_Boolean *overflow) {
+    if(overflow)
+        *overflow = false;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+customGetRecords(UA_Server *s, void *ctx, const UA_NodeId *id,
+                 UA_DateTime startTime, UA_DateTime endTime, UA_UInt16 minimumSeverity,
+                 UA_LogObjectCursor cursor,
+                 size_t maxRecords, UA_DateTime now, size_t *recordsSize,
+                 UA_LogRecord **records, UA_LogObjectCursor *nextCursor,
+                 UA_Boolean *moreAvailable) {
+    *recordsSize = 0;
+    *records = NULL;
+    *nextCursor = cursor;
+    *moreAvailable = false;
+    if(customBackendFails)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(cursor > 0)
+        return UA_STATUSCODE_GOOD;
+    UA_LogRecord *r = (UA_LogRecord*)UA_Array_new(1, &UA_TYPES[UA_TYPES_LOGRECORD]);
+    ck_assert(r != NULL);
+    r->time = now;
+    r->severity = 300;
+    r->message = UA_LOCALIZEDTEXT_ALLOC("", "custom");
+    r->eventType = UA_NodeId_new();
+    *r->eventType = UA_NS0ID(BASEEVENTTYPE);
+    r->sourceNode = UA_NodeId_new();
+    *r->sourceNode = UA_NS0ID(SERVER);
+    r->sourceName = UA_String_new();
+    *r->sourceName = UA_STRING_ALLOC("Custom");
+    r->traceContext = UA_TraceContextDataType_new();
+    r->traceContext->spanId = 3;
+    r->additionalData = (UA_NameValuePair*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_NAMEVALUEPAIR]);
+    r->additionalDataSize = 1;
+    r->additionalData[0].name = UA_STRING_ALLOC("key");
+    *records = r;
+    *recordsSize = 1;
+    *nextCursor = 1;
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(backendContract) {
+    UA_LogObjectBackend cb;
+    memset(&cb, 0, sizeof(UA_LogObjectBackend));
+    cb.registerLogObject = customRegister;
+    cb.unregisterLogObject = customUnregister;
+    cb.addRecord = customAddRecord;
+    cb.getRecords = customGetRecords;
+    customBackendFails = false;
+
+    DriverOptions o = apiOnlyOptions();
+    o.backend = &cb;
+    newLogObjectServer(&o);
+    startDriver();
+
+    /* Only the SourceName was requested, the other optional fields are
+     * removed by the driver even though the backend returned them */
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1,
+                                       UA_LOGRECORDMASK_SOURCENAME, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 1);
+    const UA_LogRecord *r = &results.logRecordArray[0];
+    ck_assert(stringEquals(&r->message.text, "custom"));
+    ck_assert(r->sourceName != NULL);
+    ck_assert(stringEquals(r->sourceName, "Custom"));
+    ck_assert(r->eventType == NULL);
+    ck_assert(r->sourceNode == NULL);
+    ck_assert(r->traceContext == NULL);
+    ck_assert_uint_eq(r->additionalDataSize, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* Without any optional field */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 1);
+    ck_assert(results.logRecordArray[0].sourceName == NULL);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* An error of the backend reaches the caller */
+    customBackendFails = true;
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+    customBackendFails = false;
+} END_TEST
+
+/* --- Capture of the server logger (Part 26, 7.2) --- */
+
+/* A static logger that counts the forwarded messages */
+static int forwardedCount = 0;
+static void
+countingLog(void *context, UA_LogLevel level, UA_LogCategory category,
+            const char *msg, va_list args) {
+    forwardedCount++;
+}
+static UA_Logger countingLogger = {countingLog, NULL, NULL};
+
+static void
+resetCountingLogger(void) {
+    forwardedCount = 0;
+    countingLogger.log = countingLog;
+    countingLogger.context = NULL;
+    countingLogger.clear = NULL;
+}
+
+START_TEST(captureLogOutput) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "before start");
+    startDriver();
+
+    UA_String str = UA_STRING("abc");
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "marker %S", str);
+    UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_NETWORK, "debug marker");
+
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "before start") == NULL);
+    const UA_LogRecord *r = findRecord(&results, "marker abc");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 180);
+    ck_assert_int_eq(r->time, UA_DateTime_now_fake(NULL));
+    ck_assert_uint_eq(r->message.locale.length, 0);
+    ck_assert(r->sourceName != NULL);
+    ck_assert(stringEquals(r->sourceName, "Server"));
+    ck_assert(r->eventType == NULL);
+    ck_assert(r->sourceNode == NULL);
+    ck_assert(r->traceContext == NULL);
+    ck_assert_uint_eq(r->additionalDataSize, 0);
+#if UA_LOGLEVEL <= 200
+    /* Levels below the level of the stdout logger are captured as well, only
+     * UA_LOGLEVEL filters at compile time */
+    r = findRecord(&results, "debug marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 40);
+    ck_assert(stringEquals(r->sourceName, "Network"));
+#endif
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+/* A message longer than the buffer is stored truncated, without the
+ * terminating zero */
+START_TEST(captureTruncated) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    char longMessage[2 * UA_LOGOBJECT_MAXMESSAGELENGTH];
+    memset(longMessage, 'x', sizeof(longMessage) - 1);
+    longMessage[sizeof(longMessage) - 1] = 0;
+    UA_LOG_ERROR(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                 "%s", longMessage);
+    UA_LogRecordsDataType results = readServerLog();
+    const UA_LogRecord *r = NULL;
+    for(size_t i = 0; i < results.logRecordArraySize; i++) {
+        const UA_String *t = &results.logRecordArray[i].message.text;
+        if(t->length > 0 && t->data[0] == 'x')
+            r = &results.logRecordArray[i];
+    }
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->message.text.length, UA_LOGOBJECT_MAXMESSAGELENGTH - 1);
+    for(size_t i = 0; i < r->message.text.length; i++)
+        ck_assert_uint_eq(r->message.text.data[i], 'x');
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+START_TEST(minimumSeverityGating) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.minimumSeverity = 200;
+    newLogObjectServer(&o);
+    startDriver();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_INFO(config->logging, UA_LOGCATEGORY_SERVER, "info marker");
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "warning marker");
+    UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER, "error marker");
+
+    /* Records added via the API are gated as well */
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 100;
+    r.message = UA_LOCALIZEDTEXT("", "api below minimum");
+    ck_assert_uint_eq(UA_LogObjectDriver_addRecord(driver, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_GOOD);
+
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "info marker") == NULL);
+    ck_assert(findRecord(&results, "warning marker") == NULL);
+    ck_assert(findRecord(&results, "error marker") != NULL);
+    ck_assert(findRecord(&results, "api below minimum") == NULL);
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+START_TEST(severityMapping) {
+    DriverOptions o = defaultOptions();
+    newLogObjectServer(&o);
+    startDriver();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+#if UA_LOGLEVEL <= 100
+    UA_LOG_TRACE(config->logging, UA_LOGCATEGORY_SERVER, "trace marker");
+#endif
+#if UA_LOGLEVEL <= 200
+    UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_SESSION, "debug marker");
+#endif
+    UA_LOG_INFO(config->logging, UA_LOGCATEGORY_CLIENT, "info marker");
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURECHANNEL, "warning marker");
+    UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_PUBSUB, "error marker");
+    UA_LOG_FATAL(config->logging, UA_LOGCATEGORY_DISCOVERY, "fatal marker");
+
+    UA_LogRecordsDataType results = readServerLog();
+    const UA_LogRecord *r;
+#if UA_LOGLEVEL <= 100
+    r = findRecord(&results, "trace marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 10);
+    ck_assert(stringEquals(r->sourceName, "Server"));
+#endif
+#if UA_LOGLEVEL <= 200
+    r = findRecord(&results, "debug marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 40);
+    ck_assert(stringEquals(r->sourceName, "Session"));
+#endif
+    r = findRecord(&results, "info marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 80);
+    ck_assert(stringEquals(r->sourceName, "Client"));
+    r = findRecord(&results, "warning marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 180);
+    ck_assert(stringEquals(r->sourceName, "SecureChannel"));
+    r = findRecord(&results, "error marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 230);
+    ck_assert(stringEquals(r->sourceName, "PubSub"));
+    r = findRecord(&results, "fatal marker");
+    ck_assert(r != NULL);
+    ck_assert_uint_eq(r->severity, 500);
+    ck_assert(stringEquals(r->sourceName, "Discovery"));
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+/* The logger is wrapped while the driver runs and restored when it stops */
+START_TEST(loggerWrappedAndRestored) {
+    resetCountingLogger();
+    DriverOptions o = defaultOptions();
+    o.logger = &countingLogger;
+    newLogObjectServer(&o);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert(config->logging == &countingLogger);
+    ck_assert(countingLogger.log == countingLog);
+
+    /* Wrapped in place: same structure, different callback */
+    startDriver();
+    ck_assert(config->logging == &countingLogger);
+    ck_assert(countingLogger.log != countingLog);
+
+    /* Still forwarded to the original logger ... */
+    int before = forwardedCount;
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "forwarded");
+    ck_assert_int_eq(forwardedCount, before + 1);
+
+    /* ... and captured */
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "forwarded") != NULL);
+    UA_LogRecordsDataType_clear(&results);
+
+    /* Restored when the driver stops, wrapped again when it starts */
+    driver->stop(driver);
+    ck_assert(countingLogger.log == countingLog);
+    ck_assert(countingLogger.context == NULL);
+    ck_assert(countingLogger.clear == NULL);
+    startDriver();
+    ck_assert(countingLogger.log != countingLog);
+    driver->stop(driver);
+    ck_assert(countingLogger.log == countingLog);
+} END_TEST
+
+/* The constant stdout logger is not rewritten */
+START_TEST(constLoggerSkipped) {
+    DriverOptions o = defaultOptions();
+    o.logger = (UA_Logger*)(uintptr_t)UA_Log_Stdout;
+    newLogObjectServer(&o);
+    startDriver();
+    UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                   "not captured");
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "not captured") == NULL);
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+/* A server with a started LogObject driver that captures the logger */
+static UA_Server *
+newCapturingServer(UA_Logger *logger, UA_Driver **outDriver) {
+    UA_ServerConfig sc;
+    memset(&sc, 0, sizeof(UA_ServerConfig));
+    sc.logging = logger;
+    ck_assert_uint_eq(UA_ServerConfig_setMinimal(&sc, 4840, NULL), UA_STATUSCODE_GOOD);
+    UA_Server *s = UA_Server_newWithConfig(&sc);
+    ck_assert(s != NULL);
+    ck_assert_uint_eq(UA_LogObjectDriver_new(NULL, outDriver), UA_STATUSCODE_GOOD);
+    UA_UInt16 severity = 1;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&(*outDriver)->params,
+                                               UA_QUALIFIEDNAME(0, "server-log-minimum-severity"),
+                                               &severity, &UA_TYPES[UA_TYPES_UINT16]),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(s, *outDriver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq((*outDriver)->start(*outDriver), UA_STATUSCODE_GOOD);
+    return s;
+}
+
+/* Does the ServerLog of the server contain the message? */
+static UA_Boolean
+serverLogContains(UA_Server *s, const char *text) {
+    UA_Server *saved = server;
+    server = s;
+    UA_LogRecordsDataType results = readServerLog();
+    UA_Boolean found = (findRecord(&results, text) != NULL);
+    UA_LogRecordsDataType_clear(&results);
+    server = saved;
+    return found;
+}
+
+/* Three servers capture one shared logger. Their drivers are stopped in the
+ * given order. The remaining drivers keep capturing, the original logger keeps
+ * receiving every message and is restored when the last driver stopped. */
+static void
+checkSharedLogger(const int *stopOrder) {
+    static const char *texts[3] = {"after stop 0", "after stop 1", "after stop 2"};
+    resetCountingLogger();
+    UA_Server *s[3];
+    UA_Driver *d[3];
+    UA_Boolean capturing[3] = {true, true, true};
+    for(int i = 0; i < 3; i++)
+        s[i] = newCapturingServer(&countingLogger, &d[i]);
+
+    for(int k = 0; k < 3; k++) {
+        int i = stopOrder[k];
+        d[i]->stop(d[i]);
+        capturing[i] = false;
+        int before = forwardedCount;
+        UA_LOG_WARNING(&countingLogger, UA_LOGCATEGORY_SERVER, "%s", texts[k]);
+        ck_assert_int_eq(forwardedCount, before + 1);
+        for(int j = 0; j < 3; j++) {
+            if(capturing[j])
+                ck_assert(serverLogContains(s[j], texts[k]));
+        }
+    }
+    ck_assert(countingLogger.log == countingLog);
+    ck_assert(countingLogger.context == NULL);
+    ck_assert(countingLogger.clear == NULL);
+    for(int i = 0; i < 3; i++)
+        UA_Server_delete(s[i]);
+}
+
+START_TEST(sharedLogger) {
+    static const int creationOrder[3] = {0, 1, 2};
+    static const int reverseOrder[3] = {2, 1, 0};
+    static const int middleFirst[3] = {1, 0, 2};
+    checkSharedLogger(creationOrder);
+    checkSharedLogger(reverseOrder);
+    checkSharedLogger(middleFirst);
+} END_TEST
+
+START_TEST(maxStorageDurationExpiry) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.maxStorageDuration = 1000.0; /* 1s */
+    newLogObjectServer(&o);
+    startDriver();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "old marker");
+    UA_fakeSleep(2000);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "new marker");
+
+    /* Records older than MaxStorageDuration are dropped */
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert(findRecord(&results, "old marker") == NULL);
+    ck_assert(findRecord(&results, "new marker") != NULL);
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+
+#if UA_MULTITHREADING >= 100
+/* A second thread logs while the main thread reads and appends */
+THREAD_CALLBACK(loggerThread) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    for(int i = 0; i < 2000; i++)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND, "concurrent %d", i);
+    return 0;
+}
+
+START_TEST(logWhileGetRecordsMultithreaded) {
+    DriverOptions o = defaultOptions();
+    o.serverLogSettings.maxRecords = 100;
+    newLogObjectServer(&o);
+    startDriver();
+    THREAD_HANDLE logger;
+    THREAD_CREATE(logger, loggerThread);
+    for(int i = 0; i < 200; i++) {
+        UA_LogRecordsDataType results = readServerLog();
+        ck_assert_uint_le(results.logRecordArraySize, 100);
+        for(size_t j = 0; j < results.logRecordArraySize; j++)
+            ck_assert(results.logRecordArray[j].message.text.length > 0);
+        UA_LogRecordsDataType_clear(&results);
+        addRecord(300, "main thread");
+    }
+    THREAD_JOIN(logger);
+
+    /* The ring is full and every record is intact */
+    UA_LogRecordsDataType results = readServerLog();
+    ck_assert_uint_eq(results.logRecordArraySize, 100);
+    for(size_t j = 1; j < results.logRecordArraySize; j++)
+        ck_assert(results.logRecordArray[j].time >= results.logRecordArray[j - 1].time);
+    UA_LogRecordsDataType_clear(&results);
+} END_TEST
+#endif
+
+int main(void) {
+    Suite *s = suite_create("LogObject driver");
+
+    TCase *tc_life = tcase_create("Lifecycle");
+    tcase_add_checked_fixture(tc_life, setup, teardown);
+    tcase_add_test(tc_life, driverLifecycle);
+    tcase_add_test(tc_life, onlyOneDriver);
+    tcase_add_test(tc_life, removeAtRuntime);
+    tcase_add_test(tc_life, freeUnregisteredDriver);
+    tcase_add_test(tc_life, backendOwnership);
+    tcase_add_test(tc_life, invalidParameters);
+    tcase_add_test(tc_life, durationParameters);
+    suite_add_tcase(s, tc_life);
+
+    TCase *tc_serverLog = tcase_create("ServerLog");
+    tcase_add_checked_fixture(tc_serverLog, setup, teardown);
+    tcase_add_test(tc_serverLog, serverLogNodes);
+    tcase_add_test(tc_serverLog, noMaxStorageDurationProperty);
+    tcase_add_test(tc_serverLog, serverLogDisabled);
+    tcase_add_test(tc_serverLog, applicationServerLog);
+    tcase_add_test(tc_serverLog, addRecordApi);
+    tcase_add_test(tc_serverLog, recordsSurviveRestart);
+    suite_add_tcase(s, tc_serverLog);
+
+    TCase *tc_get = tcase_create("GetRecords");
+    tcase_add_checked_fixture(tc_get, setup, teardown);
+    tcase_add_test(tc_get, getRecordsArguments);
+    tcase_add_test(tc_get, getRecordsTimeRange);
+    tcase_add_test(tc_get, getRecordsSeverityFilter);
+    tcase_add_test(tc_get, getRecordsRequestMask);
+    tcase_add_test(tc_get, getRecordsContinuation);
+    tcase_add_test(tc_get, getRecordsServerLimit);
+    tcase_add_test(tc_get, getRecordsWithoutLimits);
+    tcase_add_test(tc_get, noContinuationPoints);
+    tcase_add_test(tc_get, continuationPointsReleasedOnStop);
+    tcase_add_test(tc_get, releaseContinuationPoint);
+    tcase_add_test(tc_get, backendContract);
+    suite_add_tcase(s, tc_get);
+
+    TCase *tc_capture = tcase_create("Capture");
+    tcase_add_checked_fixture(tc_capture, setup, teardown);
+    tcase_add_test(tc_capture, captureLogOutput);
+    tcase_add_test(tc_capture, captureTruncated);
+    tcase_add_test(tc_capture, minimumSeverityGating);
+    tcase_add_test(tc_capture, severityMapping);
+    tcase_add_test(tc_capture, loggerWrappedAndRestored);
+    tcase_add_test(tc_capture, constLoggerSkipped);
+    tcase_add_test(tc_capture, sharedLogger);
+    tcase_add_test(tc_capture, maxStorageDurationExpiry);
+#if UA_MULTITHREADING >= 100
+    tcase_add_test(tc_capture, logWhileGetRecordsMultithreaded);
+#endif
+    suite_add_tcase(s, tc_capture);
+
+    TCase *tc_inst = tcase_create("Instances");
+    tcase_add_checked_fixture(tc_inst, setup, teardown);
+    tcase_add_test(tc_inst, plainInstance);
+    tcase_add_test(tc_inst, instanceBeforeStart);
+    tcase_add_test(tc_inst, instanceDeclarationNotServed);
+    tcase_add_test(tc_inst, subtypeInstances);
+    tcase_add_test(tc_inst, settingsFromProperties);
+#ifdef UA_ENABLE_XML_ENCODING
+    tcase_add_test(tc_inst, companionNodesetBeforeStart);
+    tcase_add_test(tc_inst, companionNodesetAtRuntime);
+#endif
+    tcase_add_test(tc_inst, applicationLifecycleChained);
+    tcase_add_test(tc_inst, copiedMethods);
+    tcase_add_test(tc_inst, ownMethodCreatedAgain);
+    tcase_add_test(tc_inst, applicationLifecycleWrappedAtRuntime);
+    tcase_add_test(tc_inst, orphanedRecordsDeleted);
+    suite_add_tcase(s, tc_inst);
+
+    TCase *tc_settings = tcase_create("Settings");
+    tcase_add_checked_fixture(tc_settings, setup, teardown);
+    tcase_add_test(tc_settings, minimumSeverityWritable);
+    tcase_add_test(tc_settings, minimumSeverityRestoredOnStop);
+    tcase_add_test(tc_settings, setAndGetSettings);
+    tcase_add_test(tc_settings, setSettingsWithoutUpdate);
+    tcase_add_test(tc_settings, setMaxStorageDuration);
+    suite_add_tcase(s, tc_settings);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    TCase *tc_overflow = tcase_create("Overflow");
+    tcase_add_checked_fixture(tc_overflow, setup, teardown);
+    tcase_add_test(tc_overflow, overflowEvent);
+    tcase_add_test(tc_overflow, overflowEventCoalesced);
+    tcase_add_test(tc_overflow, overflowEventNoFeedbackLoop);
+    tcase_add_test(tc_overflow, overflowEventOfInstance);
+    tcase_add_test(tc_overflow, overflowEventNotDelayedByOtherLogObject);
+    suite_add_tcase(s, tc_overflow);
+#endif
+
+    TCase *tc_net = tcase_create("Sessions");
+    tcase_add_checked_fixture(tc_net, setup, teardown);
+    tcase_add_test(tc_net, continuationPointsReleasedWithSession);
+    suite_add_tcase(s, tc_net);
+
+    SRunner *sr = srunner_create(s);
+    srunner_set_fork_status(sr, CK_NOFORK);
+    srunner_run_all(sr, CK_NORMAL);
+    int failed = srunner_ntests_failed(sr);
+    srunner_free(sr);
+    return failed == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+#else /* UA_ENABLE_DRIVER_LOGOBJECT */
+
+int main(void) { return EXIT_SUCCESS; }
+
+#endif
