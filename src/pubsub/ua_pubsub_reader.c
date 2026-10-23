@@ -1141,6 +1141,14 @@ prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader,
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
                                   UA_ByteString *buf) {
+    UA_Boolean stackMatches[64] = {false};
+    UA_Boolean *matches = stackMatches;
+    if(readerGroup->readersCount > 64) {
+        matches = (UA_Boolean*)UA_calloc(readerGroup->readersCount,
+                                         sizeof(UA_Boolean));
+        if(!matches)
+            return false;
+    }
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useMembufAlloc();
 #endif
@@ -1149,10 +1157,6 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
     size_t pos = 0;
     UA_Boolean match = false;
     UA_DataSetReader *dsr;
-    UA_STACKARRAY(UA_Boolean, matches, readerGroup->readersCount);
-#ifdef __clang_analyzer__
-    memset(matches, 0, sizeof(UA_Boolean)* readerGroup->readersCount); /* Pacify warning */
-#endif
 
     /* Decode headers necessary for checking identifier. This can use malloc.
      * So enable membufAlloc if you need RT timings. */
@@ -1224,7 +1228,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
             UA_LOG_INFO_READER(server->config.logging, dsr,
                                "PubSub decoding failed. Could not decode with "
                                "status code %s.", UA_StatusCode_name(rv));
-            return false;
+            goto error;
         } else if (readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
             /* If pre-operational, set to operational after the first message was
              * processed */
@@ -1249,6 +1253,8 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
                                  dsr->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
     }
 
+    if(matches != stackMatches)
+        UA_free(matches);
     return match;
 
  error:
@@ -1256,6 +1262,8 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useNormalAlloc();
 #endif
+    if(matches != stackMatches)
+        UA_free(matches);
     return false;
 }
 
