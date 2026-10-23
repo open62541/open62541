@@ -61,11 +61,15 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     } else {
         /* Use EventLoop for cyclic callbacks */
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
+        if(el != server->config.eventLoop)
+            unlockServer(server); /* Unlock to avoid deadlocks between different EventLoops */
         retval = el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
                                        server, wg, wg->config.publishingInterval,
                                        NULL /* TODO: use basetime */,
                                        UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
                                        &wg->publishCallbackId);
+        if(el != server->config.eventLoop)
+            lockServer(server);
     }
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -78,6 +82,8 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
 
 static void
 UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(wg->publishCallbackId == 0)
         return;
     if(wg->config.pubsubManagerCallback.removeCustomCallback) {
@@ -85,7 +91,11 @@ UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
             removeCustomCallback(server, wg->identifier, wg->publishCallbackId);
     } else {
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
+        if(el != server->config.eventLoop)
+            unlockServer(server); /* Unlock to avoid deadlocks between different EventLoops */
         el->removeCyclicCallback(el, wg->publishCallbackId);
+        if(el != server->config.eventLoop)
+            lockServer(server);
     }
     wg->publishCallbackId = 0;
 }
