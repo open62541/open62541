@@ -2291,6 +2291,72 @@ getEffectivePermissions(UA_Server *server,
 }
 
 UA_StatusCode
+UA_Server_getRolePermissions(UA_Server *server,
+                             const UA_NodeId *nodeId,
+                             size_t *entriesSize,
+                             UA_RolePermissionType **entries)
+{
+    if(!server || !nodeId || !entriesSize || !entries)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    *entriesSize = 0;
+    *entries = NULL;
+
+    lockServer(server);
+
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    /* If node has no permission configuration, return empty array */
+    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID ||
+       node->head.permissionIndex >= server->rolePermissionsSize) {
+        UA_NODESTORE_RELEASE(server, node);
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    const UA_RolePermissionEntry *rp = &server->rolePermissions[node->head.permissionIndex];
+    if(!rp->rolePermissions || rp->rolePermissionsSize == 0) {
+        UA_NODESTORE_RELEASE(server, node);
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Allocate result array */
+    UA_RolePermissionType *result = (UA_RolePermissionType*)
+        UA_Array_new(rp->rolePermissionsSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!result) {
+        UA_NODESTORE_RELEASE(server, node);
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Fill result array */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < rp->rolePermissionsSize; i++) {
+        res = UA_NodeId_copy(&rp->rolePermissions[i].roleId, &result[i].roleId);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(result, i, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+            UA_NODESTORE_RELEASE(server, node);
+            unlockServer(server);
+            return res;
+        }
+        result[i].permissions = rp->rolePermissions[i].permissions;
+    }
+
+    *entriesSize = rp->rolePermissionsSize;
+    *entries = result;
+
+    UA_NODESTORE_RELEASE(server, node);
+
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_NodeId *nodeId,
                                  size_t *entriesSize,

@@ -105,6 +105,12 @@ getEffectivePermissions(UA_Server *server,
                         UA_PermissionType *effectivePermissions);
 
 UA_StatusCode
+UA_Server_getRolePermissions(UA_Server *server,
+                             const UA_NodeId *nodeId,
+                             size_t *entriesSize,
+                             UA_RolePermissionType **entries);
+
+UA_StatusCode
 UA_Server_getUserRolePermissions(UA_Server *server,
                                  const UA_NodeId *sessionId,
                                  const UA_NodeId *nodeId,
