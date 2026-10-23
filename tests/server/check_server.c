@@ -17,7 +17,6 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "test_helpers.h"
-#include "ua_types_encoding_binary.h"
 #include "testing_networklayers.h"
 
 #include <stdio.h>

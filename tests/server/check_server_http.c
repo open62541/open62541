@@ -5,7 +5,6 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
-#include "ua_types_encoding_binary.h"
 #include "ua_server_internal.h"
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/accesscontrol_default.h>

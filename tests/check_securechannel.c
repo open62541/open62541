@@ -10,7 +10,6 @@
 #include <open62541/server_config_default.h>
 
 #include "ua_securechannel.h"
-#include "ua_types_encoding_binary.h"
 #include "util/ua_util_internal.h"
 #include "ua_services.h"
 
