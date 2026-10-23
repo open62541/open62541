@@ -847,6 +847,11 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
                                UA_NetworkMessage* nm,
                                const UA_NetworkMessage_EncodingOptions *eo,
                                const UA_DecodeBinaryOptions *bo) {
+    /* Reject empty input before the decoder performs pointer arithmetic. */
+    if(src->length == 0 || !src->data) {
+        memset(nm, 0, sizeof(*nm));
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
     /* Initialize the decoding context */
     PubSubDecodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubDecodeCtx));

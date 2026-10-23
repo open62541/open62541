@@ -1513,6 +1513,15 @@ START_TEST(UA_Variant_setRangeRejectsUnclampedSourceSize) {
     res = UA_Variant_setRangeCopy(&value, source, 13, range);
     ck_assert_uint_eq(res, UA_STATUSCODE_BADINDEXRANGEINVALID);
 
+    /* A source matching the reduced range is written */
+    UA_UInt32 fitting[7] = {1, 2, 3, 4, 5, 6, 7};
+    res = UA_Variant_setRangeCopy(&value, fitting, 7, range);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_UInt32 *data = (UA_UInt32*)value.data;
+    ck_assert_uint_eq(data[2], 0);
+    ck_assert_uint_eq(data[3], 1);
+    ck_assert_uint_eq(data[9], 7);
+
     UA_Variant_clear(&value);
 }
 END_TEST

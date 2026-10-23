@@ -707,6 +707,30 @@ START_TEST(kvmContain) {
     UA_KeyValueMap_delete(kvm);
 } END_TEST
 
+/* UA_KeyValueMap_clear() must leave the map in a state that can be reused
+ * through UA_KeyValueMap_set() without operating on the freed array. */
+START_TEST(kvmClearThenReuse) {
+    UA_KeyValueMap kvm = UA_KEYVALUEMAP_NULL;
+
+    UA_UInt16 value_1 = 1;
+    UA_KeyValueMap_setScalar(&kvm, UA_QUALIFIEDNAME(0, "value-1"), (void *)&value_1,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(kvm.mapSize, 1);
+
+    UA_KeyValueMap_clear(&kvm);
+    ck_assert_uint_eq(kvm.mapSize, 0);
+    ck_assert_ptr_eq(kvm.map, NULL);
+
+    UA_UInt16 value_2 = 2;
+    UA_StatusCode res =
+        UA_KeyValueMap_setScalar(&kvm, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_2,
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_KeyValueMap_contains(&kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_KeyValueMap_clear(&kvm);
+} END_TEST
+
 START_TEST(kvmRemove) {
     UA_KeyValueMap *kvm = UA_KeyValueMap_new();
 
@@ -1117,6 +1141,51 @@ START_TEST(attributeOperandPrint) {
     UA_String_clear(&out);
 } END_TEST
 
+START_TEST(operandPrintLongNodeId) {
+    /* String and ByteString identifiers must survive printing beyond the
+     * former 512-byte temporary buffer, including percent/base64 expansion. */
+    UA_Byte identifier[768];
+    memset(identifier, '%', sizeof(identifier));
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 0);
+    id.identifierType = (_i % 2) ? UA_NODEIDTYPE_BYTESTRING : UA_NODEIDTYPE_STRING;
+    id.identifier.string = (UA_String){sizeof(identifier), identifier};
+    UA_String out = UA_STRING_NULL;
+
+    if(_i < 2) {
+        UA_AttributeOperand operand;
+        UA_AttributeOperand_init(&operand);
+        operand.nodeId = id;
+        operand.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_AttributeOperand_print(&operand, &out), UA_STATUSCODE_GOOD);
+        UA_AttributeOperand parsed;
+        ck_assert_uint_eq(UA_AttributeOperand_parse(&parsed, out), UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parsed.nodeId, &id));
+        UA_AttributeOperand_clear(&parsed);
+    } else if(_i < 4) {
+        UA_SimpleAttributeOperand operand;
+        UA_SimpleAttributeOperand_init(&operand);
+        operand.typeDefinitionId = id;
+        operand.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_SimpleAttributeOperand_print(&operand, &out), UA_STATUSCODE_GOOD);
+        UA_SimpleAttributeOperand parsed;
+        ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&parsed, out), UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parsed.typeDefinitionId, &id));
+        UA_SimpleAttributeOperand_clear(&parsed);
+    } else {
+        UA_ReadValueId operand;
+        UA_ReadValueId_init(&operand);
+        operand.nodeId = id;
+        operand.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_ReadValueId_print(&operand, &out), UA_STATUSCODE_GOOD);
+        UA_ReadValueId parsed;
+        ck_assert_uint_eq(UA_ReadValueId_parse(&parsed, out), UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parsed.nodeId, &id));
+        UA_ReadValueId_clear(&parsed);
+    }
+    ck_assert_uint_gt(out.length, 512);
+    UA_String_clear(&out);
+} END_TEST
+
 START_TEST(attributeId_name_roundtrip) {
     /* Round-trip every valid AttributeId through name() and fromName(). The
      * names must round-trip exactly. */
@@ -1297,6 +1366,7 @@ static Suite* testSuite_Utils(void) {
 
     TCase *tc3 = tcase_create("test keyvaluemap");
     tcase_add_test(tc3, kvmContain);
+    tcase_add_test(tc3, kvmClearThenReuse);
     tcase_add_test(tc3, kvmRemove);
     tcase_add_test(tc3, kvmMerge);
     suite_add_tcase(s, tc3);
@@ -1329,6 +1399,7 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc8, trustListDataTypeOperations);
     tcase_add_test(tc8, simpleAttributeOperandPrint);
     tcase_add_test(tc8, attributeOperandPrint);
+    tcase_add_loop_test(tc8, operandPrintLongNodeId, 0, 6);
     suite_add_tcase(s, tc8);
 
     TCase *tc9 = tcase_create("attribute id name round-trip");

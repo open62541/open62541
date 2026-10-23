@@ -1049,6 +1049,92 @@ START_TEST(Client_connectTimeoutRecovery) {
 }
 END_TEST
 
+START_TEST(Client_activateSessionSameUserAllowed) {
+    ck_assert_uint_eq(server->sessionCount, 0);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* Re-activate the same Session on a new SecureChannel with the same user */
+    UA_Client_disconnectSecureChannel(client);
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_delete(client);
+    ck_assert_uint_eq(server->sessionCount, 0);
+}
+END_TEST
+
+START_TEST(Client_activateSessionUserChangeRejected) {
+    ck_assert_uint_eq(server->sessionCount, 0);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* Try to re-activate the Session on a new SecureChannel for another user */
+    UA_Client_disconnectSecureChannel(client);
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                       "user2", "password1");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* Rejection preserves the identity of the server's original Session.
+     * The client discards a rejected Session, so inspect it directly. */
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = &LIST_FIRST(&server->sessions)->session;
+    UA_String expectedUser = UA_STRING("user1");
+    ck_assert(UA_String_equal(&session->clientUserIdOfSession, &expectedUser));
+    ck_assert(session->activated);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_activateSessionAnonymousUserChangeRejected) {
+    ck_assert_uint_eq(server->sessionCount, 0);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* Try to re-activate the anonymous Session for a named user. The client
+     * does not select a new UserTokenPolicy for the existing Session. */
+    UA_UserTokenPolicy_clear(&config->userTokenPolicy);
+    for(size_t i = 0; i < client->endpoint.userIdentityTokensSize; i++) {
+        UA_UserTokenPolicy *policy = &client->endpoint.userIdentityTokens[i];
+        if(policy->tokenType == UA_USERTOKENTYPE_USERNAME) {
+            ck_assert_uint_eq(UA_UserTokenPolicy_copy(policy, &config->userTokenPolicy),
+                              UA_STATUSCODE_GOOD);
+            break;
+        }
+    }
+    UA_Client_disconnectSecureChannel(client);
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                       "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* The client has no activated Session that it could close */
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -1075,6 +1161,10 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_reconnect, Client_activateSessionTimeout);
     tcase_add_test(tc_client_reconnect, Client_connectTimeoutRecovery);
     tcase_add_test(tc_client_reconnect, Client_activateSessionLocaleIds);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionSameUserAllowed);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionUserChangeRejected);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionAnonymousUserChangeRejected);
+
     suite_add_tcase(s,tc_client_reconnect);
 
     TCase *tc_ext = tcase_create("Client Extended");

@@ -575,6 +575,117 @@ START_TEST(UA_PubSub_Decode_WithBufferTooSmallShallReturnError) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+
+static size_t fieldCountMaxAlloc = 0;
+
+static void *
+fieldCountTrackingMalloc(size_t size) {
+    if(size > fieldCountMaxAlloc)
+        fieldCountMaxAlloc = size;
+    return malloc(size);
+}
+
+static void *
+fieldCountTrackingCalloc(size_t nelem, size_t elsize) {
+    size_t sz = nelem * elsize;
+    if(sz > fieldCountMaxAlloc)
+        fieldCountMaxAlloc = sz;
+    return calloc(nelem, elsize);
+}
+
+static void *
+fieldCountTrackingRealloc(void *ptr, size_t size) {
+    if(size > fieldCountMaxAlloc)
+        fieldCountMaxAlloc = size;
+    return realloc(ptr, size);
+}
+
+static void
+fieldCountTrackingFree(void *ptr) {
+    free(ptr);
+}
+
+START_TEST(UA_PubSub_Decode_KeyFrameFieldCountExceedsRemainingReturnsBadDecodingError) {
+    /* version=1, no flags -> single DataSetMessage. DSM header valid=1,
+     * fieldEncoding=VARIANT, type=DataKeyFrame (default). fieldCount is set
+     * to 0xFFFF although no bytes remain for even a single field. A correct
+     * decoder must reject this before allocating field storage sized from
+     * the unchecked wire value; the status code alone does not catch this,
+     * since the oversized allocation also ends up failing once the
+     * (nonexistent) field data is decoded. The allocation size is observed
+     * through the UA_ENABLE_MALLOC_SINGLETON hooks. */
+    UA_Byte raw[] = {
+        0x01,             /* NetworkMessage header */
+        0x01,             /* DataSetMessage header */
+        0xFF, 0xFF        /* fieldCount = 65535 */
+    };
+    UA_ByteString buf = { sizeof(raw), raw };
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+
+    void *(*origMalloc)(size_t) = UA_mallocSingleton;
+    void *(*origCalloc)(size_t, size_t) = UA_callocSingleton;
+    void *(*origRealloc)(void *, size_t) = UA_reallocSingleton;
+    void (*origFree)(void *) = UA_freeSingleton;
+
+    fieldCountMaxAlloc = 0;
+    UA_mallocSingleton = fieldCountTrackingMalloc;
+    UA_callocSingleton = fieldCountTrackingCalloc;
+    UA_reallocSingleton = fieldCountTrackingRealloc;
+    UA_freeSingleton = fieldCountTrackingFree;
+
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buf, &m, NULL, NULL);
+
+    UA_mallocSingleton = origMalloc;
+    UA_callocSingleton = origCalloc;
+    UA_reallocSingleton = origRealloc;
+    UA_freeSingleton = origFree;
+
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_uint_lt(fieldCountMaxAlloc, 1024 * 1024);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DeltaFrameFieldCountExceedsRemainingReturnsBadDecodingError) {
+    /* Same as above, but DataSetMessageType=DataDeltaFrame via the Flags2 byte. */
+    UA_Byte raw[] = {
+        0x01,             /* NetworkMessage header */
+        0x81,             /* DataSetMessage header: valid=1, Flags2 enabled */
+        0x01,             /* Flags2: dataSetMessageType = DataDeltaFrame */
+        0xFF, 0xFF        /* fieldCount = 65535 */
+    };
+    UA_ByteString buf = { sizeof(raw), raw };
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+
+    void *(*origMalloc)(size_t) = UA_mallocSingleton;
+    void *(*origCalloc)(size_t, size_t) = UA_callocSingleton;
+    void *(*origRealloc)(void *, size_t) = UA_reallocSingleton;
+    void (*origFree)(void *) = UA_freeSingleton;
+
+    fieldCountMaxAlloc = 0;
+    UA_mallocSingleton = fieldCountTrackingMalloc;
+    UA_callocSingleton = fieldCountTrackingCalloc;
+    UA_reallocSingleton = fieldCountTrackingRealloc;
+    UA_freeSingleton = fieldCountTrackingFree;
+
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buf, &m, NULL, NULL);
+
+    UA_mallocSingleton = origMalloc;
+    UA_callocSingleton = origCalloc;
+    UA_reallocSingleton = origRealloc;
+    UA_freeSingleton = origFree;
+
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_uint_lt(fieldCountMaxAlloc, 1024 * 1024);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+#endif /* UA_ENABLE_MALLOC_SINGLETON */
+
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
@@ -2094,12 +2205,84 @@ START_TEST(UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset) {
     UA_NetworkMessage_clear(&m);
 } END_TEST
 
+START_TEST(UA_PubSub_Decode_PromotedFieldsTruncatedAfterString) {
+    /* A complete String followed by an Int32 that crosses the declared end.
+     * Clearing the failed message must also release the String. */
+    UA_Byte data[] = {0x81, 0x80, 0x02, 0x07, 0x00,
+                      0x0c, 0x01, 0x00, 0x00, 0x00, 'a',
+                      0x06, 0x2a, 0x00, 0x00, 0x00,
+                      0x01, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DataSetMessageSizeMustFit) {
+    /* Oversized first/last DSM, truncated first DSM, zero and maximal size. */
+    const UA_Byte sizes[][4] = {{10, 0, 3, 0}, {3, 0, 4, 0},
+                                 {2, 0, 4, 0}, {0, 0, 3, 0},
+                                 {3, 0, 0xff, 0xff}};
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x03, 0x00, 0x03, 0x00,
+                      0x01, 0x00, 0x00, 0x01, 0x00, 0x00};
+    memcpy(&data[6], sizes[_i], 4);
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DeclaredSizesPreserveSecurityFooter) {
+    /* Single DSMs have no Sizes array. Multiple DSMs include padding before
+     * the footer, which must be read after the declared payload spans. */
+    UA_Byte single[] = {0x81, 0x10, 0x05, 0, 0, 0, 0, 0, 0x02, 0,
+                        0x01, 0, 0, 0xaa, 0xbb};
+    UA_Byte multiple[] = {0xc1, 0x10, 0x02, 0x01, 0, 0x02, 0,
+                          0x05, 0, 0, 0, 0, 0, 0x02, 0,
+                          0x04, 0, 0x04, 0,
+                          0x01, 0, 0, 0xcc, 0x01, 0, 0, 0xdd,
+                          0xaa, 0xbb};
+    UA_ByteString buffer = {_i ? sizeof(multiple) : sizeof(single),
+                            _i ? multiple : single};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(m.securityFooter.length, 2);
+    ck_assert_uint_eq(m.securityFooter.data[0], 0xaa);
+    ck_assert_uint_eq(m.securityFooter.data[1], 0xbb);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored) {
+    /* The first DSM is an Event message, which cannot be decoded. The valid
+     * second DSM must not hide the error. */
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x02, 0x00, 0x03, 0x00,
+                      0x81, 0x02, 0x01, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_ne(rv, UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
 
     TCase *tc_decode = tcase_create("decode");
     tcase_add_test(tc_decode, UA_PubSub_Decode_WithBufferTooSmallShallReturnError);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    tcase_add_test(tc_decode, UA_PubSub_Decode_KeyFrameFieldCountExceedsRemainingReturnsBadDecodingError);
+    tcase_add_test(tc_decode, UA_PubSub_Decode_DeltaFrameFieldCountExceedsRemainingReturnsBadDecodingError);
+#endif
     tcase_add_test(tc_decode, UA_PubSub_Decode_KeyFrameFieldCountMustFitBuffer);
     tcase_add_test(tc_decode, UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer);
     tcase_add_test(tc_decode, UA_PubSub_Decode_RawDataSizeMustFitBuffer);
@@ -2154,6 +2337,10 @@ int main(void) {
                    UA_PubSub_Encode_RejectsMissingRawFieldMetadata);
 
     TCase *tc_sizes = tcase_create("declared sizes");
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_PromotedFieldsTruncatedAfterString);
+    tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_DataSetMessageSizeMustFit, 0, 5);
+    tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_DeclaredSizesPreserveSecurityFooter, 0, 2);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored);
     tcase_add_test(tc_sizes, UA_PubSub_Decode_PromotedFieldsExceedDeclaredSize);
     tcase_add_test(tc_sizes, UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset);
 

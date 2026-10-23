@@ -5,6 +5,7 @@
 #include "ua_types_encoding_xml.h"
 #include "../deps/yxml.h"
 #include <check.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Helper: parse a full XML string via raw yxml API.

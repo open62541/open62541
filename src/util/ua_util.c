@@ -1160,13 +1160,9 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao, UA_String 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
-        UA_Byte nodeIdBuf[512];
-        UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= nodeId_printEscape(&sao->typeDefinitionId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT);
-        res |= UA_String_append(&tmp, nodeIdBufStr);
-    }
+    if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId))
+        res |= nodeId_printEscape(&sao->typeDefinitionId, &tmp,
+                                 NULL, UA_ESCAPING_PERCENT);
 
     /* Print the BrowsePath */
     UA_RelativePathElement_init(&rpe);
@@ -1216,13 +1212,9 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&objectsFolder, &ao->nodeId)) {
-        UA_Byte nodeIdBuf[512];
-        UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= nodeId_printEscape(&ao->nodeId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT_EXTENDED);
-        res |= UA_String_append(&tmp, nodeIdBufStr);
-    }
+    if(!UA_NodeId_equal(&objectsFolder, &ao->nodeId))
+        res |= nodeId_printEscape(&ao->nodeId, &tmp,
+                                 NULL, UA_ESCAPING_PERCENT_EXTENDED);
 
     /* Print the BrowsePath */
     UA_String rpstr = UA_STRING_NULL;
@@ -1262,13 +1254,9 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId)) {
-        UA_Byte nodeIdBuf[512];
-        UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= nodeId_printEscape(&rvi->nodeId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT);
-        res |= UA_String_append(&tmp, nodeIdBufStr);
-    }
+    if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId))
+        res |= nodeId_printEscape(&rvi->nodeId, &tmp,
+                                 NULL, UA_ESCAPING_PERCENT);
 
     /* Print the attribute name */
     if(rvi->attributeId != UA_ATTRIBUTEID_VALUE) {

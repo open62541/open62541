@@ -371,6 +371,7 @@ function unit_tests_alarms {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_MALLOC_SINGLETON=ON \
           -DUA_ENABLE_DA=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \

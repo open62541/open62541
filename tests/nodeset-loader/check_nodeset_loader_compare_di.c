@@ -5,6 +5,7 @@
 #include <open62541/server.h>
 #include <open62541/plugin/nodesetloader.h>
 #include <open62541/types.h>
+#include <stdlib.h>
 
 #include "check.h"
 #include "tests/namespace_nodesetloader_di_generated.h"

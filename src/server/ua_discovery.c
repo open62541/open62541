@@ -205,6 +205,7 @@ UA_DiscoveryManager_new(void) {
     if(!dm)
         return NULL;
 
+    dm->maxRegisteredServers = 1000;
     dm->sc.name = UA_STRING("discovery");
     dm->sc.start = UA_DiscoveryManager_start;
     dm->sc.stop = UA_DiscoveryManager_stop;

@@ -103,6 +103,72 @@ iterateUntilNotification(UA_Client *client, UA_UInt32 maxIterations) {
 }
 
 static void
+clearSubscriptionsDataChangeHandler(UA_Client *client, UA_UInt32 subId,
+                                    void *subContext, UA_UInt32 monId,
+                                    void *monContext, UA_DataValue *value) {
+    __Client_Subscriptions_clear(client);
+}
+
+static void
+clearSubscriptionsInactivityHandler(UA_Client *client, UA_UInt32 subId,
+                                    void *subContext) {
+    __Client_Subscriptions_clear(client);
+}
+
+static void
+clearSubscriptionsDeleteHandler(UA_Client *client, UA_UInt32 subId,
+                                void *subContext) {
+    __Client_Subscriptions_clear(client);
+}
+
+static void
+clearSubscriptionsMonitoredItemDeleteHandler(UA_Client *client,
+                                             UA_UInt32 subId,
+                                             void *subContext,
+                                             UA_UInt32 monId,
+                                             void *monContext) {
+    __Client_Subscriptions_clear(client);
+}
+
+static UA_Client *
+newConnectedClient(void) {
+    /* Use the same fake clock as the server and the Valgrind-safe timeout. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert(client != NULL);
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    return client;
+}
+
+static UA_UInt32
+createTestSubscription(UA_Client *client,
+                       UA_Client_DeleteSubscriptionCallback deleteCallback) {
+    UA_CreateSubscriptionRequest request =
+        UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL,
+                                       deleteCallback);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    return response.subscriptionId;
+}
+
+static UA_UInt32
+createTestMonitoredItem(UA_Client *client, UA_UInt32 subId,
+                        UA_Client_DataChangeNotificationCallback callback,
+                        UA_Client_DeleteMonitoredItemCallback deleteCallback) {
+    UA_MonitoredItemCreateRequest request =
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+    UA_MonitoredItemCreateResult response =
+        UA_Client_MonitoredItems_createDataChange(
+            client, subId, UA_TIMESTAMPSTORETURN_BOTH, request, NULL,
+            callback, deleteCallback);
+    ck_assert_uint_eq(response.statusCode, UA_STATUSCODE_GOOD);
+    return response.monitoredItemId;
+}
+
+static void
 createSubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
                            UA_CreateSubscriptionResponse *r) {
     UA_CreateSubscriptionResponse_copy(r, (UA_CreateSubscriptionResponse *)userdata);
@@ -227,6 +293,143 @@ deleteSubscriptionsCallback(UA_Client *client, void *userdata, UA_UInt32 request
                             UA_DeleteSubscriptionsResponse *r) {
     UA_DeleteSubscriptionsResponse_copy(r, (UA_DeleteSubscriptionsResponse *)userdata);
 }
+
+START_TEST(Client_notification_callback_clears_subscription) {
+    UA_Client *client = newConnectedClient();
+    UA_UInt32 subId = createTestSubscription(client, NULL);
+    createTestMonitoredItem(client, subId,
+                            clearSubscriptionsDataChangeHandler, NULL);
+
+    UA_StatusCode retval;
+    running = false;
+    THREAD_JOIN(server_thread);
+    UA_Server_run_iterate(server, true);
+    retval = UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, true);
+    retval = UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(LIST_EMPTY(&client->subscriptions));
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_monitoreditem_delete_callback_clears_subscriptions) {
+    UA_Client *client = newConnectedClient();
+    UA_UInt32 subId = createTestSubscription(client, NULL);
+    UA_UInt32 monIds[2];
+    monIds[0] = createTestMonitoredItem(
+        client, subId, dataChangeHandler,
+        clearSubscriptionsMonitoredItemDeleteHandler);
+    monIds[1] = createTestMonitoredItem(client, subId,
+                                        dataChangeHandler, NULL);
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subId;
+    deleteRequest.monitoredItemIdsSize = 2;
+    deleteRequest.monitoredItemIds = monIds;
+    UA_DeleteMonitoredItemsResponse deleteResponse =
+        UA_Client_MonitoredItems_delete(client, deleteRequest);
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+    ck_assert(LIST_EMPTY(&client->subscriptions));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_monitoreditem_create_callback_clears_subscriptions) {
+    UA_Client *client = newConnectedClient();
+    UA_UInt32 subId = createTestSubscription(client, NULL);
+    UA_MonitoredItemCreateRequest items[2];
+    items[0] = UA_MonitoredItemCreateRequest_default(
+        UA_NODEID_NUMERIC(0, UINT32_MAX));
+    items[1] = UA_MonitoredItemCreateRequest_default(
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+    void *contexts[2] = {NULL, NULL};
+    UA_Client_DataChangeNotificationCallback callbacks[2] = {
+        dataChangeHandler, dataChangeHandler};
+    UA_Client_DeleteMonitoredItemCallback deleteCallbacks[2] = {
+        clearSubscriptionsMonitoredItemDeleteHandler, NULL};
+    UA_CreateMonitoredItemsRequest request;
+    UA_CreateMonitoredItemsRequest_init(&request);
+    request.subscriptionId = subId;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.itemsToCreate = items;
+    request.itemsToCreateSize = 2;
+    UA_CreateMonitoredItemsResponse response;
+    UA_CreateMonitoredItemsResponse_init(&response);
+    if(_i == 0) {
+        response = UA_Client_MonitoredItems_createDataChanges(
+            client, request, contexts, callbacks, deleteCallbacks);
+    } else {
+        /* Drive both peers on this thread. A fast client-only loop can exhaust
+         * its iterations before the server is scheduled under Valgrind. */
+        pauseServer();
+        response.responseHeader.serviceResult = UA_STATUSCODE_BADWAITINGFORINITIALDATA;
+        UA_StatusCode res = UA_Client_MonitoredItems_createDataChanges_async(
+            client, request, contexts, callbacks, deleteCallbacks,
+            createDataChangesCallback, &response, NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        for(size_t i = 0; i < 1000 && response.responseHeader.serviceResult ==
+                UA_STATUSCODE_BADWAITINGFORINITIALDATA; i++) {
+            UA_Server_run_iterate(server, false);
+            res = UA_Client_run_iterate(client, 10);
+            ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        }
+        runServer();
+        ck_assert_uint_eq(response.resultsSize, 2);
+    }
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    UA_CreateMonitoredItemsResponse_clear(&response);
+    ck_assert(LIST_EMPTY(&client->subscriptions));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_delete_callback_clears_subscriptions) {
+    UA_Client *client = newConnectedClient();
+    createTestSubscription(client, clearSubscriptionsDeleteHandler);
+
+    lockClient(client);
+    __Client_Subscriptions_clear(client);
+    unlockClient(client);
+    ck_assert(LIST_EMPTY(&client->subscriptions));
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_inactivity_callback_clears_subscription) {
+    UA_Client *client = newConnectedClient();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    config->subscriptionInactivityCallback =
+        clearSubscriptionsInactivityHandler;
+    createTestSubscription(client, NULL);
+
+    UA_Client_Subscription *sub = LIST_FIRST(&client->subscriptions);
+    ck_assert(sub != NULL);
+    sub->lastActivity = 0;
+    client->currentlyOutStandingPublishRequests = 1;
+    lockClient(client);
+    __Client_Subscriptions_backgroundPublishInactivityCheck(client);
+    unlockClient(client);
+    ck_assert(LIST_EMPTY(&client->subscriptions));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
 
 START_TEST(Client_subscription) {
     UA_Client *client = UA_Client_newForUnitTest();
@@ -2920,6 +3123,23 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_doubleBuffer,
                    Client_subscription_modifyMonitoredItem_edgeCases);
     suite_add_tcase(s, tc_doubleBuffer);
+    TCase *tc_callbackLifetime = tcase_create("Notification Callback Lifetime");
+    tcase_add_checked_fixture(tc_callbackLifetime, setup, teardown);
+    tcase_add_test(tc_callbackLifetime,
+                   Client_notification_callback_clears_subscription);
+    tcase_add_test(tc_callbackLifetime,
+                   Client_inactivity_callback_clears_subscription);
+    suite_add_tcase(s, tc_callbackLifetime);
+
+    TCase *tc_deleteCallbackLifetime = tcase_create("Delete Callback Lifetime");
+    tcase_add_checked_fixture(tc_deleteCallbackLifetime, setup, teardown);
+    tcase_add_test(tc_deleteCallbackLifetime,
+                   Client_delete_callback_clears_subscriptions);
+    tcase_add_test(tc_deleteCallbackLifetime,
+                   Client_monitoreditem_delete_callback_clears_subscriptions);
+    tcase_add_loop_test(tc_deleteCallbackLifetime,
+                        Client_monitoreditem_create_callback_clears_subscriptions, 0, 2);
+    suite_add_tcase(s, tc_deleteCallbackLifetime);
 
 #ifdef UA_ENABLE_METHODCALLS
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");

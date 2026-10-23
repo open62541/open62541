@@ -182,6 +182,8 @@ PARSE_JSON(LocalizedTextField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field = (char*)UA_malloc(tok.size + 1);
+            if(!field)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field, &str_len);
 
@@ -260,6 +262,8 @@ PARSE_JSON(DurationRangeField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "min") == 0)
@@ -286,6 +290,8 @@ PARSE_JSON(UInt32RangeField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "min") == 0)
@@ -314,6 +320,8 @@ PARSE_JSON(BuildInfo) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "productUri") == 0)
@@ -348,6 +356,8 @@ PARSE_JSON(ApplicationDescriptionField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "applicationUri") == 0)
@@ -383,6 +393,8 @@ PARSE_JSON(StringArrayField) {
     }
     cj5_token tok = nextToken(ctx);
     UA_String *stringArray = (UA_String*)UA_malloc(sizeof(UA_String) * tok.size);
+    if(!stringArray && tok.size > 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     size_t stringArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
         UA_String out = {.length = 0, .data = NULL};
@@ -414,6 +426,8 @@ PARSE_JSON(UInt32ArrayField) {
     }
     cj5_token tok = nextToken(ctx);
     UA_UInt32 *numberArray = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32) * tok.size);
+    if(!numberArray && tok.size > 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     size_t numberArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
         UA_UInt32 value;
@@ -462,6 +476,8 @@ PARSE_JSON(MdnsConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "mdnsServerName") == 0)
@@ -500,6 +516,8 @@ PARSE_JSON(SubscriptionConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "maxSubscriptions") == 0)
@@ -554,6 +572,8 @@ PARSE_JSON(TcpConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "tcpBufSize") == 0)
@@ -584,6 +604,8 @@ PARSE_JSON(PubsubConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "enableDeltaFrames") == 0)
@@ -615,6 +637,8 @@ PARSE_JSON(HistorizingConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "accessHistoryDataCapability") == 0)
@@ -683,6 +707,12 @@ PARSE_JSON(SecurityPolciesField) {
             switch(tok.type) {
             case CJ5_TOKEN_STRING: {
                 char *field_str = (char *)UA_malloc(tok.size + 1);
+                if(!field_str) {
+                    UA_String_clear(&policy);
+                    UA_ByteString_clear(&certificate);
+                    UA_ByteString_clear(&privateKey);
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
                 unsigned int str_len = 0;
                 cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
                 if(strcmp(field_str, "certificate") == 0) {
@@ -691,6 +721,14 @@ PARSE_JSON(SecurityPolciesField) {
 
                     if(out.length > 0) {
                         char *certfile = (char *)UA_malloc(out.length + 1);
+                        if(!certfile) {
+                            UA_String_clear(&out);
+                            UA_free(field_str);
+                            UA_String_clear(&policy);
+                            UA_ByteString_clear(&certificate);
+                            UA_ByteString_clear(&privateKey);
+                            return UA_STATUSCODE_BADOUTOFMEMORY;
+                        }
                         memcpy(certfile, out.data, out.length);
                         certfile[out.length] = '\0';
                         certificate = loadCertificateFile(certfile);
@@ -703,6 +741,14 @@ PARSE_JSON(SecurityPolciesField) {
 
                     if(out.length > 0) {
                         char *keyfile = (char *)UA_malloc(out.length + 1);
+                        if(!keyfile) {
+                            UA_String_clear(&out);
+                            UA_free(field_str);
+                            UA_String_clear(&policy);
+                            UA_ByteString_clear(&certificate);
+                            UA_ByteString_clear(&privateKey);
+                            return UA_STATUSCODE_BADOUTOFMEMORY;
+                        }
                         memcpy(keyfile, out.data, out.length);
                         keyfile[out.length] = '\0';
                         privateKey = loadCertificateFile(keyfile);
