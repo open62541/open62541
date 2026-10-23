@@ -427,6 +427,7 @@ UA_Server_delete(UA_Server *server) {
     LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
         UA_RegisteredServer_clear(&rs->registeredServer);
+        UA_String_clear(&rs->mdnsServerName);
         UA_free(rs);
     }
     server->registeredServersSize = 0;
