@@ -171,23 +171,33 @@ registeredServerRequest(UA_LocalizedText *serverName) {
     return registered;
 }
 
+/* Adds the MdnsDiscoveryConfiguration (as in RegisterServer2) if it is given */
+static UA_StatusCode
+registerWithMdnsConfig(UA_Server *server, const UA_RegisteredServer *registered,
+                       UA_MdnsDiscoveryConfiguration *mdnsConfig) {
+    if(!mdnsConfig)
+        return UA_Server_registerServer(server, registered, 0, NULL, NULL);
+
+    UA_ExtensionObject discoveryConfig;
+    UA_ExtensionObject_setValue(&discoveryConfig, mdnsConfig,
+                                &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
+    UA_StatusCode configResult = UA_STATUSCODE_GOOD;
+    return UA_Server_registerServer(server, registered, 1,
+                                    &discoveryConfig, &configResult);
+}
+
 /* Adds a MdnsDiscoveryConfiguration (as in RegisterServer2) if an mDNS name is
  * given */
 static UA_StatusCode
 registerTestServer(UA_Server *server, const UA_RegisteredServer *registered,
                    const UA_String *mdnsServerName) {
     if(!mdnsServerName)
-        return UA_Server_registerServer(server, registered, 0, NULL, NULL);
+        return registerWithMdnsConfig(server, registered, NULL);
 
     UA_MdnsDiscoveryConfiguration mdnsConfig;
     UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
     mdnsConfig.mdnsServerName = *mdnsServerName;
-    UA_ExtensionObject discoveryConfig;
-    UA_ExtensionObject_setValue(&discoveryConfig, &mdnsConfig,
-                                &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
-    UA_StatusCode configResult = UA_STATUSCODE_GOOD;
-    return UA_Server_registerServer(server, registered, 1,
-                                    &discoveryConfig, &configResult);
+    return registerWithMdnsConfig(server, registered, &mdnsConfig);
 }
 
 /* The mDNS name differs from the ServerName. The removal paths only have the
@@ -293,6 +303,43 @@ START_TEST(reregister_server_replaces_server_on_network) {
 }
 END_TEST
 
+/* Without capabilities, the entry gets "NA" (no capability information is
+ * available, Part 12, Annex D) as in the mDNS announcement. Given capabilities
+ * are kept. _i == 0: no MdnsDiscoveryConfiguration, _i == 1: a configuration
+ * without capabilities, _i == 2: a configuration with two capabilities. */
+START_TEST(register_server_capabilities_default_to_na) {
+    UA_Server *server = newRegistrationServer();
+    UA_LocalizedText name = UA_LOCALIZEDTEXT("en", REGISTERED_SERVER_NAME);
+    UA_RegisteredServer registered = registeredServerRequest(&name);
+
+    UA_String caps[2] = {UA_STRING("DA"), UA_STRING("HD")};
+    UA_String na = UA_STRING("NA");
+    UA_MdnsDiscoveryConfiguration mdnsConfig;
+    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
+    if(_i == 2) {
+        mdnsConfig.serverCapabilities = caps;
+        mdnsConfig.serverCapabilitiesSize = 2;
+    }
+
+    ck_assert_uint_eq(registerWithMdnsConfig(server, &registered,
+                                             (_i == 0) ? NULL : &mdnsConfig),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+    const UA_ServerOnNetwork *son = &server->serversOnNetwork[0];
+    UA_String serverName = UA_STRING(REGISTERED_SERVER_NAME);
+    ck_assert(UA_String_equal(&son->serverName, &serverName));
+
+    const UA_String *expected = (_i == 2) ? caps : &na;
+    size_t expectedSize = (_i == 2) ? 2 : 1;
+    ck_assert_uint_eq(son->serverCapabilitiesSize, expectedSize);
+    for(size_t i = 0; i < expectedSize; i++)
+        ck_assert(UA_String_equal(&son->serverCapabilities[i], &expected[i]));
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 /* Part 4, 7.31: The ServerNames shall have at least one valid entry. An mDNS
  * name does not replace them. */
 START_TEST(register_server_without_server_names_rejected) {
@@ -365,6 +412,7 @@ testSuite(void) {
 #endif
     tcase_add_test(tc_registered, deregister_server_removes_server_on_network);
     tcase_add_test(tc_registered, reregister_server_replaces_server_on_network);
+    tcase_add_loop_test(tc_registered, register_server_capabilities_default_to_na, 0, 3);
     suite_add_tcase(suite, tc_registered);
     TCase *tc_names = tcase_create("server names");
     tcase_add_test(tc_names, register_server_without_server_names_rejected);
