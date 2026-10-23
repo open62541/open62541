@@ -1990,6 +1990,73 @@ START_TEST(UA_PubSub_EnDecode_RawFixedSizeStrings) {
     UA_ByteString_clear(&encoded);
 } END_TEST
 
+START_TEST(UA_PubSub_EnDecode_RawStringArray) {
+    UA_UInt32 dims[1] = {3};
+    UA_FieldMetaData field;
+    memset(&field, 0, sizeof(field));
+    field.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    field.builtInType = UA_NS0ID_STRING;
+    field.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    field.arrayDimensionsSize = 1;
+    field.arrayDimensions = dims;
+
+    UA_DataSetMessage_EncodingMetaData emd;
+    memset(&emd, 0, sizeof(emd));
+    emd.fields = &field;
+    emd.fieldsSize = 1;
+    UA_NetworkMessage_EncodingOptions eo;
+    memset(&eo, 0, sizeof(eo));
+    eo.metaData = &emd;
+    eo.metaDataSize = 1;
+
+    UA_String strings[3] = {UA_STRING_STATIC("a"), UA_STRING_STATIC("bc"),
+                            UA_STRING_STATIC("def")};
+    UA_DataValue dataValue;
+    memset(&dataValue, 0, sizeof(dataValue));
+    UA_Variant_setArray(&dataValue.value, strings, 3, &UA_TYPES[UA_TYPES_STRING]);
+    dataValue.value.arrayDimensionsSize = 1;
+    dataValue.value.arrayDimensions = dims;
+    dataValue.hasValue = true;
+
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
+    dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    dsm.fieldCount = 1;
+    dsm.data.keyFrameFields = &dataValue;
+
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.version = 1;
+    nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    nm.messageCount = 1;
+    nm.payload.dataSetMessages = &dsm;
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode rv = UA_NetworkMessage_encodeBinary(&nm, &encoded, &eo);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+
+    /* All array elements are decoded and owned by the Variant */
+    UA_NetworkMessage decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    rv = UA_NetworkMessage_decodeBinary(&encoded, &decoded, &eo, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.messageCount, 1);
+    UA_DataSetMessage *decodedDsm = &decoded.payload.dataSetMessages[0];
+    ck_assert_uint_eq(decodedDsm->fieldCount, 1);
+    UA_Variant *v = &decodedDsm->data.keyFrameFields[0].value;
+    ck_assert(UA_Variant_hasArrayType(v, &UA_TYPES[UA_TYPES_STRING]));
+    ck_assert_uint_eq(v->arrayLength, 3);
+    ck_assert_uint_eq(v->arrayDimensionsSize, 1);
+    ck_assert_uint_eq(v->arrayDimensions[0], 3);
+    for(size_t i = 0; i < 3; i++)
+        ck_assert(UA_String_equal(&((UA_String*)v->data)[i], &strings[i]));
+
+    UA_NetworkMessage_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
 START_TEST(UA_PubSub_Encode_RawFixedSizeStringTooLong) {
     UA_FieldMetaData field;
     memset(&field, 0, sizeof(field));
@@ -2119,6 +2186,7 @@ int main(void) {
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm);
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2);
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_RawFixedSizeStrings);
+    tcase_add_test(tc_ende1, UA_PubSub_EnDecode_RawStringArray);
     tcase_add_test(tc_ende1, UA_PubSub_Encode_RawFixedSizeStringTooLong);
 
     TCase *tc_ende2 = tcase_create("encode_decode2DS");
