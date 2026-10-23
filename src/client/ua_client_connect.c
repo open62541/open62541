@@ -13,7 +13,6 @@
 
 #include "open62541/transport_generated.h"
 #include "ua_client_internal.h"
-#include "../ua_types_encoding_binary.h"
 #include "mp_printf.h"
 
 /* Some OPC UA servers only return all Endpoints if the EndpointURL used for

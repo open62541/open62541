@@ -25,7 +25,6 @@
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/securitypolicy.h>
 
-#include "../ua_types_encoding_binary.h"
 #include "../ua_securechannel.h"
 
 _UA_BEGIN_DECLS

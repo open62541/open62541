@@ -15,7 +15,6 @@
 
 #include "open62541/transport_generated.h"
 #include "ua_securechannel.h"
-#include "ua_types_encoding_binary.h"
 
 UA_StatusCode
 UA_CertificateUtils_checkExtendedKeyUsage(const UA_ByteString *certificate,
