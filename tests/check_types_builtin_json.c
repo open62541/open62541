@@ -10,7 +10,7 @@
 #include <open62541/util.h>
 
 #include "ua_types_encoding.h"
-#include "ua_types_encoding_json.h"
+#include "util/ua_util_internal.h"
 
 #include <check.h>
 #include <float.h>

@@ -1075,8 +1075,8 @@ if(UA_ENABLE_JSON_ENCODING)
     if(NOT UA_ENABLE_TYPEDESCRIPTION)
         message(FATAL_ERROR "JSON encoding requires parsing and type descriptions to be enabled")
     endif()
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
+    # The encoding header uses cj5 types. Keep cj5 first for amalgamation.
+    list(PREPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
     if(UA_ENABLE_PUBSUB)

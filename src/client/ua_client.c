@@ -24,9 +24,6 @@
 #include <open62541/transport_generated.h>
 
 #include "ua_client_internal.h"
-#ifdef UA_ENABLE_JSON_ENCODING
-# include "../ua_types_encoding_json.h"
-#endif
 
 static void
 clientHouseKeeping(void *client, void *_);
