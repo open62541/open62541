@@ -268,6 +268,72 @@ START_TEST(Service_Browse_ClassMask) {
 }
 END_TEST
 
+/* Part 4, 5.9.2.2: References to TargetNodes in another Server are returned.
+ * Their NodeClass is unknown, so the nodeClassMask is ignored for them. */
+START_TEST(Service_Browse_RemoteTarget) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_ExpandedNodeId targets[2] = {
+        UA_EXPANDEDNODEID_NUMERIC(1, 1000), UA_EXPANDEDNODEID_NUMERIC(1, 1001)};
+    for(size_t i = 0; i < 2; i++) {
+        targets[i].serverIndex = 1;
+        UA_StatusCode res =
+            UA_Server_addReference(server, UA_NS0ID(OBJECTSFOLDER),
+                                   UA_NS0ID(ORGANIZES), targets[i], true);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NS0ID(OBJECTSFOLDER);
+    bd.referenceTypeId = UA_NS0ID(ORGANIZES);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+
+    /* Browse without and with a nodeClassMask */
+    const UA_UInt32 masks[2] = {0, UA_NODECLASS_OBJECT};
+    for(size_t m = 0; m < 2; m++) {
+        bd.nodeClassMask = masks[m];
+        UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+        ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+        UA_Boolean found[2] = {false, false};
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            UA_ReferenceDescription *rd = &br.references[i];
+            if(rd->nodeId.serverIndex == 0) {
+                ck_assert_uint_ne(rd->nodeClass, UA_NODECLASS_UNSPECIFIED);
+                continue;
+            }
+            size_t j = UA_ExpandedNodeId_equal(&rd->nodeId, &targets[0]) ? 0 : 1;
+            ck_assert(UA_ExpandedNodeId_equal(&rd->nodeId, &targets[j]));
+            ck_assert(!found[j]);
+            found[j] = true;
+            ck_assert(UA_NodeId_equal(&rd->referenceTypeId, &bd.referenceTypeId));
+            ck_assert(rd->isForward);
+            ck_assert_uint_eq(rd->nodeClass, UA_NODECLASS_UNSPECIFIED);
+            ck_assert(UA_QualifiedName_isNull(&rd->browseName));
+        }
+        ck_assert(found[0] && found[1]);
+        UA_BrowseResult_clear(&br);
+    }
+
+    /* Remote targets count for maxReferences and continuation points */
+    bd.nodeClassMask = 0;
+    bd.referenceTypeId = UA_NODEID_NULL;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    size_t total = br.referencesSize;
+    UA_BrowseResult_clear(&br);
+    for(UA_UInt32 i = 1; i <= total; i++) {
+        size_t sum_total =
+            browseWithMaxResults(server, UA_NS0ID(OBJECTSFOLDER), i);
+        ck_assert_uint_eq(total, sum_total);
+    }
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Service_Browse_ReferenceTypes) {
     UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -1133,6 +1199,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_browse, Service_Browse_CheckSubTypes);
     tcase_add_test(tc_browse, Service_Browse_WithBrowseName);
     tcase_add_test(tc_browse, Service_Browse_ClassMask);
+    tcase_add_test(tc_browse, Service_Browse_RemoteTarget);
     tcase_add_test(tc_browse, Service_Browse_ReferenceTypes);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     tcase_add_test(tc_browse, Service_Browse_ReclaimsOldestContinuationPoint);
