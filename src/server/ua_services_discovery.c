@@ -447,17 +447,16 @@ findServerOnNetworkIndex(UA_Server *server,
     return NULL;
 }
 
-UA_StatusCode
-UA_Server_registerServerOnNetwork(UA_Server *server,
-                                  const UA_ServerOnNetwork *newSon,
-                                  const UA_KeyValueMap params) {
+static UA_StatusCode
+addServerOnNetwork(UA_Server *server, const UA_ServerOnNetwork *newSon,
+                   const UA_KeyValueMap params) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
     if(!newSon)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(!server->config.serversOnNetworkEnabled)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-
-    lockServer(server);
 
     /* Search a matching entry */
     UA_StatusCode res;
@@ -469,10 +468,8 @@ UA_Server_registerServerOnNetwork(UA_Server *server,
         /* Make a copy */
         UA_ServerOnNetwork tmp;
         res = UA_ServerOnNetwork_copy(newSon, &tmp);
-        if(res != UA_STATUSCODE_GOOD) {
-            unlockServer(server);
+        if(res != UA_STATUSCODE_GOOD)
             return res;
-        }
 
         /* Replace the previous entry */
         UA_ServerOnNetwork_clear(son);
@@ -484,7 +481,6 @@ UA_Server_registerServerOnNetwork(UA_Server *server,
         /* All new RecordIds in increasing order */
         resetDiscoveryResetIds(server);
 
-        unlockServer(server);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -492,10 +488,8 @@ UA_Server_registerServerOnNetwork(UA_Server *server,
     res = UA_Array_appendCopy((void**)&server->serversOnNetwork,
                               &server->serversOnNetworkSize, newSon,
                               &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-    if(res != UA_STATUSCODE_GOOD) {
-        unlockServer(server);
+    if(res != UA_STATUSCODE_GOOD)
         return res;
-    }
 
     /* Increase the record id counter and use it */
     son = &server->serversOnNetwork[server->serversOnNetworkSize-1];
@@ -504,19 +498,15 @@ UA_Server_registerServerOnNetwork(UA_Server *server,
     /* Notify the application about an added entry */
     notifyServerOnNetwork(server, son, params, true, false, false);
 
-    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Server_deregisterServerOnNetwork(UA_Server *server,
-                                    const UA_String serverName) {
-    lockServer(server);
+static UA_StatusCode
+removeServerOnNetwork(UA_Server *server, const UA_String serverName) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
-    if(!server->config.serversOnNetworkEnabled) {
-        unlockServer(server);
+    if(!server->config.serversOnNetworkEnabled)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    }
 
     /* Find the entry */
     for(size_t i = 0; i < server->serversOnNetworkSize; i++) {
@@ -547,10 +537,27 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
         break;
     }
 
-    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_registerServerOnNetwork(UA_Server *server,
+                                  const UA_ServerOnNetwork *newSon,
+                                  const UA_KeyValueMap params) {
+    lockServer(server);
+    UA_StatusCode res = addServerOnNetwork(server, newSon, params);
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_deregisterServerOnNetwork(UA_Server *server,
+                                    const UA_String serverName) {
+    lockServer(server);
+    UA_StatusCode res = removeServerOnNetwork(server, serverName);
+    unlockServer(server);
+    return res;
+}
 
 /****************/
 /* GetEndpoints */
