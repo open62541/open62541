@@ -1244,9 +1244,15 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
          * (checked above). */
         son.discoveryUrl = requestServer->discoveryUrls[0];
 
-        if(mdnsConfig) {
+        /* Without capabilities, use "NA" (no capability information is
+         * available) as the mDNS drivers do */
+        UA_String na = UA_STRING("NA");
+        if(mdnsConfig && mdnsConfig->serverCapabilitiesSize > 0) {
             son.serverCapabilitiesSize = mdnsConfig->serverCapabilitiesSize;
             son.serverCapabilities = mdnsConfig->serverCapabilities;
+        } else {
+            son.serverCapabilitiesSize = 1;
+            son.serverCapabilities = &na;
         }
 
         res = addServerOnNetwork(server, &son, UA_KEYVALUEMAP_NULL);
