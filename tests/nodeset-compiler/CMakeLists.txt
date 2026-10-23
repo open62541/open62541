@@ -80,10 +80,18 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     ua_add_test(check_nodeset_compiler_autoid.c EXTRASOURCES
                 ${UA_NODESET_TESTS_DI_SOURCES}
+                ${UA_TYPES_TESTS_DI_SOURCES}
+                ${UA_NODESET_TESTS_AUTOID_SOURCES}
+                ${UA_TYPES_TESTS_AUTOID_SOURCES})
+    add_dependencies(check_nodeset_compiler_autoid open62541-generator-ns-tests-autoid)
+
+    ua_add_test(check_client_get_remote_datatypes2.c EXTRASOURCES
+                ${UA_NODESET_TESTS_DI_SOURCES}
                 ${UA_NODESET_TESTS_AUTOID_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_AUTOID_SOURCES})
-    add_dependencies(check_nodeset_compiler_autoid open62541-generator-ns-tests-autoid)
+    add_dependencies(check_client_get_remote_datatypes2 open62541-generator-ns-tests-autoid)
+    target_compile_definitions(check_client_get_remote_datatypes2 PRIVATE UA_NODESET_DIR="${UA_NODESET_DIR}/")
 endif()
 
 #[[ua_generate_datatypes(

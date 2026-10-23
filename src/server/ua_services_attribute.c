@@ -18,6 +18,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright 2026 (c) SICK AG (Author: Joerg Fischer)
  */
 
 #include "ua_server_internal.h"
