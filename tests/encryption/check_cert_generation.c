@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
+#include <open62541/plugin/securitypolicy_default.h>
 
 #include <check.h>
 #include "test_helpers.h"
@@ -62,12 +63,60 @@ START_TEST(certificate_generation) {
 }
 END_TEST
 
+static void
+createRsaCertificate(UA_UInt16 keyLength, UA_ByteString *derPrivKey,
+                     UA_ByteString *derCert) {
+    UA_String subject[1] = {UA_STRING_STATIC("CN=Open62541Test@localhost")};
+    UA_String subjectAltName[1] = {UA_STRING_STATIC("DNS:localhost")};
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_StatusCode status =
+        UA_CreateCertificate(UA_Log_Stdout, subject, 1, subjectAltName, 1,
+                             UA_CERTIFICATEFORMAT_DER, kvm, derPrivKey, derCert);
+    UA_KeyValueMap_delete(kvm);
+    ck_assert_uint_eq(status, UA_STATUSCODE_GOOD);
+}
+
+/* Basic256Sha256 requires an asymmetric key of 2048 to 4096 bits. A remote
+ * certificate outside of these bounds is refused. */
+START_TEST(remote_key_length_basic256sha256) {
+    UA_ByteString localKey, localCert;
+    createRsaCertificate(2048, &localKey, &localCert);
+    UA_SecurityPolicy sp;
+    memset(&sp, 0, sizeof(UA_SecurityPolicy));
+    UA_StatusCode res =
+        UA_SecurityPolicy_Basic256Sha256(&sp, localCert, localKey, UA_Log_Stdout);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString remoteKey, remoteCert;
+    void *channelContext = NULL;
+    createRsaCertificate(1024, &remoteKey, &remoteCert);
+    res = sp.newChannelContext(&sp, &remoteCert, &channelContext);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+    UA_ByteString_clear(&remoteKey);
+    UA_ByteString_clear(&remoteCert);
+
+    createRsaCertificate(2048, &remoteKey, &remoteCert);
+    res = sp.newChannelContext(&sp, &remoteCert, &channelContext);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    sp.deleteChannelContext(&sp, channelContext);
+    UA_ByteString_clear(&remoteKey);
+    UA_ByteString_clear(&remoteCert);
+
+    sp.clear(&sp);
+    UA_ByteString_clear(&localKey);
+    UA_ByteString_clear(&localCert);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Create Certificate");
     TCase *tc_cert = tcase_create("Certificate Create");
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, certificate_generation);
+    tcase_add_test(tc_cert, remote_key_length_basic256sha256);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
     return s;
