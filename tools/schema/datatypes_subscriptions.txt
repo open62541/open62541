@@ -56,3 +56,6 @@ TransferSubscriptionsResponse
 SetTriggeringRequest
 SetTriggeringResponse
 TimeZoneDataType
+ModelChangeStructureDataType
+ModelChangeStructureVerbMask
+SemanticChangeStructureDataType
