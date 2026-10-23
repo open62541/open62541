@@ -8,7 +8,8 @@
 #include <open62541/config.h>
 #include <open62541/types.h>
 
-#include "ua_types_encoding_xml.h"
+#include "ua_types_encoding.h"
+#include "util/ua_util_internal.h"
 
 #include <float.h>
 #include <limits.h>
