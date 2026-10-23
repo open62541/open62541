@@ -8,6 +8,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "server/ua_server_internal.h"
 #include "test_helpers.h"
 #include "thread_wrapper.h"
 
@@ -76,6 +77,16 @@ START_TEST(GetRemoteDatatypes_di) {
     const UA_NodeId dataTypeId = UA_NODEID_NUMERIC(diIdx, 15889);
     const UA_DataType* dt = UA_Client_findDataType(client, &dataTypeId);
     ck_assert(NULL != dt);
+
+    // A failed request sets the output to NULL
+    lockServer(server);
+    UA_Server_getConfig(server)->maxNodesPerRead = 1;
+    unlockServer(server);
+    UA_DataTypeArray* array2 = array;
+    const UA_StatusCode resGet2 =
+        UA_Client_getRemoteDataTypes(client, 1, &dataTypeId, &array2);
+    ck_assert_uint_eq(resGet2, UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    ck_assert(NULL == array2);
 }
 END_TEST
 

@@ -1603,20 +1603,21 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
     }
 }
 
-static void
+/* Returns true if the Subscription is gone (and sub no longer valid) */
+static UA_Boolean
 processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
                            UA_ExtensionObject *msg) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
     if(msg->encoding != UA_EXTENSIONOBJECT_DECODED)
-        return;
+        return false;
 
     /* Handle DataChangeNotification */
     if(msg->content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]) {
         UA_DataChangeNotification *dataChangeNotification =
             (UA_DataChangeNotification *)msg->content.decoded.data;
         processDataChangeNotification(client, sub, dataChangeNotification);
-        return;
+        return false;
     }
 
     /* Handle EventNotification */
@@ -1624,26 +1625,44 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
         UA_EventNotificationList *eventNotificationList =
             (UA_EventNotificationList *)msg->content.decoded.data;
         processEventNotification(client, sub, eventNotificationList);
-        return;
+        return false;
     }
 
     /* Handle StatusChangeNotification */
     if(msg->content.decoded.type == &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]) {
+        UA_StatusChangeNotification *scn =
+            (UA_StatusChangeNotification*)msg->content.decoded.data;
+        UA_UInt32 subId = sub->subscriptionId;
         if(sub->statusChangeCallback) {
             void *subC = sub->context;
-            UA_UInt32 subId = sub->subscriptionId;
-            sub->statusChangeCallback(client, subId, subC,
-                                      (UA_StatusChangeNotification*)msg->content.decoded.data);
+            sub->statusChangeCallback(client, subId, subC, scn);
+            /* The callback can delete the Subscription */
+            sub = findSubscriptionById(client, subId);
+            if(!sub)
+                return true;
         } else {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Dropped a StatusChangeNotification since no "
                            "callback is registered");
         }
-        return;
+
+        /* The server has deleted the Subscription or transferred it to another
+         * Session (Part 4, 5.14.1.1 and 5.14.7.1). Delete it locally. */
+        if(UA_StatusCode_isBad(scn->status) ||
+           scn->status == UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "Subscription %" PRIu32 " | Removed after a "
+                        "StatusChange with status %s", subId,
+                        UA_StatusCode_name(scn->status));
+            __Client_Subscription_deleteInternal(client, sub);
+            return true;
+        }
+        return false;
     }
 
     UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                    "Unknown notification message type");
+    return false;
 }
 
 void
@@ -1754,9 +1773,12 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
     if(msg->notificationDataSize)
         sub->sequenceNumber = msg->sequenceNumber;
 
-    /* Process the notification messages */
-    for(size_t k = 0; k < msg->notificationDataSize; ++k)
-        processNotificationMessage(client, sub, &msg->notificationData[k]);
+    /* Process the notification messages. Nothing is acknowledged when the
+     * Subscription is gone after a StatusChange. */
+    for(size_t k = 0; k < msg->notificationDataSize; ++k) {
+        if(processNotificationMessage(client, sub, &msg->notificationData[k]))
+            return;
+    }
 
     /* Add the current NotificationMessage (SequenceNumber) to the list of
      * pending acks to be acknowledged. But only if it is in the list of

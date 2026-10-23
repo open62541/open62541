@@ -198,6 +198,7 @@ __Client_httpConnectionCallback(
         __Client_AsyncService_removeAll(
             client, UA_STATUSCODE_BADSECURECHANNELCLOSED);
         UA_SecureChannel_clear(&client->channel);
+        client->haveNamespaces = false;
         if(client->connectStatus == UA_STATUSCODE_GOOD)
             connectActivity(client);
         notifyClientState(client);

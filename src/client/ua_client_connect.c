@@ -2807,6 +2807,14 @@ connectInternal(UA_Client *client, UA_Boolean async) {
      * recover from a bad connectStatus. */
     client->connectStatus = UA_STATUSCODE_GOOD;
 
+    /* The sync connect has its own deadline. The async connect is aborted in
+     * the housekeeping when it is not fully connected within the timeout. */
+    client->connectDeadline = 0;
+    UA_EventLoop *el = client->config.eventLoop;
+    if(async && el && client->config.timeout > 0)
+        client->connectDeadline = el->dateTime_nowMonotonic(el) +
+            ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+
     if(async)
         initConnect(client);
     else
@@ -3092,6 +3100,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
 
     client->connectStatus = UA_STATUSCODE_GOOD;
+    client->connectDeadline = 0; /* No deadline for a reverse connect */
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
 
     UA_SecureChannel_init(&client->channel);
@@ -3270,6 +3279,9 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
      * explicitly closed */
     UA_String_clear(&client->discoveryUrl);
     UA_EndpointDescription_clear(&client->endpoint);
+
+    /* An ongoing async connect is cancelled */
+    client->connectDeadline = 0;
 
     /* Manually set the status to closed to prevent an automatic reconnection.
      * Do this before closing because some ConnectionManagers report the close
