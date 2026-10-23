@@ -953,8 +953,12 @@ __Client_Service(UA_Client *client, const void *request,
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        /* The channel is no longer the same or was closed */
-        if(channelId != client->channel.securityToken.channelId) {
+        /* The channel is no longer the same or was closed. The response can
+         * no longer arrive, also if the client re-dials with the connectStatus
+         * staying Good. */
+        if(channelId != client->channel.securityToken.channelId ||
+           (client->channel.transport != UA_SECURECHANNEL_TRANSPORT_HTTP &&
+            client->channel.state != UA_SECURECHANNELSTATE_OPEN)) {
             retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
             break;
         }
