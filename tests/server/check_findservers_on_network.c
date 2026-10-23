@@ -7,9 +7,11 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "test_helpers.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <pthread.h>
+#include <stdio.h>
 
 #define LARGE_DISCOVERY_CACHE_SIZE 50000
 
@@ -126,10 +128,22 @@ START_TEST(discovery_runtime_flags) {
 }
 END_TEST
 
+static size_t
+countServersOnNetwork(UA_Server *server, const char *serverName) {
+    UA_String name = UA_STRING((char*)(uintptr_t)serverName);
+    size_t count = 0;
+    for(size_t i = 0; i < server->serversOnNetworkSize; i++) {
+        if(UA_String_equal(&server->serversOnNetwork[i].serverName, &name))
+            count++;
+    }
+    return count;
+}
+
 #define REGISTERED_SERVER_URI "urn:test:registered-server"
 #define REGISTERED_DISCOVERY_URL "opc.tcp://localhost:4841"
 #define REGISTERED_SERVER_NAME "Registered server"
 #define REGISTERED_MDNS_NAME "registered-mdns"
+#define REGISTERED_SEMAPHORE_PATH "/tmp/open62541-unit-test-semaphore-son"
 
 static UA_Server *
 newRegistrationServer(void) {
@@ -175,6 +189,109 @@ registerTestServer(UA_Server *server, const UA_RegisteredServer *registered,
     return UA_Server_registerServer(server, registered, 1,
                                     &discoveryConfig, &configResult);
 }
+
+/* The mDNS name differs from the ServerName. The removal paths only have the
+ * stored record and must still find the entry. */
+static void
+registerWithMdnsName(UA_Server *server, char *semaphoreFilePath) {
+    UA_LocalizedText name = UA_LOCALIZEDTEXT("en", REGISTERED_SERVER_NAME);
+    UA_RegisteredServer registered = registeredServerRequest(&name);
+    registered.semaphoreFilePath = UA_STRING(semaphoreFilePath);
+    UA_String mdnsServerName = UA_STRING(REGISTERED_MDNS_NAME);
+
+    ck_assert_uint_eq(registerTestServer(server, &registered, &mdnsServerName),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->registeredServersSize, 1);
+    ck_assert_uint_eq(countServersOnNetwork(server, REGISTERED_MDNS_NAME), 1);
+}
+
+/* The purge of the server housekeeping */
+static void
+cleanupRegistrations(UA_Server *server) {
+    UA_LOCK(&server->serviceMutex);
+    cleanupRegisteredServers(server);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+START_TEST(registered_server_timeout_removes_server_on_network) {
+    UA_Server *server = newRegistrationServer();
+    registerWithMdnsName(server, NULL);
+
+    /* Age the registration beyond the cleanup timeout */
+    UA_fakeSleep(11 * 1000);
+    cleanupRegistrations(server);
+
+    ck_assert_uint_eq(server->registeredServersSize, 0);
+    ck_assert_uint_eq(countServersOnNetwork(server, REGISTERED_MDNS_NAME), 0);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
+START_TEST(registered_server_semaphore_removes_server_on_network) {
+    FILE *semaphore = fopen(REGISTERED_SEMAPHORE_PATH, "w");
+    ck_assert_ptr_ne(semaphore, NULL);
+    fclose(semaphore);
+
+    UA_Server *server = newRegistrationServer();
+    registerWithMdnsName(server, REGISTERED_SEMAPHORE_PATH);
+
+    /* The registration stays while the semaphore file exists */
+    cleanupRegistrations(server);
+    ck_assert_uint_eq(server->registeredServersSize, 1);
+    ck_assert_uint_eq(countServersOnNetwork(server, REGISTERED_MDNS_NAME), 1);
+
+    /* Deleting the semaphore file removes the registration */
+    ck_assert_int_eq(remove(REGISTERED_SEMAPHORE_PATH), 0);
+    cleanupRegistrations(server);
+
+    ck_assert_uint_eq(server->registeredServersSize, 0);
+    ck_assert_uint_eq(countServersOnNetwork(server, REGISTERED_MDNS_NAME), 0);
+
+    UA_Server_delete(server);
+}
+END_TEST
+#endif
+
+START_TEST(deregister_server_removes_server_on_network) {
+    UA_Server *server = newRegistrationServer();
+    registerWithMdnsName(server, NULL);
+
+    UA_String url = UA_STRING(REGISTERED_DISCOVERY_URL);
+    ck_assert_uint_eq(UA_Server_deregisterServer(server,
+                                                 UA_STRING(REGISTERED_SERVER_URI),
+                                                 1, &url),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(server->registeredServersSize, 0);
+    ck_assert_uint_eq(countServersOnNetwork(server, REGISTERED_MDNS_NAME), 0);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* Registering again keeps a single entry. Under a different mDNS name, the
+ * entry of the previous name is removed. */
+START_TEST(reregister_server_replaces_server_on_network) {
+    UA_Server *server = newRegistrationServer();
+    registerWithMdnsName(server, NULL);
+    registerWithMdnsName(server, NULL);
+
+    UA_LocalizedText name = UA_LOCALIZEDTEXT("en", REGISTERED_SERVER_NAME);
+    UA_RegisteredServer registered = registeredServerRequest(&name);
+    UA_String renamed = UA_STRING("renamed-mdns");
+    ck_assert_uint_eq(registerTestServer(server, &registered, &renamed),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(server->registeredServersSize, 1);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+    ck_assert_uint_eq(countServersOnNetwork(server, REGISTERED_MDNS_NAME), 0);
+    ck_assert_uint_eq(countServersOnNetwork(server, "renamed-mdns"), 1);
+
+    UA_Server_delete(server);
+}
+END_TEST
 
 /* Part 4, 7.31: The ServerNames shall have at least one valid entry. An mDNS
  * name does not replace them. */
@@ -227,6 +344,8 @@ START_TEST(register_server_empty_mdns_name_uses_server_name) {
                       UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(server->registeredServersSize, 1);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+    ck_assert_uint_eq(countServersOnNetwork(server, REGISTERED_SERVER_NAME), 1);
 
     UA_Server_delete(server);
 }
@@ -239,6 +358,14 @@ testSuite(void) {
     tcase_add_test(tc, find_on_network_large_cache_small_stack);
     tcase_add_test(tc, discovery_runtime_flags);
     suite_add_tcase(suite, tc);
+    TCase *tc_registered = tcase_create("registered servers");
+    tcase_add_test(tc_registered, registered_server_timeout_removes_server_on_network);
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
+    tcase_add_test(tc_registered, registered_server_semaphore_removes_server_on_network);
+#endif
+    tcase_add_test(tc_registered, deregister_server_removes_server_on_network);
+    tcase_add_test(tc_registered, reregister_server_replaces_server_on_network);
+    suite_add_tcase(suite, tc_registered);
     TCase *tc_names = tcase_create("server names");
     tcase_add_test(tc_names, register_server_without_server_names_rejected);
     tcase_add_test(tc_names, register_server_with_empty_server_name_rejected);
