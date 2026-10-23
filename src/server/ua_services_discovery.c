@@ -1059,6 +1059,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                                                 &requestServer->serverUri) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
 
+    /* Check the presence of at least one ServerName */
+    if(requestServer->serverNamesSize == 0)
+        return UA_STATUSCODE_BADSERVERNAMEMISSING;
+
     /* Check the presence of at least one DiscoveryUrl */
     if(requestServer->discoveryUrlsSize == 0)
         return UA_STATUSCODE_BADDISCOVERYURLMISSING;
@@ -1110,15 +1114,16 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             if(*responseConfigurationResults)
                 (*responseConfigurationResults)[i] = UA_STATUSCODE_GOOD;
             mdnsConfig = (UA_MdnsDiscoveryConfiguration *)eo->content.decoded.data;
-            if(!mdnsServerName)
+            /* mDNS names must not be empty */
+            if(!mdnsServerName && mdnsConfig->mdnsServerName.length > 0)
                 mdnsServerName = &mdnsConfig->mdnsServerName;
         }
     }
 
-    /* Override the mDNS server name with the first "normal" name */
-    if(!mdnsServerName && requestServer->serverNamesSize > 0)
-        mdnsServerName = &requestServer->serverNames[0].text;
+    /* Without an mDNS name, use the first ServerName */
     if(!mdnsServerName)
+        mdnsServerName = &requestServer->serverNames[0].text;
+    if(mdnsServerName->length == 0)
         return UA_STATUSCODE_BADSERVERNAMEMISSING;
 
     /* Find the server from the request in the record list */
