@@ -627,7 +627,7 @@ UA_Server_init(UA_Server *server) {
             }
 
             UA_QualifiedName dataTypeBrowseName =
-                {type->typeId.namespaceIndex, UA_STRING_STATIC((char*)(uintptr_t)type->typeName)};
+                {type->typeId.namespaceIndex, UA_STRING((char*)(uintptr_t)type->typeName)};
             UA_DataTypeAttributes dta = UA_DataTypeAttributes_default;
             dta.displayName.text = UA_STRING((char*)(uintptr_t)type->typeName);
             res = UA_Server_addDataTypeNode(server, type->typeId, UA_NS0ID(STRUCTURE),
