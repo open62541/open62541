@@ -26,8 +26,9 @@ _UA_BEGIN_DECLS
 /* Binary Encoding */
 /*******************/
 
-typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
-                                                 const UA_Byte **bufEnd);
+typedef UA_StatusCode
+(*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
+                           const UA_Byte **bufEnd);
 
 typedef struct {
     /* Pointers to the current and last buffer position */
@@ -144,21 +145,33 @@ typedef struct {
     UA_Boolean unquotedKeys;
 } CtxJson;
 
-UA_StatusCode writeJsonObjStart(CtxJson *ctx);
-UA_StatusCode writeJsonObjElm(CtxJson *ctx, const char *key,
-                              const void *value, const UA_DataType *type);
-UA_StatusCode writeJsonObjEnd(CtxJson *ctx);
+UA_StatusCode
+writeJsonObjStart(CtxJson *ctx);
 
-UA_StatusCode writeJsonArrStart(CtxJson *ctx);
-UA_StatusCode writeJsonArrElm(CtxJson *ctx, const void *value,
-                              const UA_DataType *type);
-UA_StatusCode writeJsonArrEnd(CtxJson *ctx, const UA_DataType *type);
+UA_StatusCode
+writeJsonObjElm(CtxJson *ctx, const char *key,
+                const void *value, const UA_DataType *type);
 
-UA_StatusCode writeJsonKey(CtxJson *ctx, const char* key);
+UA_StatusCode
+writeJsonObjEnd(CtxJson *ctx);
+
+UA_StatusCode
+writeJsonArrStart(CtxJson *ctx);
+
+UA_StatusCode
+writeJsonArrElm(CtxJson *ctx, const void *value,
+                const UA_DataType *type);
+
+UA_StatusCode
+writeJsonArrEnd(CtxJson *ctx, const UA_DataType *type);
+
+UA_StatusCode
+writeJsonKey(CtxJson *ctx, const char* key);
 
 /* Adds a comma if needed. Distinct elements go on a new line if pretty-printing
  * is enabled. */
-UA_StatusCode writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct);
+UA_StatusCode
+writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct);
 
 typedef struct {
     const char *json5;
@@ -175,11 +188,13 @@ typedef struct {
     const UA_DataTypeArray *customTypes;
 } ParseCtx;
 
+/* Expose the jump tables */
 typedef UA_StatusCode
 (*encodeJsonSignature)(CtxJson *ctx, const void *src, const UA_DataType *type);
-
 typedef UA_StatusCode
 (*decodeJsonSignature)(ParseCtx *ctx, void *dst, const UA_DataType *type);
+extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
+extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
 
 /* Map for decoding a Json Object. An array of this is passed to the
  * decodeFields function. If the key "fieldName" is found in the json object
@@ -195,17 +210,19 @@ typedef struct {
                               * type->typeKind. */
 } DecodeEntry;
 
-UA_StatusCode decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount);
-UA_StatusCode decodeFieldsAllowUnknown(ParseCtx *ctx, DecodeEntry *entries,
-                                       size_t entryCount);
+UA_StatusCode
+decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount);
 
-/* Expose the jump tables and some methods for PubSub JSON decoding */
-extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
-extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
+UA_StatusCode
+decodeFieldsAllowUnknown(ParseCtx *ctx, DecodeEntry *entries,
+                         size_t entryCount);
 
-UA_StatusCode lookAheadForKey(ParseCtx *ctx, const char *search, size_t *resultIndex);
-UA_StatusCode tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize,
-                       size_t *decodedLength);
+UA_StatusCode
+lookAheadForKey(ParseCtx *ctx, const char *search, size_t *resultIndex);
+
+UA_StatusCode
+tokenize(ParseCtx *ctx, const UA_ByteString *src,
+         size_t tokensSize, size_t *decodedLength);
 
 static UA_INLINE
 cj5_token_type currentTokenType(const ParseCtx *ctx) {
@@ -241,16 +258,16 @@ typedef struct {
     UA_String name;
     UA_String content;
     UA_Boolean contentEscaped; /* Content contains a character or entity reference */
-    unsigned attributes; // For elements only: the number of attributes
-    unsigned children;   // For elements only: the number of child elements
-    unsigned start;      // First character of the token in the xml
-    unsigned end;        // Position after the token ends
+    unsigned attributes;       /* For elements only: the number of attributes */
+    unsigned children;         /* For elements only: the number of child elements */
+    unsigned start;            /* First character of the token in the XML */
+    unsigned end;              /* Position after the token ends */
 } xml_token;
 
 typedef enum {
     XML_ERROR_NONE = 0,
-    XML_ERROR_INVALID,   // Invalid character/syntax
-    XML_ERROR_OVERFLOW   // Token buffer overflow
+    XML_ERROR_INVALID,   /* Invalid character/syntax */
+    XML_ERROR_OVERFLOW   /* Token buffer overflow */
 } xml_error_code;
 
 typedef struct {
@@ -290,13 +307,11 @@ typedef struct {
     size_t serverUrisSize;
 } ParseCtxXml;
 
+/* Expose the jump tables */
 typedef UA_StatusCode
 (*encodeXmlSignature)(CtxXml *ctx, const void *src, const UA_DataType *type);
-
 typedef UA_StatusCode
 (*decodeXmlSignature)(ParseCtxXml *ctx, void *dst, const UA_DataType *type);
-
-/* Expose the jump tables and some methods */
 extern const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS];
 extern const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS];
 
