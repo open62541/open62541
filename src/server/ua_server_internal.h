@@ -91,6 +91,10 @@ UA_StatusCode initNS0RBAC(UA_Server *server);
 typedef struct RegisteredServerRecord {
     LIST_ENTRY(RegisteredServerRecord) pointers;
     UA_RegisteredServer registeredServer;
+    /* Name of the ServerOnNetwork entry of the registration. That is the
+     * mdnsServerName from RegisterServer2 or else the first ServerName. Stored
+     * to remove the entry without the original request. */
+    UA_String mdnsServerName;
     UA_DateTime lastSeen;
 } RegisteredServerRecord;
 

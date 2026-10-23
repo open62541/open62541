@@ -2590,7 +2590,10 @@ struct UA_ServerConfig {
     /* Enable the internal management of ServerOnNetwork entries and the
      * FindServersOnNetwork Service. This is used in conjunction with mDNS to
      * implement a Discovery Server that detects other servers on the
-     * network. */
+     * network. If registeredServersEnabled is also set, every registered
+     * server gets a ServerOnNetwork entry under its mDNS name (the
+     * mdnsServerName from RegisterServer2 or else the first ServerName). An
+     * attached mDNS driver announces these entries on the network. */
     UA_Boolean serversOnNetworkEnabled;
 
     /* Subscriptions
