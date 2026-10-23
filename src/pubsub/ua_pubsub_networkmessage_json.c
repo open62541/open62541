@@ -10,7 +10,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_networkmessage.h"
-#include "../ua_types_encoding_json.h"
+#include "../util/ua_util_internal.h"
 
 /* JSON keys for the NetworkMessage */
 static const char * UA_DECODEKEY_MESSAGES = "Messages";
