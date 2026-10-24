@@ -16,11 +16,6 @@ config OPEN62541_ENABLE_DIAGNOSTICS
     default y
     help
         Enable diagnostics information exposed by the server
-config OPEN62541_ENABLE_METHODCALLS
-    bool "Enable method calls"
-    default y
-    help
-        Enable the Method service set
 config OPEN62541_ENABLE_SUBSCRIPTIONS
     bool "Enable subscriptions"
     default y
@@ -31,21 +26,11 @@ config OPEN62541_ENABLE_SUBSCRIPTIONS_EVENTS
     default y
     help
         Enable event monitoring
-config OPEN62541_ENABLE_DA
-    bool "Enable data access"
-    default y
-    help
-        Enable OPC UA DataAccess (Part 8) definitions
 config OPEN62541_ENABLE_HISTORIZING
     bool "Enable historizing"
     default y
     help
         Enable basic support for historical access (client and server)
-config OPEN62541_ENABLE_DISCOVERY
-    bool "Enable discovery"
-    default y
-    help
-        Enable Discovery Service (LDS)
 config OPEN62541_ENABLE_JSON_ENCODING
     bool "Enable JSON encoding"
     default y
@@ -76,11 +61,6 @@ config OPEN62541_ENABLE_INLINABLE_EXPORT
     default n
     help
         Export 'static inline' methods as regular API
-config OPEN62541_ENABLE_DISCOVERY_MULTICAST
-    bool "Enable discovery multicast"
-    default n
-    help
-        Enable Discovery Service with multicast support (LDS-ME)
 config OPEN62541_ENABLE_ENCRYPTION_MBEDTLS
     bool "Enable mbedTLS"
     default n

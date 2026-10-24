@@ -422,7 +422,6 @@ UA_Server_delete(UA_Server *server) {
 #endif
 
     /* Clean up Discovery entries  */
-#ifdef UA_ENABLE_DISCOVERY
     /* Remove registered servers. Don't notify the application here */
     RegisteredServerRecord *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
@@ -438,7 +437,6 @@ UA_Server_delete(UA_Server *server) {
                     &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
     server->serversOnNetwork = NULL;
     server->serversOnNetworkSize = 0;
-#endif
 
     /* Clean up the config */
     UA_ServerConfig_clear(&server->config);
@@ -470,9 +468,7 @@ serverHouseKeeping(UA_Server *server, void *_) {
     lockServer(server);
     UA_EventLoop *el = server->config.eventLoop;
     cleanupSessions(server, el->dateTime_nowMonotonic(el));
-#ifdef UA_ENABLE_DISCOVERY
     cleanupRegisteredServers(server);
-#endif
     unlockServer(server);
 }
 
@@ -591,7 +587,6 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialized Discovery */
-#ifdef UA_ENABLE_DISCOVERY
     server->discoveryDriver = UA_DiscoveryManager_new();
     res = addDriver(server, server->discoveryDriver);
     UA_CHECK_STATUS(res, goto cleanup);
@@ -601,7 +596,6 @@ UA_Server_init(UA_Server *server) {
     server->serversOnNetworkRecordCounter = 1;
     server->serversOnNetworkSize = 0;
     server->serversOnNetwork = NULL;
-#endif
 
     /* Initialize PubSub */
 #ifdef UA_ENABLE_PUBSUB

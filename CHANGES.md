@@ -3,6 +3,31 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Method support is always available
+
+`UA_ENABLE_METHODCALLS` is removed. The Method service set and method APIs are
+always compiled.
+
+### File transfer driver build option
+
+`UA_ENABLE_DRIVER_FILE_TRANSFER` controls the file transfer driver and defaults
+to ON on all architectures. The local filesystem backend supports POSIX and
+Win32; other architectures can supply a custom backend.
+
+### Percentage deadband support is always available
+
+`UA_ENABLE_DA` is removed. Percentage deadband support is always compiled with
+subscriptions, and DataAccess datatypes and the Part 8 subset are always included
+in the reduced namespace zero.
+
+### Discovery is controlled by server configuration
+
+`UA_ENABLE_DISCOVERY` and `UA_ENABLE_DISCOVERY_MULTICAST` are removed. Use
+`UA_ServerConfig.registeredServersEnabled` and `serversOnNetworkEnabled` to
+enable registration management and network discovery services. mDNS announcement
+and browsing require an attached driver, built with
+`UA_ENABLE_DRIVER_MDNS_MDNSD` or `UA_ENABLE_DRIVER_MDNS_AVAHI`.
+
 ### Optional UTC-only local time on POSIX
 
 The POSIX CMake option `UA_ARCH_LOCAL_TIME_IS_UTC` (default OFF) makes

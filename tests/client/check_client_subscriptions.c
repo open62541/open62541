@@ -2911,7 +2911,6 @@ START_TEST(Client_subscription_modifyAsync) {
 }
 END_TEST
 
-#ifdef UA_ENABLE_METHODCALLS
 START_TEST(Client_methodcall) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -2993,7 +2992,6 @@ START_TEST(Client_methodcall) {
     UA_Client_delete(client);
 }
 END_TEST
-#endif /* UA_ENABLE_METHODCALLS */
 
 START_TEST(Client_subscription_modifyAsync_invalidSubscriptionId) {
     /* src/client/ua_client_subscriptions.c:280-283:
@@ -3736,12 +3734,10 @@ static Suite* testSuite_Client(void) {
     suite_add_tcase(s, tc_asyncEvents);
 #endif
 
-#ifdef UA_ENABLE_METHODCALLS
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
     tcase_add_checked_fixture(tc_client2, setup, teardown);
     tcase_add_test(tc_client2, Client_methodcall);
     suite_add_tcase(s,tc_client2);
-#endif
 
     return s;
 }

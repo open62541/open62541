@@ -3170,7 +3170,6 @@ UA_Server_addCallbackValueSourceVariableNode(UA_Server *server,
 /* Special Handling of Method Nodes */
 /************************************/
 
-#ifdef UA_ENABLE_METHODCALLS
 
 static const UA_NodeId hasproperty = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASPROPERTY}};
 static const UA_NodeId propertytype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_PROPERTYTYPE}};
@@ -3454,7 +3453,6 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif
 
 /************************/
 /* Lifecycle Management */

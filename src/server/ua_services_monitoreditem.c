@@ -25,13 +25,13 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-#ifdef UA_ENABLE_DA
 
 /* Translate a percentage deadband into an absolute deadband based on the
  * UARange property of the variable */
 static UA_StatusCode
 setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
-                                  const UA_MonitoredItem *mon, UA_DataChangeFilter *filter) {
+                                  const UA_MonitoredItem *mon,
+                                  UA_DataChangeFilter *filter) {
     /* A valid deadband? */
     if(filter->deadbandValue < 0.0 || filter->deadbandValue > 100.0)
         return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
@@ -61,7 +61,8 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
 
     /* Compute the abs deadband */
     UA_Range *euRange = (UA_Range*)rangeVal.value.data;
-    UA_Double absDeadband = (filter->deadbandValue/100.0) * (euRange->high - euRange->low);
+    UA_Double absDeadband =
+        (filter->deadbandValue/100.0) * (euRange->high - euRange->low);
 
     UA_DataValue_clear(&rangeVal);
 
@@ -77,7 +78,6 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif /* UA_ENABLE_DA */
 
 UA_Boolean
 Service_SetTriggering(UA_Server *server, UA_Session *session,
@@ -101,7 +101,8 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
     }
 
     /* Get the Subscription */
-    UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
+    UA_Subscription *sub =
+        UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return true;
@@ -111,7 +112,8 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
     Subscription_resetLifetime(sub);
 
     /* Get the MonitoredItem */
-    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
+    UA_MonitoredItem *mon =
+        UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
     if(!mon) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return true;
@@ -288,7 +290,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                    !valueType || !UA_DataType_isNumeric(valueType))
                     return UA_STATUSCODE_BADFILTERNOTALLOWED;
                 break;
-#ifdef UA_ENABLE_DA
             case UA_DEADBANDTYPE_PERCENT: {
                 if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
                    !valueType || !UA_DataType_isNumeric(valueType))
@@ -301,7 +302,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                     return res;
                 break;
             }
-#endif
             default:
                 return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
             }

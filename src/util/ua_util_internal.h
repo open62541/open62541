@@ -284,8 +284,7 @@ getCountOfOptionalFields(const UA_DataType *type);
 
 /* Dump packet for debugging / fuzzing */
 #ifdef UA_DEBUG_DUMP_PKGS
-void UA_EXPORT
-UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
+void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
 
 /* Get pointer to leaf certificate of a specified valid chain of DER encoded
@@ -297,11 +296,9 @@ typedef union {
     UA_RequestHeader requestHeader;
     UA_FindServersRequest findServersRequest;
     UA_GetEndpointsRequest getEndpointsRequest;
-#ifdef UA_ENABLE_DISCOVERY
     UA_FindServersOnNetworkRequest findServersOnNetworkRequest;
     UA_RegisterServerRequest registerServerRequest;
     UA_RegisterServer2Request registerServer2Request;
-#endif
     UA_OpenSecureChannelRequest openSecureChannelRequest;
     UA_CreateSessionRequest createSessionRequest;
     UA_ActivateSessionRequest activateSessionRequest;
@@ -321,9 +318,7 @@ typedef union {
     UA_HistoryReadRequest historyReadRequest;
     UA_HistoryUpdateRequest historyUpdateRequest;
 #endif
-#ifdef UA_ENABLE_METHODCALLS
     UA_CallRequest callRequest;
-#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_CreateMonitoredItemsRequest createMonitoredItemsRequest;
     UA_DeleteMonitoredItemsRequest deleteMonitoredItemsRequest;
@@ -342,13 +337,9 @@ typedef union {
     UA_ResponseHeader responseHeader;
     UA_FindServersResponse findServersResponse;
     UA_GetEndpointsResponse getEndpointsResponse;
-#ifdef UA_ENABLE_DISCOVERY
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_FindServersOnNetworkResponse findServersOnNetworkResponse;
-# endif
     UA_RegisterServerResponse registerServerResponse;
     UA_RegisterServer2Response registerServer2Response;
-#endif
     UA_OpenSecureChannelResponse openSecureChannelResponse;
     UA_CreateSessionResponse createSessionResponse;
     UA_ActivateSessionResponse activateSessionResponse;
@@ -368,9 +359,7 @@ typedef union {
     UA_HistoryReadResponse historyReadResponse;
     UA_HistoryUpdateResponse historyUpdateResponse;
 #endif
-#ifdef UA_ENABLE_METHODCALLS
     UA_CallResponse callResponse;
-#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_CreateMonitoredItemsResponse createMonitoredItemsResponse;
     UA_DeleteMonitoredItemsResponse deleteMonitoredItemsResponse;

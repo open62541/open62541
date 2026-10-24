@@ -1,0 +1,45 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ */
+
+#ifndef UA_ZEPHYR_H_
+#define UA_ZEPHYR_H_
+
+#cmakedefine UA_ARCHITECTURE_ZEPHYR
+
+/* C99 Standard Includes */
+#include <stddef.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <float.h>
+#include <string.h>
+#include <assert.h>
+
+/* Can't use <zephyr/version.h> since v2.7.0 and older stores the file in
+ * another place */
+#include <version.h>
+
+/* Zephyr 3.7 and newer use the kernel allocator. Older releases use libc. */
+#ifndef UA_malloc
+# if KERNEL_VERSION_MAJOR >= 4 || \
+     (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >= 7)
+#  include <zephyr/kernel.h>
+#  define UA_free k_free
+#  define UA_malloc k_malloc
+#  define UA_calloc k_calloc
+#  define UA_realloc k_realloc
+# else
+#  include <stdlib.h>
+#  define UA_free free
+#  define UA_malloc malloc
+#  define UA_calloc calloc
+#  define UA_realloc realloc
+# endif
+#endif
+
+#endif /* UA_ZEPHYR_H_ */

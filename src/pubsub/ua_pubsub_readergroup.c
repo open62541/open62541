@@ -927,6 +927,8 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(rg->deleteFlag && rg->recvChannelsSize == 0) {
             UA_ReaderGroup_remove(psm, rg);
+            /* The last channel may have closed while deletion was pending. */
+            UA_PubSubManager_setState(psm, psm->drv.state);
             unlockServer(server);
             return;
         }
