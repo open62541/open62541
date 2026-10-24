@@ -251,42 +251,45 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
     UA_Boolean processed = false;
     UA_NetworkMessage nm;
-    memset(&nm, 0, sizeof(UA_NetworkMessage));
 
-    /* Decode the NetworkMessage with the first matching ReaderGroup */
+    /* Every ReaderGroup verifies and decodes the NetworkMessage with its own
+     * security settings. A message accepted by one ReaderGroup is not
+     * authenticated for the others. Decryption works in place, so encrypting
+     * ReaderGroups use a copy when the buffer is shared with other
+     * ReaderGroups. */
     UA_ReaderGroup *rg;
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
+        UA_ByteString buf = msg;
+        UA_ByteString copy = UA_BYTESTRING_NULL;
+        if(c->readerGroupsSize > 1 &&
+           rg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            res = UA_ByteString_copy(&msg, &copy);
+            if(res != UA_STATUSCODE_GOOD)
+                continue;
+            buf = copy;
+        }
+        memset(&nm, 0, sizeof(UA_NetworkMessage));
         if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-            res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, msg, &nm);
+            res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buf, &nm);
         } else {
 #ifdef UA_ENABLE_JSON_ENCODING
-            res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, msg, &nm);
+            res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, buf, &nm);
 #else
             res = UA_STATUSCODE_BADNOTSUPPORTED;
             UA_LOG_WARNING_PUBSUB(psm->logging, c, "JSON support is not activated");
 #endif
         }
-        if(res == UA_STATUSCODE_GOOD)
-            break;
+        if(res == UA_STATUSCODE_GOOD) {
+            processed |= UA_ReaderGroup_process(psm, rg, &nm);
+            UA_NetworkMessage_clear(&nm);
+        }
+        UA_ByteString_clear(&copy);
     }
 
-    if(res != UA_STATUSCODE_GOOD)
-        goto finish;
-
-    /* Process the received message for all ReaderGroups */
-    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        processed |= UA_ReaderGroup_process(psm, rg, &nm);
-    }
-    UA_NetworkMessage_clear(&nm);
-
- finish:
     if(!processed) {
         UA_DateTime nowM = UA_DateTime_nowMonotonic();
         if(c->silenceErrorUntil < nowM) {
