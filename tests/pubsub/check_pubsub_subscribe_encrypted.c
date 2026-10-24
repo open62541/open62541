@@ -410,6 +410,165 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_Variant_delete(publishedNodeData);
     } END_TEST
 
+static UA_NodeId
+addInt32Reader(UA_ReaderGroupConfig *rgConfig, UA_UInt16 dataSetWriterId,
+               UA_UInt32 targetNodeId) {
+    UA_NodeId rg, reader, target;
+    UA_StatusCode retVal =
+        UA_Server_addReaderGroup(server, connection_test, rgConfig, &rg);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_DataSetReaderConfig readerConfig;
+    memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+    readerConfig.name = UA_STRING("DataSetReader Test");
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = PUBLISHER_ID;
+    readerConfig.writerGroupId = WRITER_GROUP_ID;
+    readerConfig.dataSetWriterId = dataSetWriterId;
+    UA_FieldMetaData field;
+    UA_FieldMetaData_init(&field);
+    field.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    field.builtInType = UA_NS0ID_INT32;
+    field.valueRank = -1; /* scalar */
+    readerConfig.dataSetMetaData.fieldsSize = 1;
+    readerConfig.dataSetMetaData.fields = &field;
+    retVal = UA_Server_addDataSetReader(server, rg, &readerConfig, &reader);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Int32 initial = 0;
+    UA_Variant_setScalar(&vAttr.value, &initial, &UA_TYPES[UA_TYPES_INT32]);
+    retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, targetNodeId),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       UA_QUALIFIEDNAME(1, "Subscribed Int32"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       vAttr, NULL, &target);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_FieldTargetDataType targetVar;
+    memset(&targetVar, 0, sizeof(UA_FieldTargetDataType));
+    targetVar.attributeId = UA_ATTRIBUTEID_VALUE;
+    targetVar.targetNodeId = target;
+    retVal = UA_Server_DataSetReader_createTargetVariables(server, reader, 1, &targetVar);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    return rg;
+}
+
+/* Has the target variable received the published value? */
+static UA_Boolean
+receivedPublisherData(UA_UInt32 nodeId) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(1, nodeId);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    UA_Boolean res = dv.status == UA_STATUSCODE_GOOD &&
+        UA_Variant_hasScalarType(&dv.value, &UA_TYPES[UA_TYPES_INT32]) &&
+        *(UA_Int32*)dv.value.data == PUBLISHER_DATA;
+    UA_DataValue_clear(&dv);
+    return res;
+}
+
+/* An unsigned NetworkMessage accepted by a ReaderGroup without security must
+ * not be applied by an encrypting ReaderGroup on the same connection. */
+START_TEST(UnsecuredMessageIgnoredBySecureReaderGroup) {
+        UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
+        UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
+        UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
+
+        /* Published variable and DataSet */
+        UA_NodeId publisherNode;
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+        UA_Int32 publisherData = PUBLISHER_DATA;
+        UA_Variant_setScalar(&attr.value, &publisherData, &UA_TYPES[UA_TYPES_INT32]);
+        UA_StatusCode retVal =
+            UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                      UA_QUALIFIEDNAME(1, "Published Int32"),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      attr, NULL, &publisherNode);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_PublishedDataSetConfig pdsConfig;
+        memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
+        pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+        pdsConfig.name = UA_STRING("PublishedDataSet Test");
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig,
+                                               &publishedDataSetTest).addResult;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_NodeId dataSetFieldIdent;
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Published Int32");
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
+        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        retVal = UA_Server_addDataSetField(server, publishedDataSetTest,
+                                           &dataSetFieldConfig, &dataSetFieldIdent).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        /* Unsecured WriterGroup with two DataSetWriters in one NetworkMessage */
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+        writerGroupConfig.name = UA_STRING("WriterGroup Test");
+        writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
+        writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_NONE;
+        UA_NodeId writerGroup;
+        retVal = UA_Server_addWriterGroup(server, connection_test,
+                                          &writerGroupConfig, &writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("DataSetWriter Test");
+        dataSetWriterConfig.keyFrameCount = 10;
+        UA_NodeId dataSetWriter;
+        dataSetWriterConfig.dataSetWriterId = 1;
+        retVal = UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetTest,
+                                            &dataSetWriterConfig, &dataSetWriter);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        dataSetWriterConfig.dataSetWriterId = 2;
+        retVal = UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetTest,
+                                            &dataSetWriterConfig, &dataSetWriter);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        /* ReaderGroup without security for writer 1 */
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+        readerGroupConfig.name = UA_STRING("ReaderGroup Unsecured");
+        readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_NONE;
+        addInt32Reader(&readerGroupConfig, 1, SUBSCRIBEVARIABLE_NODEID);
+
+        /* Encrypting ReaderGroup for writer 2 */
+        readerGroupConfig.name = UA_STRING("ReaderGroup Encrypted");
+        readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+        readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+        UA_NodeId secureRg =
+            addInt32Reader(&readerGroupConfig, 2, SUBSCRIBEVARIABLE_NODEID + 1);
+        retVal = UA_Server_setReaderGroupEncryptionKeys(server, secureRg, 1, sk, ek, kn);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        retVal = UA_Server_enableAllPubSubComponents(server);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        for(size_t i = 0; i < 3; i++) {
+            UA_fakeSleep(PUBLISH_INTERVAL + 1);
+            UA_Server_run_iterate(server, true);
+        }
+
+        /* The unsecured ReaderGroup receives the value */
+        ck_assert(receivedPublisherData(SUBSCRIBEVARIABLE_NODEID));
+        /* The encrypting ReaderGroup ignores the unsigned message */
+        ck_assert(!receivedPublisherData(SUBSCRIBEVARIABLE_NODEID + 1));
+    } END_TEST
+
 int main(void) {
 
     /*Test case to run both publisher and subscriber */
@@ -417,6 +576,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_publish_subscribe, setup, teardown);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTime);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32);
+    tcase_add_test(tc_pubsub_publish_subscribe, UnsecuredMessageIgnoredBySecureReaderGroup);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);
