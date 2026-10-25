@@ -655,6 +655,7 @@ START_TEST(Async_queue_limit_read_direct) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     const UA_UInt32 oldLimit = config->maxAsyncOperationQueueSize;
+    ck_assert_uint_eq(oldLimit, 1024);
     config->maxAsyncOperationQueueSize = 1;
 
     UA_ReadValueId rvid;
