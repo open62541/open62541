@@ -565,6 +565,36 @@ countServersOnNetworkByName(UA_Server *s, const char *serverName) {
 }
 
 static void
+assertServerOnNetworkDiscoveryUrl(UA_Server *s, const char *serverName,
+                                  const char *expectedUrl) {
+    UA_String name = UA_STRING((char*)(uintptr_t)serverName);
+    UA_String url = UA_STRING_NULL;
+    UA_Boolean found = false;
+    lockServer(s);
+    for(size_t i = 0; i < s->serversOnNetworkSize; i++) {
+        UA_ServerOnNetwork *son = &s->serversOnNetwork[i];
+        if(!UA_String_equal(&son->serverName, &name))
+            continue;
+        found = (UA_String_copy(&son->discoveryUrl, &url) == UA_STATUSCODE_GOOD);
+        break;
+    }
+    unlockServer(s);
+
+    /* Compare the raw bytes. A C string comparison stops at an embedded '\0'
+     * and does not see a truncated URL with the old length. */
+    UA_String expected = UA_STRING((char*)(uintptr_t)expectedUrl);
+    UA_Boolean equal = UA_String_equal(&url, &expected);
+    char actual[256];
+    copyUAStringToCString(&url, actual, sizeof(actual));
+    size_t actualLength = url.length;
+    UA_String_clear(&url);
+
+    ck_assert_msg(found, "ServerOnNetwork %s not found", serverName);
+    ck_assert_msg(equal, "DiscoveryUrl of %s is \"%s\" (%u bytes), expected \"%s\"",
+                  serverName, actual, (unsigned)actualLength, expectedUrl);
+}
+
+static void
 updateMdnsForDiscoveryUrl(UA_Server *s, const char *serverName,
                           const char *discoveryUrl, UA_Boolean online) {
     UA_ServerConfig *config = UA_Server_getConfig(s);
@@ -2515,7 +2545,7 @@ START_TEST(PublicApiRepeatedAnnounceTriggersCallbackAgain) {
     createInjectedTargetName(targetHost, sizeof(targetHost), hostname);
     buildInjectedMdnsPacket(serviceInstance, targetHost, 7778, "/repeat",
                             "SV", true, 600, true, 600, &announcePacket);
-    buildInjectedMdnsPacket(serviceInstance, targetHost, 7778, "/ignored-update",
+    buildInjectedMdnsPacket(serviceInstance, targetHost, 7778, "/updated",
                             "DA", true, 600, false, 0, &repeatPacket);
 
     resetDiscoveryCounters();
@@ -2532,12 +2562,104 @@ START_TEST(PublicApiRepeatedAnnounceTriggersCallbackAgain) {
     ck_assert(discoveryCounters.lastIsServerAnnounce);
     ck_assert(discoveryCounters.lastIsTxtReceived);
     ck_assert_str_eq(discoveryCounters.lastServerName, expectedServerName);
+    /* The new TXT record replaces the previous one. The path is not appended
+     * to the previous path. */
     ck_assert_str_eq(discoveryCounters.lastDiscoveryUrl,
-                     "opc.tcp://repeat-host.local:7778/repeat/ignored-update");
+                     "opc.tcp://repeat-host.local:7778/updated");
     ck_assert_str_eq(discoveryCounters.lastCapabilities, "DA");
 
     UA_ByteString_clear(&announcePacket);
     UA_ByteString_clear(&repeatPacket);
+}
+END_TEST
+
+/* Announce a remote server with TXT and SRV records. Then inject a second
+ * message with the TXT and/or SRV record again, as an mDNS responder does to
+ * refresh the caches. Check the DiscoveryUrl after both messages. */
+static void
+injectAnnounceThenRefresh(const char *serverName, const char *hostname,
+                          const char *path, UA_UInt16 port,
+                          UA_Boolean refreshTxt, UA_Boolean refreshSrv,
+                          UA_UInt16 refreshPort, const char *expectedUrl,
+                          const char *expectedRefreshedUrl) {
+    char serviceInstance[128];
+    char expectedServerName[128];
+    char targetHost[64];
+    UA_ByteString announcePacket = UA_BYTESTRING_NULL;
+    UA_ByteString refreshPacket = UA_BYTESTRING_NULL;
+
+    createInjectedServiceInstanceName(serviceInstance, sizeof(serviceInstance),
+                                      serverName, hostname);
+    createInjectedServerOnNetworkName(expectedServerName, sizeof(expectedServerName),
+                                      serverName, hostname);
+    createInjectedTargetName(targetHost, sizeof(targetHost), hostname);
+    buildInjectedMdnsPacket(serviceInstance, targetHost, port, path,
+                            "SV", true, 600, true, 600, &announcePacket);
+    buildInjectedMdnsPacket(serviceInstance, targetHost, refreshPort, path,
+                            "SV", refreshTxt, 600, refreshSrv, 600,
+                            &refreshPacket);
+
+    resetDiscoveryCounters();
+    injectMdnsPacket(testUdpCmLds, &announcePacket);
+    ck_assert_uint_eq(discoveryCounters.serverOnNetworkCalls, 1);
+    assertServerOnNetworkDiscoveryUrl(serverLds, expectedServerName, expectedUrl);
+
+    /* Every received record of a complete entry updates the server. A refresh
+     * with TXT and SRV records gives two updates. */
+    injectMdnsPacket(testUdpCmLds, &refreshPacket);
+    ck_assert_uint_gt(discoveryCounters.serverOnNetworkCalls, 1);
+    assertServerOnNetworkDiscoveryUrl(serverLds, expectedServerName,
+                                      expectedRefreshedUrl);
+
+    UA_ByteString_clear(&announcePacket);
+    UA_ByteString_clear(&refreshPacket);
+}
+
+/* The same SRV record again must not change the DiscoveryUrl. The new URL has
+ * the same length as the previous one. */
+START_TEST(PublicApiInjectedRepeatedSrvKeepsDiscoveryUrl) {
+    injectAnnounceThenRefresh("InjectedSrvRefresh", "srv-refresh-host", "",
+                              4840, false, true, 4840,
+                              "opc.tcp://srv-refresh-host.local:4840",
+                              "opc.tcp://srv-refresh-host.local:4840");
+}
+END_TEST
+
+/* The path comes from the TXT record. An SRV record without a new TXT record
+ * must keep the path. */
+START_TEST(PublicApiInjectedRepeatedSrvKeepsPath) {
+    injectAnnounceThenRefresh("InjectedSrvPathRefresh", "srv-path-host",
+                              "/refresh", 4840, false, true, 4840,
+                              "opc.tcp://srv-path-host.local:4840/refresh",
+                              "opc.tcp://srv-path-host.local:4840/refresh");
+}
+END_TEST
+
+/* The same TXT record again must not append the path a second time */
+START_TEST(PublicApiInjectedRepeatedTxtKeepsPath) {
+    injectAnnounceThenRefresh("InjectedTxtPathRefresh", "txt-path-host",
+                              "/once", 4840, true, false, 4840,
+                              "opc.tcp://txt-path-host.local:4840/once",
+                              "opc.tcp://txt-path-host.local:4840/once");
+}
+END_TEST
+
+/* The same TXT and SRV records again must not change the DiscoveryUrl */
+START_TEST(PublicApiInjectedRepeatedAnnounceKeepsDiscoveryUrl) {
+    injectAnnounceThenRefresh("InjectedFullRefresh", "full-refresh-host",
+                              "/full", 4840, true, true, 4840,
+                              "opc.tcp://full-refresh-host.local:4840/full",
+                              "opc.tcp://full-refresh-host.local:4840/full");
+}
+END_TEST
+
+/* A server that restarts on another port sends a new SRV record. The longer
+ * DiscoveryUrl must replace the previous one completely. */
+START_TEST(PublicApiInjectedSrvPortChangeReplacesDiscoveryUrl) {
+    injectAnnounceThenRefresh("InjectedSrvPortChange", "port-change-host", "",
+                              484, false, true, 4840,
+                              "opc.tcp://port-change-host.local:484",
+                              "opc.tcp://port-change-host.local:4840");
 }
 END_TEST
 
@@ -2810,6 +2932,13 @@ testSuite_DiscoveryMdnsd(void) {
                    PublicApiInjectedPtrIgnoredWhenFollowedByGoodbye);
     tcase_add_test(tc_integration, PublicApiSelfAnnounceIsIgnored);
     tcase_add_test(tc_integration, PublicApiRepeatedAnnounceTriggersCallbackAgain);
+    tcase_add_test(tc_integration, PublicApiInjectedRepeatedSrvKeepsDiscoveryUrl);
+    tcase_add_test(tc_integration, PublicApiInjectedRepeatedSrvKeepsPath);
+    tcase_add_test(tc_integration, PublicApiInjectedRepeatedTxtKeepsPath);
+    tcase_add_test(tc_integration,
+                   PublicApiInjectedRepeatedAnnounceKeepsDiscoveryUrl);
+    tcase_add_test(tc_integration,
+                   PublicApiInjectedSrvPortChangeReplacesDiscoveryUrl);
     tcase_add_test(tc_integration,
                    PublicApiInjectedTxtThenSrvTriggersAnnounceCallback);
     tcase_add_test(tc_integration,
