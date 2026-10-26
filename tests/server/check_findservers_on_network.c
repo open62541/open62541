@@ -340,6 +340,93 @@ START_TEST(register_server_capabilities_default_to_na) {
 }
 END_TEST
 
+#define REGISTERED_HTTPS_URL "opc.https://localhost:4843"
+
+/* The entries are announced as _opcua-tcp, which is for opc.tcp urls only
+ * (Part 12, C.3). _i == 0: the opc.tcp url after another url is used,
+ * _i == 1: a registration without an opc.tcp url gets no entry. */
+START_TEST(register_server_uses_tcp_discovery_url) {
+    UA_Server *server = newRegistrationServer();
+    UA_LocalizedText name = UA_LOCALIZEDTEXT("en", REGISTERED_SERVER_NAME);
+    UA_RegisteredServer registered = registeredServerRequest(&name);
+    UA_String urls[2] = {UA_STRING(REGISTERED_HTTPS_URL),
+                         UA_STRING(REGISTERED_DISCOVERY_URL)};
+    registered.discoveryUrls = urls;
+    registered.discoveryUrlsSize = (_i == 0) ? 2 : 1;
+
+    ck_assert_uint_eq(registerTestServer(server, &registered, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->registeredServersSize, 1);
+
+    if(_i == 0) {
+        ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+        ck_assert(UA_String_equal(&server->serversOnNetwork[0].discoveryUrl,
+                                  &urls[1]));
+    } else {
+        ck_assert_uint_eq(server->serversOnNetworkSize, 0);
+    }
+
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* The registration is updated (it has the https url in common) and no longer
+ * has an opc.tcp url */
+START_TEST(reregister_server_without_tcp_url_removes_server_on_network) {
+    UA_Server *server = newRegistrationServer();
+    UA_LocalizedText name = UA_LOCALIZEDTEXT("en", REGISTERED_SERVER_NAME);
+    UA_RegisteredServer registered = registeredServerRequest(&name);
+    UA_String urls[2] = {UA_STRING(REGISTERED_HTTPS_URL),
+                         UA_STRING(REGISTERED_DISCOVERY_URL)};
+    registered.discoveryUrls = urls;
+    registered.discoveryUrlsSize = 2;
+    ck_assert_uint_eq(registerTestServer(server, &registered, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+
+    registered.discoveryUrlsSize = 1;
+    ck_assert_uint_eq(registerTestServer(server, &registered, NULL),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(server->registeredServersSize, 1);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 0);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* A registration without an opc.tcp url has no entry. Its removal must not
+ * remove an entry of the same name from another source (e.g. mDNS). */
+START_TEST(deregister_server_without_tcp_url_keeps_other_entry) {
+    UA_Server *server = newRegistrationServer();
+    UA_ServerOnNetwork other;
+    UA_ServerOnNetwork_init(&other);
+    other.serverName = UA_STRING(REGISTERED_SERVER_NAME);
+    other.discoveryUrl = UA_STRING("opc.tcp://otherhost:4840");
+    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &other,
+                                                        UA_KEYVALUEMAP_NULL),
+                      UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText name = UA_LOCALIZEDTEXT("en", REGISTERED_SERVER_NAME);
+    UA_RegisteredServer registered = registeredServerRequest(&name);
+    UA_String url = UA_STRING(REGISTERED_HTTPS_URL);
+    registered.discoveryUrls = &url;
+    ck_assert_uint_eq(registerTestServer(server, &registered, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deregisterServer(server,
+                                                 UA_STRING(REGISTERED_SERVER_URI),
+                                                 1, &url),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(server->registeredServersSize, 0);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+    ck_assert(UA_String_equal(&server->serversOnNetwork[0].discoveryUrl,
+                              &other.discoveryUrl));
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 /* Part 4, 7.31: The ServerNames shall have at least one valid entry. An mDNS
  * name does not replace them. */
 START_TEST(register_server_without_server_names_rejected) {
@@ -413,6 +500,9 @@ testSuite(void) {
     tcase_add_test(tc_registered, deregister_server_removes_server_on_network);
     tcase_add_test(tc_registered, reregister_server_replaces_server_on_network);
     tcase_add_loop_test(tc_registered, register_server_capabilities_default_to_na, 0, 3);
+    tcase_add_loop_test(tc_registered, register_server_uses_tcp_discovery_url, 0, 2);
+    tcase_add_test(tc_registered, reregister_server_without_tcp_url_removes_server_on_network);
+    tcase_add_test(tc_registered, deregister_server_without_tcp_url_keeps_other_entry);
     suite_add_tcase(suite, tc_registered);
     TCase *tc_names = tcase_create("server names");
     tcase_add_test(tc_names, register_server_without_server_names_rejected);

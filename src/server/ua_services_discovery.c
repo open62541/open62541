@@ -1038,11 +1038,28 @@ findRegisteredServer(UA_Server *server, const UA_String serverUri,
     return NULL;
 }
 
+/* The mDNS drivers announce the ServerOnNetwork entries with the service name
+ * _opcua-tcp. That service name is for opc.tcp DiscoveryUrls only (Part 12,
+ * C.3). Returns the first opc.tcp DiscoveryUrl of the registration or NULL. A
+ * registration has a ServerOnNetwork entry only if it has such a url. */
+static const UA_String *
+getTcpDiscoveryUrl(const UA_RegisteredServer *rs) {
+    const UA_String prefix = UA_STRING_STATIC("opc.tcp://");
+    for(size_t i = 0; i < rs->discoveryUrlsSize; i++) {
+        const UA_String *url = &rs->discoveryUrls[i];
+        if(url->length >= prefix.length &&
+           memcmp(url->data, prefix.data, prefix.length) == 0)
+            return url;
+    }
+    return NULL;
+}
+
 /* Removes the record and its ServerOnNetwork entry. The caller notifies the
  * application about the removed registration. */
 static void
 removeRegisteredServerRecord(UA_Server *server, RegisteredServerRecord *rs) {
-    if(server->config.serversOnNetworkEnabled)
+    if(server->config.serversOnNetworkEnabled &&
+       getTcpDiscoveryUrl(&rs->registeredServer))
         removeServerOnNetwork(server, rs->mdnsServerName);
 
     LIST_REMOVE(rs, pointers);
@@ -1186,6 +1203,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         return res;
     }
 
+    /* The url for the ServerOnNetwork entry. Points into the request. */
+    const UA_String *tcpDiscoveryUrl = getTcpDiscoveryUrl(requestServer);
+
     if(!rs) {
         UA_LOG_DEBUG_SESSION(sc->logging, session,
                              "Registering new server: %S",
@@ -1210,6 +1230,16 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         LIST_INSERT_HEAD(&server->registeredServers, rs, pointers);
         server->registeredServersSize++;
     } else {
+        /* Remove the ServerOnNetwork entry of the previous registration if
+         * it is not replaced below. That is if the mDNS name changed or if
+         * there is no opc.tcp DiscoveryUrl anymore. */
+        if(sc->serversOnNetworkEnabled &&
+           getTcpDiscoveryUrl(&rs->registeredServer) &&
+           (!tcpDiscoveryUrl ||
+            !UA_String_equal(&rs->mdnsServerName, &tmpMdnsServerName)))
+            removeServerOnNetwork(server, rs->mdnsServerName);
+        UA_String_clear(&rs->mdnsServerName);
+
         /* Clear the data of the previous record */
         UA_RegisteredServer_clear(&rs->registeredServer);
 
@@ -1218,12 +1248,6 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                                requestDiscoveryConfigurationSize,
                                requestDiscoveryConfiguration,
                                false, true, false);
-
-        /* Remove the ServerOnNetwork entry under a previous mDNS name */
-        if(sc->serversOnNetworkEnabled &&
-           !UA_String_equal(&rs->mdnsServerName, &tmpMdnsServerName))
-            removeServerOnNetwork(server, rs->mdnsServerName);
-        UA_String_clear(&rs->mdnsServerName);
     }
 
     /* Prepare / Update the server record */
@@ -1235,14 +1259,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     /* Add or update the ServerOnNetwork entry. The registration succeeds also
      * if this fails. */
-    if(sc->serversOnNetworkEnabled) {
+    if(sc->serversOnNetworkEnabled && tcpDiscoveryUrl) {
         UA_ServerOnNetwork son;
         UA_ServerOnNetwork_init(&son);
         son.serverName = rs->mdnsServerName;
-
-        /* The entry has a single DiscoveryUrl. The request has at least one
-         * (checked above). */
-        son.discoveryUrl = requestServer->discoveryUrls[0];
+        son.discoveryUrl = *tcpDiscoveryUrl;
 
         /* Without capabilities, use "NA" (no capability information is
          * available) as the mDNS drivers do */
