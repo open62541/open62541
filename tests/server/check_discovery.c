@@ -801,6 +801,26 @@ START_TEST(Server_registerUnregister) {
 }
 END_TEST
 
+/* Registering needs only a SecureChannel. A discovery server without Session
+ * services (like the OPC Foundation LDS) cannot decode a CreateSession request,
+ * so the registering server must not open a Session at the LDS. */
+START_TEST(Server_registerOpensNoSession) {
+    UA_StatusCode res = beginRegisterServerStopped();
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The registration client is set up, but the server is not running yet */
+    UA_Client *client =
+        UA_DiscoveryManager_getPendingRegistration(server_register, NULL);
+    ck_assert_ptr_ne(client, NULL);
+    ck_assert(UA_Client_getConfig(client)->noSession);
+
+    UA_atomic_store(&running_register, true);
+    THREAD_CREATE(server_thread_register, serverloop_register);
+    waitForRegisterRequestCompletion();
+    unregisterServer();
+}
+END_TEST
+
 START_TEST(Server_registerTimeout) {
     registerServer();
 
@@ -931,6 +951,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register, setup_register, teardown_register);
     tcase_add_test(tc_register, Server_registerUnregister);
+    tcase_add_test(tc_register, Server_registerOpensNoSession);
     tcase_add_test(tc_register,
                    Server_findServers_preserves_registered_discoveryUrls);
     suite_add_tcase(s,tc_register);

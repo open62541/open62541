@@ -224,7 +224,7 @@ discoveryClientStateCallback(UA_Client *client,
                 asyncRegisterRequest_clearAsync(ar); /* Clean up */
             } else {
                 ar->connectSuccess = false;
-                UA_Client_connectAsync(client, NULL);   /* Reconnect */
+                UA_Client_connectSecureChannelAsync(client, NULL);   /* Reconnect */
             }
         }
         return;
@@ -237,16 +237,17 @@ discoveryClientStateCallback(UA_Client *client,
     /* We have at least succeeded to connect */
     ar->connectSuccess = true;
 
-    /* Is this the encrypted SecureChannel already? (We might have to wait for
-     * the second connection after the FindServers handshake */
+    /* Is this the secured SecureChannel already? (We might have to wait for
+     * the second connection after the FindServers handshake. Registering over
+     * the unsecured discovery channel is rejected by the discovery server.) */
     UA_MessageSecurityMode msm = UA_MESSAGESECURITYMODE_INVALID;
     UA_Client_getConnectionAttribute_scalar(client, UA_QUALIFIEDNAME(0, "securityMode"),
                                             &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE],
                                             &msm);
 #ifdef UA_ENABLE_ENCRYPTION
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    if(cc->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
-       msm != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(cc->securityMode != UA_MESSAGESECURITYMODE_NONE &&
+       msm != cc->securityMode)
         return;
 #endif
 
@@ -365,9 +366,11 @@ registerDiscovery(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister,
     UA_String_copy(&semaphoreFilePath, &ar->semaphoreFilePath);
 
     /* Connect asynchronously. The register service is called once the
-     * connection is open. */
+     * connection is open. Only a SecureChannel is needed. UA_Client_connectAsync
+     * would reset noSession and open a Session, which a discovery server
+     * without Session services (like the OPC Foundation LDS) cannot decode. */
     ar->connectSuccess = false;
-    return UA_Client_connectAsync(ar->client, NULL);
+    return UA_Client_connectSecureChannelAsync(ar->client, NULL);
 }
 
 UA_StatusCode
