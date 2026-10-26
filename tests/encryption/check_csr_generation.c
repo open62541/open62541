@@ -85,6 +85,56 @@ START_TEST(csr_generation_new_priv_key) {
 }
 END_TEST
 
+/* The GDS receiver visits both Sign and SignAndEncrypt endpoints for each
+ * security policy. Repeated requests must also leave the policy safe to clear. */
+START_TEST(csr_generation_repeated) {
+    const UA_Boolean regenerateKeys[4][2] = {
+        {false, false}, {false, true}, {true, true}, {true, false}
+    };
+    UA_ByteString nonce = UA_BYTESTRING("0123456789abcdef0123456789abcdef");
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    for(size_t i = 0; i < 2; i++) {
+        UA_ByteString csr = UA_BYTESTRING_NULL;
+        UA_StatusCode retval = UA_GDSReceiver_createSigningRequest(
+            receiver, groupId, typeId, NULL, &regenerateKeys[_i][i], &nonce, &csr);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert_uint_ne(csr.length, 0);
+        UA_ByteString_clear(&csr);
+    }
+}
+END_TEST
+
+START_TEST(csr_generation_after_failure) {
+    UA_ByteString nonce = UA_BYTESTRING("0123456789abcdef0123456789abcdef");
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_Boolean regenerateKey = true;
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = UA_GDSReceiver_createSigningRequest(
+        receiver, groupId, typeId, NULL, &regenerateKey, &nonce, &csr);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(csr.length, 0);
+    UA_ByteString_clear(&csr);
+
+    /* Fail after discarding the pending key, then retry with the active key. */
+    regenerateKey = false;
+    UA_String invalidSubject = UA_STRING("InvalidAttribute=value");
+    retval = UA_GDSReceiver_createSigningRequest(
+        receiver, groupId, typeId, &invalidSubject, &regenerateKey, &nonce, &csr);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(csr.length, 0);
+    UA_ByteString_clear(&csr);
+
+    retval = UA_GDSReceiver_createSigningRequest(
+        receiver, groupId, typeId, NULL, &regenerateKey, &nonce, &csr);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(csr.length, 0);
+    UA_ByteString_clear(&csr);
+}
+END_TEST
+
 START_TEST(csr_generation_add_nonce) {
     UA_ByteString *csr = UA_ByteString_new();
     UA_ByteString nonce = UA_BYTESTRING("08384461199560152606491732662271");
@@ -167,6 +217,8 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, csr_generation_rsaSha);
     tcase_add_test(tc_cert, csr_generation_new_priv_key);
+    tcase_add_loop_test(tc_cert, csr_generation_repeated, 0, 4);
+    tcase_add_test(tc_cert, csr_generation_after_failure);
     tcase_add_test(tc_cert, csr_generation_add_nonce);
     tcase_add_test(tc_cert, csr_generation_add_subject_name);
     tcase_add_test(tc_cert, csr_generation_wrong_typeId);

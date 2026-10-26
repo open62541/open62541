@@ -590,6 +590,14 @@ START_TEST(encryption_csr_generation) {
     ck_assert(newPrivKey.length > 0);
     UA_ByteString_clear(&csr);
     UA_ByteString_clear(&newPrivKey);
+
+    /* Reuse the active key after discarding the regenerated key. Teardown
+     * must not free the discarded key a second time. */
+    retval = sp->createSigningRequest(sp, &subjectName,
+                                       NULL, NULL, &csr, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(csr.length > 0);
+    UA_ByteString_clear(&csr);
 }
 END_TEST
 

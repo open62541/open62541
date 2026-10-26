@@ -1149,6 +1149,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     }
 
     EVP_PKEY_free(*csrLocalPrivateKey);
+    *csrLocalPrivateKey = NULL;
     /* CSR has already been generated and private key only needs to be set
      * if a new one has been generated. */
     if(newPrivateKey && newPrivateKey->length > 0) {
@@ -1283,6 +1284,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                !EVP_PKEY_assign_EC_KEY(*csrLocalPrivateKey, ecKey)) {
                 if(*csrLocalPrivateKey) EVP_PKEY_free(*csrLocalPrivateKey);
                 else EC_KEY_free(ecKey);
+                *csrLocalPrivateKey = NULL;
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
             }
@@ -1300,6 +1302,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             if(!*csrLocalPrivateKey || !exponent || !rsa) {
                 if(*csrLocalPrivateKey)
                     EVP_PKEY_free(*csrLocalPrivateKey);
+                *csrLocalPrivateKey = NULL;
                 if(exponent)
                     BN_free(exponent);
                 if(rsa)
@@ -1311,6 +1314,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             if(BN_set_word(exponent, RSA_F4) != 1) {
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 EVP_PKEY_free(*csrLocalPrivateKey);
+                *csrLocalPrivateKey = NULL;
                 BN_free(exponent);
                 RSA_free(rsa);
                 goto cleanup;
@@ -1319,6 +1323,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             if(RSA_generate_key_ex(rsa, (int) keySize, exponent, NULL) != 1) {
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 EVP_PKEY_free(*csrLocalPrivateKey);
+                *csrLocalPrivateKey = NULL;
                 BN_free(exponent);
                 RSA_free(rsa);
                 goto cleanup;
@@ -1327,6 +1332,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             if(EVP_PKEY_assign_RSA(*csrLocalPrivateKey, rsa) != 1) {
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 EVP_PKEY_free(*csrLocalPrivateKey);
+                *csrLocalPrivateKey = NULL;
                 BN_free(exponent);
                 RSA_free(rsa);
                 goto cleanup;
@@ -1343,18 +1349,21 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
         if(UA_OpenSSL_writePrivateKeyDer(*csrLocalPrivateKey, newPrivateKey) != UA_STATUSCODE_GOOD) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             EVP_PKEY_free(*csrLocalPrivateKey);
+            *csrLocalPrivateKey = NULL;
             goto cleanup;
         }
 
         if(!X509_REQ_set_pubkey(request, *csrLocalPrivateKey)) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             EVP_PKEY_free(*csrLocalPrivateKey);
+            *csrLocalPrivateKey = NULL;
             goto cleanup;
         }
 
         if(!X509_REQ_sign(request, *csrLocalPrivateKey, EVP_sha256())) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             EVP_PKEY_free(*csrLocalPrivateKey);
+            *csrLocalPrivateKey = NULL;
             goto cleanup;
         }
     } else {
