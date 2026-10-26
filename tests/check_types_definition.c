@@ -203,8 +203,8 @@ fromStructureDescription(UA_DataType *type, UA_StructureDescription *description
 }
 
 START_TEST(definition_structureArrayDimensions) {
-    /* An unspecified or wildcard length describes a variable-length array.
-     * Fixed-size arrays and multiple dimensions cannot describe a C member. */
+    /* ArrayDimensions describes upper bounds, not an inline C array layout.
+     * Unspecified, wildcard and bounded 1D arrays use the same representation. */
     UA_UInt32 dimensions[] = {0, 0};
     UA_StructureField field;
     UA_StructureField_init(&field);
@@ -215,12 +215,14 @@ START_TEST(definition_structureArrayDimensions) {
     field.arrayDimensionsSize = (_i == 0) ? 0 : ((_i == 3) ? 2 : 1);
     if(_i == 2)
         dimensions[0] = 3;
+    else if(_i == 4)
+        dimensions[0] = UA_INT32_MAX;
 
     UA_StructureDescription description = structureDescription(&field, 1);
     UA_DataType type;
     memset(&type, 0, sizeof(type));
     UA_StatusCode res = fromStructureDescription(&type, &description, NULL);
-    if(_i < 2) {
+    if(_i != 3) {
         struct ArrayMember {
             size_t valuesSize;
             UA_Double *values;
@@ -236,6 +238,74 @@ START_TEST(definition_structureArrayDimensions) {
         ck_assert_uint_eq(type.membersSize, 0);
         ck_assert_ptr_null(type.members);
     }
+    UA_DataType_clear(&type);
+} END_TEST
+
+START_TEST(definition_structureBoundedArrayBinary) {
+    struct BoundedArray {
+        size_t valuesSize;
+        UA_Byte *values;
+        UA_UInt32 tail;
+    };
+    UA_UInt32 bound = 8;
+    /* The reported Siemens DT field is an array of a custom Byte subtype. */
+    UA_DataType byteSubtype = UA_TYPES[UA_TYPES_BYTE];
+    byteSubtype.typeId = UA_NODEID_NUMERIC(1, 5008);
+    UA_DataTypeArray customTypes = {NULL, 1, &byteSubtype, false};
+    UA_StructureField fields[2];
+    for(size_t i = 0; i < 2; i++)
+        UA_StructureField_init(&fields[i]);
+    fields[0].name = UA_STRING("Values");
+    fields[0].dataType = byteSubtype.typeId;
+    fields[0].valueRank = UA_VALUERANK_ONE_DIMENSION;
+    fields[0].arrayDimensionsSize = 1;
+    fields[0].arrayDimensions = &bound;
+    fields[1].name = UA_STRING("Tail");
+    fields[1].dataType = UA_NS0ID(UINT32);
+    fields[1].valueRank = UA_VALUERANK_SCALAR;
+
+    UA_StructureDescription description = structureDescription(fields, 2);
+    UA_DataType type;
+    memset(&type, 0, sizeof(type));
+    UA_StatusCode res = fromStructureDescription(&type, &description, &customTypes);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(type.memSize, sizeof(struct BoundedArray));
+    ck_assert_ptr_eq(type.members[0].memberType, &byteSubtype);
+
+    /* Independent binary fixture: Int32 length, Byte elements, UInt32 tail.
+     * The upper bound must not replace the actual length on the wire. */
+    const UA_Int32 lengths[] = {-1, 0, 3, 8};
+    UA_Int32 length = lengths[_i];
+    size_t valuesSize = (length > 0) ? (size_t)length : 0;
+    UA_Byte wire[16] = {0};
+    if(length < 0)
+        memset(wire, 0xff, 4);
+    else
+        wire[0] = (UA_Byte)length;
+    for(size_t i = 0; i < valuesSize; i++)
+        wire[4 + i] = (UA_Byte)(i + 1);
+    wire[4 + valuesSize] = 42;
+    UA_ByteString encoded = {8 + valuesSize, wire};
+
+    struct BoundedArray value;
+    res = UA_decodeBinary(&encoded, &value, &type, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(value.valuesSize, valuesSize);
+    ck_assert_uint_eq(value.tail, 42);
+    for(size_t i = 0; i < valuesSize; i++)
+        ck_assert_uint_eq(value.values[i], i + 1);
+    if(length < 0)
+        ck_assert_ptr_null(value.values);
+    else if(length == 0)
+        ck_assert_ptr_eq(value.values, UA_EMPTY_ARRAY_SENTINEL);
+
+    UA_ByteString reencoded = UA_BYTESTRING_NULL;
+    res = UA_encodeBinary(&value, &type, &reencoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&encoded, &reencoded));
+
+    UA_ByteString_clear(&reencoded);
+    UA_clear(&value, &type);
     UA_DataType_clear(&type);
 } END_TEST
 
@@ -382,7 +452,8 @@ static Suite *testSuite_definition(void) {
     tcase_add_test(tc, definition_fromDescription_invalidExtObj);
     tcase_add_test(tc, definition_fromStructure_unknownMember);
     tcase_add_test(tc, definition_emptyStructureHasStorage);
-    tcase_add_loop_test(tc, definition_structureArrayDimensions, 0, 4);
+    tcase_add_loop_test(tc, definition_structureArrayDimensions, 0, 5);
+    tcase_add_loop_test(tc, definition_structureBoundedArrayBinary, 0, 4);
     tcase_add_loop_test(tc, definition_structureUnsupportedValueRank, 0, 5);
     tcase_add_loop_test(tc, definition_structureUnexpectedOptionalField, 0, 2);
     tcase_add_loop_test(tc, definition_structureMemberLimit, 0, 2);

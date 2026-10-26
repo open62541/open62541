@@ -262,9 +262,9 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
 
         /* Handle valuerank and array dimensions */
         if(sf->valueRank == 1) {
-            /* 1D-array */
-            if(sf->arrayDimensionsSize > 1 ||
-               (sf->arrayDimensionsSize == 1 && sf->arrayDimensions[0] != 0)) {
+            /* ArrayDimensions gives an upper bound. Bounded and unbounded
+             * 1D-arrays both use a length and a pointer in memory. */
+            if(sf->arrayDimensionsSize > 1) {
                 UA_DataType_clear(type);
                 return UA_STATUSCODE_BADINTERNALERROR;
             }
