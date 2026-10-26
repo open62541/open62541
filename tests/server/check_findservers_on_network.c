@@ -340,6 +340,41 @@ START_TEST(register_server_capabilities_default_to_na) {
 }
 END_TEST
 
+/* Servers register again periodically. An unchanged entry keeps its RecordId.
+ * A changed entry is updated and all entries get new RecordIds. */
+START_TEST(reregister_unchanged_server_keeps_record_ids) {
+    UA_Server *server = newRegistrationServer();
+    UA_LocalizedText name = UA_LOCALIZEDTEXT("en", REGISTERED_SERVER_NAME);
+    UA_RegisteredServer registered = registeredServerRequest(&name);
+    UA_MdnsDiscoveryConfiguration mdnsConfig;
+    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
+    mdnsConfig.mdnsServerName = UA_STRING(REGISTERED_MDNS_NAME);
+
+    ck_assert_uint_eq(registerWithMdnsConfig(server, &registered, &mdnsConfig),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+    UA_UInt32 recordId = server->serversOnNetwork[0].recordId;
+
+    ck_assert_uint_eq(registerWithMdnsConfig(server, &registered, &mdnsConfig),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+    ck_assert_uint_eq(server->serversOnNetwork[0].recordId, recordId);
+
+    UA_String cap = UA_STRING("DA");
+    mdnsConfig.serverCapabilities = &cap;
+    mdnsConfig.serverCapabilitiesSize = 1;
+    ck_assert_uint_eq(registerWithMdnsConfig(server, &registered, &mdnsConfig),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+    ck_assert_uint_eq(server->serversOnNetwork[0].serverCapabilitiesSize, 1);
+    ck_assert(UA_String_equal(&server->serversOnNetwork[0].serverCapabilities[0],
+                              &cap));
+    ck_assert_uint_ne(server->serversOnNetwork[0].recordId, recordId);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 #define REGISTERED_HTTPS_URL "opc.https://localhost:4843"
 
 /* The entries are announced as _opcua-tcp, which is for opc.tcp urls only
@@ -500,6 +535,7 @@ testSuite(void) {
     tcase_add_test(tc_registered, deregister_server_removes_server_on_network);
     tcase_add_test(tc_registered, reregister_server_replaces_server_on_network);
     tcase_add_loop_test(tc_registered, register_server_capabilities_default_to_na, 0, 3);
+    tcase_add_test(tc_registered, reregister_unchanged_server_keeps_record_ids);
     tcase_add_loop_test(tc_registered, register_server_uses_tcp_discovery_url, 0, 2);
     tcase_add_test(tc_registered, reregister_server_without_tcp_url_removes_server_on_network);
     tcase_add_test(tc_registered, deregister_server_without_tcp_url_keeps_other_entry);

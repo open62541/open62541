@@ -1276,6 +1276,17 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             son.serverCapabilities = &na;
         }
 
+        /* Servers register again periodically. Updating an unchanged entry
+         * would give new RecordIds to all entries. */
+        const UA_ServerOnNetwork *current =
+            findServerOnNetworkIndex(server, son.serverName);
+        if(current) {
+            son.recordId = current->recordId; /* Not part of the comparison */
+            if(UA_order(&son, current,
+                        &UA_TYPES[UA_TYPES_SERVERONNETWORK]) == UA_ORDER_EQ)
+                return UA_STATUSCODE_GOOD;
+        }
+
         res = addServerOnNetwork(server, &son, UA_KEYVALUEMAP_NULL);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(sc->logging, session,
