@@ -134,6 +134,9 @@ struct UA_Server {
     UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
 
+    /* ServerCapabilities derived from the config during startup */
+    UA_UInt64 serverCapabilities;
+
     /* List of registered drivers. The internally created drivers furthermore
      * have direct pointers for fast access below. */
     UA_Driver *drivers; /* linked-list of all SC */
@@ -267,6 +270,22 @@ addServerDiscoveryUrl(UA_Server *server, const UA_String *url);
 
 void
 removeServerDiscoveryUrl(UA_Server *server, const UA_String *url);
+
+/* Re-derive server->serverCapabilities from the configured bitmask and the
+ * ApplicationType. This validates and normalizes the configuration. */
+void
+setupServerCapabilities(UA_Server *server);
+
+/* Returns the bit of the capability identifier. Zero if it is unknown. */
+UA_UInt64
+getServerCapability(const UA_String *identifier);
+
+/* Writes the identifiers of the capabilities in the bitmask to out and returns
+ * their number. The strings point to static memory. */
+#define UA_SERVERCAPABILITIES_MAX 64
+size_t
+getServerCapabilityIdentifiers(UA_UInt64 capabilities,
+                               UA_String out[UA_SERVERCAPABILITIES_MAX]);
 
 /* Whether the URL uses opc.http or opc.https. */
 UA_Boolean
@@ -1165,6 +1184,9 @@ UA_StatusCode initNS0_dataSources(UA_Server *server);
 /* Write the ServerConfiguration variables that mirror the
  * ApplicationDescription of the server config */
 UA_StatusCode writeNs0ApplicationDescription(UA_Server *server);
+
+/* Write the ServerCapabilities derived during startup */
+UA_StatusCode writeNs0ServerCapabilities(UA_Server *server);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);

@@ -1236,6 +1236,15 @@ UA_Server_run_startup(UA_Server *server) {
                        "ServerConfiguration object (%s)",
                        UA_StatusCode_name(adRes));
 
+    /* Derive the ServerCapabilities from the config */
+    setupServerCapabilities(server);
+    UA_StatusCode capRes = writeNs0ServerCapabilities(server);
+    if(capRes != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                       "Could not write the ServerCapabilities to the "
+                       "ServerConfiguration object (%s)",
+                       UA_StatusCode_name(capRes));
+
     /* Sample the start time and set it to the Server object */
     server->startTime = el->dateTime_now(el);
     UA_Variant_init(&var);
