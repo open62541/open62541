@@ -167,7 +167,7 @@ writeGroupVariables(UA_GDSReceiverContext *ctx) {
     }
 
     UA_String supportedPrivateKeyFormats[2] =
-        {UA_STRING("PEM"), UA_STRING("DER")};
+        {UA_STRING("PEM"), UA_STRING("PKCS8")};
     size_t supportedPrivateKeyFormatsSize = 2;
     UA_UInt32 maxTrustListSize = config->maxTrustListSize;
 

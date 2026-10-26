@@ -729,9 +729,9 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(privateKey && privateKey->length > 0) {
         const UA_String pemFormat = UA_STRING("PEM");
-        const UA_String derFormat = UA_STRING("DER");
+        const UA_String pkcs8Format = UA_STRING("PKCS8");
         if(!UA_String_equal(&pemFormat, privateKeyFormat) &&
-           !UA_String_equal(&derFormat, privateKeyFormat))
+           !UA_String_equal(&pkcs8Format, privateKeyFormat))
             return UA_STATUSCODE_BADNOTSUPPORTED;
         retval = UA_CertificateUtils_checkKeyPair(certificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
