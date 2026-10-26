@@ -121,6 +121,8 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->maxRejectedListSize = src->maxRejectedListSize;
 #endif
     dst->connectivityCheckInterval = src->connectivityCheckInterval;
+    dst->reconnectInterval = src->reconnectInterval;
+    dst->reconnectIntervalMax = src->reconnectIntervalMax;
     dst->certificateVerification = src->certificateVerification;
     dst->clientContext = src->clientContext;
     dst->customDataTypes = src->customDataTypes;
@@ -341,6 +343,7 @@ UA_Client_clear(UA_Client *client) {
     /* Remove the internal regular callback */
     UA_Client_removeCallback(client, client->houseKeepingCallbackId);
     client->houseKeepingCallbackId = 0;
+    resetReconnect(client);
 
     /* Clean up the SecureChannel */
     UA_SecureChannel_clear(&client->channel);
@@ -946,8 +949,12 @@ __Client_Service(UA_Client *client, const void *request,
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        /* The channel is no longer the same or was closed */
-        if(channelId != client->channel.securityToken.channelId) {
+        /* The channel is no longer the same or was closed. The response can
+         * no longer arrive, also if the client re-dials with the connectStatus
+         * staying Good. */
+        if(channelId != client->channel.securityToken.channelId ||
+           (client->channel.transport != UA_SECURECHANNEL_TRANSPORT_HTTP &&
+            client->channel.state != UA_SECURECHANNELSTATE_OPEN)) {
             retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
             break;
         }
@@ -1077,6 +1084,20 @@ __Client_AsyncServiceAdmission(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Services that are not bound to a Session (Part 4, 5.4, 5.6, and the
+ * CloseSession that ends one) */
+static UA_Boolean
+isSessionlessRequest(const UA_DataType *requestType) {
+    return requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
+        requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
+        requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST] ||
+        requestType == &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] ||
+        requestType == &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST] ||
+        requestType == &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST] ||
+        requestType == &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST] ||
+        requestType == &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST];
+}
+
 static UA_StatusCode
 asyncServiceWithContext(UA_Client *client, const void *request,
                         const UA_DataType *requestType,
@@ -1094,6 +1115,15 @@ asyncServiceWithContext(UA_Client *client, const void *request,
                      "SecureChannel must be connected to send request");
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
+
+    /* A request bound to a Session goes out only once the Session is
+     * activated. Sent while it is being (re-)activated, it would carry no
+     * AuthenticationToken. The server answers BadSessionIdInvalid, and
+     * processing that answer discards the Session being activated. */
+    if(!client->config.noSession &&
+       client->sessionState != UA_SESSIONSTATE_ACTIVATED &&
+       !isSessionlessRequest(requestType))
+        return UA_STATUSCODE_BADSESSIONNOTACTIVATED;
 
     if(applicationCall && !admitted) {
         UA_StatusCode res = __Client_AsyncServiceAdmission(client);
