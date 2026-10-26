@@ -988,6 +988,30 @@ mdnsPacketContainsQuestions(const UA_ByteString *packet, const char *name,
     return true;
 }
 
+static UA_Boolean
+mdnsPacketQueriesName(const UA_ByteString *packet, const char *name) {
+    if(!packet || packet->length == 0 || packet->length >= MAX_PACKET_LEN)
+        return false;
+
+    unsigned char packetBuf[MAX_PACKET_LEN];
+    memset(packetBuf, 0, sizeof(packetBuf));
+    memcpy(packetBuf, packet->data, packet->length);
+
+    struct message message;
+    memset(&message, 0, sizeof(message));
+    ck_assert_int_eq(message_parse(&message, packetBuf), 0);
+
+    if(message.header.qr != 0)
+        return false;
+
+    for(size_t i = 0; i < message.qdcount; i++) {
+        if(strcmp(message.qd[i].name, name) == 0)
+            return true;
+    }
+
+    return false;
+}
+
 static void
 waitForMdnsQueryQuestions(TestUdpIntercept *const *intercepts, size_t interceptsSize,
                           size_t previousSendCount, const char *name,
@@ -1229,6 +1253,25 @@ hasMdnsMessageMatching(TestUdpIntercept *const *intercepts,
                 continue;
             if(mdnsPacketMatchesExpectation(&intercepts[j]->recentMessages[k],
                                             expectation))
+                return true;
+        }
+    }
+    return false;
+}
+
+/* mdnsd schedules the probes and publish retries for the records of the
+ * fixture servers with the real clock. They can go out at any iteration, so a
+ * test cannot expect that the servers send no messages at all. */
+static UA_Boolean
+hasMdnsQueryFor(TestUdpIntercept *const *intercepts, size_t interceptsSize,
+                size_t previousSendCount, const char *name) {
+    for(size_t j = 0; j < interceptsSize; j++) {
+        if(!intercepts[j] || intercepts[j]->sentNonEmptyMessages == 0)
+            continue;
+        for(size_t k = 0; k < TEST_UDP_CAPTURED_MESSAGES; k++) {
+            if(intercepts[j]->recentMessageSequence[k] <= previousSendCount)
+                continue;
+            if(mdnsPacketQueriesName(&intercepts[j]->recentMessages[k], name))
                 return true;
         }
     }
@@ -2460,6 +2503,7 @@ START_TEST(PublicApiInjectedPtrIsIgnoredWithoutDetails) {
     const char *hostname = "ptr-host";
     char serviceInstance[128];
     UA_ByteString ptrPacket = UA_BYTESTRING_NULL;
+    TestUdpIntercept *intercepts[] = {testUdpInterceptLds, testUdpInterceptRegister};
     size_t previousSendCount = UA_atomic_load(&globalInterceptedMdnsMessages);
 
     createInjectedServiceInstanceName(serviceInstance, sizeof(serviceInstance),
@@ -2473,7 +2517,7 @@ START_TEST(PublicApiInjectedPtrIsIgnoredWithoutDetails) {
      * trigger a callback. */
     iterateDiscoveryServers(2);
     ck_assert_uint_eq(discoveryCounters.serverOnNetworkCalls, 0);
-    ck_assert_uint_eq(UA_atomic_load(&globalInterceptedMdnsMessages), previousSendCount);
+    ck_assert(!hasMdnsQueryFor(intercepts, 2, previousSendCount, serviceInstance));
 
     UA_ByteString_clear(&ptrPacket);
 }
@@ -2486,6 +2530,7 @@ START_TEST(PublicApiInjectedPtrDoesNotEmitQueryWhenDetailsArrive) {
     char targetHost[64];
     UA_ByteString ptrPacket = UA_BYTESTRING_NULL;
     UA_ByteString announcePacket = UA_BYTESTRING_NULL;
+    TestUdpIntercept *intercepts[] = {testUdpInterceptLds, testUdpInterceptRegister};
 
     createInjectedServiceInstanceName(serviceInstance, sizeof(serviceInstance),
                                       serverName, hostname);
@@ -2503,7 +2548,7 @@ START_TEST(PublicApiInjectedPtrDoesNotEmitQueryWhenDetailsArrive) {
     /* The mdnsd driver is purely passive: it should never issue a query
      * in response to a PTR record. The callback is fired once the SRV and
      * TXT details arrive. */
-    ck_assert_uint_eq(UA_atomic_load(&globalInterceptedMdnsMessages), previousSendCount);
+    ck_assert(!hasMdnsQueryFor(intercepts, 2, previousSendCount, serviceInstance));
     ck_assert_uint_eq(discoveryCounters.serverOnNetworkCalls, 1);
 
     UA_ByteString_clear(&ptrPacket);
@@ -2519,6 +2564,7 @@ START_TEST(PublicApiInjectedPtrIgnoredWhenFollowedByGoodbye) {
     UA_ByteString ptrPacket = UA_BYTESTRING_NULL;
     UA_ByteString srvPacket = UA_BYTESTRING_NULL;
     UA_ByteString goodbyePacket = UA_BYTESTRING_NULL;
+    TestUdpIntercept *intercepts[] = {testUdpInterceptLds, testUdpInterceptRegister};
 
     createInjectedServiceInstanceName(serviceInstance, sizeof(serviceInstance),
                                       serverName, hostname);
@@ -2540,7 +2586,7 @@ START_TEST(PublicApiInjectedPtrIgnoredWhenFollowedByGoodbye) {
      * an incoming PTR. The SRV record alone (without matching TXT) is not
      * sufficient to register the server, and the goodbye packet does not
      * remove anything because no entry was ever registered. */
-    ck_assert_uint_eq(UA_atomic_load(&globalInterceptedMdnsMessages), previousSendCount);
+    ck_assert(!hasMdnsQueryFor(intercepts, 2, previousSendCount, serviceInstance));
     ck_assert_uint_eq(discoveryCounters.serverOnNetworkCalls, 0);
     ck_assert_uint_eq(discoveryCounters.serverOnNetworkRemoveCalls, 0);
 
