@@ -715,6 +715,8 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_interfaces.c EXTRASOURCES ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
     ua_add_test(server/check_server_ns0_serverconfiguration.c)
+    target_compile_definitions(check_server_ns0_serverconfiguration PRIVATE
+        UA_SERVERCAPABILITIES_CSV="${UA_SCHEMA_DIR}/ServerCapabilities.csv")
 endif()
 
 # The replay implementation is available only for 64-bit Linux builds with

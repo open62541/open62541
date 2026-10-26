@@ -2562,6 +2562,11 @@ struct UA_ServerConfig {
 
     /* Discovery
      * ~~~~~~~~~ */
+    /* Bitmask of the UA_SERVERCAPABILITY_* constants. At startup, the
+     * capabilities that are announced are derived from this bitmask and the
+     * ApplicationType (Part 12, 7.10.14). */
+    UA_UInt64 serverCapabilities;
+
     /* Enable the internal management of RegisteredServers (besides the local
      * server itself) via the RegisterServer and FindServer services. */
     UA_Boolean registeredServersEnabled;

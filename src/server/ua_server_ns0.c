@@ -1205,18 +1205,8 @@ configureNS0(UA_Server *server) {
     }
 
     /* ServerConfiguration - ApplicationUri, ProductUri and ApplicationType are
-     * written at startup by writeNs0ApplicationDescription */
-
-    /* ServerConfiguration - ServerCapabilities [mandatory] */
-    {
-      UA_String serverCapabilities = UA_STRING_STATIC("NA");
-
-      retVal |= writeNs0VariableArray(server,
-                                      UA_NS0ID_SERVERCONFIGURATION_SERVERCAPABILITIES,
-                                      &serverCapabilities,
-                                      1,
-                                      &UA_TYPES[UA_TYPES_STRING]);
-    }
+     * written at startup by writeNs0ApplicationDescription. ServerCapabilities
+     * is written at startup by writeNs0ServerCapabilities. */
 
     /* OPCUANamespaceMetadata - DefaultAccessRestrictions */
     {
@@ -1507,6 +1497,20 @@ writeNs0ApplicationDescription(UA_Server *server) {
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVERCONFIGURATION_APPLICATIONNAMES,
                                     &ad->applicationName, 1,
                                     &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+#endif
+    return retVal;
+}
+
+UA_StatusCode
+writeNs0ServerCapabilities(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    /* ServerConfiguration - ServerCapabilities [mandatory] */
+    UA_String caps[UA_SERVERCAPABILITIES_MAX];
+    size_t capsSize = getServerCapabilityIdentifiers(server->serverCapabilities, caps);
+    retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVERCONFIGURATION_SERVERCAPABILITIES,
+                                    caps, capsSize, &UA_TYPES[UA_TYPES_STRING]);
 #endif
     return retVal;
 }
