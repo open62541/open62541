@@ -367,12 +367,28 @@ discoveryClientStateCallback(UA_Client *client,
     const UA_DataType *respType;
     UA_RegisterServerRequest reg1;
     UA_RegisterServer2Request reg2;
+    UA_MdnsDiscoveryConfiguration mdnsConfig;
+    UA_ExtensionObject discoveryConfig;
+    UA_String caps[UA_SERVERCAPABILITIES_MAX];
     void *request;
 
     /* Prepare the request. This does not allocate memory */
     if(ar->register2) {
         UA_RegisterServer2Request_init(&reg2);
         setupRegisterRequest(ar, &reg2.requestHeader, &reg2.server);
+
+        /* Report the ServerCapabilities. */
+        UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
+        mdnsConfig.serverCapabilitiesSize =
+            getServerCapabilityIdentifiers(ar->dm->drv.server->serverCapabilities,
+                                           caps);
+        mdnsConfig.serverCapabilities = caps;
+        UA_ExtensionObject_setValueNoDelete(
+            &discoveryConfig, &mdnsConfig,
+            &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
+        reg2.discoveryConfiguration = &discoveryConfig;
+        reg2.discoveryConfigurationSize = 1;
+
         reqType = &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST];
         respType = &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE];
         request = &reg2;
