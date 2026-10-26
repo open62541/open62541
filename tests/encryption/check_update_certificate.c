@@ -179,7 +179,7 @@ END_TEST
 START_TEST(update_certificate_unconfiguredType) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
-    UA_String privateKeyFormat = UA_STRING_STATIC("DER");
+    UA_String privateKeyFormat = UA_STRING_STATIC("PKCS8");
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
 

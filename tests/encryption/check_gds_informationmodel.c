@@ -512,6 +512,39 @@ START_TEST(update_certificate_reject_unparseable) {
 }
 END_TEST
 
+/* Test: SupportedPrivateKeyFormats contains only the values defined in Part 12,
+ * 7.10.3: "PEM" (RFC 5958), "PFX" (PKCS #12) or "PKCS8" (PKCS #8) */
+START_TEST(supported_private_key_formats) {
+    UA_Client *client = createSecureClient();
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode res = UA_Client_readValueAttribute(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS),
+        &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_STRING]));
+
+    /* UpdateCertificate accepts a PrivateKey. So the array is not empty. */
+    ck_assert_uint_gt(value.arrayLength, 0);
+
+    const UA_String validFormats[3] = {
+        UA_STRING_STATIC("PEM"), UA_STRING_STATIC("PFX"), UA_STRING_STATIC("PKCS8")};
+    const UA_String *formats = (const UA_String*)value.data;
+    for(size_t i = 0; i < value.arrayLength; i++) {
+        UA_Boolean valid = false;
+        for(size_t j = 0; j < 3; j++)
+            valid |= UA_String_equal(&formats[i], &validFormats[j]);
+        ck_assert_msg(valid, "Invalid SupportedPrivateKeyFormats entry \"%.*s\"",
+                      (int)formats[i].length, (const char*)formats[i].data);
+    }
+    UA_Variant_clear(&value);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Helper: stage the current server certificate again with UpdateCertificate */
 static UA_StatusCode
 callUpdateCertificate(UA_Client *client) {
@@ -520,7 +553,7 @@ callUpdateCertificate(UA_Client *client) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
-    UA_String privateKeyFormat = UA_STRING("DER");
+    UA_String privateKeyFormat = UA_STRING("PKCS8");
 
     UA_Variant inputArguments[6];
     UA_Variant_setScalar(&inputArguments[0], &groupId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -1179,6 +1212,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, read_trustlist_reject_negative_length);
     tcase_add_test(tc_cert, add_certificate_replaced_input_metadata);
     tcase_add_test(tc_cert, update_certificate_reject_unparseable);
+    tcase_add_test(tc_cert, supported_private_key_formats);
     tcase_add_test(tc_cert, add_certificate_success);
     tcase_add_test(tc_cert, add_certificate_reject_ca);
     tcase_add_test(tc_cert, add_certificate_reject_issuer);
