@@ -938,6 +938,20 @@ function build_option_coverage {
     build_option_cfg "UA_ENABLE_DETERMINISTIC_RNG" -DUA_ENABLE_DETERMINISTIC_RNG=ON
     build_option_cfg "UA_ENABLE_RBAC"              -DUA_ENABLE_RBAC=ON -DUA_NAMESPACE_ZERO=FULL
 
+    # Reduced datatype lists, including configurations without server
+    # subscriptions or type/member names. PubSub otherwise supplies many types.
+    build_option_cfg "no UA_ENABLE_DATATYPES_ALL" -DUA_ENABLE_DATATYPES_ALL=OFF
+    build_option_cfg "reduced datatypes without Subscriptions or PubSub" \
+                     -DUA_ENABLE_DATATYPES_ALL=OFF -DUA_ENABLE_SUBSCRIPTIONS=OFF \
+                     -DUA_ENABLE_HISTORIZING=OFF -DUA_ENABLE_PUBSUB=OFF
+    build_option_cfg "reduced datatypes without type names or PubSub" \
+                     -DUA_ENABLE_DATATYPES_ALL=OFF -DUA_ENABLE_TYPEDESCRIPTION=OFF \
+                     -DUA_ENABLE_DIAGNOSTICS=OFF -DUA_ENABLE_JSON_ENCODING=OFF \
+                     -DUA_ENABLE_XML_ENCODING=OFF -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF \
+                     -DUA_ENABLE_PUBSUB=OFF
+
+    build_option_cfg "UA_MULTITHREADING=0" -DUA_MULTITHREADING=0
+
     # On by default, so only ever compiled in the enabled state
     build_option_cfg "no UA_ENABLE_NODEMANAGEMENT" -DUA_ENABLE_NODEMANAGEMENT=OFF
     build_option_cfg "no UA_ENABLE_AUDITING"       -DUA_ENABLE_AUDITING=OFF

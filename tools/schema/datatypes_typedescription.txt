@@ -3,3 +3,7 @@ StructureField
 StructureType
 EnumDefinition
 EnumField
+DataTypeDescription
+StructureDescription
+EnumDescription
+SimpleTypeDescription
