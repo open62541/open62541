@@ -94,7 +94,9 @@ UA_Guid_random(void);   /* no cryptographic entropy */
  * - StructureDescription
  *
  * The generated UA_DataType faithfully generates the padding of the
- * corresponding C-structures. */
+ * corresponding C-structures. StructureDescription fields must include the
+ * inherited fields, in order, followed by the locally declared fields. The
+ * builder does not prepend members from baseDataType. */
 
 #ifdef UA_TYPES_STRUCTUREDESCRIPTION
 UA_EXPORT UA_StatusCode
