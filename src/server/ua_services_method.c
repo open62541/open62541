@@ -17,7 +17,6 @@
 #include "ua_services.h"
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
 #define UA_MAX_METHOD_ARGUMENTS 64
 
@@ -398,6 +397,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
     result->statusCode =
         callWithMethodAndObject(server, session, request,
                                 result, method, object);
+    clearCallOutputIfBad(result);
 
     /* Release the method and object node */
     UA_NODESTORE_RELEASE(server, method);
@@ -417,9 +417,8 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
         if(server->config.asyncOperationCancelCallback)
             server->config.asyncOperationCancelCallback(server, result.outputArguments);
         result.statusCode = UA_STATUSCODE_BADWAITINGFORRESPONSE;
+        clearCallOutputIfBad(&result);
     }
     unlockServer(server);
     return result;
 }
-
-#endif /* UA_ENABLE_METHODCALLS */

@@ -637,10 +637,35 @@ struct UA_ClientConfig {
     UA_LocaleId *sessionLocaleIds; /* Preferred locales of the client */
     size_t sessionLocaleIdsSize;
 
-    /* Basic connection behavior */
+    /* Basic connection behavior
+     *
+     * While the connectStatus is Good, the client re-dials a lost connection on
+     * its own. Any other status is final: the connection is closed and nothing
+     * is retried until UA_Client_connect* or a synchronous service call
+     * connects again. The status becomes final when the handshake, discovery
+     * or Session setup fails, the transport connection is refused on connect,
+     * a synchronous connect times out (BadTimeout), or the connection is lost
+     * with noReconnect set.
+     *
+     * The first re-dial starts right away. If it fails, the next one waits
+     * reconnectInterval, then twice as long, up to reconnectIntervalMax. If the
+     * re-dial after the longest wait fails too, the client gives up with
+     * BadConnectionRejected or BadConnectionClosed. With the defaults, this
+     * takes about 26 seconds. Synchronous calls don't wait for a pending
+     * re-dial, they connect right away.
+     *
+     * UA_Client_connect* re-activates the previous Session if the server still
+     * has it. Call UA_Client_disconnect first to get a new Session. Until the
+     * Session is activated, asynchronous requests that need a Session fail
+     * with BadSessionNotActivated. */
     UA_Boolean noSession;    /* Only open a SecureChannel, but no Session */
     UA_Boolean noReconnect;  /* Don't reconnect SecureChannel when the connection
                               * is lost without explicitly closing. */
+    UA_UInt32 reconnectInterval;    /* Wait in ms after the first failed
+                                     * re-dial, doubled for every further one
+                                     * (default: 250) */
+    UA_UInt32 reconnectIntervalMax; /* Longest wait between re-dials in ms
+                                     * (default: 10000) */
     UA_Boolean noNewSession; /* Don't automatically create a new Session when
                               * the initial one is lost. Instead abort the
                               * connection when the Session is lost. */
@@ -846,9 +871,13 @@ struct UA_ClientConfig {
     /* Number of PublishResponse queued up in the server */
     UA_UInt16 outStandingPublishRequests;
 
-    /* EventLoop */
+    /* EventLoop
+     * ~~~~~~~~~
+     * A shared EventLoop must be external to every client and server using it.
+     * Otherwise, one of them can stop or delete it while others still use it.
+     * The application owns the shared EventLoop's lifetime. */
     UA_EventLoop *eventLoop;
-    UA_Boolean externalEventLoop; /* Don't delete the EventLoop with the config */
+    UA_Boolean externalEventLoop; /* Do not stop or delete the EventLoop */
 };
 
 /* Makes a deep copy of the config. Only The copies of the plugins (logger,

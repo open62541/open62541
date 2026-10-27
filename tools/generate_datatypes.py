@@ -127,7 +127,6 @@ builtin_overlayable = {"SByte": "true",
                        "UInt64": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "Float": "UA_BINARY_OVERLAYABLE_FLOAT",
                        "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
-                       "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " +
                                "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " +

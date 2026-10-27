@@ -312,6 +312,222 @@ START_TEST(Server_loadLegacyChildAttributes) {
 }
 END_TEST
 
+static void
+setupImportValidation(void) {
+    server = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(server);
+}
+
+static void
+teardownImportValidation(void) {
+    UA_Server_delete(server);
+}
+
+/* Every import also contains an independent object, which must survive a
+ * rejected node or datatype description elsewhere in the document. */
+static UA_UInt16
+loadValidationNodes(const char *nodes) {
+    UA_XmlElement xml = UA_STRING_NULL;
+    ck_assert_uint_eq(UA_String_format(&xml,
+        "<UANodeSet><NamespaceUris><Uri>urn:open62541:loader:validation</Uri>"
+        "</NamespaceUris>%s<UAObject NodeId=\"ns=1;i=99\" BrowseName=\"1:Kept\">"
+        "<References><Reference ReferenceType=\"i=35\" IsForward=\"false\">i=85"
+        "</Reference></References></UAObject></UANodeSet>", nodes), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_loadNodeset(server, xml), UA_STATUSCODE_GOOD);
+    UA_String_clear(&xml);
+    size_t nsIndex = 0;
+    ck_assert_uint_eq(UA_Server_getNamespaceByName(server,
+        UA_STRING("urn:open62541:loader:validation"), &nsIndex), UA_STATUSCODE_GOOD);
+    ck_assert_uint_le(nsIndex, UA_UINT16_MAX);
+    UA_NodeClass nodeClass = UA_NODECLASS_UNSPECIFIED;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server,
+        UA_NODEID_NUMERIC((UA_UInt16)nsIndex, 99), &nodeClass), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(nodeClass, UA_NODECLASS_OBJECT);
+    return (UA_UInt16)nsIndex;
+}
+
+START_TEST(Server_rejectWrongTypeDefinitionClasses) {
+    UA_UInt16 nsIndex = loadValidationNodes(
+        "<UAObject NodeId=\"ns=1;i=1\" BrowseName=\"1:WrongExternalType\">"
+        "<References><Reference ReferenceType=\"i=40\">i=63</Reference>"
+        "</References></UAObject>"
+        "<UAObject NodeId=\"ns=1;i=2\" BrowseName=\"1:WrongLocalType\">"
+        "<References><Reference ReferenceType=\"i=40\">ns=1;i=3</Reference>"
+        "</References></UAObject>"
+        "<UAVariableType NodeId=\"ns=1;i=3\" BrowseName=\"1:VariableType\">"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=63"
+        "</Reference></References></UAVariableType>"
+        "<UAVariable NodeId=\"ns=1;i=4\" BrowseName=\"1:DefaultType\">"
+        "<References><Reference ReferenceType=\"i=35\" IsForward=\"false\">i=85"
+        "</Reference></References></UAVariable>");
+    UA_NodeClass nodeClass = UA_NODECLASS_UNSPECIFIED;
+    for(UA_UInt32 id = 1; id <= 2; id++)
+        ck_assert_uint_eq(UA_Server_readNodeClass(server,
+            UA_NODEID_NUMERIC(nsIndex, id), &nodeClass), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server,
+        UA_NODEID_NUMERIC(nsIndex, 3), &nodeClass), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(nodeClass, UA_NODECLASS_VARIABLETYPE);
+    UA_NodeId dataType;
+    ck_assert_uint_eq(UA_Server_readDataType(server,
+        UA_NODEID_NUMERIC(nsIndex, 4), &dataType), UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId));
+    UA_NodeId_clear(&dataType);
+}
+END_TEST
+
+START_TEST(Server_ignoreMalformedVariableTypeDimensions) {
+    UA_UInt16 nsIndex = loadValidationNodes(
+        "<UAVariableType NodeId=\"ns=1;i=1\" BrowseName=\"1:MatrixType\" "
+        "DataType=\"i=6\" ValueRank=\"2\" ArrayDimensions=\"3,\">"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=63"
+        "</Reference></References></UAVariableType>");
+    UA_Variant dimensions;
+    UA_Variant_init(&dimensions);
+    ck_assert_uint_eq(UA_Server_readArrayDimensions(server,
+        UA_NODEID_NUMERIC(nsIndex, 1), &dimensions), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&dimensions, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(dimensions.arrayLength, 2);
+    ck_assert_uint_eq(((UA_UInt32*)dimensions.data)[0], 0);
+    ck_assert_uint_eq(((UA_UInt32*)dimensions.data)[1], 0);
+    UA_Variant_clear(&dimensions);
+}
+END_TEST
+
+START_TEST(Server_rejectUnresolvableDataTypeDefinitions) {
+    UA_UInt16 nsIndex = loadValidationNodes(
+        "<UADataType NodeId=\"ns=1;i=1\" BrowseName=\"1:MissingFieldType\">"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=22"
+        "</Reference></References><Definition Name=\"MissingFieldType\">"
+        "<Field Name=\"Missing\" DataType=\"ns=1;i=404\"/></Definition></UADataType>"
+        "<UADataType NodeId=\"ns=1;i=2\" BrowseName=\"1:ObjectFieldType\">"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=22"
+        "</Reference></References><Definition Name=\"ObjectFieldType\">"
+        "<Field Name=\"Object\" DataType=\"ns=1;i=99\"/></Definition></UADataType>"
+        "<UADataType NodeId=\"ns=1;i=3\" BrowseName=\"1:RejectedFieldType\">"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=22"
+        "</Reference></References><Definition Name=\"RejectedFieldType\">"
+        "<Field Name=\"Rejected\" DataType=\"ns=1;i=1\"/></Definition></UADataType>"
+        "<UADataType NodeId=\"ns=1;i=4\" BrowseName=\"1:CycleA\">"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=22"
+        "</Reference></References><Definition Name=\"CycleA\">"
+        "<Field Name=\"B\" DataType=\"ns=1;i=5\"/></Definition></UADataType>"
+        "<UADataType NodeId=\"ns=1;i=5\" BrowseName=\"1:CycleB\">"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=22"
+        "</Reference></References><Definition Name=\"CycleB\">"
+        "<Field Name=\"A\" DataType=\"ns=1;i=4\"/></Definition></UADataType>");
+    for(UA_UInt32 i = 1; i <= 5; i++) {
+        UA_NodeId id = UA_NODEID_NUMERIC(nsIndex, i);
+        ck_assert_ptr_null(UA_Server_findDataType(server, &id));
+    }
+}
+END_TEST
+
+START_TEST(Server_validateDataTypeFieldLimits) {
+    const UA_Boolean isEnum = (_i < 2);
+    const size_t fieldsSize = UA_DATATYPE_MEMBERS_MAX + (size_t)(_i % 2);
+    char nodes[64 * (UA_DATATYPE_MEMBERS_MAX + 1) + 512];
+    int written = snprintf(nodes, sizeof(nodes),
+        "<UADataType NodeId=\"ns=1;i=1\" BrowseName=\"1:FieldLimit\">"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=%u"
+        "</Reference></References><Definition Name=\"FieldLimit\">",
+        isEnum ? 29u : 22u);
+    if(written <= 0 || (size_t)written >= sizeof(nodes)) {
+        ck_abort_msg("Could not format the DataType XML header");
+        return;
+    }
+    size_t offset = (size_t)written;
+    for(size_t i = 0; i < fieldsSize; i++) {
+        if(isEnum)
+            written = snprintf(nodes + offset, sizeof(nodes) - offset,
+                               "<Field Name=\"F%u\" Value=\"%u\"/>",
+                               (unsigned)i, (unsigned)i);
+        else
+            written = snprintf(nodes + offset, sizeof(nodes) - offset,
+                               "<Field Name=\"F%u\" DataType=\"i=6\"/>", (unsigned)i);
+        if(written <= 0 || (size_t)written >= sizeof(nodes) - offset) {
+            ck_abort_msg("Could not append a DataType XML field");
+            return;
+        }
+        offset += (size_t)written;
+    }
+    written = snprintf(nodes + offset, sizeof(nodes) - offset,
+                       "</Definition></UADataType>");
+    ck_assert_int_gt(written, 0);
+    ck_assert_uint_lt((size_t)written, sizeof(nodes) - offset);
+    UA_UInt16 nsIndex = loadValidationNodes(nodes);
+    UA_NodeId id = UA_NODEID_NUMERIC(nsIndex, 1);
+    const UA_DataType *type = UA_Server_findDataType(server, &id);
+    if(fieldsSize > UA_DATATYPE_MEMBERS_MAX) {
+        ck_assert_ptr_null(type);
+    } else {
+        ck_assert_ptr_nonnull(type);
+        ck_assert_uint_eq(type->typeKind,
+                          isEnum ? UA_DATATYPEKIND_ENUM : UA_DATATYPEKIND_STRUCTURE);
+        ck_assert_uint_eq(type->membersSize, fieldsSize);
+    }
+}
+END_TEST
+
+START_TEST(Server_rejectNegativeUnsignedInitialValue) {
+    const char *negative = _i ? "<ListOfInt32><Int32>42</Int32><Int32>-1</Int32></ListOfInt32>"
+                             : "<Int32>-1</Int32>";
+    const char *positive = _i ? "<ListOfInt32><Int32>42</Int32><Int32>7</Int32></ListOfInt32>"
+                             : "<Int32>42</Int32>";
+    char nodes[2048];
+    int written = snprintf(nodes, sizeof(nodes),
+        "<UAVariable NodeId=\"ns=1;i=1\" BrowseName=\"1:Negative\" "
+        "DataType=\"i=7\" ValueRank=\"%d\"><Value>%s</Value><References>"
+        "<Reference ReferenceType=\"i=35\" IsForward=\"false\">i=85</Reference>"
+        "<Reference ReferenceType=\"i=40\">i=63</Reference></References></UAVariable>"
+        "<UAVariable NodeId=\"ns=1;i=2\" BrowseName=\"1:Positive\" "
+        "DataType=\"i=7\" ValueRank=\"%d\"><Value>%s</Value><References>"
+        "<Reference ReferenceType=\"i=35\" IsForward=\"false\">i=85</Reference>"
+        "<Reference ReferenceType=\"i=40\">i=63</Reference></References></UAVariable>",
+        _i ? 1 : -1, negative, _i ? 1 : -1, positive);
+    ck_assert_int_gt(written, 0);
+    ck_assert_uint_lt((size_t)written, sizeof(nodes));
+    UA_UInt16 nsIndex = loadValidationNodes(nodes);
+    UA_NodeClass nodeClass = UA_NODECLASS_UNSPECIFIED;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server,
+        UA_NODEID_NUMERIC(nsIndex, 1), &nodeClass), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(server,
+        UA_NODEID_NUMERIC(nsIndex, 2), &value), UA_STATUSCODE_GOOD);
+    if(_i) {
+        ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_UINT32]));
+        ck_assert_uint_eq(value.arrayLength, 2);
+        ck_assert_uint_eq(((UA_UInt32*)value.data)[1], 7);
+    } else {
+        ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT32]));
+    }
+    ck_assert_uint_eq(*(UA_UInt32*)value.data, 42);
+    UA_Variant_clear(&value);
+}
+END_TEST
+
+START_TEST(Server_rejectMalformedInitialValue) {
+    /* A malformed supplied value must not become a default value, even when
+     * defaults are allowed for variables that omit their initial value. */
+    UA_Server_getConfig(server)->allowEmptyVariables = UA_RULEHANDLING_DEFAULT;
+    static const char *const nodes[] = {
+        ("<UAVariable NodeId=\"ns=1;i=1\" BrowseName=\"1:InvalidValue\" DataType=\"i=6\">"
+         "<Value><Int32>12x</Int32></Value><References>"
+         "<Reference ReferenceType=\"i=35\" IsForward=\"false\">i=85</Reference>"
+         "<Reference ReferenceType=\"i=40\">i=63</Reference>"
+         "</References></UAVariable>"),
+        ("<UAVariableType NodeId=\"ns=1;i=1\" BrowseName=\"1:InvalidValue\" DataType=\"i=6\">"
+         "<Value><Int32>12x</Int32></Value><References>"
+         "<Reference ReferenceType=\"i=45\" IsForward=\"false\">i=63</Reference>"
+         "</References></UAVariableType>")
+    };
+    UA_UInt16 nsIndex = loadValidationNodes(nodes[_i]);
+    UA_NodeClass nodeClass = UA_NODECLASS_UNSPECIFIED;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server,
+        UA_NODEID_NUMERIC(nsIndex, 1), &nodeClass), UA_STATUSCODE_BADNODEIDUNKNOWN);
+}
+END_TEST
+
 static Suite *
 testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Loader");
@@ -327,6 +543,15 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_loadMissingNodeAttributes);
     tcase_add_test(tc_server, Server_loadLegacyChildAttributes);
     suite_add_tcase(s, tc_server);
+    TCase *tc_validation = tcase_create("Import validation");
+    tcase_add_checked_fixture(tc_validation, setupImportValidation, teardownImportValidation);
+    tcase_add_test(tc_validation, Server_rejectWrongTypeDefinitionClasses);
+    tcase_add_test(tc_validation, Server_ignoreMalformedVariableTypeDimensions);
+    tcase_add_test(tc_validation, Server_rejectUnresolvableDataTypeDefinitions);
+    tcase_add_loop_test(tc_validation, Server_validateDataTypeFieldLimits, 0, 4);
+    tcase_add_loop_test(tc_validation, Server_rejectNegativeUnsignedInitialValue, 0, 2);
+    tcase_add_loop_test(tc_validation, Server_rejectMalformedInitialValue, 0, 2);
+    suite_add_tcase(s, tc_validation);
     return s;
 }
 

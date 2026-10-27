@@ -13,7 +13,6 @@
 
 #include "open62541/transport_generated.h"
 #include "ua_client_internal.h"
-#include "../ua_types_encoding_binary.h"
 #include "mp_printf.h"
 
 /* Some OPC UA servers only return all Endpoints if the EndpointURL used for
@@ -32,6 +31,7 @@
  * - Read the namespaces array of the server (and create the namespaces mapping)
  */
 
+#define UA_CLIENT_RECONNECT_INTERVAL_DEFAULT 250 /* ms */
 #define UA_MINMESSAGESIZE 8192
 #define MAX_DATA_SIZE 4096
 
@@ -720,6 +720,15 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     }
 
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
+
+    /* Start the backoff over, unless a lost connection is being recovered. Then
+     * only the fully re-established connection counts as success. Otherwise a
+     * server that opens the SecureChannel and then drops the client would be
+     * re-dialed in a hot loop. */
+    if(!client->reconnectWasConnected) {
+        client->reconnectAttempts = 0;
+        client->reconnectAtMax = false;
+    }
     UA_OpenSecureChannelResponse_clear(&response);
 }
 
@@ -2181,6 +2190,101 @@ initSecurityPolicy(UA_Client *client, const UA_ClientTransport *transport) {
     return res;
 }
 
+static void
+delayedReconnect(void *application, void *_) {
+    UA_Client *client = (UA_Client*)application;
+    lockClient(client);
+    client->reconnectCallbackId = 0;
+    if(client->connectStatus == UA_STATUSCODE_GOOD &&
+       client->channel.state == UA_SECURECHANNELSTATE_CLOSED &&
+       !client->config.noReconnect) {
+        client->reconnectAttempts++;
+        initConnect(client);
+        notifyClientState(client);
+    }
+    unlockClient(client);
+}
+
+/* The client is (again) fully connected. Start the backoff over. */
+static void
+reconnectSucceeded(UA_Client *client) {
+    client->reconnectAttempts = 0;
+    client->reconnectAtMax = false;
+    client->reconnectWasConnected = true;
+}
+
+void
+resetReconnect(UA_Client *client) {
+    client->reconnectAttempts = 0;
+    client->reconnectAtMax = false;
+    client->reconnectWasConnected = false;
+    client->reconnectStatus = UA_STATUSCODE_GOOD;
+    if(client->reconnectCallbackId == 0)
+        return;
+    UA_EventLoop *el = client->config.eventLoop;
+    if(el)
+        el->removeTimer(el, client->reconnectCallbackId);
+    client->reconnectCallbackId = 0;
+}
+
+/* Re-dial after the connection closed. The first attempt is immediate. If it
+ * fails, the next attempts wait reconnectInterval (250ms if 0), doubling up to
+ * reconnectIntervalMax. If the attempt that waited the maximum interval fails
+ * as well, the client gives up and reports why the connection closed. Only
+ * reached with a Good connectStatus. See the description of the connect
+ * behavior in UA_ClientConfig. */
+static void
+reconnect(UA_Client *client) {
+    if(client->reconnectCallbackId != 0)
+        return; /* A delayed re-dial is pending */
+
+    UA_ClientConfig *cc = &client->config;
+    if(client->reconnectAttempts > 0) {
+        UA_UInt32 first = (cc->reconnectInterval > 0) ?
+            cc->reconnectInterval : UA_CLIENT_RECONNECT_INTERVAL_DEFAULT;
+        UA_UInt32 max = (cc->reconnectIntervalMax > first) ?
+            cc->reconnectIntervalMax : first;
+
+        /* The re-dial after the maximum interval failed. Abort. */
+        if(client->reconnectAtMax) {
+            UA_StatusCode status = client->reconnectStatus;
+            if(status == UA_STATUSCODE_GOOD)
+                status = UA_STATUSCODE_BADCONNECTIONCLOSED;
+            UA_LOG_ERROR(cc->logging, UA_LOGCATEGORY_CLIENT,
+                         "Could not reconnect after %u attempts, the last "
+                         "one after %ums. Giving up with StatusCode %s",
+                         (unsigned)client->reconnectAttempts, (unsigned)max,
+                         UA_StatusCode_name(status));
+            setConnectStatus(client, status);
+            return;
+        }
+
+        UA_Double delay = first;
+        for(UA_UInt32 i = 1; i < client->reconnectAttempts && delay < max; i++)
+            delay *= 2;
+        if(delay > max)
+            delay = max;
+        client->reconnectAtMax = (delay >= max);
+
+        UA_EventLoop *el = cc->eventLoop;
+        UA_DateTime due = el->dateTime_nowMonotonic(el) +
+            (UA_DateTime)(delay * UA_DATETIME_MSEC);
+        UA_StatusCode res =
+            el->addTimer(el, delayedReconnect, client, NULL, 0.0, &due,
+                         UA_TIMERPOLICY_ONCE, &client->reconnectCallbackId);
+        if(res == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(cc->logging, UA_LOGCATEGORY_CLIENT,
+                        "The connection closed (%s). Reconnect in %.0fms",
+                        UA_StatusCode_name(client->reconnectStatus), delay);
+            return;
+        }
+        client->reconnectCallbackId = 0; /* Re-dial right away instead */
+    }
+
+    client->reconnectAttempts++;
+    initConnect(client); /* Sets the connectStatus internally */
+}
+
 void
 connectActivity(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
@@ -2225,7 +2329,7 @@ connectActivity(UA_Client *client) {
         if(client->config.noReconnect)
             setConnectStatus(client, UA_STATUSCODE_BADNOTCONNECTED);
         else
-            initConnect(client); /* Sets the connectStatus internally */
+            reconnect(client);
         return;
 
         /* These states should never occur for the client */
@@ -2416,6 +2520,9 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* Set to closing (could be done already in UA_SecureChannel_shutdown).
          * This impacts the handling of cancelled requests below. */
         UA_SecureChannelState oldState = client->channel.state;
+        client->reconnectStatus = (oldState == UA_SECURECHANNELSTATE_CONNECTING) ?
+            UA_STATUSCODE_BADCONNECTIONREJECTED : UA_STATUSCODE_BADCONNECTIONCLOSED;
+
         client->channel.state = UA_SECURECHANNELSTATE_CLOSING;
 
         /* Set the Session to CREATED if it was ACTIVATED */
@@ -2434,8 +2541,16 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * connecting asynchronously, this happens when the transport connection
          * fails. Try to fall back on the initial EndpointUrl. */
         if(oldState == UA_SECURECHANNELSTATE_CONNECTING &&
-           client->connectStatus == UA_STATUSCODE_GOOD)
-            setConnectStatus(client, fallbackEndpointUrl(client));
+           client->connectStatus == UA_STATUSCODE_GOOD) {
+            UA_StatusCode res = fallbackEndpointUrl(client);
+
+            /* A lost connection is re-dialed with backoff, also if the
+             * transport connection is refused. reconnect() aborts later. */
+            if(res == UA_STATUSCODE_BADCONNECTIONREJECTED &&
+               client->reconnectWasConnected)
+                res = UA_STATUSCODE_GOOD;
+            setConnectStatus(client, res);
+        }
 
         /* Try to reconnect. Duplicate the code instead of continue_connect to
          * pacify compiler warnings. */
@@ -2520,7 +2635,9 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* continue_connect: */
     /* Trigger the next action from our end to fully open up the connection */
-    if(!isFullyConnected(client))
+    if(isFullyConnected(client))
+        reconnectSucceeded(client);
+    else
         connectActivity(client);
     notifyClientState(client);
     unlockClient(client);
@@ -2753,8 +2870,15 @@ initConnect(UA_Client *client) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Could not open a transport connection to %S",
                        endpointUrl);
-        if(client->connectStatus == UA_STATUSCODE_GOOD)
+        /* A lost connection is re-dialed with backoff, also if the transport
+         * connection fails right away. reconnect() aborts later. */
+        if(client->connectStatus == UA_STATUSCODE_GOOD && haveConnectionManager &&
+           client->reconnectWasConnected && !client->config.noReconnect) {
+            client->reconnectStatus = UA_STATUSCODE_BADCONNECTIONREJECTED;
+            reconnect(client);
+        } else if(client->connectStatus == UA_STATUSCODE_GOOD) {
             setConnectStatus(client, res);
+        }
     }
     UA_String_clear(&requestPath);
 }
@@ -2806,6 +2930,7 @@ connectInternal(UA_Client *client, UA_Boolean async) {
     /* Reset the connectStatus. This should be the only place where we can
      * recover from a bad connectStatus. */
     client->connectStatus = UA_STATUSCODE_GOOD;
+    resetReconnect(client);
 
     if(async)
         initConnect(client);
@@ -3246,12 +3371,11 @@ cleanupSession(UA_Client *client) {
     __Client_Subscriptions_clear(client);
 #endif
 
-    /* Delete outstanding async services */
+    /* Delete outstanding async services. The callback of each cancelled
+     * PublishRequest decrements currentlyOutStandingPublishRequests. Don't
+     * reset the counter here: the PublishResponse that triggered the cleanup
+     * is processed afterwards and decrements it as well. */
     __Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSESSIONCLOSED);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    client->currentlyOutStandingPublishRequests = 0;
-#endif
 
     client->sessionState = UA_SESSIONSTATE_CLOSED;
 
@@ -3277,6 +3401,7 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
      * synchronously. Notify the client at the end. */
     if(client->connectStatus == UA_STATUSCODE_GOOD)
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    resetReconnect(client);
 
     /* Close the SecureChannel */
     closeSecureChannel(client);

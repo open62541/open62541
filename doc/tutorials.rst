@@ -15,6 +15,7 @@ Tutorials
    tutorial_server_monitoreditems.rst
    tutorial_server_events.rst
    tutorial_server_alarms_conditions.rst
+   tutorial_server_filetransfer.rst
    tutorial_client_firststeps.rst
    tutorial_pubsub_publish.rst
    tutorial_pubsub_subscribe.rst

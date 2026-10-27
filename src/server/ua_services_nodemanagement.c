@@ -866,7 +866,9 @@ copyChildNode(UA_Server *server, UA_Session *session,
 #endif
 
     /* The value source callbacks are copied by default. But we don't want
-     * to keep it here. */
+     * to keep it here. UA_Node_copy stores the value of an external source
+     * as an internal value, which overwrites the external notifications. So
+     * the internal notifications are cleared for both. */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
         if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL ||
@@ -3155,7 +3157,6 @@ UA_Server_addCallbackValueSourceVariableNode(UA_Server *server,
 /* Special Handling of Method Nodes */
 /************************************/
 
-#ifdef UA_ENABLE_METHODCALLS
 
 static const UA_NodeId hasproperty = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASPROPERTY}};
 static const UA_NodeId propertytype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_PROPERTYTYPE}};
@@ -3439,7 +3440,6 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif
 
 /************************/
 /* Lifecycle Management */

@@ -206,7 +206,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     var_attr.displayName.text = UA_STRING(subIdStr);
     var_attr.dataType = UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE].typeId;
     UA_NodeId refId = UA_NS0ID(HASCOMPONENT);
-    UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, subIdStr);
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, subIdStr);
     UA_NodeId typeId = UA_NS0ID(SUBSCRIPTIONDIAGNOSTICSTYPE);
     UA_CallbackValueSource subDiagSource = {readSubscriptionDiagnostics, NULL};
 
@@ -510,7 +510,7 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     object_attr.displayName.text = session->sessionName;
     UA_NodeId parentId = UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY);
     UA_NodeId refId = UA_NS0ID(HASCOMPONENT);
-    UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, "");
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "");
     browseName.name = session->sessionName; /* shallow copy */
     UA_NodeId typeId = UA_NS0ID(SESSIONDIAGNOSTICSOBJECTTYPE);
     UA_StatusCode res = addNode(server, UA_NODECLASS_OBJECT, session->sessionId,

@@ -1,24 +1,35 @@
 name: CIFuzz
 on: [pull_request]
+permissions:
+  contents: read
+  actions: read
 jobs:
   Fuzzing:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-    - name: Build Fuzzers
-      id: build
-      uses: google/oss-fuzz/infra/cifuzz/actions/build_fuzzers@master
-      with:
-        oss-fuzz-project-name: 'open62541'
-        dry-run: false
-    - name: Run Fuzzers
-      uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master
-      with:
-        oss-fuzz-project-name: 'open62541'
-        fuzz-seconds: 600
-        dry-run: false
-    - name: Upload Crash
+    - uses: actions/checkout@v7
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang libssl-dev ninja-build
+    - name: Build fuzzers from the pull request
+      run: |
+        cmake -S . -B build-fuzz -G Ninja \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DUA_BUILD_FUZZING=ON \
+          -DUA_ENABLE_ENCRYPTION=OPENSSL \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_LOGLEVEL=600
+        cmake --build build-fuzz --parallel
+    - name: Run fuzzers
+      run: bash tests/fuzz/run-ci-fuzzers.sh build-fuzz 20
+    - name: Upload crashes
+      if: failure()
       uses: actions/upload-artifact@v7
-      if: failure() && steps.build.outcome == 'success'
       with:
-        name: artifacts
-        path: ./out/artifacts
+        name: fuzzing-crashes
+        path: build-fuzz/artifacts/
+        if-no-files-found: ignore

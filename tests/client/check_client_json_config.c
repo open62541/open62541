@@ -20,6 +20,7 @@
 #include "thread_wrapper.h"
 
 #include <check.h>
+#include <stdio.h>
 
 #if defined(_MSC_VER)
 # pragma warning(disable: 4146)
@@ -588,12 +589,200 @@ START_TEST(loadClientFromCertificateConfigAndConnectToServer) {
 END_TEST
 #endif
 
+static const struct {
+    const char *json;
+    UA_StatusCode status;
+} invalidClientConfigurations[] = {
+    {"", UA_STATUSCODE_BADDECODINGERROR},
+    {"{}", UA_STATUSCODE_BADDECODINGERROR},
+    {"[]", UA_STATUSCODE_BADDECODINGERROR},
+    {"{timeout:", UA_STATUSCODE_BADDECODINGERROR},
+    {"{timeout:2147483648}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{endpoint:{securityLevel:256}}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{localConnectionConfig:{recvBufferSize:-1}}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{securityMode:'Unknown'}", UA_STATUSCODE_BAD},
+    {"{securityMode:false}", UA_STATUSCODE_BAD},
+    {"{userIdentityToken:{type:'Unknown'}}", UA_STATUSCODE_BAD},
+    {"{userIdentityToken:{type:1}}", UA_STATUSCODE_BAD},
+    {"{userIdentityToken:{userName:'tester',type:'Certificate'}}", UA_STATUSCODE_BAD},
+    {"{userIdentityToken:{type:'Anonymous',userName:'tester'}}", UA_STATUSCODE_BAD},
+    {"{userIdentityToken:{type:'Anonymous',password:'c2VjcmV0'}}", UA_STATUSCODE_BAD},
+    {"{userIdentityToken:{type:'Certificate',encryptionAlgorithm:'urn:test'}}",
+     UA_STATUSCODE_BAD},
+    {"{userIdentityToken:{type:'UserName',certificateData:'client_cert.der'}}",
+     UA_STATUSCODE_BAD},
+    {"{userIdentityToken:{userName:'tester',password:'!'}}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{userTokenPolicy:{tokenType:'Unknown'}}", UA_STATUSCODE_BAD},
+    {"{userTokenPolicy:{tokenType:-1}}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{userTokenPolicy:{tokenType:'Anonymous',issuedTokenType:'urn:test'}}",
+     UA_STATUSCODE_BAD},
+    {"{userTokenPolicy:{tokenType:'UserName',issuerEndpointUrl:'opc.tcp://example.invalid'}}",
+     UA_STATUSCODE_BAD},
+    {"{endpoint:{userIdentityTokens:[{policyId:'accepted',tokenType:'Anonymous'},"
+     "{tokenType:'Unknown'}]}}", UA_STATUSCODE_BAD},
+    {"{sessionLocaleIds:['en',false]}", UA_STATUSCODE_BADDECODINGERROR},
+    {"{securityPolicies:[{policy:'urn:unknown'}]}", UA_STATUSCODE_BADNOTSUPPORTED},
+    {"{authSecurityPolicies:[{policy:'urn:unknown'}]}", UA_STATUSCODE_BADNOTSUPPORTED},
+    {"{httpCaCertificate:''}", UA_STATUSCODE_BADINTERNALERROR}
+};
+
+START_TEST(loadInvalidClientConfigClearsResources) {
+    UA_ByteString json = UA_STRING((char*)(uintptr_t)invalidClientConfigurations[_i].json);
+    UA_ClientConfig config;
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, invalidClientConfigurations[_i].status);
+
+    /* The loader releases defaults and any fields parsed before the error. */
+    ck_assert_ptr_null(config.eventLoop);
+    ck_assert_ptr_null(config.logging);
+    ck_assert_ptr_null(config.userIdentityToken.content.decoded.data);
+    ck_assert_ptr_null(config.endpoint.userIdentityTokens);
+    ck_assert_uint_eq(config.endpoint.userIdentityTokensSize, 0);
+    ck_assert_ptr_null(config.sessionLocaleIds);
+    ck_assert_uint_eq(config.sessionLocaleIdsSize, 0);
+    ck_assert_ptr_null(config.securityPolicies);
+    ck_assert_uint_eq(config.securityPoliciesSize, 0);
+    ck_assert_ptr_null(config.authSecurityPolicies);
+    ck_assert_uint_eq(config.authSecurityPoliciesSize, 0);
+} END_TEST
+
+START_TEST(loadInvalidClientReturnsNull) {
+    UA_ByteString json = UA_STRING("{securityMode:'Unknown'}");
+    ck_assert_ptr_null(UA_Client_newFromFile(json));
+} END_TEST
+
+START_TEST(loadUserIdentityTokenInferredType) {
+    static const char *const jsonCases[] = {
+        "{userIdentityToken:{}}",
+        "{userIdentityToken:{type:'Anonymous'}}",
+        "{userIdentityToken:{userName:'tester',password:'c2VjcmV0'}}",
+        "{userIdentityToken:{password:'c2VjcmV0',userName:'tester'}}",
+        ("{userIdentityToken:{encryptionAlgorithm:'urn:test',"
+         "userName:'tester',password:'c2VjcmV0'}}"),
+        "{userIdentityToken:{type:'Certificate'}}"
+    };
+    UA_ByteString json = UA_STRING((char*)(uintptr_t)jsonCases[_i]);
+    UA_ClientConfig config;
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.userIdentityToken.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert_ptr_nonnull(config.userIdentityToken.content.decoded.data);
+    const UA_DataType *expectedType = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
+    if(_i >= 2 && _i <= 4)
+        expectedType = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+    else if(_i == 5)
+        expectedType = &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN];
+    ck_assert_ptr_eq(config.userIdentityToken.content.decoded.type, expectedType);
+    if(_i >= 2 && _i <= 4) {
+        const UA_UserNameIdentityToken *token =
+            (const UA_UserNameIdentityToken*)config.userIdentityToken.content.decoded.data;
+        UA_String userName = UA_STRING("tester");
+        UA_ByteString password = UA_BYTESTRING("secret");
+        ck_assert(UA_String_equal(&token->userName, &userName));
+        ck_assert(UA_ByteString_equal(&token->password, &password));
+        UA_String algorithm = (_i == 4) ? UA_STRING("urn:test") : UA_STRING_NULL;
+        ck_assert(UA_String_equal(&token->encryptionAlgorithm, &algorithm));
+    } else if(_i == 5) {
+        const UA_X509IdentityToken *token =
+            (const UA_X509IdentityToken*)config.userIdentityToken.content.decoded.data;
+        ck_assert_uint_eq(token->certificateData.length, 0);
+    }
+    UA_ClientConfig_clear(&config);
+} END_TEST
+
+START_TEST(loadUserIdentityTokenInferredCertificate) {
+    UA_ByteString json = UA_STRING("{userIdentityToken:{certificateData:'client_cert.der'}}");
+    UA_ByteString certificate = loadFile("client_cert.der");
+    ck_assert_uint_gt(certificate.length, 0);
+    UA_ClientConfig config;
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.userIdentityToken.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert_ptr_eq(config.userIdentityToken.content.decoded.type,
+                     &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]);
+    ck_assert_ptr_nonnull(config.userIdentityToken.content.decoded.data);
+    const UA_X509IdentityToken *token =
+        (const UA_X509IdentityToken*)config.userIdentityToken.content.decoded.data;
+    ck_assert(UA_ByteString_equal(&token->certificateData, &certificate));
+    UA_ByteString_clear(&certificate);
+    UA_ClientConfig_clear(&config);
+} END_TEST
+
+START_TEST(loadUserTokenPolicyNamesAndNumbers) {
+    static const char *const types[] = {
+        "'Anonymous'", "'UserName'", "'Certificate'", "'IssuedToken'", "0", "1", "2", "3"
+    };
+    UA_UserTokenType expected = (UA_UserTokenType)(_i % 4);
+    const char *issuedFields = (expected == UA_USERTOKENTYPE_ISSUEDTOKEN) ?
+        ",issuedTokenType:'urn:token',issuerEndpointUrl:'opc.tcp://issuer.invalid'" : "";
+    char jsonText[256];
+    int length = snprintf(jsonText, sizeof(jsonText),
+                          "{userTokenPolicy:{policyId:'policy',tokenType:%s%s}}",
+                          types[_i], issuedFields);
+    ck_assert_int_gt(length, 0);
+    ck_assert_int_lt(length, (int)sizeof(jsonText));
+    UA_ByteString json = UA_STRING(jsonText);
+    UA_ClientConfig config;
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.userTokenPolicy.tokenType, expected);
+    UA_String policyId = UA_STRING("policy");
+    ck_assert(UA_String_equal(&config.userTokenPolicy.policyId, &policyId));
+    if(expected == UA_USERTOKENTYPE_ISSUEDTOKEN) {
+        UA_String tokenType = UA_STRING("urn:token");
+        UA_String issuer = UA_STRING("opc.tcp://issuer.invalid");
+        ck_assert(UA_String_equal(&config.userTokenPolicy.issuedTokenType, &tokenType));
+        ck_assert(UA_String_equal(&config.userTokenPolicy.issuerEndpointUrl, &issuer));
+    }
+    UA_ClientConfig_clear(&config);
+} END_TEST
+
+START_TEST(loadSecurityModeNamesAndNumbers) {
+    static const char *const modes[] = {
+        "'Invalid'", "'None'", "'Sign'", "'SignAndEncrypt'", "2", "3"
+    };
+    UA_MessageSecurityMode expected = (UA_MessageSecurityMode)((_i < 4) ? _i : _i - 2);
+    char jsonText[64];
+    int length = snprintf(jsonText, sizeof(jsonText), "{securityMode:%s}", modes[_i]);
+    ck_assert_int_gt(length, 0);
+    ck_assert_int_lt(length, (int)sizeof(jsonText));
+    UA_ByteString json = UA_STRING(jsonText);
+    UA_ClientConfig config;
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.securityMode, expected);
+    UA_ClientConfig_clear(&config);
+} END_TEST
+
+START_TEST(loadClientConfigSkipsUnknownNestedValue) {
+    UA_ByteString json = UA_STRING(
+        "{unsupported:{timeout:1,values:[1,{noSession:true}]},"
+        "timeout:3210,noSession:false}");
+    UA_ClientConfig config;
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, json);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.timeout, 3210);
+    ck_assert(!config.noSession);
+    UA_ClientConfig_clear(&config);
+} END_TEST
+
 static Suite *testSuite_client_from_json(void) {
     Suite *s = suite_create("Loading Client and ClientConfig from JSON");
 
     TCase *tc_clientConfig = tcase_create("ClientConfig");
     tcase_add_test(tc_clientConfig, loadClientConfig);
     suite_add_tcase(s, tc_clientConfig);
+
+    TCase *tc_validation = tcase_create("Configuration validation");
+    tcase_add_loop_test(tc_validation, loadInvalidClientConfigClearsResources, 0,
+                       sizeof(invalidClientConfigurations) / sizeof(invalidClientConfigurations[0]));
+    tcase_add_test(tc_validation, loadInvalidClientReturnsNull);
+    tcase_add_loop_test(tc_validation, loadUserIdentityTokenInferredType, 0, 6);
+    tcase_add_test(tc_validation, loadUserIdentityTokenInferredCertificate);
+    tcase_add_loop_test(tc_validation, loadUserTokenPolicyNamesAndNumbers, 0, 8);
+    tcase_add_loop_test(tc_validation, loadSecurityModeNamesAndNumbers, 0, 6);
+    tcase_add_test(tc_validation, loadClientConfigSkipsUnknownNestedValue);
+    suite_add_tcase(s, tc_validation);
 
     TCase *tc_client = tcase_create("Client");
     tcase_add_test(tc_client, loadClientAndClientConfigAndCompare);

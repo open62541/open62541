@@ -162,7 +162,6 @@ static void setup(void) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                   UA_QUALIFIEDNAME(0, "Argument"), typeattr, NULL, NULL);
 
-#ifdef UA_ENABLE_METHODCALLS
     /* MethodNode */
     UA_MethodAttributes ma = UA_MethodAttributes_default;
     ma.description = UA_LOCALIZEDTEXT("en-US", "Methodtest");
@@ -173,7 +172,6 @@ static void setup(void) {
                                      UA_QUALIFIEDNAME(0, "Methodtest"), ma,
                                      NULL, 0, NULL, 0, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#endif
 
     /* Variable node with localized DisplayName and Description */
     UA_VariableAttributes lvattr = UA_VariableAttributes_default;
@@ -189,6 +187,246 @@ static void setup(void) {
                                        lvattr, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
+
+static UA_Session *permissionSession;
+static UA_UInt32 permissionMask;
+static UA_Byte permissionAccessLevel;
+
+static UA_UInt32
+attributeUserRights(UA_Server *s, UA_AccessControl *ac, const UA_NodeId *sessionId,
+                     void *sessionContext, const UA_NodeId *nodeId, void *nodeContext) {
+    ck_assert(UA_NodeId_equal(sessionId, &permissionSession->sessionId));
+    return permissionMask;
+}
+
+static UA_Byte
+attributeUserAccess(UA_Server *s, UA_AccessControl *ac, const UA_NodeId *sessionId,
+                    void *sessionContext, const UA_NodeId *nodeId, void *nodeContext) {
+    ck_assert(UA_NodeId_equal(sessionId, &permissionSession->sessionId));
+    return permissionAccessLevel;
+}
+
+static void
+setupPermissionWrites(void) {
+    setup();
+    UA_Int32 numbers[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+    UA_UInt32 dimensions[2] = {3, 3};
+    UA_UInt32 bounds[2] = {0, 0};
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Variant_setArray(&attr.value, numbers, 9, &UA_TYPES[UA_TYPES_INT32]);
+    attr.value.arrayDimensions = dimensions;
+    attr.value.arrayDimensionsSize = 2;
+    attr.valueRank = 2;
+    attr.arrayDimensions = bounds;
+    attr.arrayDimensionsSize = 2;
+    ck_assert_uint_eq(UA_Server_addVariableNode(server,
+        UA_NODEID_STRING(1, "permission.array"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "Permission array"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    /* Session creation requires a running server. Keep the fixture offline. */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionRequest request;
+    UA_CreateSessionRequest_init(&request);
+    request.requestedSessionTimeout = 60000;
+    lockServer(server);
+    UA_StatusCode res = UA_Session_create(server, NULL, &request, &permissionSession);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    permissionMask = UA_UINT32_MAX;
+    permissionAccessLevel = 0xff;
+    config->accessControl.getUserRightsMask = attributeUserRights;
+    config->accessControl.getUserAccessLevel = attributeUserAccess;
+}
+
+static void
+teardownPermissionWrites(void) {
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+    permissionSession = NULL;
+}
+
+static UA_StatusCode
+writeAsPermissionSession(UA_WriteValue *value) {
+    UA_StatusCode result = UA_STATUSCODE_BADINTERNALERROR;
+    lockServer(server);
+    UA_Boolean done = Operation_Write(server, permissionSession, value, &result);
+    unlockServer(server);
+    ck_assert(done);
+    return result;
+}
+
+static const struct {
+    UA_UInt32 attribute, mask;
+} permissionAttributes[] = {
+    {UA_ATTRIBUTEID_DISPLAYNAME, UA_WRITEMASK_DISPLAYNAME},
+    {UA_ATTRIBUTEID_DESCRIPTION, UA_WRITEMASK_DESCRIPTION},
+    {UA_ATTRIBUTEID_WRITEMASK, UA_WRITEMASK_WRITEMASK},
+    {UA_ATTRIBUTEID_DATATYPE, UA_WRITEMASK_DATATYPE},
+    {UA_ATTRIBUTEID_VALUERANK, UA_WRITEMASK_VALUERANK},
+    {UA_ATTRIBUTEID_ARRAYDIMENSIONS, UA_WRITEMASK_ARRAYDIMENSIONS},
+    {UA_ATTRIBUTEID_ACCESSLEVEL, UA_WRITEMASK_ACCESSLEVEL},
+    {UA_ATTRIBUTEID_ACCESSLEVELEX, UA_WRITEMASK_ACCESSLEVELEX},
+    {UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, UA_WRITEMASK_MINIMUMSAMPLINGINTERVAL},
+    {UA_ATTRIBUTEID_HISTORIZING, UA_WRITEMASK_HISTORIZING},
+    {UA_ATTRIBUTEID_ISABSTRACT, UA_WRITEMASK_ISABSTRACT},
+    {UA_ATTRIBUTEID_SYMMETRIC, UA_WRITEMASK_SYMMETRIC},
+    {UA_ATTRIBUTEID_INVERSENAME, UA_WRITEMASK_INVERSENAME},
+    {UA_ATTRIBUTEID_CONTAINSNOLOOPS, UA_WRITEMASK_CONTAINSNOLOOPS},
+    {UA_ATTRIBUTEID_EVENTNOTIFIER, UA_WRITEMASK_EVENTNOTIFIER},
+    {UA_ATTRIBUTEID_EXECUTABLE, UA_WRITEMASK_EXECUTABLE},
+};
+
+START_TEST(attributeWritePermissionPreservesRejectedValue) {
+    size_t index = (size_t)_i / 4;
+    unsigned phase = (unsigned)_i % 4;
+    UA_WriteValue value;
+    UA_WriteValue_init(&value);
+    value.nodeId = UA_NODEID_STRING(1, "the.answer");
+    value.attributeId = permissionAttributes[index].attribute;
+    value.value.hasValue = true;
+    UA_LocalizedText text = UA_LOCALIZEDTEXT("locale", "changed text");
+    UA_UInt32 mask = UA_WRITEMASK_DESCRIPTION;
+    UA_NodeId dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Int32 rank = UA_VALUERANK_SCALAR;
+    UA_UInt32 dimensions[2] = {3, 3};
+    UA_Byte access = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_UInt32 accessEx = access | UA_ACCESSLEVELMASK_STATUSWRITE;
+    UA_Double interval = 250;
+    UA_Boolean enabled = true;
+    switch(value.attributeId) {
+    case UA_ATTRIBUTEID_DISPLAYNAME:
+    case UA_ATTRIBUTEID_DESCRIPTION:
+        UA_Variant_setScalar(&value.value.value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        break;
+    case UA_ATTRIBUTEID_WRITEMASK:
+        UA_Variant_setScalar(&value.value.value, &mask, &UA_TYPES[UA_TYPES_UINT32]);
+        break;
+    case UA_ATTRIBUTEID_DATATYPE:
+        UA_Variant_setScalar(&value.value.value, &dataType, &UA_TYPES[UA_TYPES_NODEID]);
+        break;
+    case UA_ATTRIBUTEID_VALUERANK:
+        UA_Variant_setScalar(&value.value.value, &rank, &UA_TYPES[UA_TYPES_INT32]);
+        break;
+    case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+        value.nodeId = UA_NODEID_STRING(1, "permission.array");
+        UA_Variant_setArray(&value.value.value, dimensions, 2, &UA_TYPES[UA_TYPES_UINT32]);
+        break;
+    case UA_ATTRIBUTEID_ACCESSLEVEL:
+        UA_Variant_setScalar(&value.value.value, &access, &UA_TYPES[UA_TYPES_BYTE]);
+        break;
+    case UA_ATTRIBUTEID_ACCESSLEVELEX:
+        UA_Variant_setScalar(&value.value.value, &accessEx, &UA_TYPES[UA_TYPES_UINT32]);
+        break;
+    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+        UA_Variant_setScalar(&value.value.value, &interval, &UA_TYPES[UA_TYPES_DOUBLE]);
+        break;
+    case UA_ATTRIBUTEID_HISTORIZING:
+        UA_Variant_setScalar(&value.value.value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break;
+    case UA_ATTRIBUTEID_ISABSTRACT:
+        value.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+        UA_Variant_setScalar(&value.value.value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break;
+    case UA_ATTRIBUTEID_SYMMETRIC:
+        value.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        UA_Variant_setScalar(&value.value.value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break;
+    case UA_ATTRIBUTEID_INVERSENAME:
+        value.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        UA_Variant_setScalar(&value.value.value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        break;
+    case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+        value.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE);
+        UA_Variant_setScalar(&value.value.value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break;
+    case UA_ATTRIBUTEID_EVENTNOTIFIER:
+        value.nodeId = UA_NODEID_NUMERIC(1, 50);
+        access = UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT;
+        UA_Variant_setScalar(&value.value.value, &access, &UA_TYPES[UA_TYPES_BYTE]);
+        break;
+    case UA_ATTRIBUTEID_EXECUTABLE:
+        value.nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
+        UA_Variant_setScalar(&value.value.value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break;
+    default:
+        ck_abort_msg("Unexpected attribute");
+    }
+    /* Both the node and the user must allow the write. Once allowed, an
+     * invalid value type must still leave the original attribute intact. */
+    UA_UInt32 required = permissionAttributes[index].mask;
+    ck_assert_uint_eq(UA_Server_writeWriteMask(server, value.nodeId,
+        phase == 0 ? (UA_UINT32_MAX & ~required) : UA_UINT32_MAX), UA_STATUSCODE_GOOD);
+    permissionMask = phase == 1 ? (UA_UINT32_MAX & ~required) : UA_UINT32_MAX;
+    UA_ReadValueId read = {0};
+    read.nodeId = value.nodeId;
+    read.attributeId = value.attributeId;
+    UA_DataValue before = UA_Server_read(server, &read, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(before.status, UA_STATUSCODE_GOOD);
+    UA_String invalid = UA_STRING("invalid attribute type");
+    if(phase == 3)
+        UA_Variant_setScalar(&value.value.value, &invalid, &UA_TYPES[UA_TYPES_STRING]);
+    UA_StatusCode expected = phase == 0 ? UA_STATUSCODE_BADNOTWRITABLE :
+        (phase == 1 ? UA_STATUSCODE_BADUSERACCESSDENIED :
+         (phase == 2 ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADTYPEMISMATCH));
+    ck_assert_uint_eq(writeAsPermissionSession(&value), expected);
+    UA_DataValue after = UA_Server_read(server, &read, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(after.status, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_equal(&after.value, phase == 2 ? &value.value.value : &before.value));
+    UA_DataValue_clear(&before);
+    UA_DataValue_clear(&after);
+} END_TEST
+
+START_TEST(valueStatusAndTimestampNeedSeparatePermission) {
+    UA_Boolean timestamp = _i >= 4;
+    unsigned phase = (unsigned)_i % 4;
+    UA_Byte permission = timestamp ? UA_ACCESSLEVELMASK_TIMESTAMPWRITE : UA_ACCESSLEVELMASK_STATUSWRITE;
+    UA_Byte basicAccess = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_WriteValue value;
+    UA_WriteValue_init(&value);
+    value.nodeId = UA_NODEID_STRING(1, "the.answer");
+    value.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Int32 number = 99;
+    value.value.hasValue = true;
+    UA_Variant_setScalar(&value.value.value, &number, &UA_TYPES[UA_TYPES_INT32]);
+    if(timestamp) {
+        value.value.hasSourceTimestamp = true;
+        value.value.sourceTimestamp = phase == 3 ? 0 : UA_DATETIME_UNIX_EPOCH + UA_DATETIME_SEC;
+    } else {
+        value.value.hasStatus = true;
+        value.value.status = phase == 3 ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFRANGE;
+    }
+    ck_assert_uint_eq(UA_Server_writeAccessLevel(server, value.nodeId,
+        (UA_Byte)(basicAccess | ((phase == 1 || phase == 2) ? permission : 0))), UA_STATUSCODE_GOOD);
+    permissionAccessLevel = (UA_Byte)(basicAccess | (phase == 2 ? permission : 0));
+    UA_ReadValueId read = {0};
+    read.nodeId = value.nodeId;
+    read.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue before = UA_Server_read(server, &read, UA_TIMESTAMPSTORETURN_SOURCE);
+    UA_StatusCode expected = phase == 0 ? UA_STATUSCODE_BADWRITENOTSUPPORTED :
+        (phase == 1 ? UA_STATUSCODE_BADUSERACCESSDENIED : UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(writeAsPermissionSession(&value), expected);
+    UA_DataValue after = UA_Server_read(server, &read, UA_TIMESTAMPSTORETURN_SOURCE);
+    ck_assert(after.hasValue);
+    if(phase < 2) {
+        ck_assert(UA_Variant_equal(&after.value, &before.value));
+        ck_assert_uint_eq(after.status, before.status);
+        ck_assert(after.sourceTimestamp == before.sourceTimestamp);
+    } else {
+        ck_assert(UA_Variant_equal(&after.value, &value.value.value));
+        ck_assert_uint_eq(after.status, value.value.status);
+        if(timestamp && phase == 2)
+            ck_assert(after.sourceTimestamp == value.value.sourceTimestamp);
+    }
+    UA_DataValue_clear(&before);
+    UA_DataValue_clear(&after);
+} END_TEST
 
 static UA_VariableNode* makeCompareSequence(void) {
     UA_VariableNode *node = (UA_VariableNode*)
@@ -604,7 +842,6 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
 } END_TEST
 
 START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
-#ifdef UA_ENABLE_METHODCALLS
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
@@ -617,11 +854,9 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
     ck_assert(*(UA_Boolean*)resp.value.data==true);
     UA_DataValue_clear(&resp);
-#endif
 } END_TEST
 
 START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
-#ifdef UA_ENABLE_METHODCALLS
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
@@ -634,7 +869,6 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
     /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type); */
     /* ck_assert(*(UA_Boolean*)resp.value.data==false); */
     UA_DataValue_clear(&resp);
-#endif
 } END_TEST
 
 START_TEST(ReadSingleDataSourceAttributeValueWithoutTimestamp) {
@@ -767,6 +1001,35 @@ START_TEST(ReadStructureDataTypeDefinitionOwnsTransferredContent) {
     ck_assert_uint_eq(def->fieldsSize, 5);
     ck_assert_ptr_ne(def->fields, NULL);
     UA_DataValue_clear(&copy);
+} END_TEST
+
+START_TEST(ReadStructureDataTypeDefinitionBaseDataType) {
+    /* The BaseDataType is the direct supertype (Part 3 v1.05, 8.48) */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT);
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+
+    UA_DataValue resp =
+        UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(resp.value.type, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+    UA_StructureDefinition *def = (UA_StructureDefinition*)resp.value.data;
+    UA_NodeId structure = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    ck_assert(UA_NodeId_equal(&def->baseDataType, &structure));
+    UA_DataValue_clear(&resp);
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    /* UserNameIdentityToken is a subtype of UserIdentityToken */
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_USERNAMEIDENTITYTOKEN);
+    resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(resp.value.type, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+    def = (UA_StructureDefinition*)resp.value.data;
+    UA_NodeId userIdentityToken = UA_NODEID_NUMERIC(0, UA_NS0ID_USERIDENTITYTOKEN);
+    ck_assert(UA_NodeId_equal(&def->baseDataType, &userIdentityToken));
+    UA_DataValue_clear(&resp);
+#endif
 } END_TEST
 
 START_TEST(ReadEnumDataTypeDefinitionOwnsTransferredContent) {
@@ -955,7 +1218,7 @@ START_TEST(WriteSingleAttributeIsAbstract) {
     wValue.attributeId = UA_ATTRIBUTEID_ISABSTRACT;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeSymmetric) {
@@ -967,7 +1230,7 @@ START_TEST(WriteSingleAttributeSymmetric) {
     wValue.attributeId = UA_ATTRIBUTEID_SYMMETRIC;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeInverseName) {
@@ -979,7 +1242,7 @@ START_TEST(WriteSingleAttributeInverseName) {
     wValue.attributeId = UA_ATTRIBUTEID_INVERSENAME;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeContainsNoLoops) {
@@ -991,7 +1254,7 @@ START_TEST(WriteSingleAttributeContainsNoLoops) {
     wValue.attributeId = UA_ATTRIBUTEID_CONTAINSNOLOOPS;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeEventNotifier) {
@@ -1003,7 +1266,7 @@ START_TEST(WriteSingleAttributeEventNotifier) {
     wValue.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeValue) {
@@ -1265,7 +1528,7 @@ START_TEST(WriteSingleAttributeExecutable) {
     wValue.attributeId = UA_ATTRIBUTEID_EXECUTABLE;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleDataSourceAttributeValue) {
@@ -1385,6 +1648,39 @@ START_TEST(CheckDescriptionLocalization) {
     ck_assert(UA_String_equal(&lt.locale, &germanDescription.locale));
     ck_assert(UA_String_equal(&lt.text, &germanDescription.text));
     UA_LocalizedText_clear(&lt);
+} END_TEST
+
+/* A null and an empty locale are the same (Part 3, 8.4). A DisplayName written
+ * with a null locale is removed by an empty text with the "" locale. */
+START_TEST(CheckNullAndEmptyLocale) {
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_LocalizedText noLocale;
+    UA_LocalizedText_init(&noLocale);
+    noLocale.text = UA_STRING("NoLocaleName");
+    UA_Variant_setScalar(&wValue.value.value, &noLocale,
+                         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    wValue.nodeId = UA_NODEID_STRING(1, "localized.attrs");
+    wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    wValue.value.hasValue = true;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText emptyLocale = UA_LOCALIZEDTEXT("", "");
+    UA_Variant_setScalar(&wValue.value.value, &emptyLocale,
+                         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Only the original en-US DisplayName is left */
+    const UA_Node *node = UA_NODESTORE_GET(server, &wValue.nodeId);
+    ck_assert_ptr_nonnull(node);
+    const UA_LocalizedTextListEntry *entry = node->head.displayName;
+    ck_assert_ptr_nonnull(entry);
+    UA_String enUS = UA_STRING("en-US");
+    ck_assert(UA_String_equal(&entry->localizedText.locale, &enUS));
+    ck_assert_ptr_null(entry->next);
+    UA_NODESTORE_RELEASE(server, node);
 } END_TEST
 
 /* --- Extended coverage tests --- */
@@ -1668,7 +1964,6 @@ START_TEST(WriteAccessLevelEx_Success) {
     ck_assert_uint_eq(readAlEx, alEx);
 } END_TEST
 
-#ifdef UA_ENABLE_METHODCALLS
 START_TEST(WriteExecutable_Success) {
     UA_NodeId nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
     UA_StatusCode retval = UA_Server_writeExecutable(server, nodeId, false);
@@ -1683,7 +1978,6 @@ START_TEST(WriteExecutable_Success) {
     retval = UA_Server_writeExecutable(server, nodeId, true);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
-#endif
 
 START_TEST(WriteIsAbstract_Success) {
     /* Write IsAbstract on the BaseObjectType (which is abstract) */
@@ -1976,6 +2270,8 @@ static Suite * testSuite_services_attributes(void) {
                    ReadStructureDataTypeDefinitionOwnsTransferredContent);
     tcase_add_test(tc_readSingleAttributes,
                    ReadEnumDataTypeDefinitionOwnsTransferredContent);
+    tcase_add_test(tc_readSingleAttributes,
+                   ReadStructureDataTypeDefinitionBaseDataType);
 #endif
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithExternalSource);
     tcase_add_loop_test(tc_readSingleAttributes, ReadSingleAttributeOutOfRange, 0, 3);
@@ -2015,10 +2311,18 @@ static Suite * testSuite_services_attributes(void) {
 
     suite_add_tcase(s, tc_writeSingleAttributes);
 
+    TCase *tc_permissions = tcase_create("Attribute write permissions");
+    tcase_add_checked_fixture(tc_permissions, setupPermissionWrites, teardownPermissionWrites);
+    tcase_add_loop_test(tc_permissions, attributeWritePermissionPreservesRejectedValue,
+                       0, 4 * (int)(sizeof(permissionAttributes) / sizeof(permissionAttributes[0])));
+    tcase_add_loop_test(tc_permissions, valueStatusAndTimestampNeedSeparatePermission, 0, 8);
+    suite_add_tcase(s, tc_permissions);
+
     TCase *tc_localization = tcase_create("localization");
     tcase_add_checked_fixture(tc_localization, setup, teardown);
     tcase_add_test(tc_localization, CheckDisplayNameLocalization);
     tcase_add_test(tc_localization, CheckDescriptionLocalization);
+    tcase_add_test(tc_localization, CheckNullAndEmptyLocale);
     suite_add_tcase(s, tc_localization);
 
     TCase *tc_ext = tcase_create("extendedCoverage");
@@ -2038,9 +2342,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_ext, WriteHistorizing_Success);
     tcase_add_test(tc_ext, WriteAccessLevel_Success);
     tcase_add_test(tc_ext, WriteAccessLevelEx_Success);
-#ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_ext, WriteExecutable_Success);
-#endif
     tcase_add_test(tc_ext, WriteIsAbstract_Success);
     tcase_add_test(tc_ext, WriteInverseName_Success);
     tcase_add_test(tc_ext, ReadSingleAttributeValue_InvalidNode);

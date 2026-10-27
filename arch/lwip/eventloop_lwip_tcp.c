@@ -137,8 +137,10 @@ getSockError(TCP_FD *conn) {
 
 /* Gets called when a connection socket opens, receives data or closes */
 static void
-TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
+TCP_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
                              short event) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+    TCP_FD *conn = (TCP_FD*)rfd;
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)cm->eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
@@ -231,7 +233,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
 static void
-TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
+TCP_listenSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+    TCP_FD *conn = (TCP_FD*)rfd;
     UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)cm->eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
@@ -304,7 +308,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     newConn->rfd.fd = newsockfd;
     newConn->rfd.listenEvents = UA_FDEVENT_IN;
     newConn->rfd.es = &cm->eventSource;
-    newConn->rfd.eventSourceCB = (UA_FDCallback)TCP_connectionSocketCallback;
+    newConn->rfd.eventSourceCB = TCP_connectionSocketCallback;
     newConn->applicationCB = conn->applicationCB;
     newConn->application = conn->application;
     newConn->context = conn->context;
@@ -492,7 +496,7 @@ TCP_registerListenSocket(UA_LWIPConnectionManager *pcm, struct addrinfo *ai,
     newConn->rfd.fd = listenSocket;
     newConn->rfd.listenEvents = UA_FDEVENT_IN;
     newConn->rfd.es = &pcm->cm.eventSource;
-    newConn->rfd.eventSourceCB = (UA_FDCallback)TCP_listenSocketCallback;
+    newConn->rfd.eventSourceCB = TCP_listenSocketCallback;
     newConn->applicationCB = connectionCallback;
     newConn->application = application;
     newConn->context = context;
@@ -933,7 +937,7 @@ TCP_openActiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *pa
 
     newConn->rfd.fd = newSock;
     newConn->rfd.es = &pcm->cm.eventSource;
-    newConn->rfd.eventSourceCB = (UA_FDCallback)TCP_connectionSocketCallback;
+    newConn->rfd.eventSourceCB = TCP_connectionSocketCallback;
     newConn->rfd.listenEvents = UA_FDEVENT_OUT; /* Switched to _IN once the
                                                  * connection is open */
     newConn->applicationCB = connectionCallback;
@@ -1026,7 +1030,8 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 }
 
 static UA_StatusCode
-TCP_eventSourceStart(UA_ConnectionManager *cm) {
+TCP_eventSourceStart(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)cm->eventSource.eventLoop;
     if(!el)
@@ -1072,7 +1077,8 @@ TCP_shutdownCB(void *application, UA_RegisteredFD *rfd) {
 }
 
 static void
-TCP_eventSourceStop(UA_ConnectionManager *cm) {
+TCP_eventSourceStop(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)cm->eventSource.eventLoop;
     (void)el;
@@ -1095,7 +1101,8 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
 }
 
 static UA_StatusCode
-TCP_eventSourceDelete(UA_ConnectionManager *cm) {
+TCP_eventSourceDelete(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -1127,9 +1134,9 @@ UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName) {
 
     cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
-    cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceStart;
-    cm->cm.eventSource.stop = (void (*)(UA_EventSource *))TCP_eventSourceStop;
-    cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceDelete;
+    cm->cm.eventSource.start = TCP_eventSourceStart;
+    cm->cm.eventSource.stop = TCP_eventSourceStop;
+    cm->cm.eventSource.free = TCP_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)tcpName);
     cm->cm.openConnection = TCP_openConnection;
     cm->cm.allocNetworkBuffer = UA_EventLoopLWIP_allocNetworkBuffer;

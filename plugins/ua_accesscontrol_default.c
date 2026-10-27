@@ -374,9 +374,12 @@ static UA_Boolean
 allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
+    /* A detached Subscription (no old Session). The server only calls this
+     * after it has verified that the new Session has the identity of the
+     * Session the Subscription was detached from. */
     if(!oldSessionId)
-        return false;
-    
+        return true;
+
     /* Get clientUserId for both sessions */
     UA_Variant session1UserId;
     UA_Variant_init(&session1UserId);

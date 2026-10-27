@@ -134,6 +134,146 @@ START_TEST(string_escapeAppend_to_empty_sentinel) {
     UA_String_clear(&s);
 } END_TEST
 
+static const struct {
+    UA_Escaping escaping;
+    const char *plain;
+    const char *escaped;
+} escapeCases[] = {
+    {UA_ESCAPING_NONE, "a/b %", "a/b %"},
+    {UA_ESCAPING_AND, "a/b.c<d>:#!&", "a&/b&.c&<d&>&:&#&!&&"},
+    {UA_ESCAPING_AND_EXTENDED, "a b,(c)[d]\n\x7f", "a& b&,&(c&)&[d&]&\n&\x7f"},
+    {UA_ESCAPING_PERCENT, "a;b %\x7f", "a%3bb%20%25%7f"},
+    {UA_ESCAPING_PERCENT_EXTENDED, "a/b:c#d[x]&'\"\\<>",
+     "a%2fb%3ac%23d%5bx%5d%26%27%22%5c%3c%3e"}
+};
+
+START_TEST(string_unescape_copy_and_inplace) {
+    size_t index = (size_t)_i / 2;
+    UA_Boolean copy = (_i % 2) != 0;
+    UA_String encoded = UA_STRING((char*)(uintptr_t)escapeCases[index].escaped);
+    UA_String expected = UA_STRING((char*)(uintptr_t)escapeCases[index].plain);
+    UA_Byte buffer[128];
+    memcpy(buffer, encoded.data, encoded.length);
+    UA_String decoded = {encoded.length, buffer};
+
+    UA_StatusCode res = UA_String_unescape(&decoded, copy, escapeCases[index].escaping);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&decoded, &expected));
+    if(copy && escapeCases[index].escaping != UA_ESCAPING_NONE) {
+        ck_assert_ptr_ne(decoded.data, buffer);
+        ck_assert_mem_eq(buffer, encoded.data, encoded.length);
+        UA_String_clear(&decoded);
+    } else {
+        ck_assert_ptr_eq(decoded.data, buffer);
+    }
+} END_TEST
+
+START_TEST(string_unescape_hex_case_and_zero) {
+    UA_Byte buffer[] = "%ab%AB%f0%F0%0a%0A%00x";
+    const UA_Byte expected[] = {0xab, 0xab, 0xf0, 0xf0, 0x0a, 0x0a, 0, 'x'};
+    UA_String decoded = {sizeof(buffer) - 1, buffer};
+    UA_StatusCode res = UA_String_unescape(&decoded, (UA_Boolean)_i, UA_ESCAPING_PERCENT);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.length, sizeof(expected));
+    ck_assert_mem_eq(decoded.data, expected, sizeof(expected));
+    if(_i) {
+        ck_assert_ptr_ne(decoded.data, buffer);
+        ck_assert_mem_eq(buffer, "%ab%AB%f0%F0%0a%0A%00x", sizeof(buffer) - 1);
+        UA_String_clear(&decoded);
+    } else {
+        ck_assert_ptr_eq(decoded.data, buffer);
+    }
+} END_TEST
+
+START_TEST(string_unescape_invalid) {
+    static const struct {
+        UA_Escaping escaping;
+        const char *input;
+    } invalid[] = {
+        {UA_ESCAPING_PERCENT, "%"},
+        {UA_ESCAPING_PERCENT, "%1"},
+        {UA_ESCAPING_PERCENT, "%GG"},
+        {UA_ESCAPING_PERCENT_EXTENDED, "prefix%2x"},
+        {UA_ESCAPING_PERCENT_EXTENDED, "prefix%+1"},
+        {UA_ESCAPING_AND, "prefix&"},
+        {UA_ESCAPING_AND_EXTENDED, "&"}
+    };
+    size_t index = (size_t)_i / 2;
+    UA_Boolean copy = (_i % 2) != 0;
+    UA_String input = UA_STRING((char*)(uintptr_t)invalid[index].input);
+    UA_Byte buffer[32];
+    memcpy(buffer, input.data, input.length);
+    UA_String decoded = {input.length, buffer};
+    UA_StatusCode res = UA_String_unescape(&decoded, copy, invalid[index].escaping);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_eq(decoded.data, buffer);
+    ck_assert_uint_eq(decoded.length, input.length);
+    if(copy)
+        ck_assert_mem_eq(buffer, input.data, input.length);
+} END_TEST
+
+START_TEST(relativePath_print_shortBuffer) {
+    UA_RelativePathElement element;
+    UA_RelativePathElement_init(&element);
+    element.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    element.includeSubtypes = true;
+    element.targetName = UA_QUALIFIEDNAME(2, "a/b");
+    UA_RelativePath path = {1, &element};
+
+    UA_Byte buffer[4] = {0x5a, 0x5a, 0x5a, 0x5a};
+    UA_String output = {sizeof(buffer), buffer};
+    UA_StatusCode res = UA_RelativePath_print(&path, &output);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+    ck_assert_ptr_eq(output.data, buffer);
+    ck_assert_uint_eq(output.length, sizeof(buffer));
+    ck_assert_mem_eq(buffer, "ZZZZ", sizeof(buffer));
+} END_TEST
+
+START_TEST(relativePath_print_longReferenceId) {
+    char identifier[601];
+    memset(identifier, 'x', sizeof(identifier) - 1);
+    identifier[sizeof(identifier) - 1] = 0;
+    UA_RelativePathElement element;
+    UA_RelativePathElement_init(&element);
+    element.referenceTypeId = UA_NODEID_STRING(2, identifier);
+    element.includeSubtypes = true;
+    element.targetName = UA_QUALIFIEDNAME(3, "target");
+    UA_RelativePath path = {1, &element};
+
+    UA_String output = UA_STRING_NULL;
+    UA_StatusCode res = UA_RelativePath_print(&path, &output);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(output.length, 8 + 600 + 9);
+    ck_assert_mem_eq(output.data, "<ns=2;s=", 8);
+    ck_assert_mem_eq(output.data + 8, identifier, 600);
+    ck_assert_mem_eq(output.data + 608, ">3:target", 9);
+    UA_String_clear(&output);
+} END_TEST
+
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
+START_TEST(attributeOperand_print_escapedPathAndRange) {
+    UA_RelativePathElement element;
+    UA_RelativePathElement_init(&element);
+    element.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    element.includeSubtypes = true;
+    element.targetName = UA_QUALIFIEDNAME(1, "motor/speed");
+    UA_AttributeOperand operand;
+    UA_AttributeOperand_init(&operand);
+    operand.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    operand.browsePath.elements = &element;
+    operand.browsePath.elementsSize = 1;
+    operand.attributeId = UA_ATTRIBUTEID_VALUE;
+    operand.indexRange = UA_STRING("1:3");
+
+    UA_String output = UA_STRING_NULL;
+    UA_StatusCode res = UA_AttributeOperand_print(&operand, &output);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_String expected = UA_STRING("/1:motor%2fspeed[1:3]");
+    ck_assert(UA_String_equal(&output, &expected));
+    UA_String_clear(&output);
+} END_TEST
+#endif
+
 /* === UA_print (type description printing) === */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
 START_TEST(print_int32) {
@@ -429,6 +569,41 @@ START_TEST(string_format_test) {
     UA_String_clear(&s);
 } END_TEST
 
+START_TEST(string_escape_size_insert_append) {
+    UA_String plain = UA_STRING((char*)(uintptr_t)escapeCases[_i].plain);
+    UA_String expected = UA_STRING((char*)(uintptr_t)escapeCases[_i].escaped);
+    UA_Escaping escaping = escapeCases[_i].escaping;
+    ck_assert_uint_eq(UA_String_escapedSize(plain, escaping), expected.length);
+
+    UA_Byte buffer[128];
+    memset(buffer, 0x5a, sizeof(buffer));
+    size_t written = UA_String_escapeInsert(buffer, plain, escaping);
+    ck_assert_uint_eq(written, expected.length);
+    ck_assert_mem_eq(buffer, expected.data, written);
+    ck_assert_uint_eq(buffer[written], 0x5a);
+
+    UA_String appended = UA_STRING_ALLOC("prefix:");
+    ck_assert_ptr_nonnull(appended.data);
+    UA_StatusCode res = UA_String_escapeAppend(&appended, plain, escaping);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(appended.length, 7 + expected.length);
+    ck_assert_mem_eq(appended.data, "prefix:", 7);
+    ck_assert_mem_eq(appended.data + 7, expected.data, expected.length);
+    UA_String_clear(&appended);
+} END_TEST
+
+START_TEST(nodeId_print_exactBufferWithoutEscaping) {
+    UA_NodeId id = UA_NODEID_STRING(0, "a/b %");
+    UA_String expected = UA_STRING("s=a/b %");
+    UA_Byte buffer[8];
+    memset(buffer, 0x5a, sizeof(buffer));
+    UA_String output = {expected.length, buffer};
+    ck_assert_uint_eq(UA_NodeId_print(&id, &output), UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&output, &expected));
+    ck_assert_ptr_eq(output.data, buffer);
+    ck_assert_uint_eq(buffer[expected.length], 0x5a);
+} END_TEST
+
 /* === Suite === */
 static Suite *testSuite_typesExtra3(void) {
     TCase *tc_find = tcase_create("FindDataType");
@@ -451,9 +626,19 @@ static Suite *testSuite_typesExtra3(void) {
     tcase_add_test(tc_string, string_append_to_empty);
     tcase_add_test(tc_string, string_append_to_empty_sentinel);
     tcase_add_test(tc_string, string_escapeAppend_to_empty_sentinel);
+    tcase_add_loop_test(tc_string, string_unescape_copy_and_inplace, 0, 10);
+    tcase_add_loop_test(tc_string, string_unescape_hex_case_and_zero, 0, 2);
+    tcase_add_loop_test(tc_string, string_unescape_invalid, 0, 14);
+    tcase_add_loop_test(tc_string, string_escape_size_insert_append, 0, 5);
     tcase_add_test(tc_string, string_format_test);
 
     TCase *tc_print = tcase_create("TypePrint");
+    tcase_add_test(tc_print, relativePath_print_shortBuffer);
+    tcase_add_test(tc_print, relativePath_print_longReferenceId);
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
+    tcase_add_test(tc_print, attributeOperand_print_escapedPathAndRange);
+#endif
+    tcase_add_test(tc_print, nodeId_print_exactBufferWithoutEscaping);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     tcase_add_test(tc_print, print_int32);
     tcase_add_test(tc_print, print_string);

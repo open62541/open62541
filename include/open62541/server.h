@@ -23,9 +23,7 @@
 #include <open62541/common.h>
 #include <open62541/util.h>
 #include <open62541/types.h>
-#ifdef UA_ENABLE_DISCOVERY
 #include <open62541/client.h>
-#endif
 
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/certificategroup.h>
@@ -128,7 +126,11 @@ UA_EXPORT UA_StatusCode
 UA_Server_runUntilInterrupt(UA_Server *server);
 
 /* The prologue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt) */
+ * UA_Server_run or UA_Server_runUntilInterrupt). Fails if a transport (TCP,
+ * WebSocket, HTTP) cannot open its server socket and the server cannot be
+ * reached otherwise (no other transport listens, no reverse connect is
+ * registered). Then the startup is undone as in UA_Server_run_shutdown. The
+ * lifecycle notifications report STOPPING and STOPPED without STARTED. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_startup(UA_Server *server);
 
@@ -137,16 +139,44 @@ UA_Server_run_startup(UA_Server *server);
  * @param server The server object.
  * @param waitInternal Should we wait for messages in the networklayer?
  *        Otherwise, the timeouts for the networklayers are set to zero.
- *        The default max wait time is 200ms.
+ *        The default max wait time is 500ms.
  * @return Returns how long we can wait until the next scheduled
  *         callback (in ms) */
 UA_EXPORT UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /* The epilogue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt) */
+ * UA_Server_run or UA_Server_runUntilInterrupt).
+ *
+ * Runs the EventLoop until the server is fully stopped. An external EventLoop
+ * is left running for its other users; an owned EventLoop is stopped as well.
+ * Calling this on an already stopped server succeeds without further action.
+ * Use UA_Server_run_shutdown_async if shutdown requires application work
+ * between EventLoop iterations or is initiated from an EventLoop callback.
+ *
+ * @param server The server object.
+ * @return GOOD once the server is STOPPED, or an EventLoop error if shutdown
+ *         could not be completed. Returns BADINVALIDARGUMENT for NULL. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
+
+/* Initiates asynchronous shutdown and advances it on subsequent calls, without
+ * running the EventLoop. While the server is STOPPING, the caller must drive
+ * the EventLoop (directly or via UA_Server_run_iterate) and call this function
+ * again to complete shutdown.
+ *
+ * Use UA_Server_getLifecycleState to read the current state, or the configured
+ * lifecycle notification callbacks to observe state transitions.
+ *
+ * An external EventLoop is left running; an owned EventLoop is stopped once
+ * all drivers have stopped.
+ * Repeated calls do not repeat stop requests or lifecycle notifications.
+ *
+ * @param server The server object. NULL is treated as already stopped.
+ * @return The lifecycle state after this shutdown step: STOPPING while shutdown
+ *         is in progress, or STOPPED if the server is fully stopped. */
+UA_EXPORT UA_LifecycleState
+UA_Server_run_shutdown_async(UA_Server *server);
 
 /**
  * Timed Callbacks
@@ -681,10 +711,8 @@ UA_Server_writeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
  * i=20      i=13      The method is not owned by the object type "Insect"
  * ========  ========  ===================================================== */
 
-#ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_EXPORT UA_THREADSAFE
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-#endif
 
 /**
  * View Service Set
@@ -1143,7 +1171,6 @@ typedef UA_StatusCode
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output);
 
-#ifdef UA_ENABLE_METHODCALLS
 
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
@@ -1184,7 +1211,6 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
                                 const UA_NodeId methodNodeId,
                                 UA_MethodCallback *outMethodCallback);
 
-#endif
 
 /**
  * ObjectNode
@@ -1506,7 +1532,6 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
 
-#ifdef UA_ENABLE_METHODCALLS
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
@@ -1514,7 +1539,6 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          size_t inputArgumentsSize, const UA_Argument *inputArguments,
                          size_t outputArgumentsSize, const UA_Argument *outputArguments);
 
-#endif
 
 /* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -1621,12 +1645,10 @@ UA_Server_write_async(UA_Server *server, const UA_WriteValue *operation,
                       UA_ServerAsyncWriteResultCallback callback,
                       void *asyncOpContext, UA_UInt32 timeout);
 
-#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_call_async(UA_Server *server, const UA_CallMethodRequest *operation,
                      UA_ServerAsyncMethodResultCallback callback,
                      void *asyncOpContext, UA_UInt32 timeout);
-#endif
 
 /**
  * Local async operations can be manually cancelled (besides an internal cancel
@@ -1832,7 +1854,6 @@ UA_Server_createEventEx(UA_Server *server,
  *
  * See ``examples/events/server_modelchange.c`` for a complete local example. */
 
-#ifdef UA_ENABLE_DISCOVERY
 
 /**
  * Remote Discovery Server Registration
@@ -1928,7 +1949,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deregisterServerOnNetwork(UA_Server *server,
                                     UA_String serverName);
 
-#endif /* UA_ENABLE_DISCOVERY */
 
 /**
  * .. _drivers:
@@ -1947,6 +1967,8 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * Some drivers define core functionality and are added internally in the server
  * implementation. */
 
+/* GENERIC permits multiple instances. Other driver types
+ * can be added only once to a server. */
 typedef enum {
     UA_DRIVERTYPE_GENERIC = 0,
     UA_DRIVERTYPE_GDS_RECEIVER
@@ -2020,7 +2042,9 @@ struct UA_Driver {
 };
 
 /* Adds the Driver to the server. Starts the driver if the server is already
- * started. */
+ * started and returns the start result. A failed start rolls back registration
+ * and leaves ownership with the caller. The server backpointer is retained
+ * for cleanup; stop the driver if needed before freeing it. */
 UA_StatusCode
 UA_Server_addDriver(UA_Server *server, UA_Driver *drv);
 
@@ -2345,11 +2369,11 @@ struct UA_ServerConfig {
 
     /* EventLoop
      * ~~~~~~~~~
-     * The sever can be plugged into an external EventLoop. Otherwise the
-     * EventLoop is considered to be attached to the server's lifecycle and will
-     * be destroyed when the config is cleaned up. */
+     * A shared EventLoop must be external to every client and server using it.
+     * Otherwise, one of them can stop or delete it while others still use it.
+     * The application owns the shared EventLoop's lifetime. */
     UA_EventLoop *eventLoop;
-    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
+    UA_Boolean externalEventLoop; /* Do not stop or delete the EventLoop */
 
     /* Application Notification
      * ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2538,7 +2562,11 @@ struct UA_ServerConfig {
 
     /* Discovery
      * ~~~~~~~~~ */
-#ifdef UA_ENABLE_DISCOVERY
+    /* Bitmask of the UA_SERVERCAPABILITY_* constants. At startup, the
+     * capabilities that are announced are derived from this bitmask and the
+     * ApplicationType (Part 12, 7.10.14). */
+    UA_UInt64 serverCapabilities;
+
     /* Enable the internal management of RegisteredServers (besides the local
      * server itself) via the RegisterServer and FindServer services. */
     UA_Boolean registeredServersEnabled;
@@ -2562,7 +2590,6 @@ struct UA_ServerConfig {
      * implement a Discovery Server that detects other servers on the
      * network. */
     UA_Boolean serversOnNetworkEnabled;
-#endif
 
     /* Subscriptions
      * ~~~~~~~~~~~~~ */

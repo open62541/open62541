@@ -87,7 +87,6 @@ UA_StatusCode initNS0RBAC(UA_Server *server);
 
 #endif /* UA_ENABLE_RBAC */
 
-#ifdef UA_ENABLE_DISCOVERY
 
 typedef struct RegisteredServerRecord {
     LIST_ENTRY(RegisteredServerRecord) pointers;
@@ -95,7 +94,6 @@ typedef struct RegisteredServerRecord {
     UA_DateTime lastSeen;
 } RegisteredServerRecord;
 
-#endif /* UA_ENABLE_DISCOVERY */
 
 typedef struct session_list_entry {
     UA_DelayedCallback cleanupCallback;
@@ -136,6 +134,9 @@ struct UA_Server {
     UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
 
+    /* ServerCapabilities derived from the config during startup */
+    UA_UInt64 serverCapabilities;
+
     /* List of registered drivers. The internally created drivers furthermore
      * have direct pointers for fast access below. */
     UA_Driver *drivers; /* linked-list of all SC */
@@ -158,6 +159,7 @@ struct UA_Server {
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
     UA_UInt32 activeSessionCount;
+    UA_UInt32 sessionCleanupPending;
 
     /* Session for local access to the services for upkeep and the C API. Comes
      * equipped with all possible access rights (Session Id: 1). */
@@ -244,7 +246,6 @@ struct UA_Server {
     UA_NamespaceMetadata *namespaceMetadata;
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
     /* Registered Servers */
     LIST_HEAD(, RegisteredServerRecord) registeredServers;
     size_t registeredServersSize;
@@ -255,7 +256,6 @@ struct UA_Server {
     UA_DateTime lastCounterResetTime;
     size_t serversOnNetworkSize;
     UA_ServerOnNetwork *serversOnNetwork;
-#endif /* UA_ENABLE_DISCOVERY */
 };
 
 /* In case the configuration was updated. Make the ->next pointer in the
@@ -270,6 +270,22 @@ addServerDiscoveryUrl(UA_Server *server, const UA_String *url);
 
 void
 removeServerDiscoveryUrl(UA_Server *server, const UA_String *url);
+
+/* Re-derive server->serverCapabilities from the configured bitmask and the
+ * ApplicationType. This validates and normalizes the configuration. */
+void
+setupServerCapabilities(UA_Server *server);
+
+/* Returns the bit of the capability identifier. Zero if it is unknown. */
+UA_UInt64
+getServerCapability(const UA_String *identifier);
+
+/* Writes the identifiers of the capabilities in the bitmask to out and returns
+ * their number. The strings point to static memory. */
+#define UA_SERVERCAPABILITIES_MAX 64
+size_t
+getServerCapabilityIdentifiers(UA_UInt64 capabilities,
+                               UA_String out[UA_SERVERCAPABILITIES_MAX]);
 
 /* Whether the URL uses opc.http or opc.https. */
 UA_Boolean
@@ -848,7 +864,6 @@ UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
-#ifdef UA_ENABLE_DISCOVERY
 UA_Driver * UA_DiscoveryManager_new(void);
 
 /* Narrow registration-state access for white-box tests. */
@@ -858,7 +873,6 @@ UA_DiscoveryManager_getPendingRegistration(UA_Server *server,
 UA_StatusCode
 UA_DiscoveryManager_cancelPendingRegistration(UA_Server *server);
 void cleanupRegisteredServers(UA_Server *server);
-#endif
 
 /* Binary protocol handling shared by stream-based server transports */
 #define UA_MAXSERVERCONNECTIONS 16
@@ -913,6 +927,7 @@ UA_Driver * UA_BinaryProtocolManager_new(void);
 UA_Driver * UA_WebSocketProtocolManager_new(void);
 UA_Driver * UA_HttpProtocolManager_new(void);
 UA_StatusCode UA_HttpProtocolManager_validateConfig(UA_Driver *drv);
+UA_Boolean UA_HttpProtocolManager_isListening(const UA_Driver *drv);
 
 UA_StatusCode registerSecureChannel(UA_Server *server,
                                     UA_SecureChannel *channel);
@@ -928,6 +943,7 @@ UA_StatusCode sendHttpServiceResponse(UA_Server *server,
                                       const UA_DataType *payloadType);
 
 UA_Driver * UA_ReverseBinaryProtocolManager_new(void);
+UA_Boolean UA_ReverseBinaryProtocolManager_hasReverseConnects(const UA_Driver *drv);
 
 UA_StatusCode
 processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
@@ -1164,6 +1180,13 @@ UA_StatusCode initNS0(UA_Server *server);
 
 /* Connect data sources to existing NS0 nodes */
 UA_StatusCode initNS0_dataSources(UA_Server *server);
+
+/* Write the ServerConfiguration variables that mirror the
+ * ApplicationDescription of the server config */
+UA_StatusCode writeNs0ApplicationDescription(UA_Server *server);
+
+/* Write the ServerCapabilities derived during startup */
+UA_StatusCode writeNs0ServerCapabilities(UA_Server *server);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);

@@ -39,6 +39,7 @@ int main(void) {
     // NOTE: This will cause UaExpert to not show this instance in the server list.
     // See also: https://forum.unified-automation.com/topic1987.html
     // NOTE: In production, the ApplicationURI must be globally unique and stable for this application instance.
+    config->registeredServersEnabled = true;
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =

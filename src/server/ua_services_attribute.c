@@ -23,7 +23,6 @@
  */
 
 #include "ua_server_internal.h"
-#include "../ua_types_encoding_binary.h"
 #include "ua_services.h"
 
 #ifdef UA_ENABLE_RBAC
@@ -266,8 +265,8 @@ readExternalValueAttribute(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Update the value by the user callback */
-    if(vn->valueSource.internal.notifications.onRead)
-        vn->valueSource.internal.notifications.
+    if(vn->valueSource.external.notifications.onRead)
+        vn->valueSource.external.notifications.
             onRead(server, session ? &session->sessionId : NULL,
                    session ? session->context : NULL, &vn->head.nodeId,
                    vn->head.context, rangeptr, *vn->valueSource.external.value);
@@ -512,6 +511,99 @@ buildEnumDefinitionFromProperties(UA_Server *server, const UA_NodeId *dataTypeId
         UA_EnumDefinition_clear(def);
     return res;
 }
+
+/* Replace the NodeId with the direct supertype of the DataType, the target of
+ * its inverse HasSubtype reference. Keep the NodeId if there is no
+ * supertype. */
+static UA_StatusCode
+readDataTypeSupertype(UA_Server *server, const UA_NodeId *dataTypeId,
+                      UA_NodeId *supertypeId) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, dataTypeId, UA_NODEATTRIBUTESMASK_NONE,
+                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE),
+                                   UA_BROWSEDIRECTION_INVERSE);
+    if(!node)
+        return UA_STATUSCODE_GOOD;
+    const UA_Node *supertype =
+        getNodeType(server, &node->head, UA_NODEATTRIBUTESMASK_NODEID,
+                    UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+    UA_NODESTORE_RELEASE(server, node);
+    if(!supertype)
+        return UA_STATUSCODE_GOOD;
+    UA_NodeId id;
+    UA_StatusCode res = UA_NodeId_copy(&supertype->head.nodeId, &id);
+    UA_NODESTORE_RELEASE(server, supertype);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_NodeId_clear(supertypeId);
+    *supertypeId = id;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Build the EnumDefinition of a UInteger-based OptionSet DataType from its
+ * OptionSetValues property (OPC UA Part 3 v1.05, 5.8.3). The array index is
+ * the bit number, which is the value of the EnumField (8.52). Undefined bits
+ * have a null LocalizedText and are skipped. BadNotFound if no bit is
+ * defined. */
+static UA_StatusCode
+buildEnumDefinitionFromOptionSetValues(UA_Server *server, const UA_NodeId *dataTypeId,
+                                       UA_EnumDefinition *def) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_EnumDefinition_init(def);
+
+    size_t defined = 0;
+    const UA_LocalizedText *lt;
+    UA_EnumField *f;
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res =
+        readObjectProperty(server, *dataTypeId,
+                           UA_QUALIFIEDNAME(0, "OptionSetValues"), &v);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(enumPropertyMissing(res))
+            res = UA_STATUSCODE_BADNOTFOUND;
+        goto out;
+    }
+
+    /* Count the defined bits */
+    lt = (const UA_LocalizedText*)v.data;
+    if(UA_Variant_hasArrayType(&v, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+        for(size_t i = 0; i < v.arrayLength; i++) {
+            if(lt[i].text.length > 0)
+                defined++;
+        }
+    }
+    if(defined == 0) {
+        res = UA_STATUSCODE_BADNOTFOUND;
+        goto out;
+    }
+
+    def->fields = (UA_EnumField*)
+        UA_Array_new(defined, &UA_TYPES[UA_TYPES_ENUMFIELD]);
+    if(!def->fields) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto out;
+    }
+    def->fieldsSize = defined;
+
+    f = def->fields;
+    for(size_t i = 0; i < v.arrayLength && res == UA_STATUSCODE_GOOD; i++) {
+        if(lt[i].text.length == 0)
+            continue;
+        f->value = (UA_Int64)i;
+        res = UA_String_copy(&lt[i].text, &f->name);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_LocalizedText_copy(&lt[i], &f->displayName);
+        f++;
+    }
+
+ out:
+    UA_Variant_clear(&v);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_EnumDefinition_clear(def);
+    return res;
+}
 #endif
 
 /* Returns whether the operation is done or an async operation has been
@@ -737,6 +829,15 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
             memmove(sd, &sd->structureDefinition, sizeof(UA_StructureDefinition));
             UA_Variant_setScalar(&v->value, sd, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
             UA_ExtensionObject_init(&typeDescr); /* Ownership moved to the Variant */
+
+            /* The type description only knows Structure or Union. But the
+             * BaseDataType is the direct supertype (OPC UA Part 3 v1.05,
+             * Section 8.48). */
+            UA_StructureDefinition *def = (UA_StructureDefinition*)v->value.data;
+            retval = readDataTypeSupertype(server, &node->head.nodeId,
+                                           &def->baseDataType);
+            if(retval != UA_STATUSCODE_GOOD)
+                UA_Variant_clear(&v->value);
         } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]) {
             if(type->membersSize > 0) {
                 /* UaExpert doesn't fall back to the EnumStrings property if the DataTypeDefinition attribute
@@ -771,6 +872,31 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
                 UA_Variant_setScalar(&v->value, enumDef,
                                      &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
             }
+        } else if(type->typeKind == UA_DATATYPEKIND_BYTE ||
+                  type->typeKind == UA_DATATYPEKIND_UINT16 ||
+                  type->typeKind == UA_DATATYPEKIND_UINT32 ||
+                  type->typeKind == UA_DATATYPEKIND_UINT64) {
+            /* A UInteger subtype with the OptionSetValues property represents
+             * an OptionSet. Its DataTypeDefinition is an EnumDefinition (OPC
+             * UA Part 3 v1.05, Section 5.8.3). */
+            UA_ExtensionObject_clear(&typeDescr);
+            UA_EnumDefinition *enumDef = UA_EnumDefinition_new();
+            if(!enumDef) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                break;
+            }
+            UA_StatusCode res =
+                buildEnumDefinitionFromOptionSetValues(server, &node->head.nodeId,
+                                                       enumDef);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_EnumDefinition_delete(enumDef);
+                /* Not an OptionSet: BadAttributeIdInvalid; else propagate */
+                retval = (res == UA_STATUSCODE_BADNOTFOUND) ?
+                    UA_STATUSCODE_BADATTRIBUTEIDINVALID : res;
+                break;
+            }
+            UA_Variant_setScalar(&v->value, enumDef,
+                                 &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
         } else {
             /* E.g. SimpleTypeDescription: no DataTypeDefinition encoding */
             UA_ExtensionObject_clear(&typeDescr);
@@ -1746,14 +1872,18 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     switch(node->valueSourceType) {
     case UA_VALUESOURCETYPE_EXTERNAL:
     case UA_VALUESOURCETYPE_INTERNAL: {
-        UA_DataValue *oldValue = (node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL) ?
-            &node->valueSource.internal.value : UA_atomic_load(node->valueSource.external.value);
+        UA_Boolean internal = (node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL);
+        UA_DataValue *oldValue = (internal) ?
+            &node->valueSource.internal.value :
+            UA_atomic_load(node->valueSource.external.value);
+        const UA_ValueSourceNotifications *notifications = (internal) ?
+            &node->valueSource.internal.notifications :
+            &node->valueSource.external.notifications;
         retval = writeInternalValueAttribute(oldValue, &adjustedValue, rangeptr);
-        if(retval == UA_STATUSCODE_GOOD &&
-           node->valueSource.internal.notifications.onWrite)
-            node->valueSource.internal.notifications.
-                onWrite(server, &session->sessionId, session->context,
-                        &node->head.nodeId, node->head.context, rangeptr, &adjustedValue);
+        if(retval == UA_STATUSCODE_GOOD && notifications->onWrite)
+            notifications->onWrite(server, &session->sessionId, session->context,
+                                   &node->head.nodeId, node->head.context,
+                                   rangeptr, &adjustedValue);
         break;
     }
     case UA_VALUESOURCETYPE_CALLBACK: {
@@ -1819,7 +1949,8 @@ writeIsAbstract(UA_Node *node, UA_Boolean value) {
         node->dataTypeNode.isAbstract = value;
         break;
     default:
-        return UA_STATUSCODE_BADNODECLASSINVALID;
+        /* The NodeClass does not have the attribute (as for Read) */
+        return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -1844,17 +1975,41 @@ writeIsAbstract(UA_Node *node, UA_Boolean value) {
         break;                                                          \
     }
 
+/* The NodeClass does not have the attribute (as for Read) */
 #define CHECK_NODECLASS_WRITE(CLASS)                                    \
     if((node->head.nodeClass & (CLASS)) == 0) {                         \
-        retval = UA_STATUSCODE_BADNODECLASSINVALID;                     \
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;                   \
         break;                                                          \
     }
 
-#define CHECK_USERWRITEMASK(mask)                           \
-    if(!(userWriteMask & (mask))) {                         \
-        retval = UA_STATUSCODE_BADUSERACCESSDENIED;         \
-        break;                                              \
+/* The WriteMask defines whether an attribute is writable at all
+ * (Bad_NotWritable), the UserWriteMask whether the current user may write it
+ * (Bad_UserAccessDenied). The local admin session (UA_Server_write) is not
+ * restricted by the WriteMask. */
+#define CHECK_USERWRITEMASK(mask)                                       \
+    if(session != &server->adminSession &&                              \
+       !(node->head.writeMask & (mask))) {                              \
+        retval = UA_STATUSCODE_BADNOTWRITABLE;                          \
+        break;                                                          \
+    }                                                                   \
+    if(!(userWriteMask & (mask))) {                                     \
+        retval = UA_STATUSCODE_BADUSERACCESSDENIED;                     \
+        break;                                                          \
     }
+
+/* WriteMask bit of the attributes that cannot be written in open62541 */
+static UA_UInt32
+unsupportedAttributeWriteMask(UA_UInt32 attributeId) {
+    switch(attributeId) {
+    case UA_ATTRIBUTEID_NODEID: return UA_WRITEMASK_NODEID;
+    case UA_ATTRIBUTEID_NODECLASS: return UA_WRITEMASK_NODECLASS;
+    case UA_ATTRIBUTEID_BROWSENAME: return UA_WRITEMASK_BROWSENAME;
+    case UA_ATTRIBUTEID_USERWRITEMASK: return UA_WRITEMASK_USERWRITEMASK;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL: return UA_WRITEMASK_USERACCESSLEVEL;
+    case UA_ATTRIBUTEID_USEREXECUTABLE: return UA_WRITEMASK_USEREXECUTABLE;
+    default: return 0;
+    }
+}
 
 #define GET_NODETYPE                                    \
     type = (const UA_VariableTypeNode*)                 \
@@ -1953,7 +2108,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_USEREXECUTABLE:
     case UA_ATTRIBUTEID_BROWSENAME: /* BrowseName is tracked in a binary tree
                                        for fast lookup */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        /* Bad_NotWritable if the WriteMask does not allow writing. Otherwise
+         * the attribute is writable in principle, but not supported. */
+        retval = (session != &server->adminSession &&
+                  !(node->head.writeMask & unsupportedAttributeWriteMask(wvalue->attributeId))) ?
+            UA_STATUSCODE_BADNOTWRITABLE : UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
@@ -2011,7 +2170,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         UA_Boolean semanticChange = false;
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             /* The access to a value variable is granted via the UserAccessLevel
-             * attribute (masked with the AccessLevel attribute) */
+             * attribute (masked with the AccessLevel attribute). Bad_NotWritable
+             * if the AccessLevel itself does not allow writing. */
+            if(session != &server->adminSession &&
+               !(node->variableNode.accessLevel & UA_ACCESSLEVELMASK_WRITE)) {
+                retval = UA_STATUSCODE_BADNOTWRITABLE;
+                break;
+            }
             UA_Byte accessLevel = getUserAccessLevel(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;

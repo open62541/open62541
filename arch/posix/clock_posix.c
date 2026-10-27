@@ -34,6 +34,9 @@ UA_DateTime UA_DateTime_now(void) {
 /* Compare broken-down representations of the same instant. Avoid mktime(),
  * which interprets UTC fields as local time and refreshes global timezone state. */
 UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
+#ifdef UA_ARCH_LOCAL_TIME_IS_UTC
+    return 0;
+#else
     time_t rawtime = time(NULL);
     struct tm local, utc;
     if(!localtime_r(&rawtime, &local) || !gmtime_r(&rawtime, &utc))
@@ -43,6 +46,7 @@ UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
         days = (local.tm_year > utc.tm_year) ? 1 : -1;
     return ((UA_Int64)days * 86400 + (local.tm_hour - utc.tm_hour) * 3600 +
             (local.tm_min - utc.tm_min) * 60 + local.tm_sec - utc.tm_sec) * UA_DATETIME_SEC;
+#endif
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {

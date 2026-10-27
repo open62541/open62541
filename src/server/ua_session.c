@@ -219,6 +219,19 @@ UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub) {
 void
 UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
                               UA_Subscription *sub, UA_Boolean releasePublishResponses) {
+    /* Remember the identity of the Session. TransferSubscriptions of the
+     * detached Subscription is only allowed for the same identity. */
+    UA_String_clear(&sub->ownerUserId);
+    UA_String_clear(&sub->ownerApplicationUri);
+    sub->ownerTokenType = session->userTokenType;
+    sub->ownerSecure = session->channel &&
+        session->channel->securityMode != UA_MESSAGESECURITYMODE_NONE;
+    sub->ownerKnown =
+        UA_String_copy(&session->clientUserIdOfSession,
+                       &sub->ownerUserId) == UA_STATUSCODE_GOOD &&
+        UA_String_copy(&session->clientDescription.applicationUri,
+                       &sub->ownerApplicationUri) == UA_STATUSCODE_GOOD;
+
     /* Detach from the session */
     sub->session = NULL;
     TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);

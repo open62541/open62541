@@ -73,18 +73,20 @@ UA_StatusCode
 UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
                        size_t *endpointDescriptionsSize,
                        UA_EndpointDescription** endpointDescriptions) {
+    *endpointDescriptionsSize = 0;
+    *endpointDescriptions = NULL;
     lockClient(client);
 
+    const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     UA_Boolean connected = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
-    /* Client is already connected to a different server */
-    if(connected && strncmp((const char*)client->config.endpoint.endpointUrl.data, serverUrl,
-                            client->config.endpoint.endpointUrl.length) != 0) {
+    /* Compare against the URL used to connect, not the optional endpoint
+     * override. Require a complete match, including any path. */
+    if(connected && !UA_String_equal(&client->config.endpointUrl, &url)) {
         unlockClient(client);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     UA_StatusCode retval;
-    const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     if(!connected) {
         retval = connectSecureChannel(client, serverUrl);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -107,17 +109,19 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
                       size_t localeIdsSize, UA_String *localeIds,
                       size_t *registeredServersSize,
                       UA_ApplicationDescription **registeredServers) {
+    *registeredServersSize = 0;
+    *registeredServers = NULL;
     lockClient(client);
+    const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     UA_Boolean connected = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
-    /* Client is already connected to a different server */
-    if(connected && strncmp((const char*)client->config.endpoint.endpointUrl.data, serverUrl,
-                            client->config.endpoint.endpointUrl.length) != 0) {
+    /* Compare against the URL used to connect, not the optional endpoint
+     * override. Require a complete match, including any path. */
+    if(connected && !UA_String_equal(&client->config.endpointUrl, &url)) {
         unlockClient(client);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     UA_StatusCode retval;
-    const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     if(!connected) {
         retval = connectSecureChannel(client, serverUrl);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -166,12 +170,15 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
                                UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
                                size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
                                size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork) {
+    *serverOnNetworkSize = 0;
+    *serverOnNetwork = NULL;
     lockClient(client);
 
+    const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     UA_Boolean connected = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
-    /* Client is already connected to a different server */
-    if(connected && strncmp((const char*)client->config.endpoint.endpointUrl.data, serverUrl,
-                            client->config.endpoint.endpointUrl.length) != 0) {
+    /* Compare against the URL used to connect, not the optional endpoint
+     * override. Require a complete match, including any path. */
+    if(connected && !UA_String_equal(&client->config.endpointUrl, &url)) {
         unlockClient(client);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }

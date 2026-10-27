@@ -1474,6 +1474,11 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    /* A fresh ConnectionManager cannot open even a validation-only
+     * connection. Defer the transport validation until server startup. */
+    if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_GOOD;
+
     /* Set up the connection parameters */
     UA_Boolean listen = false;
     UA_KeyValuePair kvp[5];
@@ -1531,6 +1536,11 @@ UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the MQTT network URL");
         return res;
     }
+
+    /* See the UDP path above. A fresh ConnectionManager cannot perform the
+     * validation open, so defer it until server startup. */
+    if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_GOOD;
 
     /* Set up the connection parameters.
      * TODO: Complete the MQTT parameters. */

@@ -5,7 +5,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
-#include "ua_types_encoding_binary.h"
+#include "ua_types_encoding.h"
 
 #include <stdlib.h>
 #include <check.h>
@@ -634,6 +634,28 @@ START_TEST(binary_calcSize_null_returnsZero) {
     ck_assert_uint_eq(size, 0);
 } END_TEST
 
+START_TEST(binary_encode_calcSizeFailure_returnsStatus) {
+    /* The Decimal encoding is not implemented. UA_calcSizeBinary answers 0
+     * for that. UA_encodeBinary must report the status of the size
+     * computation instead of the BadEncodingError from encoding into an
+     * empty buffer, and leave outBuf untouched. */
+    UA_DataType decimalType = UA_TYPES[UA_TYPES_BYTE];
+    decimalType.typeKind = UA_DATATYPEKIND_DECIMAL;
+    UA_Byte val = 0;
+    UA_Variant var;
+    UA_Variant_setScalar(&var, &val, &decimalType);
+
+    size_t size = UA_calcSizeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_uint_eq(size, 0);
+
+    UA_ByteString outBuf = UA_BYTESTRING_NULL;
+    UA_StatusCode res =
+        UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT], &outBuf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    ck_assert_uint_eq(outBuf.length, 0);
+    ck_assert_ptr_null(outBuf.data);
+} END_TEST
+
 START_TEST(binary_encode_preAllocBufferTooSmall_clearsBuffer) {
     /* src/ua_types_encoding_binary.c:1720-1724:
      *   if(res == UA_STATUSCODE_GOOD) ...; else if(allocated) ...;
@@ -658,18 +680,352 @@ START_TEST(binary_encode_preAllocBufferTooSmall_clearsBuffer) {
     UA_ByteString_clear(&outBuf);
 } END_TEST
 
-START_TEST(binary_encode_unknownTypeKind_rejected) {
-    /* A type with typeKind=UA_DATATYPEKIND_UNION triggers
-     * encodeBinaryUnion which returns BADNOTIMPLEMENTED for union types.
-     * Exercised via the public wrapper. */
-    UA_LocalizedText lt;
-    lt.locale = UA_STRING("en");
-    lt.text = UA_STRING("hello");
-    UA_ByteString outBuf = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_encodeBinary(&lt, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &outBuf, NULL);
+START_TEST(binary_decimal_notImplemented) {
+    UA_DataType type = UA_TYPES[UA_TYPES_INT32];
+    type.typeKind = UA_DATATYPEKIND_DECIMAL;
+    UA_Int32 value = 42;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_calcSizeBinary(&value, &type, NULL), 0);
+    UA_StatusCode res = UA_encodeBinary(&value, &type, &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    ck_assert_ptr_null(encoded.data);
+    ck_assert_uint_eq(encoded.length, 0);
+
+    UA_Byte buffer[4] = {0, 0, 0, 0};
+    UA_ByteString input = {sizeof(buffer), buffer};
+    res = UA_decodeBinary(&input, &value, &type, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    ck_assert_int_eq(value, 0);
+} END_TEST
+
+typedef struct {
+    void *allocations[8];
+    size_t allocationsSize;
+    size_t failAfter;
+} BinaryTestAllocator;
+
+static void *
+binaryTestCalloc(void *context, size_t count, size_t size) {
+    BinaryTestAllocator *allocator = (BinaryTestAllocator*)context;
+    if(allocator->allocationsSize == allocator->failAfter)
+        return NULL;
+    ck_assert(allocator->allocationsSize < 8);
+    void *allocation = UA_calloc(count, size);
+    ck_assert_ptr_nonnull(allocation);
+    allocator->allocations[allocator->allocationsSize++] = allocation;
+    return allocation;
+}
+
+START_TEST(binary_decode_customAllocator) {
+    BinaryTestAllocator allocator;
+    memset(&allocator, 0, sizeof(allocator));
+    allocator.failAfter = (_i == 1) ? 1 : 8;
+    UA_DecodeBinaryOptions options;
+    memset(&options, 0, sizeof(options));
+    options.calloc = binaryTestCalloc;
+    options.callocContext = &allocator;
+
+    UA_LocalizedText source = UA_LOCALIZEDTEXT("en", "value");
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeBinary(&source, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT],
+                                        &encoded, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert(outBuf.length > 0);
-    UA_ByteString_clear(&outBuf);
+    if(_i == 2)
+        encoded.length--; /* The second allocated string cannot be filled. */
+
+    UA_LocalizedText decoded;
+    memset(&decoded, 0xff, sizeof(decoded));
+    res = UA_decodeBinary(&encoded, &decoded, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &options);
+    if(_i == 0) {
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert(UA_LocalizedText_equal(&decoded, &source));
+        ck_assert_ptr_eq(decoded.locale.data, allocator.allocations[0]);
+        ck_assert_ptr_eq(decoded.text.data, allocator.allocations[1]);
+        ck_assert_uint_eq(options.decodedLength, encoded.length);
+    } else {
+        ck_assert_uint_eq(res, (_i == 1) ? UA_STATUSCODE_BADOUTOFMEMORY :
+                          UA_STATUSCODE_BADDECODINGERROR);
+        ck_assert_ptr_null(decoded.locale.data);
+        ck_assert_ptr_null(decoded.text.data);
+        ck_assert_uint_eq(decoded.locale.length, 0);
+        ck_assert_uint_eq(decoded.text.length, 0);
+    }
+
+    /* With a custom allocator, the caller owns every allocation even after a
+     * decoding error. The successfully decoded first string remains allocated. */
+    ck_assert_uint_eq(allocator.allocationsSize, (_i == 1) ? 1 : 2);
+    ck_assert_mem_eq(allocator.allocations[0], "en", 2);
+    for(size_t i = 0; i < allocator.allocationsSize; i++)
+        UA_free(allocator.allocations[i]);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(binary_expandednodeid_namespaceMapping) {
+    UA_String namespaces[] = {
+        UA_STRING_STATIC("http://opcfoundation.org/UA/"),
+        UA_STRING_STATIC("urn:known")
+    };
+    UA_NamespaceMapping mapping;
+    memset(&mapping, 0, sizeof(mapping));
+    mapping.namespaceUris = namespaces;
+    mapping.namespaceUrisSize = 2;
+    UA_DecodeBinaryOptions options;
+    memset(&options, 0, sizeof(options));
+    options.namespaceMapping = &mapping;
+
+    UA_ExpandedNodeId source = UA_EXPANDEDNODEID_STRING(13, "node");
+    source.namespaceUri = (_i == 0) ? UA_STRING("urn:known") : UA_STRING("urn:unknown");
+    source.serverIndex = 7;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeBinary(&source, &UA_TYPES[UA_TYPES_EXPANDEDNODEID],
+                                        &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ExpandedNodeId decoded;
+    res = UA_decodeBinary(&encoded, &decoded, &UA_TYPES[UA_TYPES_EXPANDEDNODEID], &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.nodeId.namespaceIndex, (_i == 0) ? 1 : 0);
+    ck_assert_uint_eq(decoded.nodeId.identifierType, UA_NODEIDTYPE_STRING);
+    ck_assert(UA_String_equal(&decoded.nodeId.identifier.string,
+                             &source.nodeId.identifier.string));
+    ck_assert_uint_eq(decoded.serverIndex, 7);
+    if(_i == 0) {
+        ck_assert_ptr_null(decoded.namespaceUri.data);
+        ck_assert_uint_eq(decoded.namespaceUri.length, 0);
+    } else {
+        ck_assert(UA_String_equal(&decoded.namespaceUri, &source.namespaceUri));
+    }
+    UA_ExpandedNodeId_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+/* A custom structure with one Int32 member. String encoding ids also exercise
+ * ownership of the temporary NodeIds used during type lookup. */
+static void
+binaryCustomType(UA_DataType *type, UA_DataTypeMember *member) {
+    memset(member, 0, sizeof(*member));
+    member->memberType = &UA_TYPES[UA_TYPES_INT32];
+    memset(type, 0, sizeof(*type));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    member->memberName = "Value";
+    type->typeName = "BinaryCustomValue";
+#endif
+    type->typeId = UA_NODEID_NUMERIC(2, 7001);
+    type->binaryEncodingId = UA_NODEID_STRING(2, "custom-encoding");
+    type->typeKind = UA_DATATYPEKIND_STRUCTURE;
+    type->memSize = sizeof(UA_Int32);
+    type->pointerFree = true;
+    type->membersSize = 1;
+    type->members = member;
+}
+
+START_TEST(binary_variant_customArrayTypeLookup) {
+    UA_DataType customType;
+    UA_DataTypeMember member;
+    binaryCustomType(&customType, &member);
+    UA_DataType otherType = customType;
+    otherType.typeId = UA_NODEID_NUMERIC(2, 7002);
+    otherType.binaryEncodingId = UA_NODEID_STRING(2, "other-encoding");
+    UA_DataTypeArray tail = {NULL, 1, &customType, false};
+    UA_DataTypeArray head = {&tail, 1, &otherType, false};
+    UA_DecodeBinaryOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = (_i == 0) ? &head : NULL;
+
+    UA_Int32 values[] = {42, -7};
+    UA_Variant source;
+    UA_Variant_setArray(&source, values, 2, &customType);
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeBinary(&source, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Variant decoded;
+    res = UA_decodeBinary(&encoded, &decoded, &UA_TYPES[UA_TYPES_VARIANT], &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.arrayLength, 2);
+    if(_i == 0) {
+        ck_assert_ptr_eq(decoded.type, &customType);
+        ck_assert_mem_eq(decoded.data, values, sizeof(values));
+        ck_assert_ptr_ne(decoded.data, values);
+    } else {
+        ck_assert_ptr_eq(decoded.type, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+        UA_ExtensionObject *objects = (UA_ExtensionObject*)decoded.data;
+        const UA_Byte expected[2][4] = {{42, 0, 0, 0}, {0xf9, 0xff, 0xff, 0xff}};
+        for(size_t i = 0; i < 2; i++) {
+            ck_assert_uint_eq(objects[i].encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+            ck_assert(UA_NodeId_equal(&objects[i].content.encoded.typeId,
+                                     &customType.binaryEncodingId));
+            ck_assert_uint_eq(objects[i].content.encoded.body.length, 4);
+            ck_assert_mem_eq(objects[i].content.encoded.body.data, expected[i], 4);
+        }
+    }
+    UA_Variant_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(binary_variant_preserveXmlExtensionObjectArray) {
+    UA_DataType customType;
+    UA_DataTypeMember member;
+    binaryCustomType(&customType, &member);
+    UA_DataTypeArray customTypes = {NULL, 1, &customType, false};
+    UA_DecodeBinaryOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = &customTypes;
+
+    UA_ExtensionObject object;
+    UA_ExtensionObject_init(&object);
+    /* A binary type match must not cause XML content to be decoded as binary. */
+    object.encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
+    object.content.encoded.typeId = customType.binaryEncodingId;
+    object.content.encoded.body =
+        UA_BYTESTRING("<BinaryCustomValue><Value>42</Value></BinaryCustomValue>");
+    UA_Variant source;
+    UA_Variant_setArray(&source, &object, 1, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeBinary(&source, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Variant decoded;
+    res = UA_decodeBinary(&encoded, &decoded, &UA_TYPES[UA_TYPES_VARIANT], &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&decoded, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]));
+    ck_assert_uint_eq(decoded.arrayLength, 1);
+    UA_ExtensionObject *result = (UA_ExtensionObject*)decoded.data;
+    ck_assert_uint_eq(result->encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
+    ck_assert(UA_NodeId_equal(&result->content.encoded.typeId, &customType.binaryEncodingId));
+    ck_assert(UA_ByteString_equal(&result->content.encoded.body, &object.content.encoded.body));
+    ck_assert_ptr_ne(result->content.encoded.body.data, object.content.encoded.body.data);
+    UA_Variant_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(binary_extensionObject_missingContent) {
+    UA_Int32 value = 42;
+    UA_ExtensionObject object;
+    UA_ExtensionObject_init(&object);
+    object.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    object.content.decoded.type = (_i == 0) ? NULL : &UA_TYPES[UA_TYPES_INT32];
+    object.content.decoded.data = (_i == 0) ? &value : NULL;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeBinary(&object, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT],
+                                        &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGERROR);
+    ck_assert_ptr_null(encoded.data);
+    ck_assert_uint_eq(encoded.length, 0);
+} END_TEST
+
+START_TEST(binary_union_noSelection) {
+    typedef struct {
+        UA_UInt32 selection;
+        union {
+            UA_Int32 number;
+        } fields;
+    } BinaryTestUnion;
+    UA_DataType type;
+    UA_DataTypeMember member;
+    binaryCustomType(&type, &member);
+    type.typeKind = UA_DATATYPEKIND_UNION;
+    type.memSize = sizeof(BinaryTestUnion);
+    member.padding = offsetof(BinaryTestUnion, fields.number);
+    BinaryTestUnion source = {0, {42}};
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeBinary(&source, &type, &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    const UA_Byte expected[] = {0, 0, 0, 0};
+    ck_assert_uint_eq(encoded.length, sizeof(expected));
+    ck_assert_mem_eq(encoded.data, expected, sizeof(expected));
+    BinaryTestUnion decoded;
+    memset(&decoded, 0xff, sizeof(decoded));
+    res = UA_decodeBinary(&encoded, &decoded, &type, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.selection, 0);
+    ck_assert_int_eq(decoded.fields.number, 0);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(binary_extensionObject_declaredLengthMismatch) {
+    UA_DataType customType;
+    UA_DataTypeMember member;
+    binaryCustomType(&customType, &member);
+    UA_DataTypeArray customTypes = {NULL, 1, &customType, false};
+    UA_DecodeBinaryOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = &customTypes;
+
+    UA_Int32 value = 42;
+    UA_ExtensionObject object;
+    UA_ExtensionObject_setValueNoDelete(&object, &value, &customType);
+    UA_Variant variant;
+    if(_i == 1)
+        UA_Variant_setScalar(&variant, &value, &customType);
+    else
+        UA_Variant_setArray(&variant, &value, 1, &customType);
+    const UA_DataType *type = (_i == 0) ? &UA_TYPES[UA_TYPES_EXTENSIONOBJECT] :
+        &UA_TYPES[UA_TYPES_VARIANT];
+    const void *source = (_i == 0) ? (const void*)&object : (const void*)&variant;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeBinary(source, type, &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    size_t lengthOffset = UA_calcSizeBinary(&customType.binaryEncodingId,
+                                            &UA_TYPES[UA_TYPES_NODEID], NULL) + 1;
+    if(_i != 0)
+        lengthOffset += (_i == 1) ? 1 : 5; /* Variant mask and optional array length */
+    ck_assert_uint_eq(encoded.data[lengthOffset], 4);
+    encoded.data[lengthOffset] = 5;
+    res = UA_String_append(&encoded, UA_STRING("x"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The declared body fits in the buffer, but the custom decoder consumes
+     * only four bytes. All three wrapping forms must reject the extra byte. */
+    if(_i == 0) {
+        UA_ExtensionObject decoded;
+        res = UA_decodeBinary(&encoded, &decoded, type, &options);
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+        ck_assert_uint_eq(decoded.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+        ck_assert(UA_NodeId_isNull(&decoded.content.encoded.typeId));
+        ck_assert_ptr_null(decoded.content.encoded.body.data);
+        UA_ExtensionObject_clear(&decoded);
+    } else {
+        UA_Variant decoded;
+        res = UA_decodeBinary(&encoded, &decoded, type, &options);
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+        ck_assert_ptr_null(decoded.data);
+        ck_assert_ptr_null(decoded.type);
+        ck_assert_uint_eq(decoded.arrayLength, 0);
+        UA_Variant_clear(&decoded);
+    }
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(binary_variant_invalidDimensions) {
+    /* Int32 array [42], followed by three dimensions [0, 1, 1]. */
+    UA_Byte buffer[] = {0xc6, 1, 0, 0, 0, 42, 0, 0, 0, 3, 0, 0, 0,
+                       0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
+    if(_i == 1)
+        memset(buffer + 13, 0xff, 12); /* Dimension product overflows size_t. */
+    UA_ByteString input = {sizeof(buffer), buffer};
+    UA_Variant decoded;
+    UA_StatusCode res = UA_decodeBinary(&input, &decoded, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_null(decoded.type);
+    ck_assert_ptr_null(decoded.data);
+    ck_assert_ptr_null(decoded.arrayDimensions);
+    ck_assert_uint_eq(decoded.arrayLength, 0);
+    ck_assert_uint_eq(decoded.arrayDimensionsSize, 0);
+    UA_Variant_clear(&decoded);
+} END_TEST
+
+START_TEST(binary_variant_dimensionOverflowOnEncode) {
+    UA_Int32 value = 42;
+    UA_UInt32 dimensions[] = {UA_UINT32_MAX, UA_UINT32_MAX, UA_UINT32_MAX};
+    UA_Variant variant;
+    UA_Variant_setArray(&variant, &value, 1, &UA_TYPES[UA_TYPES_INT32]);
+    variant.arrayDimensionsSize = 3;
+    variant.arrayDimensions = dimensions;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGERROR);
+    ck_assert_ptr_null(encoded.data);
+    ck_assert_uint_eq(encoded.length, 0);
 } END_TEST
 
 /* ========== findDataTypeByBinary ========== */
@@ -929,6 +1285,7 @@ int main(void) {
     tcase_add_test(tc_nodeid, binary_nodeid_bytestring);
     tcase_add_test(tc_nodeid, binary_nodeid_fourbyte);
     tcase_add_test(tc_nodeid, binary_expandednodeid_with_uri);
+    tcase_add_loop_test(tc_nodeid, binary_expandednodeid_namespaceMapping, 0, 2);
     tcase_add_test(tc_nodeid, binary_statuscode);
     tcase_add_test(tc_nodeid, binary_qualifiedname);
     tcase_add_test(tc_nodeid, binary_localizedtext);
@@ -944,6 +1301,13 @@ int main(void) {
     tcase_add_test(tc_complex, binary_variant_enum);
     tcase_add_test(tc_complex, binary_variant_extensionobject);
     tcase_add_test(tc_complex, binary_variant_array_extensionobject);
+    tcase_add_loop_test(tc_complex, binary_variant_customArrayTypeLookup, 0, 2);
+    tcase_add_test(tc_complex, binary_variant_preserveXmlExtensionObjectArray);
+    tcase_add_loop_test(tc_complex, binary_extensionObject_missingContent, 0, 2);
+    tcase_add_test(tc_complex, binary_union_noSelection);
+    tcase_add_loop_test(tc_complex, binary_extensionObject_declaredLengthMismatch, 0, 3);
+    tcase_add_loop_test(tc_complex, binary_variant_invalidDimensions, 0, 2);
+    tcase_add_test(tc_complex, binary_variant_dimensionOverflowOnEncode);
     tcase_add_test(tc_complex, binary_datavalue_all_fields);
     tcase_add_test(tc_complex, binary_datavalue_pico_clamp);
     tcase_add_test(tc_complex, binary_diagnosticinfo_full);
@@ -974,8 +1338,10 @@ int main(void) {
     tcase_add_test(tc_misc, binary_encode_nullSource_rejected);
     tcase_add_test(tc_misc, binary_encode_nullType_rejected);
     tcase_add_test(tc_misc, binary_calcSize_null_returnsZero);
+    tcase_add_test(tc_misc, binary_encode_calcSizeFailure_returnsStatus);
     tcase_add_test(tc_misc, binary_encode_preAllocBufferTooSmall_clearsBuffer);
-    tcase_add_test(tc_misc, binary_encode_unknownTypeKind_rejected);
+    tcase_add_test(tc_misc, binary_decimal_notImplemented);
+    tcase_add_loop_test(tc_misc, binary_decode_customAllocator, 0, 3);
     suite_add_tcase(s, tc_misc);
 
     SRunner *sr = srunner_create(s);

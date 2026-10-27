@@ -353,11 +353,29 @@ auditActivateSessionEvent(UA_Server *server,
                         req->clientSoftwareCertificatesSize,
                         &UA_TYPES[UA_TYPES_SIGNEDSOFTWARECERTIFICATE]);
 
-    /* /UserIdentityToken */
+    /* /UserIdentityToken
+     * ActivateSession has decrypted the token in place, so it holds the
+     * plaintext password (UserName) or tokenData (Issued). The payload goes to
+     * the notification callbacks and becomes the fields of the
+     * AuditActivateSessionEventType event. Record which token was used, not its
+     * secret: use a shallow copy without password / tokenData. The copies
+     * outlive the auditSessionEvent call below. */
+    UA_UserNameIdentityToken unToken;
+    UA_IssuedIdentityToken issuedToken;
     if(req->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED ||
        req->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         const UA_ExtensionObject *uit = &req->userIdentityToken;
-        UA_Variant_setScalar(&sessionActivateAuditPayload[9].value, uit->content.decoded.data,
+        void *tokenData = uit->content.decoded.data;
+        if(uit->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+            unToken = *(const UA_UserNameIdentityToken*)tokenData;
+            unToken.password = UA_BYTESTRING_NULL;
+            tokenData = &unToken;
+        } else if(uit->content.decoded.type == &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]) {
+            issuedToken = *(const UA_IssuedIdentityToken*)tokenData;
+            issuedToken.tokenData = UA_BYTESTRING_NULL;
+            tokenData = &issuedToken;
+        }
+        UA_Variant_setScalar(&sessionActivateAuditPayload[9].value, tokenData,
                              uit->content.decoded.type);
     } else {
         UA_Variant_init(&sessionActivateAuditPayload[9].value);

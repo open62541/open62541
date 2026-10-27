@@ -6,7 +6,8 @@
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
 
-#include "ua_types_encoding_xml.h"
+#include "ua_types_encoding.h"
+#include "util/ua_util_internal.h"
 
 #include <check.h>
 #include <limits.h>
@@ -906,26 +907,25 @@ START_TEST(UA_OptionalStructure_xml_roundtrip) {
 END_TEST
 
 START_TEST(UA_DefaultStructure_xml_encode) {
-    UA_CurrencyUnitType currency;
-    UA_CurrencyUnitType_init(&currency);
+    UA_BuildInfo buildInfo;
+    UA_BuildInfo_init(&buildInfo);
     UA_ByteString encoded = UA_BYTESTRING_NULL;
 
     UA_StatusCode retval = UA_encodeXml(
-        &currency, &UA_TYPES[UA_TYPES_CURRENCYUNITTYPE], &encoded, NULL);
+        &buildInfo, &UA_TYPES[UA_TYPES_BUILDINFO], &encoded, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString expected =
-        UA_BYTESTRING("<CurrencyUnitType></CurrencyUnitType>");
+        UA_BYTESTRING("<BuildInfo></BuildInfo>");
     ck_assert(UA_ByteString_equal(&encoded, &expected));
     UA_ByteString_clear(&encoded);
 
     /* Empty and null Strings are distinct. Keep an empty String present. */
-    currency.alphabeticCode = UA_STRING("");
+    buildInfo.productUri = UA_STRING("");
     retval = UA_encodeXml(
-        &currency, &UA_TYPES[UA_TYPES_CURRENCYUNITTYPE], &encoded, NULL);
+        &buildInfo, &UA_TYPES[UA_TYPES_BUILDINFO], &encoded, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     expected = UA_BYTESTRING(
-        "<CurrencyUnitType><AlphabeticCode></AlphabeticCode>"
-        "</CurrencyUnitType>");
+        "<BuildInfo><ProductUri></ProductUri></BuildInfo>");
     ck_assert(UA_ByteString_equal(&encoded, &expected));
     UA_ByteString_clear(&encoded);
 
@@ -4333,6 +4333,23 @@ START_TEST(UA_Variant_Matrix_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_Variant_Matrix_EmptyElements_xml_decode) {
+    /* Enough dimensions that the tokens are allocated on the heap. The empty
+     * <Elements/> is the last token, so there is no element to take the type
+     * from. */
+    char xml[2048] = "<Variant><Value><Matrix><Dimensions>";
+    for(size_t i = 0; i < 64; i++)
+        strcat(xml, "<Int32>0</Int32>");
+    strcat(xml, "</Dimensions><Elements/></Matrix></Value></Variant>");
+
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_ByteString buf = UA_STRING(xml);
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+}
+END_TEST
+
 START_TEST(UA_Array_Variant_String_xml_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -4841,6 +4858,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_Array_Variant_String_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_String_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_Matrix_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_Variant_Matrix_EmptyElements_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_unwrapped_byte_xml_decode);
 
     /* tcase_add_test(tc_xml_decode, UA_Array_Boolean_xml_decode); */

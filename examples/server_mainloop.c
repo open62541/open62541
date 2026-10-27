@@ -7,6 +7,7 @@
 #include <open62541/server.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 static volatile UA_Boolean running = true;
 static void stopHandler(int sign) {
@@ -22,7 +23,11 @@ int main(int argc, char** argv) {
     signal(SIGTERM, stopHandler);
 
     UA_Server *server = UA_Server_new();
-    UA_Server_run_startup(server);
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
 
     /* Should the server networklayer block (with a timeout) until a message
        arrives or should it return immediately? */

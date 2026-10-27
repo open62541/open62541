@@ -5,7 +5,6 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
-#include "../ua_types_encoding_binary.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
@@ -1033,6 +1032,15 @@ static void stopHttp(UA_Driver *drv) {
                              UA_SHUTDOWNREASON_CLOSE);
     closeHttpListeners(hpm);
     finishHttpStopIfDrained(hpm);
+}
+
+/* startHttp opens all listeners or none. A disabled transport is started
+ * without a ConnectionManager. */
+UA_Boolean
+UA_HttpProtocolManager_isListening(const UA_Driver *drv) {
+    const UA_HttpProtocolManager *hpm = (const UA_HttpProtocolManager *)drv;
+    return drv->state == UA_LIFECYCLESTATE_STARTED &&
+        hpm->connectionManager != NULL;
 }
 
 static UA_StatusCode freeHttp(UA_Driver *drv) {

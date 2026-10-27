@@ -11,8 +11,8 @@
  *   - UA_ServerConfig_addEndpoint (success + bad-policy URI)
  *   - UA_ServerConfig_addAllEndpoints / addAllSecureEndpoints
  *   - UA_ServerConfig_addAllSecurityPolicies / addAllSecureSecurityPolicies
- * using a freshly-zeroed UA_ServerConfig instance. The tests do not start a
- * server and do not require a network or a certificate. */
+ * using a freshly-zeroed UA_ServerConfig instance. The interrupt tests below
+ * use a simulated interrupt and a server listening on an ephemeral local port. */
 
 
 #include <open62541/server.h>
@@ -171,6 +171,162 @@ START_TEST(AddAllSecurityPoliciesWithCertSucceed) {
 } END_TEST
 #endif
 
+#if (defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || defined(UA_ARCHITECTURE_WIN32)
+#include <signal.h>
+
+static struct {
+    UA_Server *server;
+    UA_EventLoop *eventLoop;
+    UA_InterruptManager *manager;
+    UA_InterruptManager originalManager;
+    UA_StatusCode (*originalStart)(UA_EventLoop *);
+    UA_InterruptCallback callback;
+    void *callbackContext;
+    uintptr_t handle;
+    UA_UInt64 timerId;
+    UA_StatusCode registrationResult;
+    unsigned registrations;
+    unsigned deregistrations;
+    unsigned dispatches;
+    unsigned stoppingNotifications;
+    UA_Boolean dispatching;
+} interruptTest;
+
+static void
+recordInterruptLifecycle(UA_Server *server, UA_LifecycleState state) {
+    if(interruptTest.dispatching && state == UA_LIFECYCLESTATE_STOPPING)
+        interruptTest.stoppingNotifications++;
+}
+
+static void
+dispatchTestInterrupt(UA_Server *server, void *data) {
+    ck_assert_uint_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STARTED);
+    interruptTest.dispatches++;
+    interruptTest.dispatching = true;
+    interruptTest.callback(interruptTest.manager, interruptTest.handle,
+                           interruptTest.callbackContext, &UA_KEYVALUEMAP_NULL);
+    interruptTest.dispatching = false;
+}
+
+static UA_StatusCode
+registerTestInterrupt(UA_InterruptManager *manager, uintptr_t handle,
+                      const UA_KeyValueMap *params, UA_InterruptCallback callback,
+                      void *context) {
+    ck_assert_ptr_eq(manager, interruptTest.manager);
+    ck_assert_uint_eq(handle, SIGINT);
+    ck_assert_uint_eq(params->mapSize, 0);
+    interruptTest.registrations++;
+    if(interruptTest.registrationResult != UA_STATUSCODE_GOOD)
+        return interruptTest.registrationResult;
+    interruptTest.callback = callback;
+    interruptTest.callbackContext = context;
+    interruptTest.handle = handle;
+    return UA_Server_addTimedCallback(interruptTest.server, dispatchTestInterrupt,
+        NULL, UA_DateTime_nowMonotonic(), &interruptTest.timerId);
+}
+
+static void
+deregisterTestInterrupt(UA_InterruptManager *manager, uintptr_t handle) {
+    ck_assert_ptr_eq(manager, interruptTest.manager);
+    ck_assert_uint_eq(handle, SIGINT);
+    interruptTest.deregistrations++;
+    UA_Server_removeCallback(interruptTest.server, interruptTest.timerId);
+}
+
+static UA_StatusCode
+failInterruptEventLoopStart(UA_EventLoop *eventLoop) {
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+static void
+setupInterruptTest(void) {
+    memset(&interruptTest, 0, sizeof(interruptTest));
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(config));
+    ck_assert_uint_eq(UA_ServerConfig_setMinimal(&config, 0, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.serverUrlsSize, 1);
+    UA_String_clear(&config.serverUrls[0]);
+    config.serverUrls[0] = UA_STRING_ALLOC("opc.tcp://127.0.0.1:0");
+    ck_assert_ptr_nonnull(config.serverUrls[0].data);
+    config.notifyLifecycleState = recordInterruptLifecycle;
+    interruptTest.server = UA_Server_newWithConfig(&config);
+    ck_assert_ptr_nonnull(interruptTest.server);
+    interruptTest.eventLoop = UA_Server_getConfig(interruptTest.server)->eventLoop;
+    interruptTest.originalStart = interruptTest.eventLoop->start;
+    UA_EventSource *es = interruptTest.eventLoop->eventSources;
+    while(es && es->eventSourceType != UA_EVENTSOURCETYPE_INTERRUPTMANAGER)
+        es = es->next;
+    ck_assert_ptr_nonnull(es);
+    interruptTest.manager = (UA_InterruptManager*)es;
+    interruptTest.originalManager = *interruptTest.manager;
+    interruptTest.manager->registerInterrupt = registerTestInterrupt;
+    interruptTest.manager->deregisterInterrupt = deregisterTestInterrupt;
+}
+
+static void
+teardownInterruptTest(void) {
+    interruptTest.eventLoop->start = interruptTest.originalStart;
+    interruptTest.manager->registerInterrupt = interruptTest.originalManager.registerInterrupt;
+    interruptTest.manager->deregisterInterrupt = interruptTest.originalManager.deregisterInterrupt;
+    UA_Server_delete(interruptTest.server);
+}
+
+START_TEST(RunUntilInterruptRejectsMissingResources) {
+    UA_ServerConfig *config = UA_Server_getConfig(interruptTest.server);
+    UA_StatusCode res;
+    if(_i == 0) {
+        res = UA_Server_runUntilInterrupt(NULL);
+    } else if(_i == 1) {
+        config->eventLoop = NULL;
+        res = UA_Server_runUntilInterrupt(interruptTest.server);
+        config->eventLoop = interruptTest.eventLoop;
+    } else {
+        interruptTest.manager->eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
+        res = UA_Server_runUntilInterrupt(interruptTest.server);
+        interruptTest.manager->eventSource.eventSourceType = UA_EVENTSOURCETYPE_INTERRUPTMANAGER;
+    }
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(interruptTest.registrations, 0);
+    ck_assert_uint_eq(interruptTest.deregistrations, 0);
+} END_TEST
+
+START_TEST(RunUntilInterruptPropagatesRegistrationFailure) {
+    interruptTest.registrationResult = UA_STATUSCODE_BADNOTSUPPORTED;
+    ck_assert_uint_eq(UA_Server_runUntilInterrupt(interruptTest.server),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(interruptTest.registrations, 1);
+    ck_assert_uint_eq(interruptTest.deregistrations, 0);
+    ck_assert_uint_eq(interruptTest.dispatches, 0);
+    ck_assert_uint_eq(UA_Server_getLifecycleState(interruptTest.server),
+                      UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+START_TEST(RunUntilInterruptCleansUpAfterStartupFailure) {
+    interruptTest.eventLoop->start = failInterruptEventLoopStart;
+    ck_assert_uint_eq(UA_Server_runUntilInterrupt(interruptTest.server),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(interruptTest.registrations, 1);
+    ck_assert_uint_eq(interruptTest.deregistrations, 1);
+    ck_assert_uint_eq(interruptTest.dispatches, 0);
+    ck_assert_uint_eq(UA_Server_getLifecycleState(interruptTest.server),
+                      UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+START_TEST(RunUntilInterruptStopsServer) {
+    UA_ServerConfig *config = UA_Server_getConfig(interruptTest.server);
+    config->shutdownDelay = _i ? 1.0 : 0.0;
+    if(_i == 2)
+        config->notifyLifecycleState = NULL;
+    ck_assert_uint_eq(UA_Server_runUntilInterrupt(interruptTest.server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(interruptTest.registrations, 1);
+    ck_assert_uint_eq(interruptTest.deregistrations, 1);
+    ck_assert_uint_eq(interruptTest.dispatches, 1);
+    ck_assert_uint_eq(interruptTest.stoppingNotifications, _i == 1 ? 1 : 0);
+    ck_assert_uint_eq(UA_Server_getLifecycleState(interruptTest.server),
+                      UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s = suite_create("ServerConfig defaults");
     TCase *tc = tcase_create("public API");
@@ -188,6 +344,16 @@ int main(void) {
     tcase_add_test(tc, AddAllSecurityPoliciesWithCertSucceed);
 #endif
     suite_add_tcase(s, tc);
+
+#if (defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || defined(UA_ARCHITECTURE_WIN32)
+    TCase *tc_interrupt = tcase_create("Interrupt shutdown");
+    tcase_add_checked_fixture(tc_interrupt, setupInterruptTest, teardownInterruptTest);
+    tcase_add_loop_test(tc_interrupt, RunUntilInterruptRejectsMissingResources, 0, 3);
+    tcase_add_test(tc_interrupt, RunUntilInterruptPropagatesRegistrationFailure);
+    tcase_add_test(tc_interrupt, RunUntilInterruptCleansUpAfterStartupFailure);
+    tcase_add_loop_test(tc_interrupt, RunUntilInterruptStopsServer, 0, 3);
+    suite_add_tcase(s, tc_interrupt);
+#endif
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

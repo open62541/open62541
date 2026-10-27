@@ -15,6 +15,14 @@
 #include <stdlib.h>
 #include <check.h>
 
+#ifdef _WIN32
+#define newTestEventLoop UA_EventLoop_new_WIN32
+#define newTestTCP UA_ConnectionManager_new_WIN32_TCP
+#else
+#define newTestEventLoop UA_EventLoop_new_POSIX
+#define newTestTCP UA_ConnectionManager_new_POSIX_TCP
+#endif
+
 unsigned int messageCount = 0;
 
 UA_String broker_hostname = {0, NULL};
@@ -56,8 +64,10 @@ openPendingConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                       UA_ConnectionManager_connectionCallback callback) {
     (void)params;
     uintptr_t connectionId;
-    return TestConnectionManager_createConnection(cm, application, context,
-                                                  callback, &connectionId);
+    UA_StatusCode res = TestConnectionManager_createConnection(cm, application, context, callback, &connectionId);
+    if(res == UA_STATUSCODE_GOOD)
+        res = TestConnectionManager_inject(cm, connectionId, UA_CONNECTIONSTATE_OPENING, NULL, NULL);
+    return res;
 }
 
 static UA_StatusCode
@@ -74,17 +84,18 @@ typedef struct {
     UA_ConnectionManager *tcp;
     UA_ConnectionManager *mqtt;
     UA_EventLoop *loop;
+    UA_DelayedCallback closer;
 } OfflineMQTT;
 
 static OfflineMQTT
 setupOfflineMQTT(const TestConnectionManager_CallbackOverloads *overloads,
                  UA_Boolean fakeClock) {
-    OfflineMQTT test;
+    OfflineMQTT test = {0};
     test.tcp = TestConnectionManager_new("tcp", overloads);
     ck_assert_ptr_ne(test.tcp, NULL);
     test.mqtt = UA_ConnectionManager_new_MQTT(UA_STRING("mqttCM"));
     ck_assert_ptr_ne(test.mqtt, NULL);
-    test.loop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    test.loop = newTestEventLoop(UA_Log_Stdout);
     ck_assert_ptr_ne(test.loop, NULL);
     if(fakeClock) {
         test.loop->dateTime_now = UA_DateTime_now_fake;
@@ -105,6 +116,7 @@ teardownOfflineMQTT(OfflineMQTT *test) {
     test->loop->stop(test->loop);
     while(test->loop->state != UA_EVENTLOOPSTATE_STOPPED)
         test->loop->run(test->loop, 1);
+    ck_assert(!test->closer.callback);
     ck_assert_uint_eq(test->loop->free(test->loop), UA_STATUSCODE_GOOD);
 }
 
@@ -130,9 +142,9 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 START_TEST(connectSubscribePublish) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
+    UA_ConnectionManager *cm = newTestTCP(UA_STRING("tcpCM"));
     UA_ConnectionManager *mcm = UA_ConnectionManager_new_MQTT(UA_STRING("mqttCM"));
-    UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    UA_EventLoop *el = newTestEventLoop(UA_Log_Stdout);
     el->registerEventSource(el, &cm->eventSource);
     el->registerEventSource(el, &mcm->eventSource);
     el->start(el);
@@ -168,20 +180,23 @@ START_TEST(connectSubscribePublish) {
     el->run(el, 100);
 
     /* Send with the subscribed connection succeeds */
-    UA_ByteString msg = UA_BYTESTRING_ALLOC("open62541-msg");
+    UA_ByteString msg;
+    ck_assert_uint_eq(mcm->allocNetworkBuffer(mcm, subscribeConnectionId, &msg, 13), UA_STATUSCODE_GOOD);
+    memcpy(msg.data, "open62541-msg", 13);
     res = mcm->sendWithConnection(mcm, subscribeConnectionId,
                                   &UA_KEYVALUEMAP_NULL, &msg);
     ck_assert(res == UA_STATUSCODE_GOOD);
 
     /* Send with the publish connection */
-    msg = UA_BYTESTRING_ALLOC("open62541-msg");
+    ck_assert_uint_eq(mcm->allocNetworkBuffer(mcm, publishConnectionId, &msg, 13), UA_STATUSCODE_GOOD);
+    memcpy(msg.data, "open62541-msg", 13);
     res = mcm->sendWithConnection(mcm, publishConnectionId,
                                   &UA_KEYVALUEMAP_NULL, &msg);
     ck_assert(res == UA_STATUSCODE_GOOD);
 
     /* Receive the message */
     ck_assert_uint_eq(messageCount, 0);
-    while(messageCount < 2)
+    for(unsigned i = 0; messageCount < 2 && i < 100; i++)
         el->run(el, 100);
     ck_assert_uint_eq(messageCount, 2);
 
@@ -364,6 +379,113 @@ START_TEST(keepAliveTimerUsesMilliseconds) {
     teardownOfflineMQTT(&test);
 } END_TEST
 
+typedef struct {
+    uintptr_t id;
+    unsigned closed;
+    unsigned received;
+    UA_Boolean stopOnMessage;
+} TopicState;
+
+static void
+trackTopic(UA_ConnectionManager *cm, uintptr_t id, void *application, void **context,
+           UA_ConnectionState state, const UA_KeyValueMap *params, UA_ByteString msg) {
+    TopicState *topic = (TopicState*)application;
+    topic->id = id;
+    if(state == UA_CONNECTIONSTATE_CLOSING)
+        topic->closed++;
+    if(msg.length > 0) {
+        topic->received++;
+        if(topic->stopOnMessage)
+            cm->eventSource.stop(&cm->eventSource);
+    }
+}
+
+static void
+openTrackedTopic(OfflineMQTT *test, TopicState *topic) {
+    UA_String address = UA_STRING("broker.example");
+    UA_String name = UA_STRING("topic");
+    UA_KeyValuePair kvp[2];
+    kvp[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    kvp[1].key = UA_QUALIFIEDNAME(0, "topic");
+    UA_Variant_setScalar(&kvp[1].value, &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap params = {2, kvp};
+    ck_assert_uint_eq(test->mqtt->openConnection(test->mqtt, &params, topic, NULL, trackTopic), UA_STATUSCODE_GOOD);
+}
+
+static void
+closeTopicDelayed(void *application, void *context) {
+    OfflineMQTT *test = (OfflineMQTT*)application;
+    TopicState *topic = (TopicState*)context;
+    test->closer.callback = NULL;
+    ck_assert_uint_eq(test->mqtt->closeConnection(test->mqtt, topic->id), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(test->mqtt->closeConnection(test->mqtt, topic->id), UA_STATUSCODE_GOOD);
+}
+
+START_TEST(pendingTopicRemovalDuringBrokerClose) {
+    OfflineMQTT test = setupOfflineMQTT(NULL, false);
+    TopicState topics[2] = {{0}, {0}};
+    openTrackedTopic(&test, &topics[0]);
+    openTrackedTopic(&test, &topics[1]);
+    if(_i == 0)
+        closeTopicDelayed(&test, &topics[0]);
+    else if(_i == 1) {
+        test.closer.callback = closeTopicDelayed;
+        test.closer.application = &test;
+        test.closer.context = &topics[0];
+        test.loop->addDelayedCallback(test.loop, &test.closer);
+    }
+    ck_assert_uint_eq(TestConnectionManager_inject(test.tcp, 100, UA_CONNECTIONSTATE_CLOSING, NULL, NULL), UA_STATUSCODE_GOOD);
+    if(_i == 2)
+        closeTopicDelayed(&test, &topics[0]);
+    for(unsigned i = 0; i < 3; i++)
+        test.loop->run(test.loop, 1);
+    ck_assert_uint_eq(topics[0].closed, 1);
+    ck_assert_uint_eq(topics[1].closed, 1);
+    teardownOfflineMQTT(&test);
+    ck_assert_uint_eq(topics[0].closed, 1);
+    ck_assert_uint_eq(topics[1].closed, 1);
+} END_TEST
+
+START_TEST(reconnectBeforeBrokerRemoval) {
+    OfflineMQTT test = setupOfflineMQTT(NULL, false);
+    TopicState oldTopic = {0}, newTopic = {0};
+    openTrackedTopic(&test, &oldTopic);
+    ck_assert_uint_eq(TestConnectionManager_inject(test.tcp, 100, UA_CONNECTIONSTATE_CLOSING, NULL, NULL), UA_STATUSCODE_GOOD);
+    openTrackedTopic(&test, &newTopic);
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 101, NULL, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(oldTopic.id, newTopic.id);
+    test.loop->run(test.loop, 1);
+    ck_assert_uint_eq(oldTopic.closed, 1);
+    ck_assert_uint_eq(newTopic.closed, 0);
+    closeTopicDelayed(&test, &newTopic);
+    teardownOfflineMQTT(&test);
+    ck_assert_uint_eq(oldTopic.closed, 1);
+    ck_assert_uint_eq(newTopic.closed, 1);
+} END_TEST
+
+START_TEST(shutdownWithPendingTopicRemoval) {
+    OfflineMQTT test = setupOfflineMQTT(NULL, false);
+    TopicState topic = {0};
+    openTrackedTopic(&test, &topic);
+    closeTopicDelayed(&test, &topic);
+    teardownOfflineMQTT(&test);
+    ck_assert_uint_eq(topic.closed, 1);
+} END_TEST
+
+START_TEST(shutdownFromReceiveCallback) {
+    OfflineMQTT test = setupOfflineMQTT(NULL, false);
+    TopicState topic = {0};
+    topic.stopOnMessage = true;
+    openTrackedTopic(&test, &topic);
+    UA_Byte data[] = {0x20, 2, 0, 0, 0x30, 8, 0, 5, 't', 'o', 'p', 'i', 'c', 'x'};
+    UA_ByteString packet = {sizeof(data), data};
+    ck_assert_uint_eq(TestConnectionManager_inject(test.tcp, 100, UA_CONNECTIONSTATE_ESTABLISHED, NULL, &packet), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(topic.received, 1);
+    teardownOfflineMQTT(&test);
+    ck_assert_uint_eq(topic.closed, 1);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test MQTT TCP EventLoop");
     TCase *tcBroker = tcase_create("broker integration");
@@ -376,6 +498,12 @@ int main(void) {
     tcase_add_test(tcOffline, subscriptionSendFailureClosesConnection);
     tcase_add_test(tcOffline, keepAliveTimerUsesMilliseconds);
     suite_add_tcase(s, tcOffline);
+    TCase *tcShutdown = tcase_create("offline shutdown");
+    tcase_add_loop_test(tcShutdown, pendingTopicRemovalDuringBrokerClose, 0, 3);
+    tcase_add_test(tcShutdown, reconnectBeforeBrokerRemoval);
+    tcase_add_test(tcShutdown, shutdownWithPendingTopicRemoval);
+    tcase_add_test(tcShutdown, shutdownFromReceiveCallback);
+    suite_add_tcase(s, tcShutdown);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

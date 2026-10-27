@@ -8,7 +8,8 @@
 #include <open62541/config.h>
 #include <open62541/types.h>
 
-#include "ua_types_encoding_xml.h"
+#include "ua_types_encoding.h"
+#include "util/ua_util_internal.h"
 
 #include <float.h>
 #include <limits.h>
@@ -1763,7 +1764,7 @@ decodeMatrixVariant(ParseCtxXml *ctx, UA_Variant *dst) {
     UA_assert(tok->type == XML_TOKEN_ELEMENT);
     static UA_String elemName = UA_STRING_STATIC("Elements");
     tok = &ctx->tokens[ctx->index];
-    if(!UA_String_equal(&tok->name, &elemName))
+    if(!UA_String_equal(&tok->name, &elemName) || tok->children == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Get the type of the first element */

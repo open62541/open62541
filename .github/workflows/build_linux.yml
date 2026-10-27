@@ -36,6 +36,10 @@ jobs:
           sudo apt-get install -y -qq build-essential check cmake libsubunit-dev python3 valgrind libwebsockets-dev zlib1g-dev
       - name: Build mbedTLS
         run: |
+          # The tests run clients and servers in separate threads. PSA crypto
+          # needs mutexes even when the open62541 build uses UA_MULTITHREADING=0.
+          python3 mbedtls-source/scripts/config.py set MBEDTLS_THREADING_C
+          python3 mbedtls-source/scripts/config.py set MBEDTLS_THREADING_PTHREAD
           cmake -S mbedtls-source -B mbedtls-build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -228,7 +232,7 @@ jobs:
           - os: ubuntu-24.04
             build:
               name: "HTTP server lifecycle with libwebsockets (ThreadSanitizer)"
-              cmd_deps: sudo apt-get install -y -qq build-essential cmake curl gcc iproute2 libpcap-dev libssl-dev libwebsockets-dev zlib1g-dev
+              cmd_deps: sudo apt-get install -y -qq build-essential cmake curl gcc iproute2 libpcap-dev libssl-dev libwebsockets-dev zlib1g-dev && sudo sysctl -w vm.mmap_rnd_bits=28
               cmd_action: unit_tests_libwebsockets_tsan
 
           - os: ubuntu-24.04
@@ -240,9 +244,9 @@ jobs:
           # LWIP Build for specific Ubuntu version
           - os: ubuntu-24.04
             build:
-              name: "Debug Build & Unit Tests with lwip (gcc)"
+              name: "Debug Build & Unit Tests with lwip (gcc, ASan)"
               cmd_deps: |
-                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev
+                sudo apt-get install -y -qq build-essential clang-18 cmake gcc git iproute2 libpcap-dev net-tools
                 cd ${HOME}
                 git clone https://github.com/lwip-tcpip/lwip.git
                 cd ${HOME}/lwip
@@ -281,7 +285,7 @@ jobs:
   
                 export PRECONFIGURED_TAPIF=tap0
                 echo 'export PRECONFIGURED_TAPIF=tap0' >> ~/.bashrc
-              cmd_action: unit_tests_lwip
+              cmd_action: unit_tests_lwip_sanitizer && unit_tests_lwip
 
           # mDNSD unit tests for a specific Ubuntu version
           - os: ubuntu-24.04

@@ -372,6 +372,39 @@ START_TEST(setDefaultWithSecurityPolicies_withTrustLists) {
 }
 END_TEST
 
+/* An empty trust list must still result in a real (trust-nothing) certificate
+ * verifier for both PKI groups, not a no-op that leaves whatever verifier was
+ * previously configured (the accept-all default) in place. */
+START_TEST(setDefaultWithSecurityPolicies_emptyTrustList_rejectsUntrustedCert) {
+    UA_StatusCode retval;
+    UA_ByteString certificate = rsaCertificate();
+    UA_ByteString privateKey = rsaPrivateKey();
+    UA_ServerConfig config;
+
+    memset(&config, 0, sizeof(config));
+    retval = UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
+                                                            &certificate, &privateKey,
+                                                            NULL, 0, NULL, 0,
+                                                            NULL, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Some other certificate that is not part of the (empty) trust list. */
+    UA_ByteString otherCert;
+    otherCert.length = APPLICATION_CERT_DER_LENGTH;
+    otherCert.data = APPLICATION_CERT_DER_DATA;
+
+    ck_assert(config.secureChannelPKI.verifyCertificate != NULL);
+    retval = config.secureChannelPKI.verifyCertificate(&config.secureChannelPKI, &otherCert);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(config.sessionPKI.verifyCertificate != NULL);
+    retval = config.sessionPKI.verifyCertificate(&config.sessionPKI, &otherCert);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig_clear(&config);
+}
+END_TEST
+
 START_TEST(setDefaultWithSecurityPolicies_passwordCallback_success) {
     UA_StatusCode retval;
     UA_ServerConfig config;
@@ -467,6 +500,7 @@ testSuite_server_config_default(void) {
     tcase_add_test(testCase, setBasics_overridesServerUrls);
     tcase_add_test(testCase, setDefaultWithSecureSecurityPolicies_withTrustLists);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_withTrustLists);
+    tcase_add_test(testCase, setDefaultWithSecurityPolicies_emptyTrustList_rejectsUntrustedCert);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_passwordCallback_success);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_passwordCallback_failure);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_passwordCallback_wrongPassword);

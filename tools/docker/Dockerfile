@@ -54,4 +54,5 @@ ENV LD_LIBRARY_PATH=/usr/local/lib/
 ENV UA_PKI_DIR=/opt/open62541/pki
 
 EXPOSE 4840
+STOPSIGNAL SIGINT
 ENTRYPOINT ["/entrypoint.sh"]

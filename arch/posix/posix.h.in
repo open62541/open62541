@@ -1,0 +1,204 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#ifndef UA_POSIX_H_
+#define UA_POSIX_H_
+
+#cmakedefine UA_ARCHITECTURE_WIN32
+#cmakedefine UA_ARCHITECTURE_POSIX
+
+/* Detect the target when generating a portable amalgamation with no selected
+ * architecture. Explicit architecture selections take precedence. */
+#if !defined(UA_ARCHITECTURE_WIN32) && !defined(UA_ARCHITECTURE_POSIX)
+# ifdef _WIN32
+#  define UA_ARCHITECTURE_WIN32
+# else
+#  define UA_ARCHITECTURE_POSIX
+# endif
+#endif
+
+/* Special note for FreeBSD: Defining _XOPEN_SOURCE will hide lots of socket
+ * definitions as they are not defined by POSIX. Defining _BSD_SOURCE will not
+ * help as the symbols undergo a consistency check and get adjusted in the
+ * headers. */
+#ifdef UA_ARCHITECTURE_POSIX
+# if !defined(_XOPEN_SOURCE) && !defined(__FreeBSD__)
+#  define _XOPEN_SOURCE 600
+# endif
+# ifndef _DEFAULT_SOURCE
+#  define _DEFAULT_SOURCE
+# endif
+
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+# ifndef _BSD_SOURCE
+#  define _BSD_SOURCE
+# endif
+
+/* Define _GNU_SOURCE to get functions like poll. Comment this out to
+ * only use standard POSIX definitions. */
+# ifndef _GNU_SOURCE
+#  define _GNU_SOURCE
+# endif
+
+# define UA_HAS_GETIFADDR 1
+#endif /* UA_ARCHITECTURE_POSIX */
+
+/* Defining _QNX_SOURCE will ensure proper qnx types and other features are
+ * available. */
+#if defined(__QNX__)
+# define _QNX_SOURCE 1
+#endif
+
+/* Return a zero UTC offset and omit C library timezone conversion. */
+#cmakedefine UA_ARCH_LOCAL_TIME_IS_UTC
+
+/* C99 Standard Includes */
+#include <stddef.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <float.h>
+#include <string.h>
+#include <assert.h>
+
+/* Custom memory-management can be defined for OS integration, arena-based
+ * malloc, etc. Defaults are set if UA_malloc is not already defined. */
+#if !defined(UA_malloc)
+# include <stdlib.h>
+# define UA_free free
+# define UA_malloc malloc
+# define UA_calloc calloc
+# define UA_realloc realloc
+#endif
+
+/* Load default definitions for locks, atomic intrinsics, etc.
+ * Prevent duplicate definitions via winsock2. */
+#ifdef UA_ARCHITECTURE_WIN32
+# ifndef _WINSOCKAPI_
+#  define _NO_WINSOCKAPI_
+# endif
+# define _WINSOCKAPI_
+# include <windows.h>
+# include <intrin.h>
+# ifdef _NO_WINSOCKAPI_
+#  undef _WINSOCKAPI_
+# endif
+#endif
+
+/* MSVC-specific atomic operations */
+#if !defined(UA_atomic) && defined(_WIN32)
+# define UA_atomic(T) T
+# define UA_atomic_load(addr) (_ReadBarrier(), *(addr))
+# define UA_atomic_store(addr, newval)                                  \
+    do {                                                                \
+        UA_assert(sizeof(*addr) == sizeof(void*));                      \
+        InterlockedExchangePointer((void * volatile *)addr,             \
+                                   (void*)(uintptr_t)(newval));         \
+    } while(0)
+# define UA_atomic_xchg(addr, newval, old)                              \
+    do {                                                                \
+        UA_assert(sizeof(*addr) == sizeof(void*));                      \
+        *(uintptr_t*)old = (uintptr_t)                                  \
+            InterlockedExchangePointer((void * volatile *)addr,         \
+                                       (void*)(uintptr_t)(newval));     \
+    } while (0)
+# define UA_atomic_cmpxchg(addr, expected, newval)                      \
+    do {                                                                \
+        UA_assert(sizeof(*addr) == sizeof(void*));                      \
+        void *exp_val = (void*)(uintptr_t)*(expected);                  \
+        void *new_val = (void*)(uintptr_t)(newval);                     \
+        void *old_val = InterlockedCompareExchangePointer(              \
+            (void * volatile *)addr, new_val, exp_val);                 \
+        *(uintptr_t*)(expected) = (uintptr_t)old_val;                   \
+    } while (0)
+#endif
+
+/* Lock definitions */
+#if UA_MULTITHREADING >= 100
+#if defined(UA_ARCHITECTURE_WIN32)
+
+typedef struct {
+    /* Critical sections on win32 are always recursive */
+    CRITICAL_SECTION mutex;
+    unsigned count; /* For assertions that we hold the mutex */
+} UA_Lock;
+
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    InitializeCriticalSection(&lock->mutex);
+    lock->count = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    UA_assert(lock->count == 0);
+    DeleteCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    EnterCriticalSection(&lock->mutex);
+    lock->count++;
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    lock->count--;
+    LeaveCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock) {
+    UA_assert(lock->count > 0);
+}
+
+#elif defined(UA_ARCHITECTURE_POSIX)
+
+#include <pthread.h>
+
+typedef struct {
+    pthread_mutex_t mutex;
+    unsigned count; /* For assertions that we hold the mutex */
+} UA_Lock;
+
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    pthread_mutexattr_t mattr;
+    pthread_mutexattr_init(&mattr);
+    pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&lock->mutex, &mattr);
+    pthread_mutexattr_destroy(&mattr);
+    lock->count = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    UA_assert(lock->count == 0);
+    pthread_mutex_destroy(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    pthread_mutex_lock(&lock->mutex);
+    lock->count++;
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    lock->count--;
+    pthread_mutex_unlock(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock) {
+    UA_assert(lock->count > 0);
+}
+
+#endif
+
+#endif /* UA_MULTITHREADING >= 100 */
+
+#endif /* UA_POSIX_H_ */

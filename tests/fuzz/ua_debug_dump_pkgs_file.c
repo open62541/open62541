@@ -17,7 +17,6 @@
 
 #include "server/ua_server_internal.h"
 #include "ua_securechannel.h"
-#include "ua_types_encoding_binary.h"
 
 #include <stdio.h>
 #include <stdlib.h>

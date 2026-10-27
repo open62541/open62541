@@ -216,6 +216,88 @@ START_TEST(encryption_connect) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+static UA_Client *
+connectAnonymous(UA_Boolean secure) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert(client != NULL);
+    if(secure) {
+        UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+        UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+        UA_ClientConfig *cc = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                             NULL, 0, NULL, 0);
+        UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+        cc->securityPolicyUri =
+            UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    }
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    return client;
+}
+
+static UA_StatusCode
+transferSubscription(UA_Client *client, UA_UInt32 subscriptionId) {
+    UA_TransferSubscriptionsRequest req;
+    UA_TransferSubscriptionsRequest_init(&req);
+    req.subscriptionIdsSize = 1;
+    req.subscriptionIds = &subscriptionId;
+    UA_TransferSubscriptionsResponse resp;
+    UA_TransferSubscriptionsResponse_init(&resp);
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_TRANSFERSUBSCRIPTIONSREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_TRANSFERSUBSCRIPTIONSRESPONSE]);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(resp.resultsSize, 1);
+    UA_StatusCode res = resp.results[0].statusCode;
+    UA_TransferSubscriptionsResponse_clear(&resp);
+    return res;
+}
+
+/* An anonymous client closes its Session without deleting the Subscription
+ * (CloseSession with DeleteSubscriptions=false). A new anonymous Session of the
+ * same client application over a secure SecureChannel can transfer the
+ * detached Subscription. A Session over an insecure SecureChannel cannot. */
+START_TEST(transfer_detached_subscription_anonymous) {
+    UA_Client *client = connectAnonymous(true);
+
+    UA_CreateSubscriptionRequest csReq = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse csResp;
+    UA_CreateSubscriptionResponse_init(&csResp);
+    __UA_Client_Service(client, &csReq, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
+                        &csResp, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
+    ck_assert_uint_eq(csResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subscriptionId = csResp.subscriptionId;
+    UA_CreateSubscriptionResponse_clear(&csResp);
+
+    UA_CloseSessionRequest clReq;
+    UA_CloseSessionRequest_init(&clReq);
+    clReq.deleteSubscriptions = false;
+    UA_CloseSessionResponse clResp;
+    UA_CloseSessionResponse_init(&clResp);
+    __UA_Client_Service(client, &clReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &clResp, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    ck_assert_uint_eq(clResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_CloseSessionResponse_clear(&clResp);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* Insecure SecureChannel: the ApplicationUri is not verified */
+    client = connectAnonymous(false);
+    ck_assert_uint_eq(transferSubscription(client, subscriptionId),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* Same client application over a secure SecureChannel */
+    client = connectAnonymous(true);
+    ck_assert_uint_eq(transferSubscription(client, subscriptionId),
+                      UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
 START_TEST(encryption_connect_pem) {
     UA_Client *client = NULL;
     UA_EndpointDescription* endpointArray = NULL;
@@ -338,6 +420,9 @@ static Suite* testSuite_encryption(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption, encryption_connect);
     tcase_add_test(tc_encryption, encryption_connect_pem);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    tcase_add_test(tc_encryption, transfer_detached_subscription_anonymous);
+#endif
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
 

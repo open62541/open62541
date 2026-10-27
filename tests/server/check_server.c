@@ -8,13 +8,15 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 #include <open62541/types.h>
 #include <open62541/transport_generated.h>
+#include <open62541/plugin/accesscontrol_default.h>
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "test_helpers.h"
-#include "ua_types_encoding_binary.h"
 #include "testing_networklayers.h"
 
 #include <stdio.h>
@@ -62,6 +64,61 @@ START_TEST(checkTcpDisabled) {
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, 0);
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+typedef struct {
+    UA_Driver driver;
+    UA_StatusCode startResult;
+    unsigned starts;
+    unsigned stops;
+} TestDriver;
+
+static UA_StatusCode
+testDriverStart(UA_Driver *drv) {
+    TestDriver *test = (TestDriver*)drv;
+    test->starts++;
+    ck_assert_ptr_eq(drv->server, server);
+    ck_assert_ptr_eq(UA_Server_getDrivers(server), drv);
+    if(test->startResult == UA_STATUSCODE_GOOD)
+        drv->state = UA_LIFECYCLESTATE_STARTED;
+    return test->startResult;
+}
+
+static void
+testDriverStop(UA_Driver *drv) {
+    ((TestDriver*)drv)->stops++;
+    drv->state = UA_LIFECYCLESTATE_STOPPED;
+}
+
+START_TEST(addDriverPropagatesStartFailure) {
+    UA_Server_getConfig(server)->tcpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_Driver *previous = UA_Server_getDrivers(server);
+    TestDriver test;
+    memset(&test, 0, sizeof(test));
+    test.driver.start = testDriverStart;
+    test.driver.stop = testDriverStop;
+    test.startResult = UA_STATUSCODE_BADCONFIGURATIONERROR;
+
+    ck_assert_uint_eq(UA_Server_addDriver(server, &test.driver),
+                      UA_STATUSCODE_BADCONFIGURATIONERROR);
+    ck_assert_uint_eq(test.starts, 1);
+    ck_assert_ptr_eq(UA_Server_getDrivers(server), previous);
+    ck_assert_ptr_eq(test.driver.next, NULL);
+    ck_assert_ptr_eq(test.driver.server, server);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &test.driver),
+                      UA_STATUSCODE_BADNOTFOUND);
+
+    /* The same instance can be retried after correcting its configuration. */
+    test.startResult = UA_STATUSCODE_GOOD;
+    ck_assert_uint_eq(UA_Server_addDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(test.starts, 2);
+    ck_assert_ptr_eq(UA_Server_getDrivers(server), &test.driver);
+    ck_assert_ptr_eq(test.driver.next, previous);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(test.stops, 1);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(UA_Server_getDrivers(server), previous);
 } END_TEST
 
 START_TEST(checkGetNamespaceByName) {
@@ -134,10 +191,14 @@ START_TEST(checkGetLifecycleState) {
     /* Before startup, server should be in stopped state */
     UA_LifecycleState state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_int_eq(UA_Server_getConfig(server)->eventLoop->state,
+                     UA_EVENTLOOPSTATE_FRESH);
 
     /* After startup, server should be in started state */
     UA_StatusCode ret = UA_Server_run_startup(server);
     ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getConfig(server)->eventLoop->state,
+                     UA_EVENTLOOPSTATE_STARTED);
 
     state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STARTED);
@@ -148,6 +209,436 @@ START_TEST(checkGetLifecycleState) {
 
     state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+START_TEST(checkSharedExternalEventLoop) {
+    UA_ServerConfig *firstConfig = UA_Server_getConfig(server);
+    UA_EventLoop *el = firstConfig->eventLoop;
+    firstConfig->externalEventLoop = true;
+    firstConfig->tcpEnabled = false;
+
+    UA_ServerConfig secondConfig = {0};
+    secondConfig.eventLoop = el;
+    secondConfig.externalEventLoop = true;
+    ck_assert_uint_eq(UA_ServerConfig_setMinimal(&secondConfig, 0, NULL),
+                      UA_STATUSCODE_GOOD);
+    secondConfig.tcpEnabled = false;
+    UA_Server *second = UA_Server_newWithConfig(&secondConfig);
+    ck_assert_ptr_ne(second, NULL);
+
+    UA_ClientConfig clientConfig = {0};
+    clientConfig.eventLoop = el;
+    clientConfig.externalEventLoop = true;
+    ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
+                      UA_STATUSCODE_GOOD);
+    UA_Client *client = UA_Client_newWithConfig(&clientConfig);
+    ck_assert_ptr_ne(client, NULL);
+
+    /* Configuring all three users must not start the shared EventLoop. */
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_FRESH);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+    ck_assert_uint_eq(UA_Server_run_startup(second), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_run_iterate(client, 0), UA_STATUSCODE_GOOD);
+
+    /* Shutting down one server and deleting the client must leave the shared
+     * EventLoop available to the other server. */
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+    UA_Client_delete(client);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+    UA_Server_run_iterate(second, false);
+    ck_assert_int_eq(UA_Server_getLifecycleState(second),
+                     UA_LIFECYCLESTATE_STARTED);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(second), UA_STATUSCODE_GOOD);
+    UA_Server_delete(second);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+
+    /* The fixture's last server can now stop and free the EventLoop. */
+    firstConfig->externalEventLoop = false;
+} END_TEST
+
+static void
+checkLifecycleNotifications(void) {
+    ck_assert_uint_eq(receivedNotificationsCount, 3);
+    ck_assert_int_eq(receivedNotifications[0], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED);
+    ck_assert_int_eq(receivedNotifications[1], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING);
+    ck_assert_int_eq(receivedNotifications[2], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED);
+}
+
+static void
+stopExternalEventLoop(void) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_EventLoop *el = config->eventLoop;
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STARTED);
+    el->stop(el);
+    for(unsigned i = 0; i < 32 && el->state != UA_EVENTLOOPSTATE_STOPPED; i++)
+        ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+    /* Return ownership for the normal config cleanup, including the logger. */
+    config->externalEventLoop = false;
+}
+
+static void
+iterateShutdownServer(UA_Boolean driveEventLoop) {
+    if(!driveEventLoop) {
+        UA_Server_run_iterate(server, false);
+        return;
+    }
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+}
+
+START_TEST(checkShutdownAlreadyStopped) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->externalEventLoop = (UA_Boolean)_i;
+    for(unsigned i = 0; i < 2; i++) {
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPED);
+        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(config->eventLoop->state, UA_EVENTLOOPSTATE_FRESH);
+        ck_assert_uint_eq(receivedNotificationsCount, 0);
+    }
+    ck_assert_int_eq(UA_Server_run_shutdown_async(NULL), UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(UA_Server_run_shutdown(NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    config->externalEventLoop = false;
+} END_TEST
+
+START_TEST(checkShutdownWaitsForSessionCleanup) {
+    UA_CreateSessionRequest request;
+    UA_CreateSessionRequest_init(&request);
+    UA_Session *session = NULL;
+
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session),
+                      UA_STATUSCODE_BADSHUTDOWN);
+    ck_assert_ptr_eq(session, NULL);
+    unlockServer(server);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(session, NULL);
+    unlockServer(server);
+
+    ck_assert_int_eq(UA_Server_run_shutdown_async(server),
+                     UA_LIFECYCLESTATE_STOPPING);
+    ck_assert_uint_eq(server->sessionCount, 0);
+    ck_assert_uint_eq(server->sessionCleanupPending, 1);
+
+    session = NULL;
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session),
+                      UA_STATUSCODE_BADSHUTDOWN);
+    ck_assert_ptr_eq(session, NULL);
+    unlockServer(server);
+    ck_assert_int_eq(UA_Server_run_shutdown_async(server),
+                     UA_LIFECYCLESTATE_STOPPING);
+
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    for(unsigned i = 0; i < 32 && server->sessionCleanupPending > 0; i++)
+        ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCleanupPending, 0);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server),
+                     UA_LIFECYCLESTATE_STOPPED);
+
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session),
+                      UA_STATUSCODE_BADSHUTDOWN);
+    ck_assert_ptr_eq(session, NULL);
+    unlockServer(server);
+} END_TEST
+
+START_TEST(checkShutdownTcp) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->externalEventLoop = (_i % 2 != 0);
+    UA_Boolean async = (_i >= 2);
+    ck_assert_uint_eq(config->serverUrlsSize, 1);
+    UA_String_clear(&config->serverUrls[0]);
+    config->serverUrls[0] = UA_STRING_ALLOC("opc.tcp://127.0.0.1:0");
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(config->applicationDescription.discoveryUrlsSize, 0);
+    for(UA_Driver *drv = UA_Server_getDrivers(server); drv; drv = drv->next)
+        ck_assert_int_eq(drv->state, UA_LIFECYCLESTATE_STARTED);
+
+    if(async) {
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPING);
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPING);
+        for(unsigned i = 0; i < 32 &&
+            UA_Server_getLifecycleState(server) != UA_LIFECYCLESTATE_STOPPED; i++) {
+            iterateShutdownServer(_i >= 4);
+            ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPING);
+            UA_LifecycleState state = UA_Server_run_shutdown_async(server);
+            ck_assert_int_eq(state, UA_Server_getLifecycleState(server));
+        }
+    } else {
+        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    }
+    ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPED);
+    for(UA_Driver *drv = UA_Server_getDrivers(server); drv; drv = drv->next)
+        ck_assert_int_eq(drv->state, UA_LIFECYCLESTATE_STOPPED);
+    for(unsigned i = 0; i < 2; i++) {
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPED);
+        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    }
+    checkLifecycleNotifications();
+    if(config->externalEventLoop)
+        stopExternalEventLoop();
+    else
+        ck_assert_int_eq(config->eventLoop->state, UA_EVENTLOOPSTATE_STOPPED);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+    server = NULL;
+} END_TEST
+
+typedef struct {
+    UA_Driver driver;
+    UA_DelayedCallback callback;
+    UA_Boolean mayStop;
+    unsigned turns;
+    unsigned stops;
+} DelayedStopDriver;
+
+static void
+delayedDriverFinish(void *application, void *context) {
+    DelayedStopDriver *test = (DelayedStopDriver*)context;
+    UA_Server *s = (UA_Server*)application;
+    UA_EventLoop *el = UA_Server_getConfig(s)->eventLoop;
+    lockServer(s);
+    test->turns++;
+    if(test->mayStop && test->turns >= 2)
+        test->driver.state = UA_LIFECYCLESTATE_STOPPED;
+    else
+        el->addDelayedCallback(el, &test->callback);
+    unlockServer(s);
+}
+
+static void
+delayedDriverStop(UA_Driver *drv) {
+    DelayedStopDriver *test = (DelayedStopDriver*)drv;
+    test->stops++;
+    drv->state = UA_LIFECYCLESTATE_STOPPING;
+    test->callback.callback = delayedDriverFinish;
+    test->callback.application = drv->server;
+    test->callback.context = test;
+    UA_EventLoop *el = UA_Server_getConfig(drv->server)->eventLoop;
+    el->addDelayedCallback(el, &test->callback);
+}
+
+START_TEST(checkShutdownDelayedDriver) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->tcpEnabled = false;
+    config->externalEventLoop = (_i % 2 != 0);
+    UA_Boolean async = (_i >= 2);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    DelayedStopDriver test;
+    memset(&test, 0, sizeof(test));
+    test.driver.state = UA_LIFECYCLESTATE_STARTED;
+    test.driver.stop = delayedDriverStop;
+    test.mayStop = !async;
+    ck_assert_uint_eq(UA_Server_addDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+
+    if(async) {
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPING);
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPING);
+        ck_assert_uint_eq(test.turns, 0);
+        /* EventLoops may process delayed callbacks more than once per iteration. */
+        for(unsigned i = 0; i < 3; i++) {
+            unsigned turns = test.turns;
+            iterateShutdownServer(_i >= 4);
+            ck_assert_uint_gt(test.turns, turns);
+            ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPING);
+        }
+        ck_assert_uint_eq(receivedNotificationsCount, 2);
+        /* The outer loop can process the work that permits the driver to stop. */
+        unsigned turnsBeforeStop = test.turns;
+        test.mayStop = true;
+        iterateShutdownServer(_i >= 4);
+        ck_assert_uint_eq(test.turns, turnsBeforeStop + 1);
+        ck_assert_int_eq(test.driver.state, UA_LIFECYCLESTATE_STOPPED);
+        /* Iterating alone must not complete the server lifecycle. */
+        ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPING);
+        for(unsigned i = 0; i < 32 &&
+            UA_Server_run_shutdown_async(server) != UA_LIFECYCLESTATE_STOPPED; i++)
+            iterateShutdownServer(_i >= 4);
+    } else {
+        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(test.turns, 2);
+    }
+    ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPED);
+    for(unsigned i = 0; i < 2; i++) {
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPED);
+        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(test.stops, 1);
+    checkLifecycleNotifications();
+    if(config->externalEventLoop)
+        stopExternalEventLoop();
+    else
+        ck_assert_int_eq(config->eventLoop->state, UA_EVENTLOOPSTATE_STOPPED);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+    server = NULL;
+} END_TEST
+
+static UA_StatusCode
+failedShutdownIteration(UA_EventLoop *el, UA_UInt32 timeout) {
+    return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+}
+
+START_TEST(checkShutdownAsyncToSync) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->tcpEnabled = false;
+    config->externalEventLoop = (UA_Boolean)_i;
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    DelayedStopDriver test;
+    memset(&test, 0, sizeof(test));
+    test.driver.state = UA_LIFECYCLESTATE_STARTED;
+    test.driver.stop = delayedDriverStop;
+    test.mayStop = true;
+    ck_assert_uint_eq(UA_Server_addDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPING);
+
+    /* A failed blocking attempt can be retried without stopping drivers again. */
+    UA_EventLoop *el = config->eventLoop;
+    UA_StatusCode (*run)(UA_EventLoop*, UA_UInt32) = el->run;
+    el->run = failedShutdownIteration;
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_BADCOMMUNICATIONERROR);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPING);
+    ck_assert_uint_eq(test.turns, 0);
+    el->run = run;
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(test.turns, 2);
+    ck_assert_uint_eq(test.stops, 1);
+    checkLifecycleNotifications();
+    if(config->externalEventLoop)
+        stopExternalEventLoop();
+    else
+        ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &test.driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+    server = NULL;
+} END_TEST
+
+static size_t
+countNoneEndpointTokens(UA_UserTokenType tokenType) {
+    UA_GetEndpointsRequest request;
+    UA_GetEndpointsRequest_init(&request);
+    request.endpointUrl = UA_STRING("opc.tcp://localhost:4840");
+    UA_GetEndpointsResponse response;
+    UA_GetEndpointsResponse_init(&response);
+    lockServer(server);
+    Service_GetEndpoints(server, &server->adminSession, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    size_t count = 0;
+    for(size_t i = 0; i < response.endpointsSize; i++) {
+        const UA_EndpointDescription *ep = &response.endpoints[i];
+        if(!UA_String_equal(&ep->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI))
+            continue;
+        for(size_t j = 0; j < ep->userIdentityTokensSize; j++) {
+            if(ep->userIdentityTokens[j].tokenType == tokenType)
+                count++;
+        }
+    }
+    UA_GetEndpointsResponse_clear(&response);
+    return count;
+}
+
+/* Without an encrypting SecurityPolicy, ActivateSession rejects x509 and
+ * password tokens on #None. So the #None endpoint does not offer them. */
+START_TEST(checkNoneEndpointUserTokens) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_UsernamePasswordLogin login = {UA_STRING_STATIC("user"),
+                                      UA_STRING_STATIC("password")};
+    ck_assert_uint_eq(UA_AccessControl_default(config, true, NULL, 1, &login),
+                      UA_STATUSCODE_GOOD);
+
+    /* The AccessControl offers x509, as the session PKI accepts all */
+    UA_Boolean haveX509 = false;
+    for(size_t i = 0; i < config->accessControl.userTokenPoliciesSize; i++) {
+        if(config->accessControl.userTokenPolicies[i].tokenType ==
+           UA_USERTOKENTYPE_CERTIFICATE)
+            haveX509 = true;
+    }
+    ck_assert(haveX509);
+
+    config->allowNonePolicyPassword = false;
+    ck_assert_uint_gt(countNoneEndpointTokens(UA_USERTOKENTYPE_ANONYMOUS), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_USERNAME), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_CERTIFICATE), 0);
+
+    /* Passwords can be allowed without encryption, x509 tokens cannot */
+    config->allowNonePolicyPassword = true;
+    ck_assert_uint_gt(countNoneEndpointTokens(UA_USERTOKENTYPE_USERNAME), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_CERTIFICATE), 0);
+} END_TEST
+
+static void
+setLoopbackUrl(UA_ServerConfig *config, UA_UInt16 port) {
+    char url[64];
+    snprintf(url, sizeof(url), "opc.tcp://127.0.0.1:%u", (unsigned)port);
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = UA_String_new();
+    ck_assert_ptr_ne(config->serverUrls, NULL);
+    config->serverUrlsSize = 1;
+    config->serverUrls[0] = UA_STRING_ALLOC(url);
+    config->tcpReuseAddr = false;
+}
+
+/* The second server cannot bind the port of the first one. Without a server
+ * socket its startup fails and leaves it stopped. */
+START_TEST(checkStartupFailsWithoutServerSocket) {
+    /* Let the OS choose an unused port for the first server */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    setLoopbackUrl(config, 0);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    UA_UInt16 port = 0;
+    UA_ApplicationDescription *ad = &config->applicationDescription;
+    for(size_t i = 0; i < ad->discoveryUrlsSize; i++) {
+        UA_String hostname;
+        UA_UInt16 urlPort = 0;
+        if(UA_parseEndpointUrl(&ad->discoveryUrls[i], &hostname,
+                               &urlPort, NULL) == UA_STATUSCODE_GOOD &&
+           urlPort != 0)
+            port = urlPort;
+    }
+    ck_assert_uint_ne(port, 0);
+
+    UA_Server *second = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(second, NULL);
+    setLoopbackUrl(UA_Server_getConfig(second), port);
+    UA_Server_getConfig(second)->externalEventLoop = (UA_Boolean)_i;
+    UA_Server_getConfig(second)->globalNotificationCallback =
+        serverNotificationCallback;
+    receivedNotificationsCount = 0;
+    ck_assert_uint_ne(UA_Server_run_startup(second), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(second),
+                     UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(receivedNotificationsCount, 2);
+    ck_assert_int_eq(receivedNotifications[0],
+                     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING);
+    ck_assert_int_eq(receivedNotifications[1],
+                     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED);
+
+    /* Once the port is free, the second server can be started */
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(second), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(second),
+                     UA_LIFECYCLESTATE_STARTED);
+    ck_assert_uint_eq(UA_Server_run_shutdown(second), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getConfig(second)->eventLoop->state,
+                     _i ? UA_EVENTLOOPSTATE_STARTED : UA_EVENTLOOPSTATE_STOPPED);
+    UA_Server_getConfig(second)->externalEventLoop = false;
+    ck_assert_uint_eq(UA_Server_delete(second), UA_STATUSCODE_GOOD);
 } END_TEST
 
 /* ---- Additional coverage tests ---- */
@@ -609,6 +1100,55 @@ START_TEST(checkServerAddDataTypeNode) {
     ck_assert_int_eq(nc, UA_NODECLASS_DATATYPE);
 } END_TEST
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+/* Structure types in config->customDataTypes without a DataTypeNode get one
+ * added during UA_Server_newWithConfig. Its BrowseName must be the full
+ * typeName, independent of the name length. */
+static UA_DataTypeMember customStructMember = {
+    .memberName = "value",
+    .memberType = &UA_TYPES[UA_TYPES_INT32]
+};
+
+static void
+checkCustomDataTypeBrowseName(const char *typeName) {
+    UA_DataType type = {
+        .typeName    = typeName,
+        .typeId      = {1, UA_NODEIDTYPE_NUMERIC, {4242}},
+        .memSize     = sizeof(UA_Int32),
+        .typeKind    = UA_DATATYPEKIND_STRUCTURE,
+        .pointerFree = true,
+        .membersSize = 1,
+        .members     = &customStructMember
+    };
+    UA_DataTypeArray customTypes = {NULL, 1, &type, false};
+
+    UA_ServerConfig sc;
+    memset(&sc, 0, sizeof(UA_ServerConfig));
+    UA_ServerConfig_setMinimal(&sc, 4840, NULL);
+    sc.customDataTypes = &customTypes;
+    UA_Server *s = UA_Server_newWithConfig(&sc);
+    ck_assert_ptr_ne(s, NULL);
+
+    UA_QualifiedName browseName;
+    UA_StatusCode res = UA_Server_readBrowseName(s, type.typeId, &browseName);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(browseName.namespaceIndex, 1);
+    ck_assert_uint_eq(browseName.name.length, strlen(typeName));
+    ck_assert(memcmp(browseName.name.data, typeName, strlen(typeName)) == 0);
+    UA_QualifiedName_clear(&browseName);
+
+    UA_Server_delete(s);
+}
+
+START_TEST(checkCustomDataTypeBrowseNameLong) {
+    checkCustomDataTypeBrowseName("CustomStructureWithLongName");
+} END_TEST
+
+START_TEST(checkCustomDataTypeBrowseNameShort) {
+    checkCustomDataTypeBrowseName("Pt");
+} END_TEST
+#endif
+
 START_TEST(checkServerAddReferenceTypeNode) {
     UA_ReferenceTypeAttributes rtAttr = UA_ReferenceTypeAttributes_default;
     rtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestRefType");
@@ -700,18 +1240,26 @@ closeConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 }
 
 static void
-checkHello(size_t urlLength, size_t trailing, UA_UInt32 version, UA_StatusCode expected) {
+checkHello(size_t urlLength, size_t trailing, UA_UInt32 version,
+           UA_StatusCode expected, UA_Boolean asynchronous) {
     UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
     ck_assert_ptr_ne(cm, NULL);
     cm->eventSource.eventLoop = UA_Server_getConfig(server)->eventLoop;
     cm->closeConnection = closeConnection;
-    UA_Driver *bpm = server->binaryDriver;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binaryDriver;
     ck_assert_ptr_ne(bpm, NULL);
     closeCount = 0;
     void *listener = NULL;
+    if(asynchronous) {
+        serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_OPENING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        ck_assert_ptr_ne(listener, NULL);
+    }
     serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     ck_assert_ptr_ne(listener, NULL);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
 
     UA_TcpHelloMessage hello;
     UA_TcpHelloMessage_init(&hello);
@@ -739,6 +1287,8 @@ checkHello(size_t urlLength, size_t trailing, UA_UInt32 version, UA_StatusCode e
     void *connection = listener;
     serverNetworkCallback(cm, 2, bpm, &connection, UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, frame);
+    ck_assert_ptr_ne(connection, listener);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 1);
     const UA_ByteString *response = TestConnectionManager_getLastSent(cm);
     size_t offset = 0;
     ck_assert_uint_eq(UA_decodeBinaryInternal(response, &offset, &header,
@@ -761,24 +1311,143 @@ checkHello(size_t urlLength, size_t trailing, UA_UInt32 version, UA_StatusCode e
     }
     serverNetworkCallback(cm, 2, bpm, &connection, UA_CONNECTIONSTATE_CLOSING,
                           &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
     serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_CLOSING,
                           &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+    ck_assert(TAILQ_EMPTY(&bpm->channels));
     cm->eventSource.free(&cm->eventSource);
     UA_ByteString_clear(&frame);
 }
 
 START_TEST(helloEndpointUrlLimit) {
-    checkHello(32, 0, 0, UA_STATUSCODE_GOOD);
-    checkHello(4095, 0, 0, UA_STATUSCODE_GOOD);
-    checkHello(4096, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
-    checkHello(4097, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
-    checkHello(5000, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
-    checkHello(32, 0, 0xdeadbeef, UA_STATUSCODE_GOOD);
+    checkHello(32, 0, 0, UA_STATUSCODE_GOOD, false);
+    checkHello(4095, 0, 0, UA_STATUSCODE_GOOD, false);
+    checkHello(4096, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID, false);
+    checkHello(4097, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID, false);
+    checkHello(5000, 0, 0, UA_STATUSCODE_BADTCPENDPOINTURLINVALID, false);
+    checkHello(32, 0, 0xdeadbeef, UA_STATUSCODE_GOOD, false);
 } END_TEST
 
 START_TEST(helloTrailingData) {
-    checkHello(32, 1, 0, UA_STATUSCODE_BADDECODINGERROR);
-    checkHello(32, 8, 0, UA_STATUSCODE_BADDECODINGERROR);
+    checkHello(32, 1, 0, UA_STATUSCODE_BADDECODINGERROR, false);
+    checkHello(32, 8, 0, UA_STATUSCODE_BADDECODINGERROR, false);
+} END_TEST
+
+START_TEST(asyncListenerHello) {
+    checkHello(32, 0, 0, UA_STATUSCODE_GOOD, true);
+} END_TEST
+
+START_TEST(listenerStateUpdates) {
+    UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_ne(cm, NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    cm->eventSource.eventLoop = config->eventLoop;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binaryDriver;
+    UA_ApplicationDescription *description = &config->applicationDescription;
+    ck_assert_uint_eq(description->discoveryUrlsSize, 0);
+
+    UA_String address = UA_STRING((_i & 2) ? "localhost" : "127.0.0.1");
+    UA_UInt16 port = 4841;
+    UA_KeyValuePair params[2];
+    params[0].key = UA_QUALIFIEDNAME(0, "listen-address");
+    UA_Variant_setScalar(&params[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    params[1].key = UA_QUALIFIEDNAME(0, "listen-port");
+    UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap map = {2, params};
+
+    void *listener = NULL;
+    if(_i & 1) {
+        serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_OPENING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        ck_assert_ptr_eq(listener, &bpm->serverConnections[0]);
+        ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
+        ck_assert_uint_eq(bpm->serverConnections[0].state, UA_CONNECTIONSTATE_OPENING);
+        ck_assert_uint_eq(description->discoveryUrlsSize, 0);
+        ck_assert(TAILQ_EMPTY(&bpm->channels));
+    }
+
+    /* A later notification must preserve the listener context and URL count. */
+    for(unsigned update = 0; update < 2; update++) {
+        serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_ESTABLISHED,
+                              &map, UA_BYTESTRING_NULL);
+        ck_assert_ptr_eq(listener, &bpm->serverConnections[0]);
+        ck_assert_ptr_eq(bpm->serverConnections[0].connectionManager, cm);
+        ck_assert_uint_eq(bpm->serverConnections[0].connectionId, 1);
+        ck_assert_uint_eq(bpm->serverConnections[0].state, UA_CONNECTIONSTATE_ESTABLISHED);
+        ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
+        ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
+        ck_assert(TAILQ_EMPTY(&bpm->channels));
+        ck_assert_uint_eq(description->discoveryUrlsSize, 1);
+        UA_String expected = UA_STRING((_i & 2) ? "opc.tcp://localhost:4841" :
+                                                "opc.tcp://127.0.0.1:4841");
+        ck_assert(UA_String_equal(&description->discoveryUrls[0], &expected));
+    }
+
+    serverNetworkCallback(cm, 1, bpm, &listener, UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+    ck_assert_uint_eq(bpm->serverConnections[0].state, UA_CONNECTIONSTATE_CLOSED);
+    ck_assert_uint_eq(bpm->serverConnections[0].connectionId, 0);
+    cm->eventSource.free(&cm->eventSource);
+} END_TEST
+
+START_TEST(openingListenerCloses) {
+    UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_ne(cm, NULL);
+    cm->eventSource.eventLoop = UA_Server_getConfig(server)->eventLoop;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binaryDriver;
+
+    /* Reusing the slot after failed setup must not leave a registered listener. */
+    for(uintptr_t id = 1; id <= 2; id++) {
+        void *listener = NULL;
+        serverNetworkCallback(cm, id, bpm, &listener, UA_CONNECTIONSTATE_OPENING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        ck_assert_ptr_eq(listener, &bpm->serverConnections[0]);
+        ck_assert_uint_eq(bpm->serverConnectionsSize, 1);
+        serverNetworkCallback(cm, id, bpm, &listener, UA_CONNECTIONSTATE_CLOSING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+        ck_assert_uint_eq(bpm->serverConnections[0].state, UA_CONNECTIONSTATE_CLOSED);
+        ck_assert_uint_eq(bpm->serverConnections[0].connectionId, 0);
+        ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
+        ck_assert(TAILQ_EMPTY(&bpm->channels));
+    }
+    ck_assert_uint_eq(UA_Server_getConfig(server)->applicationDescription.discoveryUrlsSize, 0);
+    cm->eventSource.free(&cm->eventSource);
+} END_TEST
+
+START_TEST(listenerConnectionManagerIdentity) {
+    UA_ConnectionManager *listenerCm = TestConnectionManager_new("tcp", NULL);
+    UA_ConnectionManager *acceptedCm = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_ne(listenerCm, NULL);
+    ck_assert_ptr_ne(acceptedCm, NULL);
+    listenerCm->eventSource.eventLoop = UA_Server_getConfig(server)->eventLoop;
+    acceptedCm->eventSource.eventLoop = listenerCm->eventSource.eventLoop;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binaryDriver;
+    void *listener = NULL;
+    serverNetworkCallback(listenerCm, 1, bpm, &listener, UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+
+    /* Equal numeric ids from different managers identify different connections. */
+    void *accepted = listener;
+    serverNetworkCallback(acceptedCm, 1, bpm, &accepted, UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_ptr_ne(accepted, listener);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 1);
+    ck_assert_ptr_eq(((UA_SecureChannel*)accepted)->connectionManager, acceptedCm);
+
+    serverNetworkCallback(listenerCm, 1, bpm, &listener, UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 1);
+    serverNetworkCallback(acceptedCm, 1, bpm, &accepted, UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(server->secureChannelStatistics.currentChannelCount, 0);
+    ck_assert(TAILQ_EMPTY(&bpm->channels));
+    acceptedCm->eventSource.free(&acceptedCm->eventSource);
+    listenerCm->eventSource.free(&listenerCm->eventSource);
 } END_TEST
 
 int main(void) {
@@ -788,14 +1457,31 @@ int main(void) {
     tcase_add_checked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, checkGetConfig);
     tcase_add_test(tc_call, checkTcpDisabled);
+    tcase_add_test(tc_call, addDriverPropagatesStartFailure);
     tcase_add_test(tc_call, checkGetNamespaceByName);
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
     tcase_add_test(tc_call, checkGetStatistics);
     tcase_add_test(tc_call, checkGetLifecycleState);
+    tcase_add_test(tc_call, checkSharedExternalEventLoop);
+    tcase_add_loop_test(tc_call, checkShutdownAlreadyStopped, 0, 2);
+    tcase_add_test(tc_call, checkShutdownWaitsForSessionCleanup);
+    tcase_add_loop_test(tc_call, checkShutdownTcp, 0, 6);
+    tcase_add_loop_test(tc_call, checkShutdownDelayedDriver, 0, 6);
+    tcase_add_loop_test(tc_call, checkShutdownAsyncToSync, 0, 2);
     tcase_add_test(tc_call, helloEndpointUrlLimit);
     tcase_add_test(tc_call, helloTrailingData);
+    tcase_add_test(tc_call, checkNoneEndpointUserTokens);
+    tcase_add_loop_test(tc_call, checkStartupFailsWithoutServerSocket, 0, 2);
     suite_add_tcase(s, tc_call);
+
+    TCase *tc_listener = tcase_create("server - listener");
+    tcase_add_checked_fixture(tc_listener, setup, teardown);
+    tcase_add_test(tc_listener, asyncListenerHello);
+    tcase_add_loop_test(tc_listener, listenerStateUpdates, 0, 4);
+    tcase_add_test(tc_listener, openingListenerCloses);
+    tcase_add_test(tc_listener, listenerConnectionManagerIdentity);
+    suite_add_tcase(s, tc_listener);
 
     TCase *tc_ext = tcase_create("server - extended");
     tcase_add_checked_fixture(tc_ext, setup, teardown);
@@ -832,6 +1518,13 @@ int main(void) {
     tcase_add_test(tc_ext, checkServerAddObjectTypeNode);
     tcase_add_test(tc_ext, checkServerConfig_returnsLivePointer);
     suite_add_tcase(s, tc_ext);
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    TCase *tc_customtypes = tcase_create("server - custom datatypes");
+    tcase_add_test(tc_customtypes, checkCustomDataTypeBrowseNameLong);
+    tcase_add_test(tc_customtypes, checkCustomDataTypeBrowseNameShort);
+    suite_add_tcase(s, tc_customtypes);
+#endif
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

@@ -54,7 +54,7 @@ include_directories("${PROJECT_SOURCE_DIR}/plugins")
 
 if(UA_ARCHITECTURE_LWIP)
     # lwip includes
-    include_directories(${LWIP_INCLUDE_DIRS})
+    include_directories(SYSTEM ${LWIP_INCLUDE_DIRS})
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
@@ -320,6 +320,11 @@ ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
 
+if(UA_ARCHITECTURE_LWIP AND UA_ARCHITECTURE_POSIX)
+    ua_add_test(check_eventloop_lwip.c)
+    set_tests_properties(check_eventloop_lwip PROPERTIES TIMEOUT 120)
+endif()
+
 if(UA_ARCHITECTURE_WIN32)
     ua_add_test(check_eventloop_iocp.c)
 endif()
@@ -390,6 +395,7 @@ ua_add_test(server/check_services_nodemanagement.c)
 ua_add_test(server/check_discovery_coverage.c)
 ua_add_test(server/check_server_callbacks.c)
 ua_add_test(server/check_server_http_protocol.c)
+ua_add_test(server/check_server_websocket_protocol.c)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     ua_add_test(server/check_server_password.c EXTRALIBS -lcrypt)
@@ -410,10 +416,8 @@ if (UA_MULTITHREADING GREATER_EQUAL 100)
     ua_add_test(server/check_server_asyncop.c)
 endif()
 
-if(UA_ENABLE_METHODCALLS)
-    ua_add_test(server/check_services_call.c)
-    ua_add_test(server/check_services_method_coverage.c)
-endif()
+ua_add_test(server/check_services_call.c)
+ua_add_test(server/check_services_method_coverage.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_services_subscriptions.c)
@@ -430,6 +434,7 @@ endif()
 ua_add_test(server/check_nodestore.c)
 
 if(UA_ENABLE_HISTORIZING)
+    ua_add_test(server/check_services_history.c)
     ua_add_test(server/check_server_historical_data.c)
     ua_add_test(server/check_server_historical_data_circular.c)
 endif()
@@ -468,10 +473,8 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_datachange_deadband_typekinds.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST AND NOT WIN32)
+if(NOT WIN32)
     ua_add_test(server/check_findservers_on_network.c)
-    target_include_directories(check_findservers_on_network PRIVATE
-                               "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -547,6 +550,11 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_server_alarmsconditions.c)
 endif()
 
+if(UA_ENABLE_DRIVER_FILE_TRANSFER AND UA_GENERATED_NAMESPACE_ZERO)
+    ua_add_test(server/check_server_filetransfer.c)
+    ua_add_test(client/check_client_filetransfer.c)
+endif()
+
 # Single-threaded counterpart of check_server_asyncop.c, built in every configuration
 ua_add_test(server/check_server_asyncop_singlethreaded.c)
 
@@ -602,17 +610,14 @@ if(UA_ENABLE_ENCRYPTION)
         MESSAGE(WARNING "Certificate authentication with LibreSSL as crypto backend is not supported.")
     endif()
 
-    if(UA_ENABLE_DISCOVERY)
-        ua_add_test(server/check_discovery.c)
-    endif()
+    ua_add_test(server/check_discovery.c)
 
     if(UA_ENABLE_DRIVER_GDS_RECEIVER)
         ua_add_test(encryption/check_gds_informationmodel.c)
     endif()
 endif()
 
-if(UA_ENABLE_DISCOVERY AND (UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OR
-                            UA_ENABLE_DISCOVERY_MULTICAST_AVAHI))
+if(UA_ENABLE_DRIVER_MDNS_MDNSD OR UA_ENABLE_DRIVER_MDNS_AVAHI)
     ua_add_test(server/check_discovery_mdnsd.c)
     if(NOT MSVC)
         target_compile_options(check_discovery_mdnsd PRIVATE
@@ -682,6 +687,9 @@ endif()
 # The AEAD ECC policies (AesGcm / ChaChaPoly) are implemented only in the
 # OpenSSL backend, so their tests are OpenSSL-only.
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    ua_add_test(encryption/check_openssl_aead.c)
+    target_include_directories(check_openssl_aead PRIVATE
+                               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
     ua_add_test(encryption/check_encryption_eccnistp256_aesgcm.c)
     ua_add_test(encryption/check_encryption_eccnistp256_chachapoly.c)
 endif()
@@ -706,6 +714,9 @@ add_subdirectory(nodeset-loader)
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_interfaces.c EXTRASOURCES ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
+    ua_add_test(server/check_server_ns0_serverconfiguration.c)
+    target_compile_definitions(check_server_ns0_serverconfiguration PRIVATE
+        UA_SERVERCAPABILITIES_CSV="${UA_SCHEMA_DIR}/ServerCapabilities.csv")
 endif()
 
 # The replay implementation is available only for 64-bit Linux builds with

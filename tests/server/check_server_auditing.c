@@ -6,6 +6,8 @@
 #include <open62541/server_config_default.h>
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/types.h>
 
 #include "test_helpers.h"
@@ -47,6 +49,12 @@ static UA_atomic(size_t) channelOpenCalls = 0;
 static UA_NodeId expectedSourceNode;
 static UA_atomic(size_t) writeSourceNodeMatches = 0;
 
+/* ActivateSession audits with a UserNameIdentityToken: how many named the
+ * expected user, and how many of those carried a non-empty password. */
+static UA_atomic(size_t) activateUserTokens = 0;
+static UA_atomic(size_t) activateTokenPasswords = 0;
+
+
 /* Atomic increment built on UA_atomic_cmpxchg (config.h has no fetch-add) */
 static void
 counterInc(UA_atomic(size_t) *c) {
@@ -57,6 +65,40 @@ counterInc(UA_atomic(size_t) *c) {
         if(expected == old)
             return;
     }
+}
+
+/* The same for the AuditActivateSessionEventType events received by a local
+ * event MonitoredItem on the Server object selecting /UserIdentityToken. */
+static UA_atomic(size_t) eventUserTokens = 0;
+static UA_atomic(size_t) eventTokenPasswords = 0;
+
+static void
+countUserToken(const UA_Variant *v, UA_atomic(size_t) *tokens,
+               UA_atomic(size_t) *passwords) {
+    const UA_UserNameIdentityToken *tok = NULL;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])) {
+        tok = (const UA_UserNameIdentityToken*)v->data;
+    } else if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])) {
+        const UA_ExtensionObject *eo = (const UA_ExtensionObject*)v->data;
+        if(eo->encoding >= UA_EXTENSIONOBJECT_DECODED &&
+           eo->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
+            tok = (const UA_UserNameIdentityToken*)eo->content.decoded.data;
+    }
+    const UA_String user1 = UA_STRING_STATIC("user1");
+    if(!tok || !UA_String_equal(&tok->userName, &user1))
+        return;
+    counterInc(tokens);
+    if(tok->password.length > 0)
+        counterInc(passwords);
+}
+
+static void
+activateEventCb(UA_Server *s, UA_UInt32 monId, void *monContext,
+                const UA_KeyValueMap eventFields) {
+    (void)s; (void)monId; (void)monContext;
+    if(eventFields.mapSize > 0)
+        countUserToken(&eventFields.map[0].value, &eventUserTokens,
+                       &eventTokenPasswords);
 }
 
 static void
@@ -78,8 +120,19 @@ auditCb(UA_Server *s, UA_ApplicationNotificationType type,
         counterInc(&methodAuditCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE:
         counterInc(&sessionCreateCalls); break;
-    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE:
-        counterInc(&sessionActivateCalls); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE: {
+        counterInc(&sessionActivateCalls);
+        const UA_UserNameIdentityToken *tok = (const UA_UserNameIdentityToken*)
+            UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "/UserIdentityToken"),
+                                     &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+        const UA_String user1 = UA_STRING_STATIC("user1");
+        if(tok && UA_String_equal(&tok->userName, &user1)) {
+            counterInc(&activateUserTokens);
+            if(tok->password.length > 0)
+                counterInc(&activateTokenPasswords);
+        }
+        break;
+    }
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL:
         counterInc(&sessionCancelCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN:
@@ -112,6 +165,10 @@ static void resetCounters(void) {
     UA_atomic_store(&sessionCancelCalls, 0);
     UA_atomic_store(&channelOpenCalls, 0);
     UA_atomic_store(&writeSourceNodeMatches, 0);
+    UA_atomic_store(&activateUserTokens, 0);
+    UA_atomic_store(&activateTokenPasswords, 0);
+    UA_atomic_store(&eventUserTokens, 0);
+    UA_atomic_store(&eventTokenPasswords, 0);
     expectedSourceNode = UA_NODEID_NULL;
 }
 
@@ -124,6 +181,11 @@ static void setup(void) {
     cfg->auditMethodUpdateEnabled = true;
     cfg->auditNotificationCallback = auditCb;
     cfg->globalNotificationCallback = globalCb;
+    /* Anonymous stays allowed for the other tests; add one username login */
+    UA_UsernamePasswordLogin login =
+        {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")};
+    UA_AccessControl_default(cfg, true, NULL, 1, &login);
+    cfg->allowNonePolicyPassword = true;
     resetCounters();
     UA_Server_run_startup(server);
     UA_atomic_store(&running, true);
@@ -272,6 +334,46 @@ START_TEST(ClientConnectEmitsSessionAuditEvents) {
     UA_Client_delete(client);
 } END_TEST
 
+/* Test: the ActivateSession audit names the user but omits the password. */
+START_TEST(ActivateSessionAuditOmitsPassword) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Also check the generated AuditActivateSessionEventType event */
+    UA_EventFilter ef;
+    UA_EventFilter_init(&ef);
+    ef.selectClauses = (UA_SimpleAttributeOperand*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    ck_assert_ptr_ne(ef.selectClauses, NULL);
+    ef.selectClausesSize = 1;
+    UA_StatusCode res = UA_SimpleAttributeOperand_parse(&ef.selectClauses[0],
+                                                        UA_STRING("/UserIdentityToken"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult mon =
+        UA_Server_createEventMonitoredItem(server, UA_NS0ID(SERVER), ef, NULL,
+                                           activateEventCb);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&ef);
+#endif
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_ne(client, NULL);
+    UA_StatusCode r = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                                "user1", "password");
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+    for(int i = 0; i < 100 && UA_atomic_load(&activateUserTokens) == 0; i++)
+        UA_Client_run_iterate(client, 10);
+    ck_assert_uint_gt(UA_atomic_load(&activateUserTokens), 0);
+    ck_assert_uint_eq(UA_atomic_load(&activateTokenPasswords), 0);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    for(int i = 0; i < 100 && UA_atomic_load(&eventUserTokens) == 0; i++)
+        UA_Client_run_iterate(client, 10);
+    ck_assert_uint_gt(UA_atomic_load(&eventUserTokens), 0);
+    ck_assert_uint_eq(UA_atomic_load(&eventTokenPasswords), 0);
+    UA_Server_deleteMonitoredItem(server, mon.monitoredItemId);
+#endif
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 /* Test: enabling write-update auditing dynamically and disabling it again
  * exercises the conditional code path in UA_Server_writeValue. */
 START_TEST(ToggleWriteUpdateFlag) {
@@ -319,6 +421,7 @@ static Suite* testSuite(void) {
     tcase_add_test(tc, WriteAuditPayloadHasSourceNode);
     tcase_add_test(tc, NoAuditWhenDisabled);
     tcase_add_test(tc, ClientConnectEmitsSessionAuditEvents);
+    tcase_add_test(tc, ActivateSessionAuditOmitsPassword);
     tcase_add_test(tc, ToggleWriteUpdateFlag);
     suite_add_tcase(s, tc);
     return s;

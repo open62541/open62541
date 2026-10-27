@@ -246,7 +246,7 @@ handleVariableNode(NodeSet *nodeset, const NL_VariableNode *node, UA_NodeId pare
         ret = decodeVariableValue(nodeset, (const NL_Node *)node, &node->value, &attr.dataType,
                                   attr.valueRank, attr.arrayDimensionsSize, attr.arrayDimensions,
                                   &attr.value);
-        if(ret == UA_STATUSCODE_BADOUTOFMEMORY)
+        if(ret != UA_STATUSCODE_GOOD)
             goto cleanup;
 #else
         UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
@@ -328,7 +328,7 @@ handleVariableTypeNode(NodeSet *nodeset, const NL_VariableTypeNode *node, UA_Nod
         ret = decodeVariableValue(nodeset, (const NL_Node *)node, &node->value, &attr.dataType,
                                   attr.valueRank, attr.arrayDimensionsSize, attr.arrayDimensions,
                                   &attr.value);
-        if(ret == UA_STATUSCODE_BADOUTOFMEMORY)
+        if(ret != UA_STATUSCODE_GOOD)
             goto cleanup;
 #else
         UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
@@ -377,15 +377,11 @@ discardBegunNodes(NodeSet *nodeset) {
 
 static UA_StatusCode
 finishNode(NodeSet *nodeset, NL_Node *node) {
-#ifdef UA_ENABLE_METHODCALLS
     UA_StatusCode res;
     if(node->nodeClass == UA_NODECLASS_METHOD)
         res = UA_Server_addMethodNode_finish(nodeset->server, node->id, NULL, 0, NULL, 0, NULL);
     else
         res = UA_Server_addNode_finish(nodeset->server, node->id);
-#else
-    UA_StatusCode res = UA_Server_addNode_finish(nodeset->server, node->id);
-#endif
     if(res == UA_STATUSCODE_GOOD) {
         node->addState = NL_NODE_FINISHED;
     } else {
@@ -718,6 +714,14 @@ resolveDataType(NodeSet *nodeset, const UA_NodeId *id) {
     return type;
 }
 
+static bool
+isStructureKind(const UA_DataType *type) {
+    return type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+           type->typeKind == UA_DATATYPEKIND_OPTSTRUCT ||
+           type->typeKind == UA_DATATYPEKIND_UNION ||
+           type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT;
+}
+
 static UA_StatusCode
 addTypeFromDescription(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId parent,
                        UA_ExtensionObject *description) {
@@ -820,12 +824,38 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
         const NL_DataTypeDefinitionField *src = &node->definition->fields[i];
         UA_StructureField *dst = &fields[inheritedFieldsSize + i];
         dst->name = UA_STRING(src->name);
-        dst->valueRank = src->valueRank >= 0 ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
+
+        /* A field is a scalar or an array of a fixed rank (OPC UA Part 3
+         * v1.05, 8.51). A UA_DataType member is at most one-dimensional.
+         * Refuse the other ranks instead of flattening them. The inherited
+         * fields above come from UA_DataType members and are always valid. */
+        if(src->valueRank != UA_VALUERANK_SCALAR &&
+           src->valueRank != UA_VALUERANK_ONE_DIMENSION) {
+            UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
+                           "NodeSetLoader: The field %s of %N has the "
+                           "unsupported ValueRank %" PRIi32,
+                           src->name, node->id, src->valueRank);
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+            break;
+        }
+        dst->valueRank = src->valueRank;
         dst->isOptional = src->isOptional;
         hasOptionalFields |= src->isOptional;
 
         if(src->allowSubTypes) {
-            dst->dataType = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId;
+            /* With AllowSubTypes, subtypes of Structure are encoded as an
+             * ExtensionObject and all other DataTypes as a Variant (OPC UA
+             * Part 6 v1.05, F.13). A recursive field is a Structure. The
+             * dependency check skips AllowSubTypes fields so that mutually
+             * dependent Structures can be registered. Their field type may
+             * not be known yet: keep the ExtensionObject encoding then. */
+            bool isStructure = UA_NodeId_equal(&src->dataType, &node->id);
+            if(!isStructure) {
+                const UA_DataType *memberType = resolveDataType(nodeset, &src->dataType);
+                isStructure = !memberType || isStructureKind(memberType);
+            }
+            dst->dataType = isStructure ? UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId
+                                        : UA_TYPES[UA_TYPES_VARIANT].typeId;
             continue;
         }
         if(UA_NodeId_equal(&src->dataType, &node->id)) {

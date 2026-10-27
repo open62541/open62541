@@ -236,6 +236,11 @@ UA_StatusCode
 UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon,
                          UA_UInt32 linkId);
 
+/* Remove the links to MonitoredItems that no longer exist. A link goes away
+ * with the triggered MonitoredItem (Part 4, 5.13.1.6). */
+void
+UA_MonitoredItem_pruneLinks(UA_Subscription *sub, UA_MonitoredItem *mon);
+
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredItem *mon,
                                               const UA_DataValue *value);
@@ -269,6 +274,15 @@ struct UA_Subscription {
     TAILQ_ENTRY(UA_Subscription) sessionListEntry;
     UA_Session *session; /* May be NULL if no session is attached. */
     UA_UInt32 subscriptionId;
+
+    /* Identity of the Session the Subscription was detached from (CloseSession
+     * with DeleteSubscriptions=false, Session timeout). A detached Subscription
+     * can only be transferred to a Session with the same identity. */
+    UA_Boolean ownerKnown;
+    UA_Boolean ownerSecure; /* SecureChannel with SecurityMode other than None */
+    UA_UserTokenType ownerTokenType;
+    UA_String ownerUserId;
+    UA_String ownerApplicationUri;
 
     /* Settings */
     UA_UInt32 lifeTimeCount;
@@ -348,6 +362,11 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notif
 UA_StatusCode
 Subscription_setState(UA_Server *server, UA_Subscription *sub,
                       UA_SubscriptionState state);
+
+/* Add the publish timer of the Subscription, or change it to the current
+ * publishing interval. The next publishing cycle ends one interval from now. */
+UA_StatusCode
+Subscription_setPublishTimer(UA_Server *server, UA_Subscription *sub);
 
 void
 Subscription_resetLifetime(UA_Subscription *sub);

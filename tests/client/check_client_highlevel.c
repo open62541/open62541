@@ -553,7 +553,7 @@ START_TEST(Node_ReadWrite_Class) {
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODECLASS_OBJECT);
 
     /* Minimal nodeset does not contain UA_NS0ID_SERVER_GETMONITOREDITEMS node */
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_GENERATED_NAMESPACE_ZERO)
+#if defined(UA_GENERATED_NAMESPACE_ZERO)
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), UA_NODECLASS_METHOD);
 #endif
 
@@ -577,9 +577,11 @@ START_TEST(Node_ReadWrite_BrowseName) {
 
     browseName = UA_QUALIFIEDNAME(1,"Int-Changed");
 
+    /* The WriteMask of the Server object does not allow writing the BrowseName */
     retval = UA_Client_writeBrowseNameAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &browseName);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTWRITABLE);
 
+    /* Allowed by the WriteMask, but not supported by open62541 */
     retval = UA_Client_writeBrowseNameAttribute(client, nodeReadWriteInt, &browseName);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 }
@@ -1200,7 +1202,6 @@ START_TEST(Highlevel_BrowseSimplified) {
 }
 END_TEST
 
-#ifdef UA_ENABLE_METHODCALLS
 START_TEST(Highlevel_CallMethod_Error) {
     /* Call a method on a non-existent node */
     size_t outputSize = 0;
@@ -1214,7 +1215,6 @@ START_TEST(Highlevel_CallMethod_Error) {
     ck_assert(output == NULL);
 }
 END_TEST
-#endif
 
 START_TEST(Highlevel_browse_nullDescription) {
     UA_BrowseResult br = UA_Client_browse(client, NULL, 0, NULL);
@@ -1427,9 +1427,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_ext, Highlevel_translateBrowsePath_null);
     tcase_add_test(tc_ext, Highlevel_write_nullWriteValue);
     tcase_add_test(tc_ext, Highlevel_writeValueAttribute_nullVariant_returnsTypeMismatch);
-#ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_ext, Highlevel_CallMethod_Error);
-#endif
     tcase_add_test(tc_ext, Highlevel_addReference_invalidSource);
     tcase_add_test(tc_ext, Highlevel_deleteReference_invalidSource);
     tcase_add_test(tc_ext, Highlevel_deleteNode_invalidNode);

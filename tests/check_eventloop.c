@@ -6,6 +6,8 @@
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 #include "../arch/posix/eventloop_posix.h"
 #endif
+#ifdef UA_ARCHITECTURE_POSIX
+#endif
 #include "testing_clock.h"
 #include <time.h>
 #include <stdio.h>
@@ -126,7 +128,11 @@ START_TEST(localTimeOffset) {
     for(size_t i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
         ck_assert_int_eq(setenv("TZ", zones[i], 1), 0);
         tzset();
+#ifdef UA_ARCH_LOCAL_TIME_IS_UTC
+        ck_assert(UA_DateTime_localTimeUtcOffset() == 0);
+#else
         ck_assert(UA_DateTime_localTimeUtcOffset() == offsets[i] * UA_DATETIME_SEC);
+#endif
     }
     if(hadTimezone) {
         ck_assert_int_eq(setenv("TZ", saved, 1), 0);

@@ -573,6 +573,8 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(psc->deleteFlag && psc->recvChannelsSize == 0 && psc->sendChannel == 0) {
             UA_PubSubConnection_delete(psm, psc);
+            /* The last channel may have closed while deletion was pending. */
+            UA_PubSubManager_setState(psm, psm->drv.state);
             unlockServer(server);
             return;
         }
@@ -654,6 +656,14 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             "UDP network URL requires a non-zero port");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+
+    /* Validation via a ConnectionManager is an EventLoop operation. Before
+     * server startup the ConnectionManager is intentionally still fresh and
+     * cannot open even a validation-only connection. The static parts of the
+     * configuration have been checked above; defer transport validation and
+     * socket creation until the PubSubManager becomes operational. */
+    if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_GOOD;
 
     /* Detect a wildcard address for unicast receiving. The individual
      * DataSetWriters then contain additional target hostnames for sending.
@@ -748,6 +758,11 @@ UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the ETH network URL");
         return res;
     }
+
+    /* See the UDP path above. A fresh ConnectionManager cannot perform the
+     * validation open, so defer it until server startup. */
+    if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_GOOD;
 
     UA_Boolean listen = true;
     UA_KeyValuePair kvp[7];

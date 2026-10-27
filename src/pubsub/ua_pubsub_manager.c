@@ -442,8 +442,10 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
     }
 
     UA_StatusCode res = UA_PubSubManager_start(&psm->drv);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
         return res;
+    }
 
     /* Enable children before their parent groups and connections. Their state
      * machines wait for the parent to become operational. */

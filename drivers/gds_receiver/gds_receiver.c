@@ -729,9 +729,9 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(privateKey && privateKey->length > 0) {
         const UA_String pemFormat = UA_STRING("PEM");
-        const UA_String derFormat = UA_STRING("DER");
+        const UA_String pkcs8Format = UA_STRING("PKCS8");
         if(!UA_String_equal(&pemFormat, privateKeyFormat) &&
-           !UA_String_equal(&derFormat, privateKeyFormat))
+           !UA_String_equal(&pkcs8Format, privateKeyFormat))
             return UA_STATUSCODE_BADNOTSUPPORTED;
         retval = UA_CertificateUtils_checkKeyPair(certificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
@@ -1849,10 +1849,17 @@ UA_GDSReceiver_start(UA_Driver *drv) {
             return res;
 #ifdef UA_ENABLE_RBAC
         /* Restrict the GDS methods to the SecurityAdmin role. Runs after the
-         * ns0 GDS nodes have been created so the permissions can be applied. */
+         * ns0 GDS nodes have been created so the permissions can be applied.
+         * The AccessControl plugin can restrict the methods as well. So a
+         * failure is only logged. */
         res = initGDSRolePermissions(drv->server);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
+            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                           "Could not restrict the PushManagement methods to "
+                           "the SecurityAdmin role (%s). Only the AccessControl "
+                           "restricts them.", UA_StatusCode_name(res));
+        }
 #endif
         ctx->initialized = true;
     }

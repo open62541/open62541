@@ -4,6 +4,7 @@
 
 /* Server diagnostics and service dispatch tests */
 
+#include <open62541/client_subscriptions.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
@@ -11,6 +12,7 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "test_helpers.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -149,6 +151,47 @@ START_TEST(readServerStatus) {
     UA_Variant_clear(&value);
 } END_TEST
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+START_TEST(readServerStatusShutdownReasonSnapshot) {
+    const UA_NodeId reasonId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON);
+    const UA_NodeId statusId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
+    UA_UInt32 seconds = 5;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &seconds, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_StatusCode retval = UA_Server_writeValue(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN), value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText reasons[3];
+    reasons[0] = UA_LOCALIZEDTEXT("en", "Scheduled maintenance");
+    reasons[1] = UA_LOCALIZEDTEXT("de", "Wartung");
+    reasons[2] = UA_LOCALIZEDTEXT("", "");
+    for(size_t i = 0; i < sizeof(reasons) / sizeof(reasons[0]); i++) {
+        UA_Variant_setScalar(&value, &reasons[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_writeValue(server, reasonId, value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant statusValue;
+        retval = UA_Server_readValue(server, statusId, &statusValue);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(UA_Variant_hasScalarType(&statusValue, &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE]));
+        UA_ServerStatusDataType *status = (UA_ServerStatusDataType*)statusValue.data;
+        ck_assert(UA_LocalizedText_equal(&status->shutdownReason, &reasons[i]));
+        ck_assert_int_eq(status->state, UA_SERVERSTATE_SHUTDOWN);
+        ck_assert_uint_eq(status->secondsTillShutdown, seconds);
+        ck_assert(UA_BuildInfo_equal(&status->buildInfo, &UA_Server_getConfig(server)->buildInfo));
+
+        /* A status snapshot owns its reason even after the node is overwritten. */
+        UA_LocalizedText empty = UA_LOCALIZEDTEXT("", "");
+        UA_Variant_setScalar(&value, &empty, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_writeValue(server, reasonId, value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(UA_LocalizedText_equal(&status->shutdownReason, &reasons[i]));
+        UA_Variant_clear(&statusValue);
+    }
+} END_TEST
+#endif
+
 START_TEST(readServerStatusState) {
     UA_Variant value;
     UA_StatusCode retval = UA_Server_readValue(server,
@@ -193,6 +236,120 @@ START_TEST(readServerStatusSecondsTillShutdown) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&value);
 } END_TEST
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+/* Initiates the shutdown like UA_Server_runUntilInterrupt does on SIGINT */
+static void
+initiateShutdown(UA_UInt32 seconds) {
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &seconds, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_StatusCode res = UA_Server_writeValue(server,
+        UA_NS0ID(SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN), value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+/* Part 5, 12.10: Once the shutdown is initiated, the State is SHUTDOWN_4 and
+ * SecondsTillShutdown counts down until the actual shutdown */
+START_TEST(readServerStatusDuringShutdown) {
+    initiateShutdown(10);
+    UA_fakeSleep(4000);
+
+    UA_Variant value;
+    UA_StatusCode retval = UA_Server_readValue(server,
+        UA_NS0ID(SERVER_SERVERSTATUS_STATE), &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_SERVERSTATE]));
+    ck_assert_int_eq(*(UA_ServerState*)value.data, UA_SERVERSTATE_SHUTDOWN);
+    UA_Variant_clear(&value);
+
+    retval = UA_Server_readValue(server,
+        UA_NS0ID(SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN), &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)value.data, 6);
+    UA_Variant_clear(&value);
+
+    retval = UA_Server_readValue(server, UA_NS0ID(SERVER_SERVERSTATUS), &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value,
+                                       &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE]));
+    UA_ServerStatusDataType *status = (UA_ServerStatusDataType*)value.data;
+    ck_assert_int_eq(status->state, UA_SERVERSTATE_SHUTDOWN);
+    ck_assert_uint_eq(status->secondsTillShutdown, 6);
+    UA_Variant_clear(&value);
+} END_TEST
+
+/* Part 5, 12.10: The ServerStatus structure has the ShutdownReason that the
+ * application set in the ShutdownReason Variable */
+START_TEST(readServerStatusShutdownReason) {
+    initiateShutdown(10);
+    UA_LocalizedText reason = UA_LOCALIZEDTEXT("en-US", "Maintenance");
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &reason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_StatusCode retval = UA_Server_writeValue(server,
+        UA_NS0ID(SERVER_SERVERSTATUS_SHUTDOWNREASON), value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_readValue(server,
+        UA_NS0ID(SERVER_SERVERSTATUS_SHUTDOWNREASON), &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    ck_assert(UA_equal(value.data, &reason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    UA_Variant_clear(&value);
+
+    retval = UA_Server_readValue(server, UA_NS0ID(SERVER_SERVERSTATUS), &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value,
+                                       &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE]));
+    UA_ServerStatusDataType *status = (UA_ServerStatusDataType*)value.data;
+    ck_assert_int_eq(status->state, UA_SERVERSTATE_SHUTDOWN);
+    ck_assert(UA_equal(&status->shutdownReason, &reason,
+                       &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    UA_Variant_clear(&value);
+} END_TEST
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+static UA_ServerState lastServerState;
+static size_t serverStateNotifications;
+
+static void
+serverStateChanged(UA_Server *s, UA_UInt32 monId, void *monContext,
+                   const UA_NodeId *nodeId, void *nodeContext,
+                   UA_UInt32 attributeId, const UA_DataValue *value) {
+    if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_SERVERSTATE]))
+        lastServerState = *(UA_ServerState*)value->value.data;
+    serverStateNotifications++;
+}
+
+/* A MonitoredItem on the State reports the transition to SHUTDOWN_4 */
+START_TEST(monitorServerStateDuringShutdown) {
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    serverStateNotifications = 0;
+    lastServerState = UA_SERVERSTATE_UNKNOWN;
+    UA_MonitoredItemCreateRequest item =
+        UA_MonitoredItemCreateRequest_default(UA_NS0ID(SERVER_SERVERSTATUS_STATE));
+    item.requestedParameters.samplingInterval = 100.0;
+    UA_MonitoredItemCreateResult res =
+        UA_Server_createDataChangeMonitoredItem(server, UA_TIMESTAMPSTORETURN_NEITHER,
+                                                item, NULL, serverStateChanged);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_fakeSleep(200);
+    UA_Server_run_iterate(server, false);
+    ck_assert_int_eq(lastServerState, UA_SERVERSTATE_RUNNING);
+    size_t runningNotifications = serverStateNotifications;
+
+    initiateShutdown(10);
+    UA_fakeSleep(200);
+    UA_Server_run_iterate(server, false);
+    ck_assert_int_eq(lastServerState, UA_SERVERSTATE_SHUTDOWN);
+    ck_assert_uint_gt(serverStateNotifications, runningNotifications);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+#endif /* UA_GENERATED_NAMESPACE_ZERO */
 
 START_TEST(readServerCapabilities) {
     /* MaxBrowseContinuationPoints */
@@ -352,11 +509,21 @@ int main(void) {
     TCase *tc_status = tcase_create("ServerStatus");
     tcase_add_checked_fixture(tc_status, setup, teardown);
     tcase_add_test(tc_status, readServerStatus);
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    tcase_add_test(tc_status, readServerStatusShutdownReasonSnapshot);
+#endif
     tcase_add_test(tc_status, readServerStatusState);
     tcase_add_test(tc_status, readServerStatusBuildInfo);
     tcase_add_test(tc_status, readServerStatusStartTime);
     tcase_add_test(tc_status, readServerStatusCurrentTime);
     tcase_add_test(tc_status, readServerStatusSecondsTillShutdown);
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    tcase_add_test(tc_status, readServerStatusDuringShutdown);
+    tcase_add_test(tc_status, readServerStatusShutdownReason);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    tcase_add_test(tc_status, monitorServerStateDuringShutdown);
+#endif
+#endif
     tcase_add_test(tc_status, readServerCapabilities);
     tcase_add_test(tc_status, readNamespaceArray);
     tcase_add_test(tc_status, readServerArray);

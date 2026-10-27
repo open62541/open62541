@@ -927,6 +927,8 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(rg->deleteFlag && rg->recvChannelsSize == 0) {
             UA_ReaderGroup_remove(psm, rg);
+            /* The last channel may have closed while deletion was pending. */
+            UA_PubSubManager_setState(psm, psm->drv.state);
             unlockServer(server);
             return;
         }
@@ -1032,6 +1034,11 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the MQTT network URL");
         return res;
     }
+
+    /* A fresh ConnectionManager cannot perform the validation open before
+     * server startup. Defer it until the PubSubManager becomes operational. */
+    if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_GOOD;
 
     /* Set up the connection parameters.
      * TODO: Complete the MQTT parameters. */

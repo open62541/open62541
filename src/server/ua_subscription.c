@@ -351,6 +351,9 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notif
     /* Detach from the session if necessary */
     if(sub->session)
         UA_Session_detachSubscription(server, sub->session, sub, true);
+    UA_String_clear(&sub->ownerUserId);
+    UA_String_clear(&sub->ownerApplicationUri);
+    sub->ownerKnown = false;
 
     /* Remove from the server if not previously registered */
     if(sub->serverListEntry.le_prev) {
@@ -892,7 +895,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
     /* Set up the response */
     response->subscriptionId = sub->subscriptionId;
-    response->moreNotifications = (sub->notificationQueueSize > 0);
+    UA_Boolean moreNotifications = (sub->state == UA_SUBSCRIPTIONSTATE_ENABLED &&
+                                    sub->notificationQueueSize > 0);
+    response->moreNotifications = moreNotifications;
     message->publishTime = el->dateTime_now(el);
 
     /* Set sequence number to message. Started at 1 which is given during
@@ -936,14 +941,14 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     sendResponse(server, sub->session->channel, pre->responseToken,
                  (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
-    /* Reset the Subscription state to NORMAL. But only if all notifications
-     * have been sent out. Otherwise keep the Subscription in the LATE state. So
-     * we immediately answer incoming Publish requests.
+    /* Reset the Subscription state to NORMAL if no notifications remain to be
+     * sent or publishing is disabled. Otherwise keep the LATE state to
+     * immediately answer incoming Publish requests.
      *
      * (We also check that session->responseQueueSize > 0 in Service_Publish. To
      * avoid answering Publish requests out of order. As we additionally may have
      * scheduled a publish callback as a delayed callback. */
-    if(sub->notificationQueueSize == 0)
+    if(!moreNotifications)
         sub->late = false;
 
     /* Reset the KeepAlive after publishing */
@@ -971,10 +976,10 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     sub->notificationsCount += (sentDCN + sentEN);
 #endif
 
-    /* Repeat sending notifications if there are more notifications to send. But
-     * only call UA_MonitoredItem_sample in the regular publish callback. */
-    UA_Boolean done = (sub->notificationQueueSize == 0);
-    if(!done && !sub->delayedCallbackRegistered) {
+    /* Continue publishing only while notifications can be sent. Retained
+     * notifications with publishing disabled must not trigger another callback
+     * that advances the keep-alive counter without a publishing cycle. */
+    if(moreNotifications && !sub->delayedCallbackRegistered) {
         sub->delayedCallbackRegistered = true;
 
         sub->delayedMoreNotifications.callback = delayedPublishNotifications;
@@ -1073,6 +1078,24 @@ sampleAndPublishCallback(UA_Server *server,
     unlockServer(server);
 }
 
+/* The publishing cycles start when the timer is (re)started. The BASETIME
+ * policy with "now" as the base time keeps the timer from being batched with
+ * other timers: batching moves the first execution by up to 1/4 of the
+ * interval, but the first (keep-alive) message is due at the end of the first
+ * publishing cycle (Part 4, 5.13.1.1). */
+UA_StatusCode
+Subscription_setPublishTimer(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    if(sub->publishCallbackId != 0)
+        return el->modifyTimer(el, sub->publishCallbackId, sub->publishingInterval,
+                               &now, UA_TIMERPOLICY_BASETIME);
+    return el->addTimer(el, (UA_Callback)sampleAndPublishCallback, server, sub,
+                        sub->publishingInterval, &now, UA_TIMERPOLICY_BASETIME,
+                        &sub->publishCallbackId);
+}
+
 UA_StatusCode
 Subscription_setState(UA_Server *server, UA_Subscription *sub,
                       UA_SubscriptionState state) {
@@ -1089,9 +1112,7 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 #endif
         }
     } else if(sub->publishCallbackId == 0) {
-        UA_StatusCode res =
-            addRepeatedCallback(server, sampleAndPublishCallback,
-                                sub, sub->publishingInterval, &sub->publishCallbackId);
+        UA_StatusCode res = Subscription_setPublishTimer(server, sub);
         if(res != UA_STATUSCODE_GOOD) {
             sub->state = UA_SUBSCRIPTIONSTATE_STOPPED;
             return res;
@@ -1798,6 +1819,27 @@ UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
     return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_MonitoredItem_pruneLinks(UA_Subscription *sub, UA_MonitoredItem *mon) {
+    size_t kept = 0;
+    for(size_t i = 0; i < mon->triggeringLinksSize; i++) {
+        if(UA_Subscription_getMonitoredItem(sub, mon->triggeringLinks[i]))
+            mon->triggeringLinks[kept++] = mon->triggeringLinks[i];
+    }
+    if(kept == mon->triggeringLinksSize)
+        return;
+    mon->triggeringLinksSize = kept;
+    if(kept == 0) {
+        UA_free(mon->triggeringLinks);
+        mon->triggeringLinks = NULL;
+        return;
+    }
+    UA_UInt32 *tmpLinks = (UA_UInt32*)
+        UA_realloc(mon->triggeringLinks, kept * sizeof(UA_UInt32));
+    if(tmpLinks)
+        mon->triggeringLinks = tmpLinks;
 }
 
 UA_StatusCode

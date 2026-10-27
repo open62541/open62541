@@ -69,6 +69,9 @@ static UA_StatusCode
 sendRHEMessage(UA_Server *server, uintptr_t connectionId,
                UA_ConnectionManager *cm);
 
+static UA_StatusCode
+setReverseConnectRetryCallback(UA_ReverseBinaryProtocolManager *rpm, UA_Boolean enabled);
+
 static void
 setReverseConnectState(UA_Server *server, reverse_connect_context *context,
                        UA_SecureChannelState newState) {
@@ -129,6 +132,10 @@ serverReverseConnectionCallbackLocked(UA_ConnectionManager *cm, uintptr_t connec
             LIST_REMOVE(context, next);
             UA_String_clear(&context->hostname);
             UA_free(context);
+
+            /* Removed while connected. The retry callback was kept until now. */
+            if(LIST_EMPTY(&rpm->reverseConnects))
+                setReverseConnectRetryCallback(rpm, false);
 
             /* Check if the Binary Protocol Manager is stopped */
             if(rpm->drv.state == UA_LIFECYCLESTATE_STOPPING &&
@@ -448,8 +455,10 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
     if(handle)
         *handle = newContext->handle;
 
-    /* Attempt to connect right away */
-    res = attemptReverseConnect(rpm, newContext);
+    /* The EventLoop's ConnectionManagers are started during server startup.
+     * Until then, keep the reverse connection for the startup attempt. */
+    if(rpm->drv.state == UA_LIFECYCLESTATE_STARTED)
+        res = attemptReverseConnect(rpm, newContext);
 
     unlockServer(server);
     return res;
@@ -472,17 +481,18 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
 
     reverse_connect_context *rev, *temp;
     LIST_FOREACH_SAFE(rev, &rpm->reverseConnects, next, temp) {
-        if(rev->handle != handle)
+        if(rev->handle != handle || rev->destruction)
             continue;
 
-        LIST_REMOVE(rev, next);
-
-        /* Connected -> disconnect, otherwise free immediately */
+        /* Connected -> disconnect, otherwise free immediately. A connected
+         * entry stays in the list until its connection has closed. Then the
+         * connection callback removes and frees it. */
         if(rev->connectionId) {
             UA_ConnectionManager *cm = rev->connectionManager;
             rev->destruction = true;
             cm->closeConnection(cm, rev->connectionId);
         } else {
+            LIST_REMOVE(rev, next);
             setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
             UA_String_clear(&rev->hostname);
             UA_free(rev);
@@ -522,6 +532,13 @@ UA_ReverseBinaryProtocolManager_start(UA_Driver *drv) {
     /* Set the state to started */
     setReverseBinaryProtocolManagerState(rpm, UA_LIFECYCLESTATE_STARTED);
 
+    /* Start reverse connections that were registered before server startup. */
+    reverse_connect_context *rev;
+    LIST_FOREACH(rev, &rpm->reverseConnects, next) {
+        if(!rev->connectionId)
+            attemptReverseConnect(rpm, rev);
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -536,9 +553,12 @@ UA_ReverseBinaryProtocolManager_stop(UA_Driver *drv) {
     /* Stop the regular retry callback */
     setReverseConnectRetryCallback(rpm, false);
 
-    /* Close or free all reverse connections */
+    /* Close or free all reverse connections. Removed entries are already
+     * closing. */
     reverse_connect_context *rev, *rev_tmp;
     LIST_FOREACH_SAFE(rev, &rpm->reverseConnects, next, rev_tmp) {
+        if(rev->destruction)
+            continue;
         if(rev->connectionId) {
             UA_ConnectionManager *cm = rev->connectionManager;
             rev->destruction = true;
@@ -563,6 +583,13 @@ UA_ReverseBinaryProtocolManager_stop(UA_Driver *drv) {
     } else {
         setReverseBinaryProtocolManagerState(rpm, UA_LIFECYCLESTATE_STOPPING);
     }
+}
+
+UA_Boolean
+UA_ReverseBinaryProtocolManager_hasReverseConnects(const UA_Driver *drv) {
+    const UA_ReverseBinaryProtocolManager *rpm =
+        (const UA_ReverseBinaryProtocolManager*)drv;
+    return !LIST_EMPTY(&rpm->reverseConnects);
 }
 
 static UA_StatusCode

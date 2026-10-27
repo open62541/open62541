@@ -1132,6 +1132,103 @@ START_TEST(trustListDataTypeOperations) {
     UA_TrustListDataType_clear(&dst);
 } END_TEST
 
+/* A borrowed view; only the destination of add/copy/set owns its arrays. */
+static UA_TrustListDataType
+trustListView(UA_ByteString *items, size_t size) {
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    list.trustedCertificates = items;
+    list.trustedCertificatesSize = size;
+    list.trustedCrls = items;
+    list.trustedCrlsSize = size;
+    list.issuerCertificates = items;
+    list.issuerCertificatesSize = size;
+    list.issuerCrls = items;
+    list.issuerCrlsSize = size;
+    return list;
+}
+
+START_TEST(trustListAddDeduplicatesAllLists) {
+    UA_ByteString items[2] = {UA_BYTESTRING("first"), UA_BYTESTRING("second")};
+    UA_TrustListDataType src = trustListView(items, 1);
+    UA_TrustListDataType dst;
+    UA_TrustListDataType_init(&dst);
+    ck_assert_uint_eq(UA_TrustListDataType_add(&src, &dst), UA_STATUSCODE_GOOD);
+    src = trustListView(items, 2);
+    ck_assert_uint_eq(UA_TrustListDataType_add(&src, &dst), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_TrustListDataType_add(&src, &dst), UA_STATUSCODE_GOOD);
+    ck_assert(UA_TrustListDataType_equal(&dst, &src));
+    ck_assert_uint_eq(UA_TrustListDataType_getSize(&dst),
+                      4 * (items[0].length + items[1].length));
+    ck_assert_ptr_ne(dst.trustedCertificates[0].data, items[0].data);
+    ck_assert_ptr_ne(dst.trustedCrls[0].data, items[0].data);
+    ck_assert_ptr_ne(dst.issuerCertificates[0].data, items[0].data);
+    ck_assert_ptr_ne(dst.issuerCrls[0].data, items[0].data);
+    UA_TrustListDataType_clear(&dst);
+} END_TEST
+
+START_TEST(trustListAddCopyFailurePreservesDestination) {
+    UA_ByteString original = UA_BYTESTRING("keep");
+    UA_TrustListDataType expected = trustListView(&original, 1);
+    UA_TrustListDataType dst;
+    ck_assert_uint_eq(UA_TrustListDataType_copy(&expected, &dst), UA_STATUSCODE_GOOD);
+
+    /* A nonempty ByteString without data must be rejected before copying. */
+    UA_ByteString invalid = {1, NULL};
+    UA_TrustListDataType src = trustListView(&invalid, 1);
+    src.specifiedLists = (UA_UInt32)1 << _i;
+    ck_assert_uint_eq(UA_TrustListDataType_add(&src, &dst), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert(UA_TrustListDataType_equal(&dst, &expected));
+    ck_assert_uint_eq(invalid.length, 1);
+    ck_assert_ptr_null(invalid.data);
+    UA_TrustListDataType_clear(&dst);
+} END_TEST
+
+START_TEST(trustListSetReplacesOnlySelectedList) {
+    UA_ByteString original = UA_BYTESTRING("keep");
+    UA_ByteString replacement = UA_BYTESTRING("replace");
+    UA_TrustListDataType expected = trustListView(&original, 1);
+    UA_TrustListDataType dst;
+    ck_assert_uint_eq(UA_TrustListDataType_copy(&expected, &dst), UA_STATUSCODE_GOOD);
+    UA_TrustListDataType src = trustListView(&replacement, 1);
+    src.specifiedLists = (UA_UInt32)1 << _i;
+    ck_assert_uint_eq(UA_TrustListDataType_set(&src, &dst), UA_STATUSCODE_GOOD);
+    switch(_i) {
+    case 0: expected.trustedCertificates = &replacement; break;
+    case 1: expected.trustedCrls = &replacement; break;
+    case 2: expected.issuerCertificates = &replacement; break;
+    case 3: expected.issuerCrls = &replacement; break;
+    }
+    ck_assert(UA_TrustListDataType_equal(&dst, &expected));
+    UA_TrustListDataType_clear(&dst);
+} END_TEST
+
+START_TEST(trustListRemoveAllEntries) {
+    UA_ByteString items[2] = {UA_BYTESTRING("first"), UA_BYTESTRING("second")};
+    UA_TrustListDataType src = trustListView(items, 2);
+    UA_TrustListDataType dst;
+    ck_assert_uint_eq(UA_TrustListDataType_copy(&src, &dst), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_TrustListDataType_remove(&src, &dst), UA_STATUSCODE_GOOD);
+    UA_TrustListDataType empty = trustListView(NULL, 0);
+    ck_assert(UA_TrustListDataType_equal(&dst, &empty));
+    ck_assert_uint_eq(UA_TrustListDataType_getSize(&dst), 0);
+    UA_TrustListDataType_clear(&dst);
+} END_TEST
+
+START_TEST(trustListNullArguments) {
+    UA_ByteString original = UA_BYTESTRING("keep");
+    UA_TrustListDataType expected = trustListView(&original, 1);
+    UA_TrustListDataType dst;
+    ck_assert_uint_eq(UA_TrustListDataType_copy(&expected, &dst), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_TrustListDataType_add(NULL, &dst), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_TrustListDataType_remove(NULL, &dst), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_TrustListDataType_add(&expected, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_TrustListDataType_remove(&expected, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert(UA_TrustListDataType_equal(&dst, &expected));
+    UA_TrustListDataType_clear(&dst);
+} END_TEST
+
 START_TEST(simpleAttributeOperandPrint) {
     UA_SimpleAttributeOperand sao;
     UA_SimpleAttributeOperand_init(&sao);
@@ -1310,11 +1407,46 @@ START_TEST(parseEndpointUrl_unknownScheme_rejected) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
 } END_TEST
 
-/* Skipped: the parseEndpointUrlEthernet parser requires a colon after the
- * MAC for the VID/PCP components, and the various edge cases (missing
- * trailing colon, trailing colon with no value) all return BADINTERNALERROR.
- * The simple opc.tcp:// path through the URL parser is already covered by
- * the existing parseEndpointUrl_opc_tcp / parseEndpointUrl_eth tests. */
+START_TEST(parseEndpointUrl_nullInput) {
+    UA_String empty = UA_STRING_NULL;
+    UA_String expected = UA_STRING("unchanged");
+    UA_String hostname = expected;
+    UA_String path = expected;
+    UA_UInt16 port = 4840;
+    ck_assert_uint_eq(UA_parseEndpointUrl(_i == 0 ? NULL : &empty,
+                                          &hostname, &port, &path),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
+    ck_assert(UA_String_equal(&hostname, &expected));
+    ck_assert(UA_String_equal(&path, &expected));
+    ck_assert_uint_eq(port, 4840);
+} END_TEST
+
+START_TEST(parseEndpointUrl_emptyPathAfterTrailingSlash) {
+    UA_String url = UA_STRING("opc.tcp://host//");
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING("unchanged");
+    UA_UInt16 port = 4840;
+    ck_assert_uint_eq(UA_parseEndpointUrl(&url, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    UA_String expectedHostname = UA_STRING("host");
+    ck_assert(UA_String_equal(&hostname, &expectedHostname));
+    ck_assert_uint_eq(port, 4840);
+    ck_assert_uint_eq(path.length, 0);
+    ck_assert_ptr_null(path.data);
+} END_TEST
+
+START_TEST(parseEndpointUrlEthernet_invalidSuffix) {
+    UA_String url = (_i == 0) ? UA_STRING("opc.eth://target:100,7") :
+        UA_STRING("opc.eth://target:100.7x");
+    UA_String target = UA_STRING_NULL;
+    UA_UInt16 vid = 77;
+    UA_Byte pcp = 4;
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&url, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    UA_String expectedTarget = UA_STRING("target");
+    ck_assert(UA_String_equal(&target, &expectedTarget));
+    ck_assert_uint_eq(vid, (_i == 0) ? 77 : 100);
+    ck_assert_uint_eq(pcp, 4);
+} END_TEST
 
 
 static Suite* testSuite_Utils(void) {
@@ -1387,6 +1519,11 @@ static Suite* testSuite_Utils(void) {
 
     TCase *tc8 = tcase_create("test trustlist and operand utilities");
     tcase_add_test(tc8, trustListDataTypeOperations);
+    tcase_add_test(tc8, trustListAddDeduplicatesAllLists);
+    tcase_add_loop_test(tc8, trustListAddCopyFailurePreservesDestination, 0, 4);
+    tcase_add_loop_test(tc8, trustListSetReplacesOnlySelectedList, 0, 4);
+    tcase_add_test(tc8, trustListRemoveAllEntries);
+    tcase_add_test(tc8, trustListNullArguments);
     tcase_add_test(tc8, simpleAttributeOperandPrint);
     tcase_add_test(tc8, attributeOperandPrint);
     suite_add_tcase(s, tc8);
@@ -1402,6 +1539,9 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc10, parseEndpointUrl_opcUdp_scheme);
     tcase_add_test(tc10, parseEndpointUrl_opcMqtt_scheme);
     tcase_add_test(tc10, parseEndpointUrl_unknownScheme_rejected);
+    tcase_add_loop_test(tc10, parseEndpointUrl_nullInput, 0, 2);
+    tcase_add_test(tc10, parseEndpointUrl_emptyPathAfterTrailingSlash);
+    tcase_add_loop_test(tc10, parseEndpointUrlEthernet_invalidSuffix, 0, 2);
     suite_add_tcase(s, tc10);
 
     return s;

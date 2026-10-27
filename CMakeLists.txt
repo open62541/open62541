@@ -1,36 +1,37 @@
+########################
+# Basic CMake Settings #
+###################### #
+
 cmake_minimum_required(VERSION 3.13)
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 
-# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
-set(ANDROID_PLATFORM 24)
-
+# Define the open62541 project
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
 
+# Early Zephyr handling. The actual architecture definitions are below.
 if(ZEPHYR_BASE)
   if(NOT CONFIG_OPEN62541)
     return()
   endif()
-  include(arch/zephyr/zephyr.cmake)
-  add_compile_definitions(UA_ARCH_HEADER="${PROJECT_SOURCE_DIR}/arch/zephyr/zephyr_arch.h")
+  include(arch/zephyr/zephyr_base.cmake)
 endif()
 
-# set(CMAKE_VERBOSE_MAKEFILE ON)
+# Early Android handling.
+# android.toolchain.cmake is "19" but we need "24" for epoll_create1 and ifaddrs.h.
+set(ANDROID_PLATFORM 24)
 
+# Load CMake packages
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-
 find_package(Python3 REQUIRED)
 find_package(Git)
-
 include(AssignSourceGroup)
 include(GNUInstallDirs)
 
-#############################
-# Compiled binaries folders #
-#############################
-
+# Put binaries into a /bin subfolder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -44,7 +45,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 5)
-set(OPEN62541_VER_PATCH 8)
+set(OPEN62541_VER_PATCH 9)
 set(OPEN62541_VER_LABEL "") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -72,6 +73,7 @@ set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr" "freertos-lwip" "posix-lwip
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
 
+# Use win32 or posix if no architecture is selected
 if("${UA_ARCHITECTURE}" STREQUAL "")
     if(WIN32)
         set(UA_ARCHITECTURE "win32" CACHE STRING ""  FORCE)
@@ -111,12 +113,9 @@ option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open6254
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 100 CACHE STRING "Minimal level for logs (in addition to the log plugin settings) (100=TRACE, 200=DEBUG, 300=INFO, 400=WARNING, 500=ERROR, 600=FATAL)")
 option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" ON)
-option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
 option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
-option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" ON)
-option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
@@ -158,13 +157,20 @@ option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API
 mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 
 # Drivers
+option(UA_ENABLE_DRIVER_FILE_TRANSFER "Enable the file transfer driver" ON)
+mark_as_advanced(UA_ENABLE_DRIVER_FILE_TRANSFER)
 option(UA_ENABLE_DRIVER_GDS_RECEIVER "Enable the GDS Receiver driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_GDS_RECEIVER)
 option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
-set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
-set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
 set(UA_FILE_MDNSD "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c")
+set(MDNS_MDNSD_DEFAULT OFF)
+if(UA_ARCHITECTURE_POSIX AND
+   NOT UA_ENABLE_DRIVER_MDNS_AVAHI AND EXISTS "${UA_FILE_MDNSD}")
+    set(MDNS_MDNSD_DEFAULT ON)
+endif()
+option(UA_ENABLE_DRIVER_MDNS_MDNSD "Enable the bundled mdnsd mDNS discovery driver" ${MDNS_MDNSD_DEFAULT})
+mark_as_advanced(UA_ENABLE_DRIVER_MDNS_MDNSD)
 
 option(UA_ENABLE_LWS
        "Enable the libwebsockets provider for HTTP and WebSocket transports"
@@ -201,7 +207,7 @@ if(UA_ENABLE_EVENTLOOP_GLIB)
     endif()
 endif()
 
-# security provider
+# Security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
 set(UA_ENABLE_ENCRYPTION OFF CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
 SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION PROPERTY STRINGS "OFF" ${UA_ENCRYPTION_PLUGINS})
@@ -301,7 +307,6 @@ endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable options not passed in the build script, to also fuzzy-test this code
-    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_SUBSCRIPTIONS ON CACHE STRING "" FORCE)
@@ -312,18 +317,6 @@ endif()
 #if((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_NAMESPACE_ZERO STREQUAL "FULL")))
 #    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
 #endif()
-
-if(UA_ENABLE_DRIVER_MDNS_AVAHI AND NOT UA_ENABLE_DISCOVERY)
-    message(FATAL_ERROR "UA_ENABLE_DRIVER_MDNS_AVAHI requires UA_ENABLE_DISCOVERY")
-endif()
-
-if(UA_ENABLE_DISCOVERY)
-    if(UA_ENABLE_DRIVER_MDNS_AVAHI)
-        set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI ON)
-    elseif(UA_ARCHITECTURE_POSIX AND EXISTS "${UA_FILE_MDNSD}")
-        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
-    endif()
-endif()
 
 # Advanced options
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
@@ -363,9 +356,6 @@ endif()
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ${UA_ENABLE_PUBSUB})
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-    if(NOT UA_ENABLE_METHODCALLS)
-        message(FATAL_ERROR "PubSub information model representation requires UA_ENABLE_METHODCALLS.")
-    endif()
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
     endif()
@@ -509,17 +499,24 @@ set(open62541_LIBRARIES "")
 set(open62541_PUBLIC_LIBRARIES "")
 set(pkgcfg_libsprivate "")
 set(pkgcfg_requiresprivate "")
-if("${UA_ARCHITECTURE}" STREQUAL "posix")
-    list(APPEND open62541_LIBRARIES "m")
-    list(APPEND pkgcfg_libsprivate "-lm")
-    if(UA_MULTITHREADING GREATER_EQUAL 100 OR UA_BUILD_UNIT_TESTS AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
-        list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
-        list(APPEND pkgcfg_libsprivate "-lpthread")
-    endif()
-    if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
-        list(APPEND open62541_LIBRARIES "rt")
-        list(APPEND pkgcfg_libsprivate "-lrt")
-    endif()
+
+unset(UA_ARCHITECTURE_INCLUDE) # To be set by the architecture-specific cmake file
+if("${UA_ARCHITECTURE}" STREQUAL "none" OR
+   "${UA_ARCHITECTURE}" STREQUAL "posix" OR
+   "${UA_ARCHITECTURE}" STREQUAL "posix-lwip" OR
+   "${UA_ARCHITECTURE}" STREQUAL "win32")
+    include("${PROJECT_SOURCE_DIR}/arch/posix/posix.cmake")
+elseif(UA_ARCHITECTURE_FREERTOS)
+    include("${PROJECT_SOURCE_DIR}/arch/freertos/freertos.cmake")
+elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
+    include("${PROJECT_SOURCE_DIR}/arch/zephyr/zephyr.cmake")
+endif()
+
+if("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
+    # The default TAP interface is shared across EventLoops. Its initialization
+    # is synchronized independently of UA_MULTITHREADING.
+    list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
+    list(APPEND pkgcfg_libsprivate "-lpthread")
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     list(APPEND open62541_LIBRARIES "ws2_32")
     list(APPEND open62541_LIBRARIES "iphlpapi")
@@ -638,7 +635,7 @@ if(MINGW)
     list(APPEND open62541_LIBRARIES ws2_32 ssp)
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+if(UA_ENABLE_DRIVER_MDNS_AVAHI)
     find_package(PkgConfig REQUIRED)
     pkg_search_module(AVAHI REQUIRED avahi-client)
     include_directories(${AVAHI_INCLUDE_DIRS})
@@ -888,7 +885,7 @@ if(MSVC)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
-    add_compile_definitions(UA_ARCH_HEADER="${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_arch.h")
+    add_compile_options(-include "${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_arch.h")
 endif()
 
 #########################
@@ -903,6 +900,7 @@ configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated
 
 # Exported headers
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/${UA_ARCHITECTURE_INCLUDE}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
@@ -923,6 +921,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/alarms_conditions.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/mdns.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/file_transfer.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
 
@@ -940,7 +939,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/yxml.h
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                 ${PROJECT_SOURCE_DIR}/deps/parse_num.h
-                ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
+                ${PROJECT_SOURCE_DIR}/src/ua_types_encoding.h
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util_internal.h
@@ -957,7 +956,7 @@ if(UA_ENABLE_AMALGAMATION OR (UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32))
 endif()
 
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
-                ${PROJECT_SOURCE_DIR}/src/ua_types_definition.c
+                ${PROJECT_SOURCE_DIR}/src/ua_types_description.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
@@ -977,6 +976,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_transport_tcp.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_transport_tcp_reverse.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
@@ -995,7 +995,15 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c)
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
+                # client
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_http.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c)
 
 if(UA_ENABLE_DRIVER_GDS_RECEIVER)
     list(APPEND exported_headers
@@ -1044,16 +1052,6 @@ if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY OR UA_ENABLE_AMALGAMATION)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_http.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
-                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c)
-endif()
-
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     if(NOT UA_ENABLE_JSON_ENCODING)
         message(FATAL_ERROR "Event Filter Parsing require JSON to be enabled")
@@ -1077,8 +1075,8 @@ if(UA_ENABLE_JSON_ENCODING)
     if(NOT UA_ENABLE_TYPEDESCRIPTION)
         message(FATAL_ERROR "JSON encoding requires parsing and type descriptions to be enabled")
     endif()
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
+    # The encoding header uses cj5 types. Keep cj5 first for amalgamation.
+    list(PREPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
     if(UA_ENABLE_PUBSUB)
@@ -1110,156 +1108,14 @@ if(UA_ENABLE_XML_ENCODING)
     if(NOT UA_ENABLE_TYPEDESCRIPTION)
         message(FATAL_ERROR "XML encoding requires parsing and type descriptions to be enabled")
     endif()
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 else()
     message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
 endif()
 
-if(UA_DEBUG_DUMP_PKGS)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
-endif()
+include("${PROJECT_SOURCE_DIR}/tools/cmake/mdnsd.cmake")
 
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-    if(NOT UA_ARCHITECTURE_POSIX)
-        message(FATAL_ERROR "The bundled mdnsd discovery driver requires UA_ARCHITECTURE=posix")
-    endif()
-
-    # Copy mdnsd libmdnsd files into src_generated/mdnsd/.
-    set(MDNSD_GENERATED_DIR "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
-    file(MAKE_DIRECTORY "${MDNSD_GENERATED_DIR}")
-
-    set(MDNSD_LIBMDNSD_HEADERS 1035.h xht.h sdtxt.h inet.h mdnsd.h)
-    set(MDNSD_LIBMDNSD_SOURCES 1035.c xht.c sdtxt.c inet.c mdnsd.c log.c)
-
-    foreach(_f IN LISTS MDNSD_LIBMDNSD_HEADERS MDNSD_LIBMDNSD_SOURCES)
-        configure_file(
-            "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/${_f}"
-            "${MDNSD_GENERATED_DIR}/${_f}"
-            COPYONLY)
-        file(READ "${MDNSD_GENERATED_DIR}/${_f}" _content)
-        # Ensure open62541/config.h (which sets _GNU_SOURCE etc.) is included
-        # before any system header, then remove any original config.h include.
-        string(PREPEND _content "#include \"open62541/config.h\"\n")
-        string(REGEX REPLACE "#include \"config\\.h\"\n?" "" _content "${_content}")
-        string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2"
-               _content "${_content}")
-        string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2"
-               _content "${_content}")
-        string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2"
-               _content "${_content}")
-        string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2"
-               _content "${_content}")
-        if(_f STREQUAL "mdnsd.h")
-            string(REPLACE "#define DBG(fmt, args...)  mdnsd_log(LOG_DEBUG, \"%s(): \" fmt, __func__, ##args)"
-                           "#define DBG(fmt, ...)  mdnsd_log(LOG_DEBUG, \"%s(): \" fmt, __func__, __VA_ARGS__)"
-                           _content "${_content}")
-            string(REPLACE "#define INFO(fmt, args...) mdnsd_log(LOG_INFO, \"%s(): \" fmt, __func__, ##args)"
-                           "#define INFO(fmt, ...) mdnsd_log(LOG_INFO, \"%s(): \" fmt, __func__, __VA_ARGS__)"
-                           _content "${_content}")
-            string(REPLACE "#define NOTE(fmt, args...) mdnsd_log(LOG_NOTICE, fmt, ##args)"
-                           "#define NOTE(...) mdnsd_log(LOG_NOTICE, __VA_ARGS__)"
-                           _content "${_content}")
-            string(REPLACE "#define WARN(fmt, args...) mdnsd_log(LOG_WARNING, fmt, ##args)"
-                           "#define WARN(...) mdnsd_log(LOG_WARNING, __VA_ARGS__)"
-                           _content "${_content}")
-            string(REPLACE "#define ERR(fmt, args...)  mdnsd_log(LOG_ERR, fmt, ##args)"
-                           "#define ERR(...)  mdnsd_log(LOG_ERR, __VA_ARGS__)"
-                           _content "${_content}")
-        endif()
-        if(_f STREQUAL "xht.c")
-            string(REPLACE
-[=[	_xht_set(h, ckey, cval, 1);]=]
-[=[	if (!_xht_set(h, ckey, cval, 1)) {
-		free(ckey);
-		free(cval);
-	}]=]
-                _content "${_content}")
-        elseif(_f STREQUAL "mdnsd.c")
-            string(REPLACE
-[=[		c->rr.rdname = strdup(r->known.ns.name);]=]
-[=[		if (!r->known.ns.name) {
-			free(c->rr.rdata);
-			free(c->rr.name);
-			free(c);
-			return 1;
-		}
-		c->rr.rdname = strdup(r->known.ns.name);]=]
-                _content "${_content}")
-            string(REPLACE
-[=[		c->rr.rdname = strdup(r->known.srv.name);]=]
-[=[		if (!r->known.srv.name) {
-			free(c->rr.rdata);
-			free(c->rr.name);
-			free(c);
-			return 1;
-		}
-		c->rr.rdname = strdup(r->known.srv.name);]=]
-                _content "${_content}")
-            string(REPLACE
-[=[	memset(buf, 0, sizeof(buf));]=]
-[=[	memset(buf, 0, sizeof(buf));
-	memset(&from, 0, sizeof(from));]=]
-                _content "${_content}")
-            string(REPLACE
-[=[static bool _is_local_ipv4(mdns_daemon_t *d, struct in_addr ip)]=]
-[=[static bool _is_local_ipv4(mdns_daemon_t *d, const struct in_addr *ip)]=]
-                _content "${_content}")
-            string(REPLACE
-[=[	if (ip.s_addr == d->addr.s_addr)]=]
-[=[	if (ip->s_addr == d->addr.s_addr)]=]
-                _content "${_content}")
-            string(REPLACE
-[=[		if (sin->sin_addr.s_addr == ip.s_addr)]=]
-[=[		if (sin->sin_addr.s_addr == ip->s_addr)]=]
-                _content "${_content}")
-            string(REPLACE
-[=[	return _is_local_ipv4(d, ((const struct sockaddr_in *)from)->sin_addr);]=]
-[=[	if (inet_family(from) != AF_INET)
-		return false;
-
-	const struct sockaddr_in *sin4 = (const struct sockaddr_in *)from;
-	return _is_local_ipv4(d, &sin4->sin_addr);]=]
-                _content "${_content}")
-        endif()
-        file(WRITE "${MDNSD_GENERATED_DIR}/${_f}" "${_content}")
-    endforeach()
-
-    file(WRITE "${MDNSD_GENERATED_DIR}/config.h"
-         "#include \"open62541/config.h\"\n")
-
-    # Suppress warnings from the generated (upstream) mdnsd C files.
-    set_source_files_properties(
-        ${MDNSD_GENERATED_DIR}/1035.c
-        ${MDNSD_GENERATED_DIR}/xht.c
-        ${MDNSD_GENERATED_DIR}/sdtxt.c
-        ${MDNSD_GENERATED_DIR}/inet.c
-        ${MDNSD_GENERATED_DIR}/mdnsd.c
-        ${MDNSD_GENERATED_DIR}/log.c
-        PROPERTIES COMPILE_FLAGS
-            "-Wno-c++-compat -Wno-variadic-macros -Wno-pedantic -Wno-implicit-function-declaration -Wno-nested-externs -Wno-int-to-pointer-cast -Wno-format-nonliteral -Wno-pointer-sign")
-    set_source_files_properties(
-        ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_mdnsd.c
-        PROPERTIES COMPILE_FLAGS
-            "-Wno-variadic-macros")
-
-    list(APPEND lib_headers
-        ${MDNSD_GENERATED_DIR}/1035.h
-        ${MDNSD_GENERATED_DIR}/xht.h
-        ${MDNSD_GENERATED_DIR}/sdtxt.h
-        ${MDNSD_GENERATED_DIR}/inet.h
-        ${MDNSD_GENERATED_DIR}/mdnsd.h)
-    list(APPEND lib_sources
-        ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_mdnsd.c
-        ${MDNSD_GENERATED_DIR}/1035.c
-        ${MDNSD_GENERATED_DIR}/xht.c
-        ${MDNSD_GENERATED_DIR}/sdtxt.c
-        ${MDNSD_GENERATED_DIR}/inet.c
-        ${MDNSD_GENERATED_DIR}/mdnsd.c
-        ${MDNSD_GENERATED_DIR}/log.c)
-endif()
-
-if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+if(UA_ENABLE_DRIVER_MDNS_AVAHI)
     list(APPEND lib_sources
          ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_avahi.c)
 endif()
@@ -1364,19 +1220,6 @@ elseif(UA_ARCHITECTURE_POSIX OR UA_ENABLE_AMALGAMATION)
     endif()
 endif()
 
-if(UA_ARCHITECTURE_FREERTOS)
-    # Assume the FreeRTOS POSIX "Simulator".
-    # Change this to directly include the source files if required.
-    set(FREERTOS_KERNEL_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Source" CACHE STRING "")
-    set(FREERTOS_PORT_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Demo/Posix_GCC" CACHE STRING "")
-    include(arch/freertos/freertos.cmake)
-    include_directories(${FREERTOS_PORT_PATH} "${FREERTOS_KERNEL_PATH}/include")
-    include_directories("${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/Posix")
-    add_compile_definitions(projCOVERAGE_TEST=0)
-    add_compile_definitions(projENABLE_TRACING=0)
-    list(APPEND open62541_LIBRARIES freertos_config freertos_kernel)
-endif()
-
 if(UA_ENABLE_LWS)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.h
@@ -1405,6 +1248,20 @@ endif()
 
 if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
+endif()
+
+# The file transfer driver uses the OS-specific file handling definitions.
+# It is appended after the eventloop sources so that the amalgamation
+# integrates the architecture header before the driver code.
+if(UA_ENABLE_DRIVER_FILE_TRANSFER)
+    list(APPEND lib_headers
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_internal.h)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_driver.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_ns0.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
 endif()
 
 # For file based server and client configuration
@@ -1495,10 +1352,6 @@ if(UA_ENABLE_TPM2_SECURITY)
          ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c)
-endif()
-
 #########################
 # Generate source files #
 #########################
@@ -1532,8 +1385,9 @@ else()
     set(UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_minimal.txt
                           ${UA_SCHEMA_DIR}/datatypes_discovery.txt)
 
-    if(UA_ENABLE_METHODCALLS)
-        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
+    list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
+    if(UA_ENABLE_DRIVER_FILE_TRANSFER)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.FileTransferMinimal.xml)
     endif()
 
     if(UA_ENABLE_DIAGNOSTICS)
@@ -1550,12 +1404,12 @@ else()
         endif()
     endif()
 
-    if(UA_ENABLE_SUBSCRIPTIONS)
-        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_subscriptions.txt)
-    endif()
+    # The client subscription API is compiled even without server subscriptions.
+    list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_subscriptions.txt)
 
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.EventsMinimal.xml)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_events.txt)
     endif()
 
     if(UA_ENABLE_HISTORIZING)
@@ -1574,14 +1428,12 @@ else()
         endif()
     endif()
 
-    if(UA_ENABLE_DA)
-        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
-        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.Part8_Subset.xml)
-    endif()
+    list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
+    list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.Part8_Subset.xml)
 
-    if(UA_ENABLE_TYPEDESCRIPTION)
-        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_typedescription.txt)
-    endif()
+    # Remote DataType discovery in the client also needs these types when the
+    # optional type and member names (UA_ENABLE_TYPEDESCRIPTION) are disabled.
+    list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_typedescription.txt)
 endif()
 
 set(UA_NS0_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
@@ -1757,16 +1609,23 @@ function(include_directories_private)
 endfunction()
 
 include_directories_private("${PROJECT_SOURCE_DIR}/deps")
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+if(UA_ENABLE_DRIVER_MDNS_MDNSD)
     include_directories_private("${PROJECT_BINARY_DIR}/src_generated/mdnsd")
 endif()
 
 if(UA_ARCHITECTURE_LWIP)
-    include_directories_private(${LWIP_INCLUDE_DIRS})
+    target_include_directories(open62541-object SYSTEM PRIVATE ${LWIP_INCLUDE_DIRS})
+    target_include_directories(open62541-plugins SYSTEM PRIVATE ${LWIP_INCLUDE_DIRS})
 endif()
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     target_include_directories(open62541-object SYSTEM PRIVATE ${MBEDTLS_INCLUDE_DIRS})
     target_include_directories(open62541-plugins SYSTEM PRIVATE ${MBEDTLS_INCLUDE_DIRS})
+    if(UA_ARCHITECTURE_ZEPHYR AND CONFIG_MBEDTLS_BUILTIN)
+        # Compile with the mbedTLS configuration of the Zephyr build
+        # (MBEDTLS_CONFIG_FILE), which its interface target provides.
+        target_link_libraries(open62541-object PRIVATE mbedTLS)
+        target_link_libraries(open62541-plugins PRIVATE mbedTLS)
+    endif()
 endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     include_directories_private(${OPENSSL_INCLUDE_DIR})

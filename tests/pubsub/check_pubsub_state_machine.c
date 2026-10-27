@@ -151,6 +151,82 @@ testBeforeStateChangeCallback(UA_Server *s, const UA_NodeId id,
     beforeStateChangeCallbackLastIdValid = true;
 }
 
+/* An enabled connection can be configured before the server and its
+ * ConnectionManagers are started. It remains PAUSED until startup and then
+ * advances automatically to OPERATIONAL. */
+START_TEST(Connection_EnableBeforeStartup_PausesAndRecovers) {
+    UA_PubSubConnectionConfig cfg;
+    memset(&cfg, 0, sizeof(UA_PubSubConnectionConfig));
+    cfg.name = UA_STRING("Pre-start Connection");
+    cfg.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType addressUrl =
+        {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_Variant_setScalar(&cfg.address, &addressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    cfg.enabled = true;
+
+    UA_StatusCode res =
+        UA_Server_addPubSubConnection(server, &cfg, &connectionIdent);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_find(psm, connectionIdent);
+    ck_assert_ptr_ne(connection, NULL);
+    ck_assert_int_eq(connection->head.state, UA_PUBSUBSTATE_PAUSED);
+
+    res = UA_Server_run_startup(server);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(connection->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+} END_TEST
+
+/* A WriterGroup with its own UDP address can be added before the server and
+ * its ConnectionManagers are started. The transport validation is deferred
+ * until startup. */
+START_TEST(WriterGroup_UdpAddressBeforeStartup_IsAccepted) {
+    addMinimalPubSubConnection();
+
+    UA_NetworkAddressUrlDataType addressUrl =
+        {UA_STRING_NULL, UA_STRING("opc.udp://127.0.0.1:4841/")};
+    UA_DatagramWriterGroupTransport2DataType transport;
+    UA_DatagramWriterGroupTransport2DataType_init(&transport);
+    UA_ExtensionObject_setValue(&transport.address, &addressUrl,
+                                &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+
+    UA_UadpWriterGroupMessageDataType messageSettings;
+    UA_UadpWriterGroupMessageDataType_init(&messageSettings);
+
+    UA_WriterGroupConfig cfg;
+    memset(&cfg, 0, sizeof(UA_WriterGroupConfig));
+    cfg.name = UA_STRING("Pre-start WG");
+    cfg.publishingInterval = 100.0;
+    cfg.writerGroupId = 1;
+    cfg.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_ExtensionObject_setValue(&cfg.messageSettings, &messageSettings,
+                                &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+    UA_ExtensionObject_setValue(&cfg.transportSettings, &transport,
+                                &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]);
+
+    UA_StatusCode res =
+        UA_Server_addWriterGroup(server, connectionIdent, &cfg, &writerGroupIdent);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The deferred validation does not prevent the group from running after
+     * the startup */
+    res = UA_Server_run_startup(server);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_enablePubSubConnection(server, connectionIdent);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_enableWriterGroup(server, writerGroupIdent);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubState st = UA_PUBSUBSTATE_DISABLED;
+    res = UA_Server_getWriterGroupState(server, writerGroupIdent, &st);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(st, UA_PUBSUBSTATE_OPERATIONAL);
+} END_TEST
+
 /* WriterGroup: enabling while the parent PubSubConnection is in
  * DISABLED state must land the WriterGroup in the PAUSED state. This
  * exercises the "if(connection->head.state != UA_PUBSUBSTATE_OPERATIONAL)"
@@ -507,8 +583,15 @@ static Suite *
 stateMachineSuite(void) {
     Suite *s = suite_create("PubSub state machine edge cases");
 
+    TCase *tc_connection_state =
+        tcase_create("PubSubConnection state-machine branches");
+    tcase_add_checked_fixture(tc_connection_state, setup, teardown);
+    tcase_add_test(tc_connection_state,
+                   Connection_EnableBeforeStartup_PausesAndRecovers);
+
     TCase *tc_wg_state = tcase_create("WriterGroup state-machine branches");
     tcase_add_checked_fixture(tc_wg_state, setup, teardown);
+    tcase_add_test(tc_wg_state, WriterGroup_UdpAddressBeforeStartup_IsAccepted);
     tcase_add_test(tc_wg_state, WriterGroup_EnableWhileConnectionDisabled_GoesToPaused);
     tcase_add_test(tc_wg_state, WriterGroup_BeforeStateChangeCallbackIsInvoked);
     tcase_add_test(tc_wg_state, WriterGroup_EnableWhenDeleteFlagSet_Fails);
@@ -533,6 +616,7 @@ stateMachineSuite(void) {
     tcase_add_test(tc_api, RemoveReaderGroup_UnknownReturnsBadNotFound);
     tcase_add_test(tc_api, DeferredDeleteNotifiesOnce);
 
+    suite_add_tcase(s, tc_connection_state);
     suite_add_tcase(s, tc_wg_state);
     suite_add_tcase(s, tc_rg_state);
     suite_add_tcase(s, tc_api);

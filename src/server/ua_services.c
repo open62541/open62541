@@ -22,7 +22,6 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "../ua_types_encoding_binary.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 /* store the authentication token and session ID so we can help fuzzing by
@@ -48,7 +47,6 @@ static UA_ServiceDescription serviceDescriptions[] = {
     {UA_NS0ID_FINDSERVERSREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), Service_FindServers,
      &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST], &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]},
-#ifdef UA_ENABLE_DISCOVERY
     {UA_NS0ID_REGISTERSERVERREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), Service_RegisterServer,
      &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST], &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]},
@@ -58,7 +56,6 @@ static UA_ServiceDescription serviceDescriptions[] = {
     {UA_NS0ID_FINDSERVERSONNETWORKREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), Service_FindServersOnNetwork,
      &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST], &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]},
-#endif
     {UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), NULL,
      &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST], &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]},
@@ -138,11 +135,9 @@ static UA_ServiceDescription serviceDescriptions[] = {
      UA_SERVICECOUNTER_OFFSET(historyUpdateCount, true), Service_HistoryUpdate,
      &UA_TYPES[UA_TYPES_HISTORYUPDATEREQUEST], &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]},
 #endif
-#ifdef UA_ENABLE_METHODCALLS
     {UA_NS0ID_CALLREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET(callCount, true), Service_Call,
      &UA_TYPES[UA_TYPES_CALLREQUEST], &UA_TYPES[UA_TYPES_CALLRESPONSE]},
-#endif
 #ifdef UA_ENABLE_NODEMANAGEMENT
     {UA_NS0ID_ADDNODESREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET(addNodesCount, true), Service_AddNodes,
@@ -280,9 +275,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
        channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE &&
        sd->requestType != &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] &&
        sd->requestType != &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]
-#if defined(UA_ENABLE_DISCOVERY)
        && sd->requestType != &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST]
-#endif
        ) {
         rh->serviceResult = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
         return true;
@@ -380,8 +373,23 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     UA_Session *session = NULL;
     response->responseHeader.serviceResult =
         getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
-    if(!session && sd->sessionRequired)
+    if(!session && sd->sessionRequired) {
+        /* Part 4, 5.7.4.3 lists only Bad_SessionIdInvalid for CloseSession.
+         * Rewrite every other StatusCode except for the listed exceptions.
+         * E.g. a Session bound to another SecureChannel is invalid from the
+         * view of this (still valid) SecureChannel. */
+        if(sd->requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
+            switch(response->responseHeader.serviceResult) {
+            case UA_STATUSCODE_BADSESSIONCLOSED:
+                break;
+            default:
+                response->responseHeader.serviceResult =
+                    UA_STATUSCODE_BADSESSIONIDINVALID;
+                break;
+            }
+        }
         return true;
+    }
 
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
@@ -434,7 +442,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
 
     /* Update the service statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
-    if(session) {
+    if(session && session->state != UA_SESSIONSTATE_CLOSED) {
         session->diagnostics.totalRequestCount.totalCount++;
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
             session->diagnostics.totalRequestCount.errorCount++;

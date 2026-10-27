@@ -41,7 +41,6 @@
 #include "ua_securechannel.h"
 #include "ua_services.h"
 #include "ua_session.h"
-#include "ua_types_encoding_binary.h"
 #include "testing_networklayers.h"
 
 /* File-local global in ua_services.c used by the fuzzing-only token replay
@@ -147,6 +146,15 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         return 0;
     }
 
+    /* The harness bypasses transport startup, but delayed Session cleanup
+     * still needs a running EventLoop. */
+    UA_EventLoop *el = server->config.eventLoop;
+    if(el->start(el) != UA_STATUSCODE_GOOD) {
+        cm->eventSource.free(&cm->eventSource);
+        UA_Server_delete(server);
+        return 0;
+    }
+
     /* ---- Build an already-OPEN SecureChannel bound to the #None policy ---- */
     UA_SecureChannel channel;
     UA_SecureChannel_init(&channel);
@@ -169,12 +177,19 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                                                 &noCertificate);
     if(retval != UA_STATUSCODE_GOOD) {
         cm->eventSource.free(&cm->eventSource);
+        el->stop(el);
+        while(el->state == UA_EVENTLOOPSTATE_STOPPING)
+            el->run(el, 0);
         UA_Server_delete(server);
         return 0;
     }
     channel.state = UA_SECURECHANNELSTATE_OPEN;
     channel.securityToken.channelId = 1;
     channel.securityToken.tokenId = 1;
+
+    /* Requests are dispatched directly without starting a listener. Model an
+     * active server so CreateSession follows the normal lifecycle rule. */
+    server->state = UA_LIFECYCLESTATE_STARTED;
 
     /* Start each input from a clean token so message sequences are
      * deterministic and do not leak across fuzzer iterations. */
@@ -216,13 +231,25 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     while(channel.sessions)
         UA_Session_detachFromSecureChannel(server, channel.sessions);
     UA_SecureChannel_clear(&channel);
+    session_list_entry *entry;
+    while((entry = LIST_FIRST(&server->sessions)))
+        UA_Session_remove(server, &entry->session, UA_SHUTDOWNREASON_CLOSE);
     UA_UNLOCK(&server->serviceMutex);
+
+    /* Finish delayed Session cleanup before deleting the unstarted server. */
+    while(server->sessionCleanupPending > 0)
+        UA_Server_run_iterate(server, false);
+
+    el->stop(el);
+    while(el->state == UA_EVENTLOOPSTATE_STOPPING)
+        el->run(el, 0);
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
 #endif
 
     cm->eventSource.free(&cm->eventSource);
+    server->state = UA_LIFECYCLESTATE_STOPPED;
     UA_Server_delete(server);
     return 0;
 }

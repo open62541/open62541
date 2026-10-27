@@ -3,6 +3,102 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Client reconnects with backoff and gives up
+
+A lost connection is re-dialed with a delay that starts at the new
+`UA_ClientConfig.reconnectInterval` (default 250 ms) and doubles up to
+`reconnectIntervalMax` (default 10 s). If the re-dial after the maximum delay
+fails, the client gives up with `BadConnectionRejected` or `BadConnectionClosed`.
+Before, a connection that closed before the SecureChannel opened was re-dialed
+without delay, and a refused re-dial ended the connection at once. The comment
+above these fields in `UA_ClientConfig` describes the full connect behavior.
+
+### Asynchronous client requests need an activated Session
+
+Asynchronous requests bound to a Session return `BadSessionNotActivated` while
+the Session is not activated, e.g. during its re-activation after a reconnect.
+Before, they were sent without an AuthenticationToken, and the rejection by the
+server discarded the Session.
+
+### Method support is always available
+
+`UA_ENABLE_METHODCALLS` is removed. The Method service set and method APIs are
+always compiled.
+
+### File transfer driver build option
+
+`UA_ENABLE_DRIVER_FILE_TRANSFER` controls the file transfer driver and defaults
+to ON on all architectures. The local filesystem backend supports POSIX and
+Win32; other architectures can supply a custom backend.
+
+### Percentage deadband support is always available
+
+`UA_ENABLE_DA` is removed. Percentage deadband support is always compiled with
+subscriptions, and DataAccess datatypes and the Part 8 subset are always included
+in the reduced namespace zero.
+
+### Discovery is controlled by server configuration
+
+`UA_ENABLE_DISCOVERY` and `UA_ENABLE_DISCOVERY_MULTICAST` are removed. Use
+`UA_ServerConfig.registeredServersEnabled` and `serversOnNetworkEnabled` to
+enable registration management and network discovery services. mDNS announcement
+and browsing require an attached driver, built with
+`UA_ENABLE_DRIVER_MDNS_MDNSD` or `UA_ENABLE_DRIVER_MDNS_AVAHI`.
+
+### Optional UTC-only local time on POSIX
+
+The POSIX CMake option `UA_ARCH_LOCAL_TIME_IS_UTC` (default OFF) makes
+`UA_DateTime_localTimeUtcOffset()` return zero without linking C library timezone
+conversion functions. The stdout logger consequently uses UTC timestamps.
+
+### Session and subscription diagnostics are named in the server namespace
+
+The per-session objects below `SessionsDiagnosticsSummary` and the
+per-subscription variables below the `SubscriptionDiagnosticsArray` variables
+have the BrowseName `1:<SessionName>` and `1:<SubscriptionId>` instead of
+namespace 0. Their children keep the namespace 0 BrowseNames of their types.
+Browse paths to these nodes have to use namespace 1.
+
+### Blocking and asynchronous server shutdown
+
+`UA_Server_run_shutdown` now waits for shutdown to complete even with an external
+EventLoop, which is left running for its other users. Use the new
+`UA_Server_run_shutdown_async` to initiate and advance nonblocking shutdown:
+drive the EventLoop and repeat the call while the server is STOPPING. Both
+functions are idempotent; `UA_Server_run_iterate` alone no longer completes shutdown.
+
+### The server startup fails without a server socket
+
+`UA_Server_run_startup` (and so `UA_Server_run` and
+`UA_Server_runUntilInterrupt`) returns an error when a transport (TCP, WebSocket
+or HTTP) cannot open its server socket, e.g. because the address cannot be bound
+or another application holds the port, and the server cannot be reached
+otherwise: no other transport listens and no reverse connect is registered. The
+startup is then undone as in `UA_Server_run_shutdown`. Before, the server
+reported success and ran without listening. A failed transport is only logged if
+the server can still be reached, as are failures of other drivers.
+
+### Server configuration no longer starts the EventLoop
+
+`UA_ServerConfig_setDefault` and `UA_ServerConfig_setMinimal` no longer start
+the EventLoop. `UA_Server_run_startup` starts it when needed. This lets an
+application configure servers and their PubSub connections before starting
+the EventLoop. If multiple clients or servers share one EventLoop, set
+`externalEventLoop = true` in every participating configuration. The
+application must keep the shared EventLoop alive until all users have finished,
+then stop and delete it.
+
+### lwIP network interface lifetime
+
+The default POSIX lwIP stack and TAP interface remain alive until process exit,
+independently of EventLoop lifetimes. They are initialized on the first loop
+start. Later loops reuse the interface and reject explicitly conflicting IP
+settings with `BadConfigurationError`.
+
+Custom `netifInit` callbacks are called once per successfully initialized loop,
+with retries after failure. Stop/start retains the interface. `netifShutdown`
+is called on deletion only after successful initialization.
+
 ### Removing a PublishedDataSet removes the connected DataSetWriters
 
 `UA_Server_removePublishedDataSet` removes the connected DataSetWriters together
@@ -96,6 +192,14 @@ Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section
 6.3.1.1.3 has been implemented for UADP encoding. The ordering of DataSetMessages
 within NetworkMessages can be controlled via the `dataSetOrdering` field in the
 `UA_UadpWriterGroupMessageDataType` configuration.
+
+### The AccessControl plugin needs its mandatory callbacks
+
+`UA_Server_run_startup` returns `Bad_ConfigurationError` if one of the
+AccessControl callbacks `activateSession`, `getUserRightsMask`,
+`getUserAccessLevel`, `getUserExecutable`, `getUserExecutableOnObject` or
+`allowBrowseNode` is NULL. Before, the server started and crashed on the first
+request that used it.
 
 ### PubSub AddConnection rolls back incomplete configurations
 
@@ -191,6 +295,19 @@ Use the same definition for the PublisherId everywhere. `UA_PublisherId` is a
 tagged union. Before the Subscriber API used a variant -- which is still used in
 some standard-defined data types. `UA_PublisherId_fromVariant` and
 `UA_PublisherId_toVariant` are provided for the conversion.
+
+### Empty trust list no longer falls back to accept-all
+
+`UA_ClientConfig_setDefaultEncryption()`, `UA_ServerConfig_setDefaultWithSecurityPolicies()`
+and `UA_ServerConfig_setDefaultWithSecureSecurityPolicies()` now always build a
+trust-list-backed certificate verifier, even when called with an empty trust
+list. Previously, an empty trust list left whatever certificate verifier the
+base configuration had already installed in place, which accepts any
+certificate. An empty trust list now results in a verifier that trusts
+nothing, so encrypted connections set up this way will fail certificate
+verification until a non-empty trust list is passed, or a verifying
+certificate group is assigned to `certificateVerification`/`secureChannelPKI`/
+`sessionPKI` afterwards.
 
 # Release 1.4
 

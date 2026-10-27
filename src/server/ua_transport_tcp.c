@@ -21,7 +21,6 @@
 #include <open62541/transport_generated.h>
 
 #include "ua_server_internal.h"
-#include "../ua_types_encoding_binary.h"
 #include "mp_printf.h"
 #include "ua_services.h"
 
@@ -498,17 +497,27 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
-/* Remove the first channel that has no session attached */
+/* Remove the first channel that has no activated session attached. A
+ * Session created but never activated does not represent an authenticated
+ * client and must not keep its SecureChannel from being reclaimed. */
 static UA_Boolean
 purgeFirstUascChannelWithoutSession(UA_Server *server) {
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->transport != UA_SECURECHANNEL_TRANSPORT_UACP ||
-           channel->sessions)
+        if(channel->transport != UA_SECURECHANNEL_TRANSPORT_UACP)
+            continue;
+        UA_Boolean hasActivatedSession = false;
+        for(UA_Session *s = channel->sessions; s; s = s->next) {
+            if(s->state == UA_SESSIONSTATE_ACTIVATED) {
+                hasActivatedSession = true;
+                break;
+            }
+        }
+        if(hasActivatedSession)
             continue;
         UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                             "Channel was purged since maxSecureChannels was "
-                            "reached and channel had no session attached");
+                            "reached and channel had no activated session attached");
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_PURGE);
         return true;
     }
@@ -663,8 +672,8 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         sc->connectionManager = cm;
         *connectionContext = (void*)sc; /* Set the context pointer in the connection */
 
-        /* Add to the DiscoveryUrls */
-        if(bpm->addDiscoveryUrl)
+        /* An opening listener may not have its bound endpoint metadata yet. */
+        if(state == UA_CONNECTIONSTATE_ESTABLISHED && bpm->addDiscoveryUrl)
             bpm->addDiscoveryUrl(bpm, params);
         return;
     }
@@ -695,6 +704,16 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
            bpm->serverConnectionsSize == 0 && TAILQ_EMPTY(&bpm->channels)) {
            setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPED);
         }
+        return;
+    }
+
+    /* Accepted connections inherit the listener context, but have a different
+     * connection identity. Updates to the listener must keep that context. */
+    if(serverSocket && sc->connectionManager == cm &&
+       sc->connectionId == connectionId) {
+        sc->state = state;
+        if(state == UA_CONNECTIONSTATE_ESTABLISHED && bpm->addDiscoveryUrl)
+            bpm->addDiscoveryUrl(bpm, params);
         return;
     }
 
@@ -824,8 +843,12 @@ UA_BinaryProtocolManager_start(UA_Driver *drv) {
         return retVal;
 
     retVal = bpm->startTransport(bpm);
-    if(retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD) {
+        /* The server can keep running without this transport */
+        removeCallback(server, bpm->houseKeepingCallbackId);
+        bpm->houseKeepingCallbackId = 0;
         return retVal;
+    }
 
     /* Set the state to started */
     setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STARTED);

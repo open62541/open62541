@@ -77,7 +77,178 @@ START_TEST(batchWithinWindow) {
     UA_Timer_clear(&timer);
 } END_TEST
 
+START_TEST(addWithoutCallback) {
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    ck_assert_uint_eq(UA_Timer_add(&timer, NULL, NULL, NULL, 10, 0, NULL,
+                                   UA_TIMERPOLICY_CURRENTTIME, NULL),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert(UA_Timer_next(&timer) == UA_INT64_MAX);
+    ck_assert(UA_Timer_process(&timer, 100 * UA_DATETIME_MSEC) == UA_INT64_MAX);
+    UA_Timer_clear(&timer);
+} END_TEST
+
+START_TEST(addNonpositiveRepeatedInterval) {
+    const UA_TimerPolicy policies[] = {UA_TIMERPOLICY_CURRENTTIME,
+                                       UA_TIMERPOLICY_BASETIME};
+    const UA_Double intervals[] = {0, -10};
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    count = 0;
+
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL,
+                                   intervals[_i % 2], 0, NULL,
+                                   policies[_i / 2], NULL),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert(UA_Timer_next(&timer) == UA_INT64_MAX);
+    ck_assert(UA_Timer_process(&timer, 100 * UA_DATETIME_MSEC) == UA_INT64_MAX);
+    ck_assert_uint_eq(count, 0);
+    UA_Timer_clear(&timer);
+} END_TEST
+
+START_TEST(modifyNonpositiveRepeatedInterval) {
+    const UA_TimerPolicy policies[] = {UA_TIMERPOLICY_CURRENTTIME,
+                                       UA_TIMERPOLICY_BASETIME};
+    const UA_Double intervals[] = {0, -10};
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    count = 0;
+    UA_UInt64 callbackId;
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL, 10, 0,
+                                   NULL, policies[_i / 2], &callbackId),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Timer_modify(&timer, callbackId, intervals[_i % 2],
+                                      5 * UA_DATETIME_MSEC, NULL,
+                                      policies[_i / 2]),
+                      UA_STATUSCODE_BADINTERNALERROR);
+
+    /* A rejected modification must preserve the original repeating schedule. */
+    ck_assert(UA_Timer_next(&timer) == 10 * UA_DATETIME_MSEC);
+    ck_assert(UA_Timer_process(&timer, 10 * UA_DATETIME_MSEC - 1) ==
+              10 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 0);
+    ck_assert(UA_Timer_process(&timer, 10 * UA_DATETIME_MSEC) ==
+              20 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 1);
+    ck_assert(UA_Timer_process(&timer, 20 * UA_DATETIME_MSEC) ==
+              30 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 2);
+    UA_Timer_clear(&timer);
+} END_TEST
+
+START_TEST(modifyToOneShot) {
+    const struct {
+        UA_Double interval;
+        UA_DateTime deadline;
+        UA_Boolean useBaseTime;
+    } cases[] = {
+        {0, 100 * UA_DATETIME_MSEC, false},
+        {-10, 90 * UA_DATETIME_MSEC, false},
+        {0, 90 * UA_DATETIME_MSEC, true},
+        {0, 100 * UA_DATETIME_MSEC, true},
+        {0, 110 * UA_DATETIME_MSEC, true}
+    };
+    UA_DateTime now = 100 * UA_DATETIME_MSEC;
+    UA_DateTime deadline = cases[_i].deadline;
+    UA_DateTime baseTime = deadline;
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    count = 0;
+    UA_UInt64 callbackId;
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL, 100,
+                                   now, NULL, UA_TIMERPOLICY_CURRENTTIME,
+                                   &callbackId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Timer_modify(&timer, callbackId, cases[_i].interval, now,
+                                      cases[_i].useBaseTime ? &baseTime : NULL,
+                                      UA_TIMERPOLICY_ONCE),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Timer_next(&timer) == deadline);
+    ck_assert_uint_eq(count, 0);
+
+    if(deadline > now) {
+        ck_assert(UA_Timer_process(&timer, deadline - 1) == deadline);
+        ck_assert_uint_eq(count, 0);
+    }
+
+    /* Overdue one-shot timers run on the next process call, without repeating. */
+    ck_assert(UA_Timer_process(&timer, deadline > now ? deadline : now) ==
+              UA_INT64_MAX);
+    ck_assert_uint_eq(count, 1);
+    ck_assert(UA_Timer_next(&timer) == UA_INT64_MAX);
+    ck_assert(UA_Timer_process(&timer, now + UA_DATETIME_SEC) == UA_INT64_MAX);
+    ck_assert_uint_eq(count, 1);
+    ck_assert_uint_eq(UA_Timer_modify(&timer, callbackId, 10, now, NULL,
+                                      UA_TIMERPOLICY_CURRENTTIME),
+                      UA_STATUSCODE_BADNOTFOUND);
+    UA_Timer_clear(&timer);
+} END_TEST
+
 #if UA_MULTITHREADING >= 100
+typedef struct {
+    UA_Timer *timer;
+    UA_UInt64 callbackId;
+    UA_Boolean remove;
+    UA_Boolean acquired;
+    UA_StatusCode status;
+} CallbackTimerContext;
+
+/* A recursive mutex only permits reentry on its owning thread. Test from a
+ * second thread without blocking, so the old implementation fails rather
+ * than hanging with a callback/worker lock inversion. */
+THREAD_CALLBACK_PARAM(updateExecutingTimer, argument) {
+    CallbackTimerContext *ctx = (CallbackTimerContext*)argument;
+#ifdef UA_ARCHITECTURE_WIN32
+    ctx->acquired = TryEnterCriticalSection(&ctx->timer->timerMutex.mutex) != 0;
+    if(ctx->acquired)
+        LeaveCriticalSection(&ctx->timer->timerMutex.mutex);
+#else
+    ctx->acquired = pthread_mutex_trylock(&ctx->timer->timerMutex.mutex) == 0;
+    if(ctx->acquired)
+        pthread_mutex_unlock(&ctx->timer->timerMutex.mutex);
+#endif
+    if(!ctx->acquired)
+        return 0;
+
+    if(ctx->remove) {
+        UA_Timer_remove(ctx->timer, ctx->callbackId);
+        ctx->status = UA_STATUSCODE_GOOD;
+    } else {
+        ctx->status = UA_Timer_modify(ctx->timer, ctx->callbackId, 5,
+                                      UA_DATETIME_MSEC, NULL,
+                                      UA_TIMERPOLICY_BASETIME);
+    }
+    return 0;
+}
+
+static void
+updateTimerDuringCallback(void *application, void *data) {
+    CallbackTimerContext *ctx = (CallbackTimerContext*)data;
+    THREAD_HANDLE worker;
+    THREAD_CREATE_PARAM(worker, updateExecutingTimer, *ctx);
+    THREAD_JOIN(worker);
+}
+
+START_TEST(callbackReleasesTimerMutex) {
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    CallbackTimerContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.timer = &timer;
+    ctx.remove = (_i != 0);
+    ctx.status = UA_STATUSCODE_BADINTERNALERROR;
+    ck_assert_uint_eq(UA_Timer_add(&timer, updateTimerDuringCallback, NULL, &ctx,
+                                   1, 0, NULL, UA_TIMERPOLICY_BASETIME,
+                                   &ctx.callbackId), UA_STATUSCODE_GOOD);
+
+    UA_DateTime next = UA_Timer_process(&timer, UA_DATETIME_MSEC);
+    UA_Timer_clear(&timer);
+    ck_assert(ctx.acquired);
+    ck_assert_uint_eq(ctx.status, UA_STATUSCODE_GOOD);
+    ck_assert(next == (ctx.remove ? UA_INT64_MAX : 6 * UA_DATETIME_MSEC));
+} END_TEST
+
 typedef struct {
     UA_DateTime now;
     UA_StatusCode status;
@@ -116,8 +287,13 @@ int main(void) {
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, benchmarkTimer);
     tcase_add_test(tc, batchWithinWindow);
+    tcase_add_test(tc, addWithoutCallback);
+    tcase_add_loop_test(tc, addNonpositiveRepeatedInterval, 0, 4);
+    tcase_add_loop_test(tc, modifyNonpositiveRepeatedInterval, 0, 4);
+    tcase_add_loop_test(tc, modifyToOneShot, 0, 5);
 #if UA_MULTITHREADING >= 100
     tcase_add_test(tc, independentTimerBatching);
+    tcase_add_loop_test(tc, callbackReleasesTimerMutex, 0, 2);
 #endif
     suite_add_tcase(s, tc);
 
