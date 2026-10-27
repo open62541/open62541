@@ -614,6 +614,9 @@ typedef uint64_t UA_ApplicationNotificationType;
  * 0:ttl [UInt32]
  *    Time-to-live of DNS information. Zero means infinite
  *    (if the server is not currently getting removed).
+ * 0:announce [Boolean]
+ *    Announce the entry on the network (for example over mDNS). False for
+ *    removed entries.
  * 0:server-added [Boolean]
  *    They entry was added.
  * 0:server-updated [Boolean]

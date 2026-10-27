@@ -226,13 +226,14 @@ UA_Server_findServers(UA_Server *server, UA_String endpointUrl,
 static void
 notifyServerOnNetwork(UA_Server *server,
                       const UA_ServerOnNetwork *son,
-                      const UA_KeyValueMap params,
+                      const UA_KeyValueMap params, UA_Boolean announce,
                       UA_Boolean added, UA_Boolean updated,
                       UA_Boolean removed) {
-    UA_STATIC_THREAD_LOCAL UA_KeyValuePair kvp[6] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair kvp[7] = {
         {{0, UA_STRING_STATIC("server-on-network")}, {0}},
         {{0, UA_STRING_STATIC("remote-address")}, {0}},
         {{0, UA_STRING_STATIC("ttl")}, {0}},
+        {{0, UA_STRING_STATIC("announce")}, {0}},
         {{0, UA_STRING_STATIC("server-added")}, {0}},
         {{0, UA_STRING_STATIC("server-updated")}, {0}},
         {{0, UA_STRING_STATIC("server-removed")}, {0}},
@@ -258,10 +259,11 @@ notifyServerOnNetwork(UA_Server *server,
                          &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
     UA_Variant_setScalar(&kvp[1].value, &remote, &UA_TYPES[UA_TYPES_STRING]);
     UA_Variant_setScalar(&kvp[2].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&kvp[3].value, &added, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_Variant_setScalar(&kvp[4].value, &updated, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_Variant_setScalar(&kvp[5].value, &removed, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_KeyValueMap kvm = {6, kvp};
+    UA_Variant_setScalar(&kvp[3].value, &announce, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&kvp[4].value, &added, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&kvp[5].value, &updated, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&kvp[6].value, &removed, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap kvm = {7, kvp};
 
     notifyApplication(server,
                       UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK,
@@ -449,7 +451,7 @@ findServerOnNetworkIndex(UA_Server *server,
 
 static UA_StatusCode
 addServerOnNetwork(UA_Server *server, const UA_ServerOnNetwork *newSon,
-                   const UA_KeyValueMap params) {
+                   const UA_KeyValueMap params, UA_Boolean announce) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(!newSon)
@@ -476,7 +478,7 @@ addServerOnNetwork(UA_Server *server, const UA_ServerOnNetwork *newSon,
         *son = tmp;
 
         /* Notify the application about an updated entry */
-        notifyServerOnNetwork(server, son, params, false, true, false);
+        notifyServerOnNetwork(server, son, params, announce, false, true, false);
 
         /* All new RecordIds in increasing order */
         resetDiscoveryResetIds(server);
@@ -496,7 +498,7 @@ addServerOnNetwork(UA_Server *server, const UA_ServerOnNetwork *newSon,
     son->recordId = ++server->serversOnNetworkRecordCounter;
 
     /* Notify the application about an added entry */
-    notifyServerOnNetwork(server, son, params, true, false, false);
+    notifyServerOnNetwork(server, son, params, announce, true, false, false);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -516,7 +518,7 @@ removeServerOnNetwork(UA_Server *server, const UA_String serverName) {
 
         /* Notify the application about removed entry */
         notifyServerOnNetwork(server, son, UA_KEYVALUEMAP_NULL,
-                              false, false, true);
+                              false, false, false, true);
 
         /* Move the last entry in the current position */
         UA_ServerOnNetwork_clear(son);
@@ -544,8 +546,12 @@ UA_StatusCode
 UA_Server_registerServerOnNetwork(UA_Server *server,
                                   const UA_ServerOnNetwork *newSon,
                                   const UA_KeyValueMap params) {
+    const UA_Boolean *announce = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&params, UA_QUALIFIEDNAME(0, "announce"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
     lockServer(server);
-    UA_StatusCode res = addServerOnNetwork(server, newSon, params);
+    UA_StatusCode res = addServerOnNetwork(server, newSon, params,
+                                           announce ? *announce : false);
     unlockServer(server);
     return res;
 }
@@ -1287,7 +1293,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                 return UA_STATUSCODE_GOOD;
         }
 
-        res = addServerOnNetwork(server, &son, UA_KEYVALUEMAP_NULL);
+        res = addServerOnNetwork(server, &son, UA_KEYVALUEMAP_NULL,
+                                 sc->announceRegisteredServers);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(sc->logging, session,
                                    "Could not add the ServerOnNetwork entry "
