@@ -102,7 +102,8 @@ START_TEST(importFlattenedInheritance) {
     UA_ExtensionObject description;
     UA_StatusCode res = UA_DataType_toDescription(grandchild, &description);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_StructureDescription *sd = description.content.decoded.data;
+    UA_StructureDescription *sd =
+        (UA_StructureDescription*)description.content.decoded.data;
     sd->structureDefinition.baseDataType = child->typeId;
     UA_DataType reconstructed;
     res = UA_DataType_fromDescription(&reconstructed, &description,
