@@ -298,10 +298,12 @@ addMdnsDriver(UA_Server *s, UA_Boolean listen, UA_Boolean announce) {
     addMdnsDriverWithQueries(s, listen, announce, false, false, 0);
 }
 
+/* Adds a local entry. The mDNS driver announces it if announce is set. */
 static void
-registerServerOnNetwork(UA_Server *s, const char *serverName,
-                        const char *discoveryUrl,
-                        const char **capabilities, size_t capabilitiesSize) {
+registerServerOnNetworkAnnounce(UA_Server *s, const char *serverName,
+                                const char *discoveryUrl,
+                                const char **capabilities,
+                                size_t capabilitiesSize, UA_Boolean announce) {
     UA_ServerOnNetwork son;
     UA_ServerOnNetwork_init(&son);
     son.serverName = UA_String_fromChars(serverName);
@@ -315,9 +317,22 @@ registerServerOnNetwork(UA_Server *s, const char *serverName,
             son.serverCapabilities[i] = UA_String_fromChars(capabilities[i]);
     }
 
-    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(s, &son, UA_KEYVALUEMAP_NULL),
+    UA_KeyValuePair param;
+    param.key = UA_QUALIFIEDNAME(0, "announce");
+    UA_Variant_setScalar(&param.value, &announce, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap params = {1, &param};
+
+    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(s, &son, params),
                       UA_STATUSCODE_GOOD);
     UA_ServerOnNetwork_clear(&son);
+}
+
+static void
+registerServerOnNetwork(UA_Server *s, const char *serverName,
+                        const char *discoveryUrl,
+                        const char **capabilities, size_t capabilitiesSize) {
+    registerServerOnNetworkAnnounce(s, serverName, discoveryUrl,
+                                    capabilities, capabilitiesSize, true);
 }
 
 static void
@@ -1600,6 +1615,7 @@ setup_public_api_servers(void) {
     ldsServerConfig->tcpReuseAddr = true;
     ldsServerConfig->serversOnNetworkEnabled = true;
     ldsServerConfig->registeredServersEnabled = true;
+    ldsServerConfig->announceRegisteredServers = true;
     ldsServerConfig->applicationDescription.applicationType =
         UA_APPLICATIONTYPE_DISCOVERYSERVER;
     ldsServerConfig->discoveryNotificationCallback =
@@ -2349,6 +2365,26 @@ START_TEST(PublicApiRegisterDeregisterTriggersLdsMdnsSendPath) {
 }
 END_TEST
 
+START_TEST(PublicApiRegisterWithoutAnnounceIsNotAnnounced) {
+#ifndef DISCOVERY_TEST_AUTHENTICATED_REGISTER
+    return; /* RegisterServer(2) needs an authenticated SecureChannel */
+#endif
+    UA_Server_getConfig(serverLds)->announceRegisteredServers = false;
+    TestUdpIntercept *intercepts[] = {testUdpInterceptLds};
+    size_t initialSends = UA_atomic_load(&globalInterceptedMdnsMessages);
+    MdnsMessageExpectation registerExpectation =
+        {REGISTERED_SERVER_NAME, "/", "NA", 16664, false, 0, false};
+
+    /* The registration has an entry for FindServersOnNetwork. But the LDS does
+     * not announce it. */
+    registerWithLdsPublicApi();
+    ck_assert_uint_eq(countServersOnNetworkByName(serverLds,
+                                                  REGISTERED_SERVER_NAME), 1);
+    ck_assert(!hasMdnsMessageMatching(intercepts, 1, initialSends,
+                                      &registerExpectation));
+}
+END_TEST
+
 START_TEST(PublicApiInjectedTxtThenSrvTriggersAnnounceCallback) {
     const char *serverName = "InjectedTxtFirst";
     const char *hostname = "remote-host";
@@ -2494,6 +2530,52 @@ START_TEST(PublicApiInjectedRemoteServerIsNotMirroredBackOut) {
     ck_assert_uint_eq(UA_atomic_load(&globalInterceptedMdnsMessages), previousSendCount);
     ck_assert_uint_eq(discoveryCounters.serverOnNetworkCalls, 1);
 
+    UA_ByteString_clear(&announcePacket);
+}
+END_TEST
+
+/* The application announces an entry that was received before. The announced
+ * entry is identical to the received one. That must not suppress the
+ * announcement. */
+START_TEST(PublicApiAnnounceTakesOverReceivedEntry) {
+    const char *serverName = "InjectedTakeover";
+    const char *hostname = "takeover-host";
+    const char *discoveryUrl = "opc.tcp://takeover-host.local:7779/takeover";
+    const char *caps[] = {"DA"};
+    char serviceInstance[128];
+    char sonName[128];
+    char targetHost[64];
+    UA_ByteString announcePacket = UA_BYTESTRING_NULL;
+    TestUdpIntercept *intercepts[] = {testUdpInterceptLds};
+
+    createInjectedServiceInstanceName(serviceInstance, sizeof(serviceInstance),
+                                      serverName, hostname);
+    createInjectedServerOnNetworkName(sonName, sizeof(sonName),
+                                      serverName, hostname);
+    createInjectedTargetName(targetHost, sizeof(targetHost), hostname);
+    buildInjectedMdnsPacket(serviceInstance, targetHost, 7779, "/takeover", "DA",
+                            true, 600, true, 600, &announcePacket);
+    MdnsMessageExpectation announceExpectation =
+        {sonName, "/takeover", "DA", 7779, true, 0, false};
+
+    /* The received entry is not announced */
+    size_t previousSendCount = UA_atomic_load(&globalInterceptedMdnsMessages);
+    resetDiscoveryCounters();
+    injectMdnsPacket(testUdpCmLds, &announcePacket);
+    waitForServerOnNetworkCalls(1, 1500);
+    ck_assert_uint_eq(countServersOnNetworkByName(serverLds, sonName), 1);
+    ck_assert_str_eq(discoveryCounters.lastDiscoveryUrl, discoveryUrl);
+    ck_assert_str_eq(discoveryCounters.lastCapabilities, "DA");
+    ck_assert(!hasMdnsMessageMatching(intercepts, 1, previousSendCount,
+                                      &announceExpectation));
+
+    /* Announce the identical entry */
+    previousSendCount = UA_atomic_load(&globalInterceptedMdnsMessages);
+    registerServerOnNetwork(serverLds, sonName, discoveryUrl, caps, 1);
+    waitForMdnsMessageAndAssert(intercepts, 1, previousSendCount,
+                                &announceExpectation);
+
+    deregisterServerOnNetwork(serverLds, sonName, discoveryUrl);
     UA_ByteString_clear(&announcePacket);
 }
 END_TEST
@@ -2679,8 +2761,13 @@ START_TEST(PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath) {
     ck_assert_ptr_ne(son.serverCapabilities, NULL);
     son.serverCapabilities[0] = UA_String_fromChars("NA");
 
-    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &son,
-                                                        UA_KEYVALUEMAP_NULL),
+    UA_Boolean announce = true;
+    UA_KeyValuePair param;
+    param.key = UA_QUALIFIEDNAME(0, "announce");
+    UA_Variant_setScalar(&param.value, &announce, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap params = {1, &param};
+
+    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &son, params),
                       UA_STATUSCODE_GOOD);
     waitForMdnsMessageAndAssert(intercepts, 1, initialSends, &registerExpectation);
 
@@ -2698,6 +2785,34 @@ START_TEST(PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath) {
     ck_assert_uint_eq(countServersOnNetworkByName(server, "Register_public_api"), 0);
 
     UA_ServerOnNetwork_clear(&son);
+}
+END_TEST
+
+/* An entry that is no longer announced gets retracted. It stays in the
+ * ServerOnNetwork entries. */
+START_TEST(MdnsUpdateWithoutAnnounceRetractsRecord) {
+    TestUdpIntercept *intercepts[] = {testUdpIntercept};
+    const char *caps[] = {"NA"};
+    const char *discoveryUrl = "opc.tcp://localhost:16665";
+    MdnsMessageExpectation announceExpectation =
+        {"Retract_test", "/", "NA", 16665, true, 0, false};
+    MdnsMessageExpectation goodbyeExpectation =
+        {"Retract_test", "/", "NA", 16665, false, 0, true};
+
+    size_t previousSendCount = UA_atomic_load(&globalInterceptedMdnsMessages);
+    registerServerOnNetworkAnnounce(server, "Retract_test", discoveryUrl,
+                                    caps, 1, true);
+    waitForMdnsMessageAndAssert(intercepts, 1, previousSendCount,
+                                &announceExpectation);
+
+    previousSendCount = UA_atomic_load(&globalInterceptedMdnsMessages);
+    registerServerOnNetworkAnnounce(server, "Retract_test", discoveryUrl,
+                                    caps, 1, false);
+    waitForMdnsMessageAndAssert(intercepts, 1, previousSendCount,
+                                &goodbyeExpectation);
+    ck_assert_uint_eq(countServersOnNetworkByName(server, "Retract_test"), 1);
+
+    deregisterServerOnNetwork(server, "Retract_test", discoveryUrl);
 }
 END_TEST
 
@@ -2875,6 +2990,7 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_test(tc, MdnsUpdateOnlineOfflineTriggersSendPath);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineIsIdempotent);
     tcase_add_test(tc, PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath);
+    tcase_add_test(tc, MdnsUpdateWithoutAnnounceRetractsRecord);
     suite_add_tcase(s, tc);
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
@@ -2913,6 +3029,7 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_test(tc_integration, PublicApiRegisterDeregisterCallback);
     tcase_add_test(tc_integration, PublicApiDeregisterDiscoveryKeepsLocalMdnsRecord);
     tcase_add_test(tc_integration, PublicApiRegisterDeregisterTriggersLdsMdnsSendPath);
+    tcase_add_test(tc_integration, PublicApiRegisterWithoutAnnounceIsNotAnnounced);
     tcase_add_test(tc_integration, PublicApiFindServersOnNetworkListsRegisteredServers);
     suite_add_tcase(s, tc_integration);
 
@@ -2932,6 +3049,7 @@ testSuite_DiscoveryMdnsd(void) {
                    PublicApiInjectedSrvThenTxtUpdatesCallbackState);
     tcase_add_test(tc_integration, PublicApiInjectedTtlZeroRemovesRemoteServer);
     tcase_add_test(tc_integration, PublicApiInjectedRemoteServerIsNotMirroredBackOut);
+    tcase_add_test(tc_integration, PublicApiAnnounceTakesOverReceivedEntry);
     tcase_add_test(tc_integration, PublicApiIgnoresInvalidReceiveRecords);
     tcase_add_test(tc_integration, PublicApiIgnoresRecordWithTruncatedAddressField);
     suite_add_tcase(s, tc_integration);
