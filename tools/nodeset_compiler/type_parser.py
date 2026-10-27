@@ -312,16 +312,16 @@ class StructType(Type):
                     raise RuntimeError(
                         f"Type {self.name} field {original_name} has invalid "
                         f"ValueRank {f.attributes['ValueRank'].value}") from ex
-            if value_rank in (-2, -3):
-                raise RuntimeError(
-                    f"Type {self.name} field {original_name} has unsupported "
-                    f"ValueRank {value_rank}: variable-rank fields cannot be "
-                    f"represented by the fixed C structure layout")
-            if value_rank < -1:
+            if value_rank < -3:
                 raise RuntimeError(
                     f"Type {self.name} field {original_name} has invalid "
                     f"ValueRank {value_rank}")
-            is_array = value_rank >= 0
+            if value_rank not in (-1, 1):
+                raise RuntimeError(
+                    f"Type {self.name} field {original_name} has unsupported "
+                    f"ValueRank {value_rank}: only scalar and one-dimensional "
+                    f"members fit the fixed C structure layout")
+            is_array = value_rank == 1
 
             dimensions = []
             if "ArrayDimensions" in f.attributes:
@@ -519,9 +519,10 @@ class TypeParser():
             t.isLocal = is_local
             self.insert_type(t)
 
-        # DataTypes without a Definition use the memory layout of their base
-        # type. Index those aliases after the definition shells exist, so a
-        # simple type can also derive from a custom type declared later.
+        # Simple aliases without a Definition use their base representation.
+        # Index them after the definition shells exist, including forward
+        # references. An unresolved structured type must keep its own layout
+        # dependency instead of silently losing fields through its parent.
         pending_aliases = list(aliases or [])
         changed = True
         while pending_aliases and changed:
@@ -532,7 +533,8 @@ class TypeParser():
                     changed = True
                     continue
                 base_type = self.types_by_id.get(str(base_id))
-                if base_type is None:
+                if (base_type is None or isinstance(base_type, StructType) or
+                        base_type.name == "ExtensionObject"):
                     unresolved.append((node_id, base_id))
                     continue
                 self.types_by_id[str(node_id)] = base_type
@@ -555,7 +557,7 @@ class TypeParser():
 
         # All structure shells are now indexed. Resolve base structures before
         # derived structures, then flatten inherited fields for the generated
-        # C ABI. Keep own_members separately for StructureDefinition metadata.
+        # C ABI. Keep own_members separately for the local NodeSet declarations.
         structs_by_type = {
             id(datatype): (datatype, definition)
             for datatype, definition in structs

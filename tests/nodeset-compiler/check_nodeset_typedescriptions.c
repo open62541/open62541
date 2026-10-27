@@ -101,7 +101,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
     UA_clear(&source, recursive);
     UA_clear(&copy, recursive);
 
-    /* Non-negative ValueRanks share the size-plus-pointer array layout. */
+    /* One-dimensional fields use the size-plus-pointer array layout. */
     const UA_DataType *ranked = findType(namespaceIndex, 3006);
     ck_assert_ptr_nonnull(ranked);
     ck_assert_uint_eq(ranked->typeKind, UA_DATATYPEKIND_STRUCTURE);
@@ -140,8 +140,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
         (UA_StructureDefinition *)definitionValue.value.data;
     ck_assert_uint_eq(definition->fieldsSize, 2);
     /* DataTypeDefinition is materialized on demand from the static datatype
-     * layout. The C ABI distinguishes scalar and array fields, but deliberately
-     * normalizes arbitrary/multidimensional ranks to one-dimensional arrays. */
+     * layout. Unsupported ranks are rejected before code generation. */
     ck_assert_int_eq(definition->fields[0].valueRank, 1);
     ck_assert_uint_eq(definition->fields[0].arrayDimensionsSize, 1);
     ck_assert_uint_eq(definition->fields[0].arrayDimensions[0], 0);

@@ -14,12 +14,14 @@ import logging
 import codecs
 import re
 from pathlib import Path
+import copy
 from collections import OrderedDict
 
 from .datatypes import NodeId
 from .nodes import *
 from .opaque_type_mapping import opaque_type_mapping
-from .type_parser import CSVBSDTypeParser
+from .type_parser import (CSVBSDTypeParser, TypeParser, StructType,
+                          get_definition_fields)
 
 import io
 import tempfile
@@ -52,6 +54,18 @@ def getSubTypesOf(nodeset, node, skipNodes=None):
             elif (ref.target == node.id and not ref.isForward):
                 re.update(getSubTypesOf(nodeset, nodeset.nodes[ref.source], skipNodes=skipAll))
     return re
+
+def _definitionFields(node):
+    if node.id.ns == 0 or node.dataTypeDefinition is None:
+        return []
+    return get_definition_fields(node.dataTypeDefinition)
+
+def _baseDataTypeId(node):
+    for ref in node.references:
+        if (ref.referenceType == NodeId("ns=0;i=45") and
+                not ref.isForward):
+            return ref.target
+    return None
 
 def extractNamespaces(xmlfile):
     """Read the URI table independently of XML formatting and prefixes."""
@@ -368,6 +382,164 @@ class NodeSet:
             # Some nodes in the full nodeset do not have a parent. So accept this and do not show an error.
             #else:
             #    raise RuntimeError("Node {}: HierarchicalReference (or subtype of it) to parent node is missing.".format(str(node.id)))
+
+    def normalizeDataTypes(self, typesOutname, generateTypes=False, typesArray=()):
+        """Adapt NodeSet declarations to the existing datatype-generator model.
+
+        NodeSet definitions declare local fields. Expand inheritance exactly
+        once here; standard StructureDescriptions already carry all fields.
+        """
+        # Normalize inline definitions and externally owned BSD layouts.
+        logger.info("Creating DataType definitions")
+        typeParser = TypeParser({}, [], typesOutname, self.namespaceMapping)
+        definitions = []
+        aliases = []
+        for node in self.nodes.values():
+            if not isinstance(node, DataTypeNode):
+                continue
+
+            fields = _definitionFields(node)
+            isLocal = False
+            if fields:
+                # Static generation owns every visible definition. The positional
+                # types-array assignment is also used to validate namespace-only
+                # generation without redeclaring BSD-backed dependency types.
+                isLocal = not node.hidden and (generateTypes or
+                                              node.typesArray == "UA_TYPES")
+                definitionOutname = typesOutname
+                if not isLocal and node.typesArray.startswith("UA_"):
+                    definitionOutname = node.typesArray[3:].lower()
+                definitions.append((node.dataTypeDefinition,
+                                    self.namespaces[node.id.ns], node.id,
+                                    isLocal, _baseDataTypeId(node),
+                                    definitionOutname))
+
+            # Prefer the representation already parsed from a supplied BSD. This
+            # keeps NodeSet definitions usable for runtime metadata without
+            # redeclaring datatypes owned by an external generated types array.
+            if not isLocal and node.typesArray != "UA_TYPES":
+                namespace_types = self.parser.types.get(
+                    self.namespaces[node.id.ns], {})
+                external = namespace_types.get(node.browseName.name)
+                if external is not None:
+                    external = copy.copy(external)
+                    external.members = [copy.copy(member)
+                                        for member in external.members]
+                    external.nodeId = node.id
+                    external.isLocal = False
+                    if node.typesArray.startswith("UA_"):
+                        external.outname = node.typesArray[3:].lower()
+                    typeParser.types_by_id[str(node.id)] = external
+
+            if not fields:
+                baseTypeId = _baseDataTypeId(node)
+                if baseTypeId is not None:
+                    aliases.append((node.id, baseTypeId))
+
+        # Embedded and explicit BSD dictionaries are parsed before their NodeSet
+        # namespace indexes and datatype-array owners are known. Rebind copied
+        # structure members to the normalized NodeSet types so inherited layouts
+        # do not retain stale UA_TYPES references.
+        normalizedTypes = {
+            (datatype.namespaceUri, datatype.name): datatype
+            for datatype in typeParser.types_by_id.values()
+        }
+        for datatype in set(typeParser.types_by_id.values()):
+            if not isinstance(datatype, StructType) or datatype.isLocal:
+                continue
+            for member in datatype.members:
+                normalized = typeParser.types_by_id.get(str(member.data_type_id))
+                if normalized is None:
+                    normalized = normalizedTypes.get(
+                        (member.member_type.namespaceUri, member.member_type.name))
+                if normalized is not None:
+                    member.member_type = normalized
+        typeParser.addTypesFromDefinitions(definitions, aliases)
+
+        localTypes = []
+        visiting = set()
+        visited = set()
+
+        def addLocalType(datatype):
+            """Append one local type after all local layout dependencies."""
+            typeKey = id(datatype)
+            if typeKey in visited:
+                return
+            if typeKey in visiting:
+                raise RuntimeError(
+                    "Mutually recursive DataTypes involving %s are not supported; "
+                    "use a self-recursive array or optional member instead" %
+                    datatype.name)
+            visiting.add(typeKey)
+            if isinstance(datatype, StructType):
+                base = typeParser.get_type_for_id(datatype.baseTypeId)
+                if base is not None and base.isLocal:
+                    addLocalType(base)
+                for member in datatype.members:
+                    dependency = member.member_type
+                    if dependency is datatype or not dependency.isLocal:
+                        continue
+                    addLocalType(dependency)
+            visiting.remove(typeKey)
+            visited.add(typeKey)
+            localTypes.append(datatype)
+
+        for datatypes in typeParser.types.values():
+            for datatype in datatypes.values():
+                if datatype.isLocal:
+                    addLocalType(datatype)
+
+        logger.info("Reordering nodes for minimal dependencies during printing")
+        self.sortNodes()
+        # Keep DataType nodes in declaration order before variables need them
+        # for value type-checking. The namespace loader registers static layouts.
+        orderedNodes = OrderedDict()
+        for nodeId, node in self.nodes.items():
+            if node.hidden:
+                orderedNodes[nodeId] = node
+        orderingDataTypes = set()
+
+        def addDataTypeNode(nodeId):
+            """Order a datatype node after the nodes needed by its layout."""
+            node = self.nodes.get(nodeId)
+            if node is None or node.hidden or node.id in orderedNodes:
+                return
+            if node.id in orderingDataTypes:
+                raise RuntimeError(
+                    "DataType inheritance cycle involving %s" % node.id)
+            orderingDataTypes.add(node.id)
+            baseTypeId = _baseDataTypeId(node)
+            if baseTypeId is not None:
+                addDataTypeNode(baseTypeId)
+            orderingDataTypes.remove(node.id)
+            orderedNodes[node.id] = node
+
+        for datatype in localTypes:
+            if isinstance(datatype, StructType):
+                for member in datatype.own_members:
+                    addDataTypeNode(member.data_type_id)
+            addDataTypeNode(datatype.nodeId)
+        for nodeId, node in self.nodes.items():
+            if nodeId not in orderedNodes:
+                orderedNodes[nodeId] = node
+        self.nodes = orderedNodes
+        generatedTypes = OrderedDict()
+        importedTypes = OrderedDict()
+        for datatype in typeParser.types_by_id.values():
+            if datatype.isLocal:
+                continue
+            namespaceTypes = importedTypes.setdefault(datatype.namespaceUri,
+                                                       OrderedDict())
+            namespaceTypes[datatype.name] = datatype
+        for datatype in localTypes:
+            namespaceTypes = generatedTypes.setdefault(
+                datatype.namespaceUri, OrderedDict())
+            namespaceTypes[datatype.name] = datatype
+        typeParser.types = generatedTypes
+        typeParser.no_builtin = True
+        typeParser.existing_types = importedTypes
+        typeParser.existing_types_array = set(typesArray)
+        return typeParser
 
     def generateParser(self, existing, infiles , bsdFile):
         self.all_files = []

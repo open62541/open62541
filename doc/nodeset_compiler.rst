@@ -15,7 +15,11 @@ static ``UA_TYPES_<NAME>`` array. Loading the generated namespace registers that
 array with the server. The ``DataTypeDefinition`` attribute is reconstructed
 from the static layout when it is read. Definitions can refer to custom
 datatypes declared later in the same NodeSet2 file; the compiler resolves those
-dependencies before code generation.
+dependencies before code generation. Inheritance is expanded once by the
+NodeSet input adapter; the existing C datatype backend is shared with BSD input.
+Structure members must be scalar or one-dimensional arrays. Matrix and
+variable-rank fields are rejected because the current datatype layout cannot
+represent their encoding.
 
 A separate BSD type dictionary is still supported. It is only required when
 the NodeSet2 file does not contain complete ``Definition`` elements for its

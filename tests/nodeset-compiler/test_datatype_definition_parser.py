@@ -41,8 +41,8 @@ def require_error(body, *parts):
         raise AssertionError("invalid definition was accepted")
 
 
-def test_unsupported_variable_ranks():
-    for value_rank in (-2, -3):
+def test_unsupported_ranks():
+    for value_rank in (-3, -2, 0, 2, 3):
         document = minidom.parseString(
             '<Definition Name="1:BadRank">'
             f'<Field Name="Value" DataType="i=12" ValueRank="{value_rank}"/>'
@@ -158,7 +158,7 @@ def test_structure_inheritance():
             "inherited fields were not flattened into the C layout")
     require([member.name for member in derived.own_members] ==
             ["derivedValue"],
-            "StructureDefinition metadata duplicated inherited fields")
+            "local NodeSet declarations duplicated inherited fields")
 
 
 def test_structure_validation():
@@ -183,8 +183,8 @@ def test_structure_validation():
         ('ValueRank="many"', "invalid ValueRank many"),
         ('ValueRank="-4"', "invalid ValueRank -4"),
         ('ValueRank="-1" ArrayDimensions="2"', "scalar", "ArrayDimensions"),
-        ('ValueRank="2" ArrayDimensions="2"', "ValueRank 2",
-         "1 ArrayDimensions"),
+        ('ValueRank="1" ArrayDimensions="2,2"', "ValueRank 1",
+         "2 ArrayDimensions"),
         ('ValueRank="1" ArrayDimensions="-1"', "negative ArrayDimensions"),
         ('ValueRank="1" ArrayDimensions="2,,3"',
          "invalid ArrayDimensions 2,,3"),
@@ -223,10 +223,76 @@ def test_definition_alias_and_namespace_remapping():
             "datatype node namespace was not remapped")
 
 
+def test_loader_definition_contracts():
+    # The runtime loader uses this same fixture. NodeSet declarations contain
+    # only local fields, while standard StructureDescriptions include all of them.
+    fixture = SOURCE_DIR / "tests/nodeset-loader/nodesets/datatype_edge_cases.xml"
+    document = minidom.parse(os.fspath(fixture))
+    parser = TypeParser({}, [], "shared", {})
+    definitions = []
+    for node in document.getElementsByTagName("UADataType"):
+        if node.getAttribute("NodeId") not in (
+                "ns=1;i=6011", "ns=1;i=6012", "ns=1;i=6013"):
+            continue
+        parent = next(ref.firstChild.nodeValue for ref in
+                      node.getElementsByTagName("Reference")
+                      if ref.getAttribute("IsForward") == "false")
+        definitions.append((node.getElementsByTagName("Definition")[0],
+                            "urn:shared", NodeId(node.getAttribute("NodeId")),
+                            True, NodeId(parent)))
+    parser.addTypesFromDefinitions(definitions)
+    grandchild = parser.get_type_for_id(NodeId("ns=1;i=6013"))
+    require([member.name for member in grandchild.members] ==
+            ["identifier", "measurement", "label"],
+            "three-level inheritance expanded fields more than once")
+    require([member.name for member in grandchild.own_members] == ["label"],
+            "the local declaration contains inherited fields")
+
+    matrix = next(node for node in document.getElementsByTagName("UADataType")
+                  if node.getAttribute("NodeId") == "ns=1;i=7101")
+    require_error(matrix.getElementsByTagName("Definition")[0].toxml(),
+                  "unsupported ValueRank 2")
+
+
+def test_alias_resolution_boundaries():
+    holder = minidom.parseString('''<Definition Name="AliasHolder">
+        <Field Name="Value" DataType="ns=1;i=7402"/>
+    </Definition>''').documentElement
+    parser = TypeParser({}, [], "test", {})
+    holder_id = NodeId("ns=1;i=7403")
+    aliases = [(NodeId("ns=1;i=7402"), NodeId("ns=1;i=7401")),
+               (NodeId("ns=1;i=7401"), NodeId("i=12"))]
+    parser.addTypesFromDefinitions([(holder, "urn:test", holder_id, True)], aliases)
+    require(parser.get_type_for_id(holder_id).members[0].member_type.name == "String",
+            "an alias chain did not resolve to its storage representation")
+
+    base = minidom.parseString('''<Definition Name="BaseRecord">
+        <Field Name="Identifier" DataType="i=7"/>
+    </Definition>''').documentElement
+    scenarios = [
+        ([], [(NodeId("ns=1;i=7402"), NodeId("ns=1;i=7401")),
+              (NodeId("ns=1;i=7401"), NodeId("ns=1;i=7402"))]),
+        ([(base, "urn:test", NodeId("ns=1;i=7401"), True, NodeId("i=22"))],
+         [(NodeId("ns=1;i=7402"), NodeId("ns=1;i=7401"))]),
+    ]
+    for definitions, aliases in scenarios:
+        parser = TypeParser({}, [], "test", {})
+        try:
+            parser.addTypesFromDefinitions(
+                definitions + [(holder, "urn:test", holder_id, True)], aliases)
+        except Exception as error:
+            require("Unknown member DataType ns=1;i=7402" in str(error),
+                    f"unexpected unresolved-alias diagnostic: {error}")
+        else:
+            raise AssertionError("a cyclic or unresolved structured alias was accepted")
+
+
 def main():
-    test_unsupported_variable_ranks()
+    test_unsupported_ranks()
     test_enum_values_and_definition_validation()
     test_structure_inheritance()
+    test_loader_definition_contracts()
+    test_alias_resolution_boundaries()
     test_structure_validation()
     test_definition_alias_and_namespace_remapping()
 
