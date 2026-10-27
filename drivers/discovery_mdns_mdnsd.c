@@ -1240,32 +1240,50 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Boolean removed = (_removed) ? *_removed : false;
 
+    const UA_Boolean *_announce = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "announce"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Boolean announce = (_announce) ? *_announce : false;
+
     /* Find existing entry for the ServerName */
     ServerOnNetworkRecord *entry = findSON(md, son->serverName);
 
     /* Add or update record */
     if(added || updated) {
+        /* The entry is not announced. For example because it was received over
+         * mDNS. Retract the entry if it was announced before. */
+        if(!announce) {
+            if(entry && isLocalOwnedSON(entry)) {
+                retractRecord(md, &entry->serverOnNetwork);
+                flushMulticastMessages(md);
+                removeLocalSON(md, entry);
+            }
+            return;
+        }
+
         if(!entry) {
             /* Create a new entry if none exists */
             res = addSON(md, son, &entry);
             if(res != UA_STATUSCODE_GOOD)
                 return;
         } else {
-            /* Abort if the mDNS-relevant fields are identical. The recordId is
-             * bumped server-side (e.g. by resetDiscoveryResetIds) and must
-             * not be part of the equality check. Use a shallow copy on the
-             * stack so the string pointers of `son` stay valid. */
+            /* Abort if the entry is announced already and the mDNS-relevant
+             * fields are identical. The recordId is bumped server-side (e.g.
+             * by resetDiscoveryResetIds) and must not be part of the equality
+             * check. Use a shallow copy on the stack so the string pointers of
+             * `son` stay valid. */
             UA_ServerOnNetwork sonForCmp = *son;
             sonForCmp.recordId = entry->serverOnNetwork.recordId;
             UA_Order same =
                 UA_order(&sonForCmp, &entry->serverOnNetwork,
                          &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-            if(same == UA_ORDER_EQ) {
-                /* If this is an entry received from mDNS, this notification is
-                 * just the server table echo of our cache update. Keep the
-                 * remote origin and do not announce it back out. */
+            if(isLocalOwnedSON(entry) && same == UA_ORDER_EQ)
                 return;
-            }
+
+            /* Take over a received entry. No more queries for its details. */
+            if(isRemoteReceivedSON(entry))
+                stopRecordDetailsQueryForEntry(md, entry);
+
             UA_ServerOnNetwork tmp;
             res = UA_ServerOnNetwork_copy(son, &tmp);
             if(res != UA_STATUSCODE_GOOD)

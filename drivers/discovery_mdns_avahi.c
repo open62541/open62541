@@ -548,14 +548,29 @@ AvahiDriverNotificationCallback(UA_Driver *drv,
     UA_Boolean added = addedParam ? *addedParam : false;
     UA_Boolean updated = updatedParam ? *updatedParam : false;
     UA_Boolean removed = removedParam ? *removedParam : false;
+    const UA_Boolean *announceParam = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "announce"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Boolean announce = announceParam ? *announceParam : false;
     ServerOnNetworkRecord *entry = findSON(md, son->serverName);
     if(added || updated) {
+        /* The entry is not announced. For example because it was received over
+         * mDNS. Retract the entry if it was announced before. */
+        if(!announce) {
+            if(entry && isLocalOwnedRecord(entry)) {
+                removeLocalRecord(md, entry);
+                removeSONEntry(md, entry, false, false);
+            }
+            return;
+        }
         if(entry) {
+            /* Abort if the entry is announced already and unchanged. Received
+             * entries are taken over. */
             UA_ServerOnNetwork sonForCmp = *son;
             sonForCmp.recordId = entry->serverOnNetwork.recordId;
             UA_Order same = UA_order(&sonForCmp, &entry->serverOnNetwork,
                                      &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-            if(same == UA_ORDER_EQ)
+            if(isLocalOwnedRecord(entry) && same == UA_ORDER_EQ)
                 return;
             UA_ServerOnNetwork tmp;
             UA_StatusCode res = UA_ServerOnNetwork_copy(son, &tmp);
