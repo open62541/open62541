@@ -2960,6 +2960,7 @@ main(void) {
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
+#if defined(UA_ENABLE_DRIVER_MDNS_MDNSD)
     UA_StatusCode callbackStatus =
         (UA_StatusCode)UA_atomic_load(&workerCallbackStatus);
     if(callbackStatus != UA_STATUSCODE_GOOD) {
@@ -2967,6 +2968,7 @@ main(void) {
                 (unsigned)callbackStatus);
         number_failed++;
     }
+#endif
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
