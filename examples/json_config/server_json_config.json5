@@ -147,6 +147,7 @@
   registeredServersEnabled: true,
   registeredServerCleanupTimeout: 600,
   serversOnNetworkEnabled: false,
+  announceRegisteredServers: true,
 
   // Subscription and MonitoredItem limits (UA_ENABLE_SUBSCRIPTIONS).
   subscriptionsEnabled: true,
