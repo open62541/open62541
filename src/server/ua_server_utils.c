@@ -181,13 +181,106 @@ UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
     return res;
 }
 
+/* Keep exact lookups distinct from resolving a simple subtype's storage.
+ * In particular, an unregistered structure must never inherit its parent's
+ * layout implicitly: it may introduce additional fields or encodings. */
+const UA_DataType *
+resolveDataTypeRepresentation(UA_Server *server, const UA_NodeId *typeId) {
+    lockServer(server);
+    const UA_DataType *type = UA_Server_findDataType(server, typeId);
+    if(type) {
+        unlockServer(server);
+        return type;
+    }
+
+    RefTree visited;
+    if(RefTree_init(&visited) != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return NULL;
+    }
+
+    const UA_Node *node = UA_NODESTORE_GET_SELECTIVE(
+        server, typeId, UA_NODEATTRIBUTESMASK_NONE,
+        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE),
+        UA_BROWSEDIRECTION_INVERSE);
+    while(node) {
+        UA_Boolean duplicate = false;
+        UA_StatusCode res = RefTree_addNodeId(&visited, &node->head.nodeId, &duplicate);
+        if(res != UA_STATUSCODE_GOOD || duplicate ||
+           node->head.nodeClass != UA_NODECLASS_DATATYPE) {
+            UA_NODESTORE_RELEASE(server, node);
+            break;
+        }
+
+        const UA_DataType *candidate =
+            UA_Server_findDataType(server, &node->head.nodeId);
+        if(candidate) {
+            if(candidate->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO &&
+               candidate->typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT)
+                type = candidate;
+            UA_NODESTORE_RELEASE(server, node);
+            break;
+        }
+        const UA_Node *parent =
+            getNodeType(server, &node->head, UA_NODEATTRIBUTESMASK_NODEID,
+                        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE),
+                        UA_BROWSEDIRECTION_INVERSE);
+        UA_NODESTORE_RELEASE(server, node);
+        node = parent;
+    }
+    RefTree_clear(&visited);
+    unlockServer(server);
+    return type;
+}
+
+/* Replace an alias NodeId with the concrete datatype that defines its layout. */
+static UA_StatusCode
+normalizeDataTypeId(UA_Server *server, UA_NodeId *typeId) {
+    if(UA_NodeId_isNull(typeId))
+        return UA_STATUSCODE_GOOD;
+    if(UA_Server_findDataType(server, typeId))
+        return UA_STATUSCODE_GOOD;
+    const UA_DataType *representation =
+        resolveDataTypeRepresentation(server, typeId);
+    if(!representation)
+        return UA_STATUSCODE_BADNOTFOUND;
+    UA_NodeId_clear(typeId);
+    return UA_NodeId_copy(&representation->typeId, typeId);
+}
+
 UA_StatusCode
 UA_Server_addDataTypeFromDescription(UA_Server *server,
                                      const UA_ExtensionObject *description) {
+    /* Normalize simple aliases in a temporary copy for memory-layout
+     * construction. */
+    UA_ExtensionObject layoutDescription;
+    UA_StatusCode res = UA_ExtensionObject_copy(description, &layoutDescription);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(UA_ExtensionObject_hasDecodedType(
+           &layoutDescription, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION])) {
+        UA_StructureDescription *structureDescription =
+            (UA_StructureDescription*)layoutDescription.content.decoded.data;
+        UA_StructureDefinition *definition =
+            &structureDescription->structureDefinition;
+        for(size_t i = 0; res == UA_STATUSCODE_GOOD &&
+                        i < definition->fieldsSize; i++) {
+            if(UA_NodeId_equal(&definition->fields[i].dataType,
+                               &structureDescription->dataTypeId))
+                continue;
+            res = normalizeDataTypeId(server, &definition->fields[i].dataType);
+        }
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ExtensionObject_clear(&layoutDescription);
+        return res;
+    }
+
     /* Translate into a new UA_DataType */
     UA_DataType dt;
-    UA_StatusCode res =
-        UA_DataType_fromDescription(&dt, description, serverCustomTypes(server));
+    res = UA_DataType_fromDescription(&dt, &layoutDescription,
+                                      serverCustomTypes(server));
+    UA_ExtensionObject_clear(&layoutDescription);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 

@@ -9,6 +9,7 @@
  */
 
 #include "ua_nodeset_loader_internal.h"
+#include "../../server/ua_server_internal.h"
 
 #include "parse_num.h"
 
@@ -22,7 +23,6 @@
 
 static UA_StatusCode addCustomDataType(NodeSet *nodeset, const NL_DataTypeNode *node);
 static const UA_DataType *findDataType(NodeSet *nodeset, const UA_NodeId *id);
-static const UA_DataType *resolveDataType(NodeSet *nodeset, const UA_NodeId *id);
 
 static UA_NodeId
 getParentId(const NL_Node *node, UA_NodeId *parentRefId) {
@@ -681,39 +681,6 @@ findDataType(NodeSet *nodeset, const UA_NodeId *id) {
     return UA_Server_findDataType(nodeset->server, id);
 }
 
-static const UA_DataType *
-resolveDataType(NodeSet *nodeset, const UA_NodeId *id) {
-    const UA_DataType *type = findDataType(nodeset, id);
-    if(type)
-        return type;
-
-    UA_BrowseDescription bd;
-    UA_BrowseDescription_init(&bd);
-    bd.nodeId = *id;
-    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
-    bd.referenceTypeId = UA_NS0ID(HASSUBTYPE);
-    bd.includeSubtypes = false;
-    bd.nodeClassMask = UA_NODECLASS_DATATYPE;
-
-    size_t ancestorsSize = 0;
-    UA_ExpandedNodeId *ancestors = NULL;
-    UA_StatusCode res =
-        UA_Server_browseRecursive(nodeset->server, &bd, &ancestorsSize, &ancestors);
-    if(res != UA_STATUSCODE_GOOD)
-        return NULL;
-
-    for(size_t i = 0; i < ancestorsSize; i++) {
-        if(!UA_ExpandedNodeId_isLocal(&ancestors[i]))
-            continue;
-        type = findDataType(nodeset, &ancestors[i].nodeId);
-        if(type)
-            break;
-    }
-
-    UA_Array_delete(ancestors, ancestorsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-    return type;
-}
-
 static bool
 isStructureKind(const UA_DataType *type) {
     return type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
@@ -851,7 +818,8 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
              * not be known yet: keep the ExtensionObject encoding then. */
             bool isStructure = UA_NodeId_equal(&src->dataType, &node->id);
             if(!isStructure) {
-                const UA_DataType *memberType = resolveDataType(nodeset, &src->dataType);
+                const UA_DataType *memberType =
+            resolveDataTypeRepresentation(nodeset->server, &src->dataType);
                 isStructure = !memberType || isStructureKind(memberType);
             }
             dst->dataType = isStructure ? UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId
@@ -862,7 +830,8 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
             dst->dataType = node->id;
             continue;
         }
-        const UA_DataType *memberType = resolveDataType(nodeset, &src->dataType);
+        const UA_DataType *memberType =
+            resolveDataTypeRepresentation(nodeset->server, &src->dataType);
         if(!memberType) {
             res = UA_STATUSCODE_BADINTERNALERROR;
             break;
@@ -906,7 +875,7 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
 static UA_StatusCode
 addCustomDataType(NodeSet *nodeset, const NL_DataTypeNode *node) {
     UA_NodeId parent = getParentId((const NL_Node *)node, NULL);
-    const UA_DataType *parentType = resolveDataType(nodeset, &parent);
+    const UA_DataType *parentType = resolveDataTypeRepresentation(nodeset->server, &parent);
     const NL_DataTypeDefinition *definition = node->definition;
 
     if(definition && definition->isOptionSet && parentType &&
@@ -938,7 +907,8 @@ dataTypeDependencyReady(NodeSet *nodeset, const UA_NodeId *typeId, const NL_Data
 
     NL_Node *dependency = UA_NodeSet_findNode(nodeset, typeId);
     if(!dependency)
-        return resolveDataType(nodeset, typeId) ? NL_DEPENDENCY_READY : NL_DEPENDENCY_REJECT;
+        return resolveDataTypeRepresentation(nodeset->server, typeId) ?
+            NL_DEPENDENCY_READY : NL_DEPENDENCY_REJECT;
     if(dependency->nodeClass != UA_NODECLASS_DATATYPE)
         return NL_DEPENDENCY_REJECT;
     const NL_DataTypeNode *dataType = (const NL_DataTypeNode *)dependency;
@@ -955,7 +925,11 @@ dataTypeDependenciesReady(NodeSet *nodeset, const NL_DataTypeNode *node) {
         return NL_DEPENDENCY_REJECT;
 
     UA_NodeId parent = getParentId((const NL_Node *)node, NULL);
-    NL_DependencyState state = dataTypeDependencyReady(nodeset, &parent, node);
+    /* The abstract Union determines the structure kind; it has no concrete
+     * layout to register before its subtypes can be constructed. */
+    UA_NodeId unionId = UA_NS0ID(UNION);
+    NL_DependencyState state = UA_NodeId_equal(&parent, &unionId) ?
+        NL_DEPENDENCY_READY : dataTypeDependencyReady(nodeset, &parent, node);
     if(state != NL_DEPENDENCY_READY)
         return state;
 

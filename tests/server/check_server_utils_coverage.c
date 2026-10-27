@@ -279,6 +279,126 @@ START_TEST(Utils_typeHierarchy_entriesAreIntact) {
     UA_NodeId_clear(&c);
 } END_TEST
 
+START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
+    /* Add a simple DataType alias without its own binary representation. */
+    UA_NodeId aliasId = UA_NODEID_NUMERIC(1, 99400);
+    UA_DataTypeAttributes aliasAttributes = UA_DataTypeAttributes_default;
+    aliasAttributes.displayName = UA_LOCALIZEDTEXT("", "AliasDateTime");
+    UA_StatusCode res = UA_Server_addDataTypeNode(
+        server, aliasId, UA_TYPES[UA_TYPES_DATETIME].typeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "AliasDateTime"), aliasAttributes, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    if(_i == 1) {
+        UA_NodeId secondAlias = UA_NODEID_NUMERIC(1, 99403);
+        res = UA_Server_addDataTypeNode(
+            server, secondAlias, aliasId,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+            UA_QUALIFIEDNAME(1, "AliasChain"), aliasAttributes, NULL, NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        aliasId = secondAlias;
+    }
+    /* Exact lookup must not acquire the ancestor-resolution semantics. */
+    ck_assert_ptr_null(UA_Server_findDataType(server, &aliasId));
+
+    /* Use the alias as a structure member. Registration must resolve it to
+     * DateTime for the concrete memory layout without modifying the input. */
+    UA_StructureField field;
+    UA_StructureField_init(&field);
+    field.name = UA_STRING("Timestamp");
+    field.dataType = aliasId;
+    field.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 99401);
+    description.name = UA_QUALIFIEDNAME(1, "AliasHolder");
+    description.structureDefinition.defaultEncodingId =
+        UA_NODEID_NUMERIC(1, 99402);
+    description.structureDefinition.baseDataType =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    description.structureDefinition.structureType =
+        UA_STRUCTURETYPE_STRUCTURE;
+    description.structureDefinition.fieldsSize = 1;
+    description.structureDefinition.fields = &field;
+
+    UA_ExtensionObject encodedDescription;
+    UA_ExtensionObject_setValueNoDelete(
+        &encodedDescription, &description,
+        &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    UA_ExtensionObject original;
+    res = UA_ExtensionObject_copy(&encodedDescription, &original);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_addDataTypeFromDescription(server, &encodedDescription);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_order(&encodedDescription, &original,
+                       &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) == UA_ORDER_EQ);
+    UA_ExtensionObject_clear(&original);
+
+    const UA_DataType *registered =
+        UA_Server_findDataType(server, &description.dataTypeId);
+    ck_assert_ptr_nonnull(registered);
+    ck_assert_uint_eq(registered->membersSize, 1);
+    ck_assert_ptr_eq(registered->members[0].memberType,
+                     &UA_TYPES[UA_TYPES_DATETIME]);
+    ck_assert(UA_NodeId_equal(&field.dataType, &aliasId));
+} END_TEST
+
+START_TEST(Utils_resolveDataTypeRepresentation) {
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 99500);
+    if(_i == 0) {
+        /* Registered structures are valid exact matches. */
+        initCustomType(&customType, 1, 99500);
+        UA_StatusCode res = UA_Server_addDataType(
+            server, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE), &customType);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_eq(resolveDataTypeRepresentation(server, &typeId),
+                         UA_Server_findDataType(server, &typeId));
+        return;
+    }
+    if(_i == 1) {
+        ck_assert_ptr_null(resolveDataTypeRepresentation(server, &typeId));
+        return;
+    }
+
+    UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
+    UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    if(_i == 2) {
+        /* A registered parent cannot stand in for its unresolved subtype. */
+        initCustomType(&customType, 1, 99501);
+        UA_StatusCode res = UA_Server_addDataType(server, parent, &customType);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        res = UA_Server_addDataTypeNode(
+            server, customType.typeId, parent,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+            UA_QUALIFIEDNAME(1, "RegisteredParent"), attr, NULL, NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        parent = customType.typeId;
+    }
+    UA_StatusCode res = UA_Server_addDataTypeNode(
+        server, typeId, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "Unresolved"), attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    if(_i == 3) {
+        /* Make a malformed cycle with no concrete representation. */
+        UA_NodeId second = UA_NODEID_NUMERIC(1, 99502);
+        res = UA_Server_addDataTypeNode(
+            server, second, typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+            UA_QUALIFIEDNAME(1, "Cyclic"), attr, NULL, NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        res = UA_Server_deleteReference(
+            server, typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), false,
+            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_STRUCTURE), true);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        res = UA_Server_addReference(
+            server, typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+            UA_EXPANDEDNODEID_NUMERIC(1, 99502), false);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+    ck_assert_ptr_null(resolveDataTypeRepresentation(server, &typeId));
+} END_TEST
+
 /* === Suite === */
 
 static Suite* testSuite_Utils(void) {
@@ -295,6 +415,8 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc, Utils_addDataType_preservesSelfReference);
     tcase_add_test(tc, Utils_addDataType_fillsFirstList);
     tcase_add_test(tc, Utils_addDataTypeFromDescription_empty_rejected);
+    tcase_add_loop_test(tc, Utils_addDataTypeFromDescription_resolvesAlias, 0, 2);
+    tcase_add_loop_test(tc, Utils_resolveDataTypeRepresentation, 0, 4);
     suite_add_tcase(s, tc);
 
     TCase *tcHier = tcase_create("Type hierarchy");

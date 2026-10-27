@@ -371,8 +371,54 @@ START_TEST(definition_structureSizeLimit) {
     UA_DataType_clear(&blockType);
 } END_TEST
 
+#ifdef UA_TYPES_USERNAMEIDENTITYTOKEN
+START_TEST(definition_flattenedInheritanceRoundtrip) {
+    /* The attribute reader supplies the direct supertype, but its fields
+     * already contain PolicyId inherited from UserIdentityToken. */
+    const UA_DataType *expected = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+    UA_ExtensionObject description;
+    UA_StatusCode res = UA_DataType_toDescription(expected, &description);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_StructureDescription *sd =
+        (UA_StructureDescription*)description.content.decoded.data;
+    sd->structureDefinition.baseDataType = UA_NS0ID(USERIDENTITYTOKEN);
+
+    UA_DataType reconstructed;
+    res = UA_DataType_fromDescription(&reconstructed, &description, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reconstructed.membersSize, expected->membersSize);
+    ck_assert_uint_eq(reconstructed.memSize, sizeof(UA_UserNameIdentityToken));
+    for(size_t i = 0; i < expected->membersSize; i++) {
+        ck_assert_ptr_eq(reconstructed.members[i].memberType,
+                         expected->members[i].memberType);
+        ck_assert_uint_eq(reconstructed.members[i].padding,
+                          expected->members[i].padding);
+    }
+
+    UA_UserNameIdentityToken value;
+    UA_UserNameIdentityToken_init(&value);
+    value.policyId = UA_STRING("policy");
+    value.userName = UA_STRING("name");
+    value.password = UA_BYTESTRING("password");
+    UA_ByteString original = UA_BYTESTRING_NULL;
+    UA_ByteString roundtrip = UA_BYTESTRING_NULL;
+    res = UA_encodeBinary(&value, expected, &original, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_encodeBinary(&value, &reconstructed, &roundtrip, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&original, &roundtrip));
+    UA_ByteString_clear(&original);
+    UA_ByteString_clear(&roundtrip);
+    UA_DataType_clear(&reconstructed);
+    UA_ExtensionObject_clear(&description);
+} END_TEST
+#endif
+
 static Suite *testSuite_definition(void) {
     TCase *tc = tcase_create("DataTypeDefinition");
+#ifdef UA_TYPES_USERNAMEIDENTITYTOKEN
+    tcase_add_test(tc, definition_flattenedInheritanceRoundtrip);
+#endif
     tcase_add_test(tc, definition_roundtrip_structure);
     tcase_add_test(tc, definition_roundtrip_structure_nested);
     tcase_add_test(tc, definition_roundtrip_simpleType);

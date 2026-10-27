@@ -263,6 +263,11 @@ struct UA_Server {
 const UA_DataTypeArray *
 serverCustomTypes(UA_Server *server);
 
+/* Exact lookup followed by simple-alias resolution. Takes the service lock
+ * internally. Unregistered structured types and cyclic hierarchies fail. */
+const UA_DataType *
+resolveDataTypeRepresentation(UA_Server *server, const UA_NodeId *typeId);
+
 /* Add a DiscoveryUrl if it is not already configured. Returns true only if
  * this call added the URL, so temporary transports can remove what they own. */
 UA_Boolean
