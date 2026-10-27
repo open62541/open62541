@@ -591,6 +591,96 @@ START_TEST(register_server_on_network_announce_param) {
 }
 END_TEST
 
+/* The entry with the mDNS name of the registration as for registerWithMdnsName.
+ * For example received over mDNS. */
+static UA_ServerOnNetwork
+registeredServerOnNetwork(UA_String *caps) {
+    UA_ServerOnNetwork son;
+    UA_ServerOnNetwork_init(&son);
+    son.serverName = UA_STRING(REGISTERED_MDNS_NAME);
+    son.discoveryUrl = UA_STRING(REGISTERED_DISCOVERY_URL);
+    son.serverCapabilitiesSize = 1;
+    son.serverCapabilities = caps;
+    return son;
+}
+
+/* Received information does not change or remove the entry of a registered
+ * server. That is possible again after the deregistration. */
+START_TEST(public_api_keeps_registered_server_on_network) {
+    UA_Server *server = newRegistrationServer();
+    registerWithMdnsName(server, NULL);
+
+    UA_String caps = UA_STRING("DA");
+    UA_ServerOnNetwork son = registeredServerOnNetwork(&caps);
+    son.discoveryUrl = UA_STRING("opc.tcp://other-host:4841");
+    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &son,
+                                                        UA_KEYVALUEMAP_NULL),
+                      UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_uint_eq(UA_Server_deregisterServerOnNetwork(server, son.serverName),
+                      UA_STATUSCODE_BADNODELETERIGHTS);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 1);
+    UA_String url = UA_STRING(REGISTERED_DISCOVERY_URL);
+    ck_assert(UA_String_equal(&server->serversOnNetwork[0].discoveryUrl, &url));
+
+    ck_assert_uint_eq(UA_Server_deregisterServer(server,
+                                                 UA_STRING(REGISTERED_SERVER_URI),
+                                                 1, &url),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &son,
+                                                        UA_KEYVALUEMAP_NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deregisterServerOnNetwork(server, son.serverName),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->serversOnNetworkSize, 0);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* The registered server announced itself over mDNS before it registered. The
+ * received entry is identical. The registration must replace it nevertheless,
+ * so that the entry gets announced. */
+START_TEST(register_server_replaces_identical_received_entry) {
+    UA_Server *server = newRegistrationServer();
+    server->config.announceRegisteredServers = true;
+    server->config.discoveryNotificationCallback = announceNotificationCallback;
+
+    UA_String caps = UA_STRING("NA");
+    UA_ServerOnNetwork son = registeredServerOnNetwork(&caps);
+    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &son,
+                                                        UA_KEYVALUEMAP_NULL),
+                      UA_STATUSCODE_GOOD);
+
+    sonNotifications = 0;
+    registerWithMdnsName(server, NULL);
+    ck_assert_uint_eq(sonNotifications, 1);
+    ck_assert(lastAnnounce);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* A changed announceRegisteredServers applies with the next registration also
+ * if the registration is unchanged */
+START_TEST(reregister_server_applies_changed_announce_config) {
+    UA_Server *server = newRegistrationServer();
+    server->config.discoveryNotificationCallback = announceNotificationCallback;
+    registerWithMdnsName(server, NULL);
+
+    sonNotifications = 0;
+    server->config.announceRegisteredServers = true;
+    registerWithMdnsName(server, NULL);
+    ck_assert_uint_eq(sonNotifications, 1);
+    ck_assert(lastAnnounce);
+
+    /* Unchanged again */
+    registerWithMdnsName(server, NULL);
+    ck_assert_uint_eq(sonNotifications, 1);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 static Suite *
 testSuite(void) {
     Suite *suite = suite_create("FindServersOnNetwork");
@@ -612,6 +702,9 @@ testSuite(void) {
     tcase_add_test(tc_registered, deregister_server_without_tcp_url_keeps_other_entry);
     tcase_add_loop_test(tc_registered, register_server_announce_follows_config, 0, 2);
     tcase_add_test(tc_registered, register_server_on_network_announce_param);
+    tcase_add_test(tc_registered, public_api_keeps_registered_server_on_network);
+    tcase_add_test(tc_registered, register_server_replaces_identical_received_entry);
+    tcase_add_test(tc_registered, reregister_server_applies_changed_announce_config);
     suite_add_tcase(suite, tc_registered);
     TCase *tc_names = tcase_create("server names");
     tcase_add_test(tc_names, register_server_without_server_names_rejected);

@@ -1941,13 +1941,19 @@ UA_Server_findServersOnNetwork(UA_Server *server, UA_String endpointUrl,
  *    Time-to-live of DNS information. Zero means infinite.
  * 0:announce [Boolean]
  *    Announce the entry on the network, for example by an attached mDNS
- *    driver. Default is false. */
+ *    driver. Default is false.
+ *
+ * The entry of a registered server (see RegisterServer) is changed only by the
+ * registration. For such an entry, UA_STATUSCODE_BADNOTWRITABLE is returned. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_registerServerOnNetwork(UA_Server *server,
                                   const UA_ServerOnNetwork *son,
                                   const UA_KeyValueMap params);
 
-/* Remove the entry of the remote server with the matching ServerName */
+/* Remove the entry of the remote server with the matching ServerName. The entry
+ * of a registered server (see RegisterServer) is removed only with the
+ * registration. For such an entry, UA_STATUSCODE_BADNODELETERIGHTS is
+ * returned. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deregisterServerOnNetwork(UA_Server *server,
                                     UA_String serverName);

@@ -542,6 +542,39 @@ removeServerOnNetwork(UA_Server *server, const UA_String serverName) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* The mDNS drivers announce the ServerOnNetwork entries with the service name
+ * _opcua-tcp. That service name is for opc.tcp DiscoveryUrls only (Part 12,
+ * C.3). Returns the first opc.tcp DiscoveryUrl of the registration or NULL. A
+ * registration has a ServerOnNetwork entry only if it has such a url. */
+static const UA_String *
+getTcpDiscoveryUrl(const UA_RegisteredServer *rs) {
+    const UA_String prefix = UA_STRING_STATIC("opc.tcp://");
+    for(size_t i = 0; i < rs->discoveryUrlsSize; i++) {
+        const UA_String *url = &rs->discoveryUrls[i];
+        if(url->length >= prefix.length &&
+           memcmp(url->data, prefix.data, prefix.length) == 0)
+            return url;
+    }
+    return NULL;
+}
+
+/* The entry belongs to a registered server. Only the registration changes and
+ * removes it. For example, the registered server can also announce itself over
+ * mDNS. Then the received information must not replace the entry and the
+ * expiry of the received information must not remove it. */
+static UA_Boolean
+isRegisteredServerOnNetwork(UA_Server *server, const UA_String serverName) {
+    if(!server->config.serversOnNetworkEnabled)
+        return false;
+    RegisteredServerRecord *rs;
+    LIST_FOREACH(rs, &server->registeredServers, pointers) {
+        if(getTcpDiscoveryUrl(&rs->registeredServer) &&
+           UA_String_equal(&rs->mdnsServerName, &serverName))
+            return true;
+    }
+    return false;
+}
+
 UA_StatusCode
 UA_Server_registerServerOnNetwork(UA_Server *server,
                                   const UA_ServerOnNetwork *newSon,
@@ -550,8 +583,12 @@ UA_Server_registerServerOnNetwork(UA_Server *server,
         UA_KeyValueMap_getScalar(&params, UA_QUALIFIEDNAME(0, "announce"),
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     lockServer(server);
-    UA_StatusCode res = addServerOnNetwork(server, newSon, params,
-                                           announce ? *announce : false);
+    UA_StatusCode res;
+    if(newSon && isRegisteredServerOnNetwork(server, newSon->serverName))
+        res = UA_STATUSCODE_BADNOTWRITABLE;
+    else
+        res = addServerOnNetwork(server, newSon, params,
+                                 announce ? *announce : false);
     unlockServer(server);
     return res;
 }
@@ -560,7 +597,11 @@ UA_StatusCode
 UA_Server_deregisterServerOnNetwork(UA_Server *server,
                                     const UA_String serverName) {
     lockServer(server);
-    UA_StatusCode res = removeServerOnNetwork(server, serverName);
+    UA_StatusCode res;
+    if(isRegisteredServerOnNetwork(server, serverName))
+        res = UA_STATUSCODE_BADNODELETERIGHTS;
+    else
+        res = removeServerOnNetwork(server, serverName);
     unlockServer(server);
     return res;
 }
@@ -1044,22 +1085,6 @@ findRegisteredServer(UA_Server *server, const UA_String serverUri,
     return NULL;
 }
 
-/* The mDNS drivers announce the ServerOnNetwork entries with the service name
- * _opcua-tcp. That service name is for opc.tcp DiscoveryUrls only (Part 12,
- * C.3). Returns the first opc.tcp DiscoveryUrl of the registration or NULL. A
- * registration has a ServerOnNetwork entry only if it has such a url. */
-static const UA_String *
-getTcpDiscoveryUrl(const UA_RegisteredServer *rs) {
-    const UA_String prefix = UA_STRING_STATIC("opc.tcp://");
-    for(size_t i = 0; i < rs->discoveryUrlsSize; i++) {
-        const UA_String *url = &rs->discoveryUrls[i];
-        if(url->length >= prefix.length &&
-           memcmp(url->data, prefix.data, prefix.length) == 0)
-            return url;
-    }
-    return NULL;
-}
-
 /* Removes the record and its ServerOnNetwork entry. The caller notifies the
  * application about the removed registration. */
 static void
@@ -1212,6 +1237,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     /* The url for the ServerOnNetwork entry. Points into the request. */
     const UA_String *tcpDiscoveryUrl = getTcpDiscoveryUrl(requestServer);
 
+    /* The previous registration has an entry under the same name. Else an
+     * entry with that name is a received or local one. */
+    UA_Boolean ownEntry = false;
+
     if(!rs) {
         UA_LOG_DEBUG_SESSION(sc->logging, session,
                              "Registering new server: %S",
@@ -1244,6 +1273,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
            (!tcpDiscoveryUrl ||
             !UA_String_equal(&rs->mdnsServerName, &tmpMdnsServerName)))
             removeServerOnNetwork(server, rs->mdnsServerName);
+        ownEntry = sc->serversOnNetworkEnabled &&
+            getTcpDiscoveryUrl(&rs->registeredServer) &&
+            UA_String_equal(&rs->mdnsServerName, &tmpMdnsServerName);
         UA_String_clear(&rs->mdnsServerName);
 
         /* Clear the data of the previous record */
@@ -1283,10 +1315,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
 
         /* Servers register again periodically. Updating an unchanged entry
-         * would give new RecordIds to all entries. */
+         * would give new RecordIds to all entries. An identical received or
+         * local entry is replaced, so that the announce flag gets applied. */
         const UA_ServerOnNetwork *current =
             findServerOnNetworkIndex(server, son.serverName);
-        if(current) {
+        if(current && ownEntry && rs->announce == sc->announceRegisteredServers) {
             son.recordId = current->recordId; /* Not part of the comparison */
             if(UA_order(&son, current,
                         &UA_TYPES[UA_TYPES_SERVERONNETWORK]) == UA_ORDER_EQ)
@@ -1301,6 +1334,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                                    "for the registered server %S (%s)",
                                    requestServer->serverUri,
                                    UA_StatusCode_name(res));
+        } else {
+            rs->announce = sc->announceRegisteredServers;
         }
     }
 
