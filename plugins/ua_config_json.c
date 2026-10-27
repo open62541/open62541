@@ -1175,6 +1175,8 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = UInt32Field_parseJson(&ctx, &config->registeredServerCleanupTimeout, NULL);
                 else if(strcmp(field, "serversOnNetworkEnabled") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->serversOnNetworkEnabled, NULL);
+                else if(strcmp(field, "announceRegisteredServers") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->announceRegisteredServers, NULL);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
                 else if(strcmp(field, "subscriptionsEnabled") == 0)

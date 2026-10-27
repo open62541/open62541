@@ -520,6 +520,77 @@ START_TEST(register_server_empty_mdns_name_uses_server_name) {
 }
 END_TEST
 
+/* Notifications about ServerOnNetwork entries and the last 0:announce flag */
+static size_t sonNotifications;
+static UA_Boolean lastAnnounce;
+
+static void
+announceNotificationCallback(UA_Server *server,
+                             UA_ApplicationNotificationType type,
+                             const UA_KeyValueMap payload) {
+    (void)server;
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK)
+        return;
+    const UA_Boolean *announce = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "announce"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_ptr_ne(announce, NULL);
+    lastAnnounce = *announce;
+    sonNotifications++;
+}
+
+/* The entry of a registered server is created in either case. It is announced
+ * only with announceRegisteredServers. */
+START_TEST(register_server_announce_follows_config) {
+    UA_Boolean announceRegistered = (_i == 1);
+    UA_Server *server = newRegistrationServer();
+    server->config.announceRegisteredServers = announceRegistered;
+    server->config.discoveryNotificationCallback = announceNotificationCallback;
+    sonNotifications = 0;
+
+    registerWithMdnsName(server, NULL);
+    ck_assert_uint_eq(sonNotifications, 1);
+    ck_assert(lastAnnounce == announceRegistered);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* Entries from the public API are announced only on request. Received entries
+ * are added without the parameter. */
+START_TEST(register_server_on_network_announce_param) {
+    UA_Server *server = newRegistrationServer();
+    server->config.discoveryNotificationCallback = announceNotificationCallback;
+    sonNotifications = 0;
+
+    UA_String caps = UA_STRING("NA");
+    UA_ServerOnNetwork son;
+    UA_ServerOnNetwork_init(&son);
+    son.serverName = UA_STRING("local-entry");
+    son.discoveryUrl = UA_STRING(REGISTERED_DISCOVERY_URL);
+    son.serverCapabilitiesSize = 1;
+    son.serverCapabilities = &caps;
+
+    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &son,
+                                                        UA_KEYVALUEMAP_NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sonNotifications, 1);
+    ck_assert(!lastAnnounce);
+
+    UA_Boolean announce = true;
+    UA_KeyValuePair param;
+    param.key = UA_QUALIFIEDNAME(0, "announce");
+    UA_Variant_setScalar(&param.value, &announce, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap params = {1, &param};
+    ck_assert_uint_eq(UA_Server_registerServerOnNetwork(server, &son, params),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sonNotifications, 2);
+    ck_assert(lastAnnounce);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 static Suite *
 testSuite(void) {
     Suite *suite = suite_create("FindServersOnNetwork");
@@ -539,6 +610,8 @@ testSuite(void) {
     tcase_add_loop_test(tc_registered, register_server_uses_tcp_discovery_url, 0, 2);
     tcase_add_test(tc_registered, reregister_server_without_tcp_url_removes_server_on_network);
     tcase_add_test(tc_registered, deregister_server_without_tcp_url_keeps_other_entry);
+    tcase_add_loop_test(tc_registered, register_server_announce_follows_config, 0, 2);
+    tcase_add_test(tc_registered, register_server_on_network_announce_param);
     suite_add_tcase(suite, tc_registered);
     TCase *tc_names = tcase_create("server names");
     tcase_add_test(tc_names, register_server_without_server_names_rejected);

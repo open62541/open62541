@@ -1930,15 +1930,18 @@ UA_Server_findServersOnNetwork(UA_Server *server, UA_String endpointUrl,
                                size_t *outServersSize,
                                UA_ServerOnNetwork **outServers);
 
-/* Register a remote server. If the server name was previously known, the
- * existing entry gets updated. The parameter kv-map can be extended with
- * additional parameters in the future. Currently supported are:
+/* Register a received or local server. If the server name was previously
+ * known, the existing entry gets updated. The parameter kv-map can be extended
+ * with additional parameters in the future. Currently supported are:
  *
  * 0:remote-address [String]
  *    IP-address or other host identifier from which the information
  *    was received.
  * 0:ttl [UInt32]
- *    Time-to-live of DNS information. Zero means infinite. */
+ *    Time-to-live of DNS information. Zero means infinite.
+ * 0:announce [Boolean]
+ *    Announce the entry on the network, for example by an attached mDNS
+ *    driver. Default is false. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_registerServerOnNetwork(UA_Server *server,
                                   const UA_ServerOnNetwork *son,
@@ -2585,9 +2588,15 @@ struct UA_ServerConfig {
      * implement a Discovery Server that detects other servers on the
      * network. If registeredServersEnabled is also set, every registered
      * server gets a ServerOnNetwork entry under its mDNS name (the
-     * mdnsServerName from RegisterServer2 or else the first ServerName). An
-     * attached mDNS driver announces these entries on the network. */
+     * mdnsServerName from RegisterServer2 or else the first ServerName). See
+     * announceRegisteredServers for the announcement of these entries. */
     UA_Boolean serversOnNetworkEnabled;
+
+    /* Announce the ServerOnNetwork entries of locally registered servers on the
+     * network. The entries are created and returned by FindServersOnNetwork
+     * also without this. An attached mDNS driver with the 0:announce parameter
+     * announces them. */
+    UA_Boolean announceRegisteredServers;
 
     /* Subscriptions
      * ~~~~~~~~~~~~~ */
