@@ -661,17 +661,20 @@ START_TEST(register_server_replaces_identical_received_entry) {
 END_TEST
 
 /* A changed announceRegisteredServers applies with the next registration also
- * if the registration is unchanged */
+ * if the registration is unchanged. The default config announces. */
 START_TEST(reregister_server_applies_changed_announce_config) {
     UA_Server *server = newRegistrationServer();
     server->config.discoveryNotificationCallback = announceNotificationCallback;
-    registerWithMdnsName(server, NULL);
-
     sonNotifications = 0;
-    server->config.announceRegisteredServers = true;
     registerWithMdnsName(server, NULL);
     ck_assert_uint_eq(sonNotifications, 1);
     ck_assert(lastAnnounce);
+
+    sonNotifications = 0;
+    server->config.announceRegisteredServers = false;
+    registerWithMdnsName(server, NULL);
+    ck_assert_uint_eq(sonNotifications, 1);
+    ck_assert(!lastAnnounce);
 
     /* Unchanged again */
     registerWithMdnsName(server, NULL);

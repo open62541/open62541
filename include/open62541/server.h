@@ -2601,7 +2601,8 @@ struct UA_ServerConfig {
     /* Announce the ServerOnNetwork entries of locally registered servers on the
      * network. The entries are created and returned by FindServersOnNetwork
      * also without this. An attached mDNS driver with the 0:announce parameter
-     * announces them. */
+     * announces them. Default is true, as an LDS-ME announces all applications
+     * that it knows about (OPC 10000-12, 5.1). */
     UA_Boolean announceRegisteredServers;
 
     /* Subscriptions

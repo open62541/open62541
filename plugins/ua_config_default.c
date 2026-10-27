@@ -525,6 +525,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
     conf->registeredServerCleanupTimeout = 60 * 60;
+    conf->announceRegisteredServers = true;
 
 #ifdef UA_ENABLE_HISTORIZING
     /* conf->accessHistoryDataCapability = false; */
