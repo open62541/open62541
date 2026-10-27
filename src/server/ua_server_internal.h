@@ -95,6 +95,9 @@ typedef struct RegisteredServerRecord {
      * mdnsServerName from RegisterServer2 or else the first ServerName. Stored
      * to remove the entry without the original request. */
     UA_String mdnsServerName;
+    /* The announce flag of the ServerOnNetwork entry when it was last added
+     * or updated */
+    UA_Boolean announce;
     UA_DateTime lastSeen;
 } RegisteredServerRecord;
 
