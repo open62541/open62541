@@ -15,6 +15,33 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
+UA_StatusCode
+UA_PubSubConnection_mqttProperties(const UA_KeyValueMap *properties, UA_KeyValueMap *params) {
+    static const struct { const char *name; const char *alias; } keys[] = {
+        {"client-id", "mqttClientId"}, {"username", "mqttUsername"},
+        {"password", "mqttPassword"}, {"useSSL", "mqttUseTLS"},
+        {"ca-file-path", "mqttCaFilePath"},
+        {"keep-alive", NULL}, {"ca-certificate", NULL},
+        {"certificate", NULL}, {"private-key", NULL}, {"private-key-password", NULL}
+    };
+    for(size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+        UA_QualifiedName name = UA_QUALIFIEDNAME(0, (char*)(uintptr_t)keys[i].name);
+        const UA_Variant *value = UA_KeyValueMap_get(properties, name);
+        const UA_Variant *alias = keys[i].alias ? UA_KeyValueMap_get(properties,
+            UA_QUALIFIEDNAME(0, (char*)(uintptr_t)keys[i].alias)) : NULL;
+        if(value && alias && UA_order(value, alias, &UA_TYPES[UA_TYPES_VARIANT]) != UA_ORDER_EQ)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        if(!value)
+            value = alias;
+        if(value) {
+            UA_StatusCode res = UA_KeyValueMap_set(params, name, value);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_Boolean
 UA_PubSubConnection_canConnect(UA_PubSubConnection *c);
 

@@ -516,14 +516,16 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                 break;
         }
 
-        /* Security Mode not set-> PreOperational */
-        if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE &&
-           wg->securityTokenId == 0)
+        /* Wait for the transport handshake and the message security keys. */
+        if(wg->sendChannelOpening ||
+           (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE && wg->securityTokenId == 0))
             wg->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
 
         /* Enable publish callback if operational */
         if(wg->head.state == UA_PUBSUBSTATE_OPERATIONAL)
             ret = UA_WriterGroup_addPublishCallback(psm, wg);
+        else
+            UA_WriterGroup_removePublishCallback(psm, wg);
         break;
 
         /* Unknown case */
@@ -1376,6 +1378,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(wg->sendChannel == connectionId) {
             /* Reset the connection channel */
             wg->sendChannel = 0;
+            wg->sendChannelOpening = false;
 
             /* PSC marked for deletion and the last EventLoop connection has closed */
             if(wg->deleteFlag) {
@@ -1411,6 +1414,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
     wg->sendChannel = connectionId;
+    wg->sendChannelOpening = state == UA_CONNECTIONSTATE_OPENING;
 
     /* Connection open, set to operational if not already done */
     UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
@@ -1542,8 +1546,7 @@ UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
         return UA_STATUSCODE_GOOD;
 
-    /* Set up the connection parameters.
-     * TODO: Complete the MQTT parameters. */
+    /* Set up the connection parameters. */
     UA_Boolean listen = false;
     UA_KeyValuePair kvp[5];
     UA_KeyValueMap kvm = {5, kvp};
@@ -1559,11 +1562,18 @@ UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
     kvp[4].key = UA_QUALIFIEDNAME(0, "validate");
     UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
+    UA_KeyValueMap options = UA_KEYVALUEMAP_NULL;
+    res = UA_KeyValueMap_copy(&kvm, &options);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_PubSubConnection_mqttProperties(&c->config.connectionProperties, &options);
+
     /* Connect */
-    res = c->cm->openConnection(c->cm, &kvm, psm, wg, WriterGroupChannelCallback);
+    if(res == UA_STATUSCODE_GOOD)
+        res = c->cm->openConnection(c->cm, &options, psm, wg, WriterGroupChannelCallback);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Could not open the MQTT connection");
     }
+    UA_KeyValueMap_clear(&options);
     return res;
 }
 

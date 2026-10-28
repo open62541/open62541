@@ -254,6 +254,9 @@ typedef struct UA_PubSubConnection {
     UA_DelayedCallback dc; /* For delayed freeing */
 } UA_PubSubConnection;
 
+UA_StatusCode
+UA_PubSubConnection_mqttProperties(const UA_KeyValueMap *properties, UA_KeyValueMap *params);
+
 UA_PubSubConnection *
 UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id);
 
@@ -360,6 +363,7 @@ struct UA_WriterGroup {
      * are either stored here or in the Connection, but never both. */
     UA_PubSubConnection *linkedConnection;
     uintptr_t sendChannel;
+    UA_Boolean sendChannelOpening;
     UA_Boolean deleteFlag;
 
     UA_UInt32 securityTokenId;
