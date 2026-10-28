@@ -462,7 +462,8 @@ readInt32Variable(UA_UInt32 id) {
     return result;
 }
 
-/* Master marks targets out of service until the first accepted message. */
+/* With override handling disabled, targets have no value until the first
+ * accepted message. */
 static void
 checkInt32VariableWaiting(UA_UInt32 id) {
     UA_ReadValueId item;
@@ -470,9 +471,9 @@ checkInt32VariableWaiting(UA_UInt32 id) {
     item.nodeId = UA_NODEID_NUMERIC(1, id);
     item.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_DataValue value = UA_Server_read(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(value.hasStatus);
     ck_assert_uint_eq(value.status, UA_STATUSCODE_BADOUTOFSERVICE);
-    ck_assert(UA_Variant_hasScalarType(&value.value, &UA_TYPES[UA_TYPES_INT32]));
-    ck_assert_int_eq(*(UA_Int32*)value.value.data, 0);
+    ck_assert(UA_Variant_isEmpty(&value.value));
     UA_DataValue_clear(&value);
 }
 
