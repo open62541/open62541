@@ -651,6 +651,182 @@ START_TEST(filestore_uses_crl_issuer_in_filename) {
 END_TEST
 #endif
 
+#ifdef UA_ENABLE_ENCRYPTION
+/* Create a Memorystore with the parameters in the map */
+static UA_StatusCode
+memorystoreWithParams(UA_CertificateGroup *group, const UA_KeyValueMap *params) {
+    memset(group, 0, sizeof(UA_CertificateGroup));
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, 1);
+    return UA_CertificateGroup_Memorystore(group, &groupId, NULL, NULL, params);
+}
+
+/* Create a Memorystore with a single parameter */
+static UA_StatusCode
+memorystoreWithParam(UA_CertificateGroup *group, UA_UInt16 ns, const char *name,
+                     void *value, const UA_DataType *type) {
+    UA_KeyValueMap *params = UA_KeyValueMap_new();
+    ck_assert_ptr_nonnull(params);
+    UA_StatusCode retval = UA_KeyValueMap_setScalar(
+        params, UA_QUALIFIEDNAME(ns, (char*)(uintptr_t)name), value, type);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = memorystoreWithParams(group, params);
+    UA_KeyValueMap_delete(params);
+    return retval;
+}
+
+/* Add the test certificate to the trust list */
+static UA_StatusCode
+addTestCertificate(UA_CertificateGroup *group) {
+    UA_ByteString cert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    trustList.trustedCertificates = &cert;
+    trustList.trustedCertificatesSize = 1;
+    return group->addToTrustList(group, &trustList);
+}
+
+START_TEST(memorystore_param_max_trust_listsize) {
+    /* The documented key limits the trust list */
+    UA_UInt32 limit = (UA_UInt32)CERT_DER_LENGTH - 1;
+    UA_CertificateGroup group;
+    UA_StatusCode retval = memorystoreWithParam(&group, 0, "max-trust-listsize", &limit,
+                                                &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = addTestCertificate(&group);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    group.clear(&group);
+
+    /* The same certificate fits when the limit is large enough */
+    limit = (UA_UInt32)CERT_DER_LENGTH;
+    retval = memorystoreWithParam(&group, 0, "max-trust-listsize", &limit,
+                                  &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = addTestCertificate(&group);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    group.clear(&group);
+}
+END_TEST
+
+START_TEST(memorystore_rejects_unknown_param) {
+    UA_UInt32 value = 1;
+    UA_CertificateGroup group;
+    UA_StatusCode retval = memorystoreWithParam(&group, 0, "no-such-param", &value,
+                                                &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_ptr_null(group.context);
+}
+END_TEST
+
+START_TEST(memorystore_rejects_param_with_wrong_type) {
+    UA_UInt16 shortValue = 1;
+    UA_CertificateGroup group;
+    UA_StatusCode retval = memorystoreWithParam(&group, 0, "max-trust-listsize", &shortValue,
+                                                &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(group.context);
+
+    UA_String text = UA_STRING("100");
+    retval = memorystoreWithParam(&group, 0, "max-rejected-listsize", &text,
+                                  &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(group.context);
+}
+END_TEST
+
+START_TEST(memorystore_ignores_param_of_other_namespace) {
+    /* Only namespace zero is reserved for the plugin */
+    UA_UInt32 value = 1;
+    UA_CertificateGroup group;
+    UA_StatusCode retval = memorystoreWithParam(&group, 1, "no-such-param", &value,
+                                                &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    group.clear(&group);
+
+    /* A key of another namespace is not a plugin key, even with the same name */
+    UA_UInt32 limit = 1;
+    retval = memorystoreWithParam(&group, 1, "max-trust-listsize", &limit,
+                                  &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = addTestCertificate(&group);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    group.clear(&group);
+}
+END_TEST
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+START_TEST(memorystore_deprecated_param_names) {
+    /* The old OpenSSL names still work */
+    UA_UInt32 limit = (UA_UInt32)CERT_DER_LENGTH - 1;
+    UA_CertificateGroup group;
+    UA_StatusCode retval = memorystoreWithParam(&group, 0, "maxTrustListSize", &limit,
+                                                &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = addTestCertificate(&group);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    group.clear(&group);
+
+    UA_UInt32 rejected = 1;
+    retval = memorystoreWithParam(&group, 0, "maxRejectedListSize", &rejected,
+                                  &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    group.clear(&group);
+
+    /* A deprecated key is type-checked like the current one */
+    UA_UInt16 shortValue = 1;
+    retval = memorystoreWithParam(&group, 0, "maxTrustListSize", &shortValue,
+                                  &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(memorystore_current_param_name_wins) {
+    UA_UInt32 deprecatedLimit = 1;
+    UA_UInt32 currentLimit = (UA_UInt32)CERT_DER_LENGTH;
+
+    /* Independent of the order in the map */
+    for(size_t currentFirst = 0; currentFirst < 2; currentFirst++) {
+        UA_KeyValueMap *params = UA_KeyValueMap_new();
+        ck_assert_ptr_nonnull(params);
+        UA_StatusCode retval = UA_STATUSCODE_GOOD;
+        if(currentFirst) {
+            retval |= UA_KeyValueMap_setScalar(
+                params, UA_QUALIFIEDNAME(0, "max-trust-listsize"),
+                &currentLimit, &UA_TYPES[UA_TYPES_UINT32]);
+        }
+        retval |= UA_KeyValueMap_setScalar(
+            params, UA_QUALIFIEDNAME(0, "maxTrustListSize"),
+            &deprecatedLimit, &UA_TYPES[UA_TYPES_UINT32]);
+        if(!currentFirst) {
+            retval |= UA_KeyValueMap_setScalar(
+                params, UA_QUALIFIEDNAME(0, "max-trust-listsize"),
+                &currentLimit, &UA_TYPES[UA_TYPES_UINT32]);
+        }
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_CertificateGroup group;
+        retval = memorystoreWithParams(&group, params);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        retval = addTestCertificate(&group);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        group.clear(&group);
+        UA_KeyValueMap_delete(params);
+    }
+}
+END_TEST
+#else
+START_TEST(memorystore_rejects_openssl_param_names) {
+    /* Only the OpenSSL backend ever used these names */
+    UA_UInt32 value = 1;
+    UA_CertificateGroup group;
+    UA_StatusCode retval = memorystoreWithParam(&group, 0, "maxTrustListSize", &value,
+                                                &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+}
+END_TEST
+#endif
+#endif /* UA_ENABLE_ENCRYPTION */
+
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 START_TEST(memorystore_rejects_invalid_initial_trust_material) {
     UA_Byte invalidData[] = {0x01, 0x02, 0x03};
@@ -825,6 +1001,22 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_memorystore);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    TCase *tc_memorystore_params =
+        tcase_create("CertificateGroup Memorystore parameters");
+    tcase_add_test(tc_memorystore_params, memorystore_param_max_trust_listsize);
+    tcase_add_test(tc_memorystore_params, memorystore_rejects_unknown_param);
+    tcase_add_test(tc_memorystore_params, memorystore_rejects_param_with_wrong_type);
+    tcase_add_test(tc_memorystore_params, memorystore_ignores_param_of_other_namespace);
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    tcase_add_test(tc_memorystore_params, memorystore_deprecated_param_names);
+    tcase_add_test(tc_memorystore_params, memorystore_current_param_name_wins);
+#else
+    tcase_add_test(tc_memorystore_params, memorystore_rejects_openssl_param_names);
+#endif
+    suite_add_tcase(s, tc_memorystore_params);
+#endif /* UA_ENABLE_ENCRYPTION */
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     TCase *tc_mbedtls_memorystore =

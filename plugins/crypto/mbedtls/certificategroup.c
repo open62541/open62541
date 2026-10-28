@@ -27,13 +27,10 @@
 #define MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE 0
 #define MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE 1
 
-static const struct {
-    UA_QualifiedName name;
-    const UA_DataType *type;
-    UA_Boolean required;
-} MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMETERSSIZE] = {
-    {{0, UA_STRING_STATIC("max-trust-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false},
-    {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false}
+static const UA_KeyValueRestriction
+MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMETERSSIZE] = {
+    {{0, UA_STRING_STATIC("max-trust-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false}
 };
 
 typedef struct {
@@ -681,6 +678,34 @@ MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
     return retval;
 }
 
+/* Keys in namespace zero are reserved for the plugin. An unknown key or a value
+ * of the wrong type is an error instead of being silently ignored. */
+static UA_StatusCode
+MemoryCertStore_setParameters(MemoryCertStore *context, const UA_Logger *logger,
+                              const UA_KeyValueMap *params) {
+    UA_StatusCode res =
+        UA_KeyValueMap_validate(params, MemoryCertStoreParameters,
+                                MEMORYCERTSTORE_PARAMETERSSIZE, true, logger,
+                                UA_LOGCATEGORY_SECURITYPOLICY, "CertificateGroup");
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    const UA_UInt32 *maxTrustListSize = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(
+            params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE].name,
+            &UA_TYPES[UA_TYPES_UINT32]);
+    if(maxTrustListSize)
+        context->maxTrustListSize = *maxTrustListSize;
+
+    const UA_UInt32 *maxRejectedListSize = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(
+            params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE].name,
+            &UA_TYPES[UA_TYPES_UINT32]);
+    if(maxRejectedListSize)
+        context->maxRejectedListSize = *maxRejectedListSize;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
                                 UA_NodeId *certificateGroupId,
@@ -730,21 +755,9 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     context->maxRejectedListSize = 100;
 
     if(params) {
-        const UA_UInt32 *maxTrustListSize = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE].name,
-                                 MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE].type);
-
-        const UA_UInt32 *maxRejectedListSize = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE].name,
-                                 MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE].type);
-
-        if(maxTrustListSize) {
-            context->maxTrustListSize = *maxTrustListSize;
-        }
-
-        if(maxRejectedListSize) {
-            context->maxRejectedListSize = *maxRejectedListSize;
-        }
+        retval = MemoryCertStore_setParameters(context, logger, params);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
     }
 
     if(trustList) {

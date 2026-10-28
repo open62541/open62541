@@ -642,6 +642,78 @@ UA_KeyValueMap_merge(UA_KeyValueMap *lhs, const UA_KeyValueMap *rhs) {
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+logParameterError(const UA_Logger *logger, UA_LogCategory category,
+                  const char *logprefix, const UA_QualifiedName *name,
+                  const char *msg) {
+    UA_LOG_WARNING(logger, category, "%s\t| Parameter %.*s %s",
+                   logprefix ? logprefix : "",
+                   (int)name->name.length, (char*)name->name.data, msg);
+}
+
+UA_StatusCode
+UA_KeyValueMap_validate(const UA_KeyValueMap *map,
+                        const UA_KeyValueRestriction *restrictions,
+                        size_t restrictionsSize, UA_Boolean rejectUnknown,
+                        const UA_Logger *logger, UA_LogCategory category,
+                        const char *logprefix) {
+    for(size_t i = 0; i < restrictionsSize; i++) {
+        const UA_KeyValueRestriction *r = &restrictions[i];
+        const UA_Variant *val = UA_KeyValueMap_get(map, r->name);
+
+        /* Value not present but required? */
+        if(!val) {
+            if(r->required) {
+                logParameterError(logger, category, logprefix, &r->name,
+                                  "required but not defined");
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+            continue;
+        }
+
+        /* A NULL restriction type accepts an opaque Variant of any type. */
+        if(r->type && val->type != r->type) {
+            logParameterError(logger, category, logprefix, &r->name,
+                              "has the wrong type");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        /* Scalar / array is allowed */
+        UA_Boolean scalar = UA_Variant_isScalar(val);
+        if(scalar && !r->scalar) {
+            logParameterError(logger, category, logprefix, &r->name,
+                              "must not be scalar");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        if(!scalar && !r->array) {
+            logParameterError(logger, category, logprefix, &r->name,
+                              "must not be an array");
+            return UA_STATUSCODE_BADCONNECTIONREJECTED;
+        }
+    }
+
+    /* Namespace zero is reserved. Other namespaces belong to the application. */
+    if(!rejectUnknown || !map)
+        return UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < map->mapSize; i++) {
+        const UA_QualifiedName *key = &map->map[i].key;
+        if(key->namespaceIndex != 0)
+            continue;
+        UA_Boolean known = false;
+        for(size_t j = 0; j < restrictionsSize; j++) {
+            if(UA_QualifiedName_equal(key, &restrictions[j].name)) {
+                known = true;
+                break;
+            }
+        }
+        if(!known) {
+            logParameterError(logger, category, logprefix, key, "is unknown");
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /***************************/
 /* Random Number Generator */
 /***************************/
