@@ -346,11 +346,9 @@ MonitoredItem_delete_wrapper(void *data, UA_Client_MonitoredItem *mon) {
 }
 
 static void
-__Client_Subscription_deleteInternal(UA_Client *client,
-                                     UA_Client_Subscription *sub) {
-    /* Mark the Subscription as removed before user callbacks can re-enter. */
-    LIST_REMOVE(sub, listEntry);
-
+deleteSubscription(UA_Client *client, UA_Client_Subscription *sub) {
+    /* The Subscription is already detached so callbacks can clear the live
+     * list without encountering it again. */
     /* Remove the MonitoredItems */
     struct UA_Client_MonitoredItem_ForDelete deleteMonitoredItem;
     memset(&deleteMonitoredItem, 0, sizeof(struct UA_Client_MonitoredItem_ForDelete));
@@ -367,6 +365,13 @@ __Client_Subscription_deleteInternal(UA_Client *client,
     }
 
     UA_free(sub);
+}
+
+static void
+__Client_Subscription_deleteInternal(UA_Client *client,
+                                     UA_Client_Subscription *sub) {
+    LIST_REMOVE(sub, listEntry);
+    deleteSubscription(client, sub);
 }
 
 static void
@@ -1861,8 +1866,15 @@ __Client_Subscriptions_clear(UA_Client *client) {
 
     UA_Client_Subscription *sub;
     /* Deletion callbacks may remove other subscriptions as well. */
-    while((sub = LIST_FIRST(&client->subscriptions)))
-        __Client_Subscription_deleteInternal(client, sub); /* force local removal */
+    while((sub = LIST_FIRST(&client->subscriptions))) {
+        /* Pop the head before callbacks run. Do not retain the next entry
+         * across deletion, since a callback can remove it as well. */
+        LIST_FIRST(&client->subscriptions) = LIST_NEXT(sub, listEntry);
+        if(LIST_FIRST(&client->subscriptions))
+            LIST_FIRST(&client->subscriptions)->listEntry.le_prev =
+                &LIST_FIRST(&client->subscriptions);
+        deleteSubscription(client, sub);
+    }
 
     client->monitoredItemHandles = 0;
 }

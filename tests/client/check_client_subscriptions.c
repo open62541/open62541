@@ -115,9 +115,12 @@ clearSubscriptionsInactivityHandler(UA_Client *client, UA_UInt32 subId,
     __Client_Subscriptions_clear(client);
 }
 
+static size_t clearedSubscriptions;
+
 static void
 clearSubscriptionsDeleteHandler(UA_Client *client, UA_UInt32 subId,
                                 void *subContext) {
+    clearedSubscriptions++;
     __Client_Subscriptions_clear(client);
 }
 
@@ -307,8 +310,7 @@ START_TEST(Client_notification_callback_clears_subscription) {
                             clearSubscriptionsDataChangeHandler, NULL);
 
     UA_StatusCode retval;
-    running = false;
-    THREAD_JOIN(server_thread);
+    pauseServer();
     UA_Server_run_iterate(server, true);
     retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -318,8 +320,7 @@ START_TEST(Client_notification_callback_clears_subscription) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(LIST_EMPTY(&client->subscriptions));
 
-    running = true;
-    THREAD_CREATE(server_thread, serverloop);
+    runServer();
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -406,11 +407,14 @@ END_TEST
 START_TEST(Client_delete_callback_clears_subscriptions) {
     UA_Client *client = newConnectedClient();
     createTestSubscription(client, clearSubscriptionsDeleteHandler);
+    createTestSubscription(client, clearSubscriptionsDeleteHandler);
+    clearedSubscriptions = 0;
 
     lockClient(client);
     __Client_Subscriptions_clear(client);
     unlockClient(client);
     ck_assert(LIST_EMPTY(&client->subscriptions));
+    ck_assert_uint_eq(clearedSubscriptions, 2);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
