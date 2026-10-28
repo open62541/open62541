@@ -1215,12 +1215,103 @@ cleanup:
     return retval;
 }
 
+/* Is the KeyUsage extension marked critical? mbedTLS does not keep the
+ * criticality of the extensions it parses. The extensions follow the
+ * SubjectPublicKeyInfo and the optional unique identifiers in the
+ * TBSCertificate. */
+static UA_Boolean
+mbedtlsKeyUsageCritical(const mbedtls_x509_crt *cert) {
+    static const unsigned char keyUsageOid[3] = {0x55, 0x1d, 0x0f}; /* 2.5.29.15 */
+    const int extensionsTag =
+        MBEDTLS_ASN1_CONTEXT_SPECIFIC | MBEDTLS_ASN1_CONSTRUCTED | 3;
+    unsigned char *p = cert->pk_raw.p + cert->pk_raw.len;
+    const unsigned char *end = cert->tbs.p + cert->tbs.len;
+    size_t len;
+
+    /* Skip the issuerUniqueID [1] and the subjectUniqueID [2] */
+    while(p < end && *p != extensionsTag) {
+        if(mbedtls_asn1_get_tag(&p, end, &len, *p) != 0)
+            return false;
+        p += len;
+    }
+
+    /* Extensions ::= SEQUENCE OF Extension */
+    if(mbedtls_asn1_get_tag(&p, end, &len, extensionsTag) != 0 ||
+       mbedtls_asn1_get_tag(&p, end, &len,
+                            MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
+        return false;
+    end = p + len;
+
+    while(p < end) {
+        /* Extension ::= SEQUENCE { extnID OID, critical BOOLEAN DEFAULT FALSE,
+         *                          extnValue OCTET STRING } */
+        if(mbedtls_asn1_get_tag(&p, end, &len,
+                                MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
+            return false;
+        unsigned char *entryEnd = p + len;
+        if(mbedtls_asn1_get_tag(&p, entryEnd, &len, MBEDTLS_ASN1_OID) != 0)
+            return false;
+        UA_Boolean keyUsage = (len == sizeof(keyUsageOid) &&
+                               memcmp(p, keyUsageOid, len) == 0);
+        p += len;
+        int critical = 0;
+        if(p < entryEnd && *p == MBEDTLS_ASN1_BOOLEAN &&
+           mbedtls_asn1_get_bool(&p, entryEnd, &critical) != 0)
+            return false;
+        if(keyUsage)
+            return (critical != 0);
+        p = entryEnd;
+    }
+    return false;
+}
+
+/* Checks for a certificate of a TrustList that are not part of the validation
+ * of a SecureChannel. Application and CA certificates are X.509 v3 (Part 6,
+ * 6.2.2). The KeyUsage of an application certificate includes
+ * digitalSignature, and nonRepudiation, keyEncipherment and dataEncipherment
+ * for RSA keys. The Certificate Usage error is suppressible, unless the
+ * KeyUsage is critical (Part 4, 6.1.3). */
+static UA_StatusCode
+mbedtlsCheckTrustListCertificate(const UA_ByteString *certificate) {
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    if(cert.version != 3) {
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        goto cleanup;
+    }
+
+    UA_Boolean isCa =
+        mbedtls_x509_crt_has_ext_type(&cert, MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) &&
+        mbedtls_x509_crt_get_ca_istrue(&cert);
+    if(isCa || !mbedtls_x509_crt_has_ext_type(&cert, MBEDTLS_X509_EXT_KEY_USAGE))
+        goto cleanup;
+    unsigned int required = MBEDTLS_X509_KU_DIGITAL_SIGNATURE;
+    if(UA_mbedTLS_compat_isRsaKey(&cert.pk))
+        required |= MBEDTLS_X509_KU_NON_REPUDIATION |
+            MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT;
+    if(mbedtls_x509_crt_check_key_usage(&cert, required) != 0 &&
+       mbedtlsKeyUsageCritical(&cert))
+        retval = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+
+cleanup:
+    mbedtls_x509_crt_free(&cert);
+    return retval;
+}
+
 UA_StatusCode
 UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trustList,
                                                const UA_ByteString *certificate,
                                                const UA_Logger *logger) {
     if(!trustList || !certificateGroupValidByteString(certificate))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retval = mbedtlsCheckTrustListCertificate(certificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Load the TrustList into a temporary Memorystore without a size limit */
     UA_UInt32 maxTrustListSize = 0;
@@ -1231,9 +1322,8 @@ UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trust
     UA_NodeId certificateGroupId = UA_NODEID_NULL;
     UA_CertificateGroup certGroup;
     memset(&certGroup, 0, sizeof(UA_CertificateGroup));
-    UA_StatusCode retval =
-        UA_CertificateGroup_Memorystore(&certGroup, &certificateGroupId,
-                                        trustList, logger, &params);
+    retval = UA_CertificateGroup_Memorystore(&certGroup, &certificateGroupId,
+                                             trustList, logger, &params);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

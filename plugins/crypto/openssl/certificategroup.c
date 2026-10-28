@@ -1165,6 +1165,42 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     return retval;
 }
 
+/* Checks for a certificate of a TrustList that are not part of the validation
+ * of a SecureChannel. Application and CA certificates are X.509 v3 (Part 6,
+ * 6.2.2). The KeyUsage of an application certificate includes
+ * digitalSignature, and nonRepudiation, keyEncipherment and dataEncipherment
+ * for RSA keys. The Certificate Usage error is suppressible, unless the
+ * KeyUsage is critical (Part 4, 6.1.3). */
+static UA_StatusCode
+openSSLCheckTrustListCertificate(const UA_ByteString *certificate) {
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(!cert)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
+    /* The version is zero-based */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(X509_get_version(cert) != 2) {
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        goto cleanup;
+    }
+
+    uint32_t flags = X509_get_extension_flags(cert);
+    if((flags & EXFLAG_CA) || !(flags & EXFLAG_KUSAGE))
+        goto cleanup;
+    uint32_t required = KU_DIGITAL_SIGNATURE;
+    EVP_PKEY *key = X509_get0_pubkey(cert);
+    if(key && EVP_PKEY_base_id(key) == EVP_PKEY_RSA)
+        required |= KU_NON_REPUDIATION | KU_KEY_ENCIPHERMENT | KU_DATA_ENCIPHERMENT;
+    X509_EXTENSION *ext = X509_get_ext(cert, X509_get_ext_by_NID(cert, NID_key_usage, -1));
+    if((X509_get_key_usage(cert) & required) != required &&
+       ext && X509_EXTENSION_get_critical(ext))
+        retval = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+
+cleanup:
+    X509_free(cert);
+    return retval;
+}
+
 UA_StatusCode
 UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trustList,
                                                const UA_ByteString *certificate,
@@ -1172,13 +1208,16 @@ UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trust
     if(trustList == NULL || certificate == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_StatusCode retval = openSSLCheckTrustListCertificate(certificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     /* Load the TrustList into a temporary Memorystore */
     UA_NodeId certificateGroupId = UA_NODEID_NULL;
     UA_CertificateGroup certGroup;
     memset(&certGroup, 0, sizeof(UA_CertificateGroup));
-    UA_StatusCode retval =
-        UA_CertificateGroup_Memorystore(&certGroup, &certificateGroupId,
-                                        trustList, logger, NULL);
+    retval = UA_CertificateGroup_Memorystore(&certGroup, &certificateGroupId,
+                                             trustList, logger, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
