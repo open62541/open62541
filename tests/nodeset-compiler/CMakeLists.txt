@@ -129,3 +129,6 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME test_generate_datatypes_cross_ns
          COMMAND "${Python3_EXECUTABLE}"
                  "${CMAKE_CURRENT_SOURCE_DIR}/test_cross_ns_types.py")
+
+add_test(NAME test_nodeset_compiler_regressions
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_compiler_regressions.py")
