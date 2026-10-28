@@ -1542,7 +1542,8 @@ lookupXmlType(ParseCtxXml *ctx, UA_NodeId *typeId) {
     /* Search in the builtin types */
     for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
         if(UA_NodeId_equal(typeId, &UA_TYPES[i].typeId) ||
-           UA_NodeId_equal(typeId, &UA_TYPES[i].xmlEncodingId))
+           UA_NodeId_equal(typeId, &UA_TYPES[i].xmlEncodingId) ||
+           UA_NodeId_equal(typeId, &UA_TYPES[i].binaryEncodingId))
             return &UA_TYPES[i];
     }
 
@@ -1552,7 +1553,8 @@ lookupXmlType(ParseCtxXml *ctx, UA_NodeId *typeId) {
         for(size_t i = 0; i < customTypes->typesSize; ++i) {
             const UA_DataType *type = &customTypes->types[i];
             if(UA_NodeId_equal(typeId, &type->typeId) ||
-               UA_NodeId_equal(typeId, &type->xmlEncodingId))
+               UA_NodeId_equal(typeId, &type->xmlEncodingId) ||
+               UA_NodeId_equal(typeId, &type->binaryEncodingId))
                 return type;
         }
         customTypes = customTypes->next;
@@ -1596,6 +1598,8 @@ decodeExtensionObjectBody(ParseCtxXml *ctx, void *dst, const UA_DataType *type) 
             return ret;
         UA_DecodeBinaryOptions opts;
         memset(&opts, 0, sizeof(UA_DecodeBinaryOptions));
+        opts.namespaceMapping = ctx->namespaceMapping;
+        opts.customTypes = ctx->customTypes;
         ret = UA_decodeBinary(&eo->content.encoded.body, decoded, type, &opts);
     } else {
         /* Decode XML Body */

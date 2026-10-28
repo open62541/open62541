@@ -253,8 +253,11 @@ waitForRegisterRequestCompletion(void) {
     UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
 
-    while(UA_DiscoveryManager_getPendingRegistration(server_register, NULL))
+    for(size_t attempt = 0;
+        UA_DiscoveryManager_getPendingRegistration(server_register, NULL); attempt++) {
+        ck_assert_msg(attempt < 1000, "Discovery registration did not complete");
         UA_Server_run_iterate(server_register, true);
+    }
 
     UA_atomic_store(&running_register, true);
     THREAD_CREATE(server_thread_register, serverloop_register);
@@ -852,6 +855,63 @@ START_TEST(Server_registerServerCapabilities) {
 }
 END_TEST
 
+START_TEST(Server_registerLimit) {
+    lockServer(server_lds);
+    server_lds->maxRegisteredServers = 1;
+    unlockServer(server_lds);
+
+    UA_RegisterServerRequest request;
+    UA_RegisterServerRequest_init(&request);
+    request.server.serverNamesSize = 1;
+    UA_LocalizedText serverName = UA_LOCALIZEDTEXT("en", "Test Server");
+    request.server.serverNames = &serverName;
+    request.server.discoveryUrlsSize = 1;
+    UA_String discoveryUrl = UA_STRING("opc.tcp://localhost:16664");
+    request.server.discoveryUrls = &discoveryUrl;
+    request.server.isOnline = true;
+
+    UA_RegisterServerResponse response;
+    UA_RegisterServerResponse_init(&response);
+    request.server.serverUri = UA_STRING("urn:open62541.test.first");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession,
+                           &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_RegisterServerResponse_clear(&response);
+    request.server.serverUri = UA_STRING("urn:open62541.test.second");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession,
+                           &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    UA_RegisterServerResponse_clear(&response);
+
+    request.server.serverUri = UA_STRING("urn:open62541.test.first");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_RegisterServerResponse_clear(&response);
+
+    request.server.isOnline = false;
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_RegisterServerResponse_clear(&response);
+
+    request.server.isOnline = true;
+    request.server.serverUri = UA_STRING("urn:open62541.test.second");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_RegisterServerResponse_clear(&response);
+} END_TEST
+
 START_TEST(Server_registerTimeout) {
     registerServer();
 
@@ -985,6 +1045,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register,
                    Server_findServers_preserves_registered_discoveryUrls);
     tcase_add_test(tc_register, Server_registerServerCapabilities);
+    tcase_add_test(tc_register, Server_registerLimit);
     suite_add_tcase(s,tc_register);
 
     TCase *tc_register_find = tcase_create("RegisterServer and FindServers");

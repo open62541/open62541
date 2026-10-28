@@ -7,6 +7,7 @@
 
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
+#include <stdlib.h>
 
 #include "test_helpers.h"
 #include "testing_clock.h"

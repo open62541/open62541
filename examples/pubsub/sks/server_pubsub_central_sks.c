@@ -5,6 +5,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
+#include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
@@ -26,6 +27,12 @@
 #define DEMO_MAXFUTUREKEYCOUNT 1
 #define DEMO_MAXPASTKEYCOUNT 1
 #define DEMO_SECURITYGROUPNAME "DemoSecurityGroup"
+#define DEMO_USERNAME "user1"
+#define DEMO_LOGIN_COUNT 1
+
+static UA_UsernamePasswordLogin demoLogins[DEMO_LOGIN_COUNT] = {
+    {UA_STRING_STATIC(DEMO_USERNAME), UA_STRING_STATIC("password")}
+};
 
 static void
 disableAnonymous(UA_ServerConfig *config) {
@@ -114,13 +121,25 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
                               const UA_NodeId *sessionId, void *sessionContext,
                               const UA_NodeId *methodId, void *methodContext,
                               const UA_NodeId *objectId, void *objectContext) {
-    if(objectContext && sessionContext) {
-        UA_ByteString *username = (UA_ByteString *)objectContext;
-        UA_ByteString *sessionUsername = (UA_ByteString *)sessionContext;
-        if(!UA_ByteString_equal(username, sessionUsername))
-            return false;
-    }
-    return true;
+    /* No user name is configured for the object. Keep the default behaviour. */
+    if(!objectContext)
+        return true;
+
+    /* A user name is configured for the object. The method is only executable
+     * for a session that was activated with exactly that user name. The
+     * session context is not set by the default AccessControl plugin, so take
+     * the user name from the session attribute instead. */
+    UA_String sessionUsername = UA_STRING_NULL;
+    UA_StatusCode res =
+        UA_Server_getSessionAttribute_scalar(server, sessionId,
+                                             UA_QUALIFIEDNAME(0, "clientUserId"),
+                                             &UA_TYPES[UA_TYPES_STRING],
+                                             &sessionUsername);
+    if(res != UA_STATUSCODE_GOOD || sessionUsername.length == 0)
+        return false;
+
+    UA_String *username = (UA_String *)objectContext;
+    return UA_String_equal(username, &sessionUsername);
 }
 
 /**
@@ -148,6 +167,11 @@ addSecurityGroup(UA_Server *server, UA_NodeId *outNodeId) {
     UA_Server_addSecurityGroup(server, securityGroupParent, &config, outNodeId);
 }
 
+/* The node context is stored as a bare pointer and is read again whenever the
+ * SecurityGroup object is accessed. It therefore has to outlive the function
+ * that sets it and cannot point into its stack frame. */
+static UA_String allowedUsername;
+
 /*
  * we need to set user access for the security groups. The allowed users can be
  * set in the node context of the SecurityGroup Object Node, which are checked
@@ -155,11 +179,11 @@ addSecurityGroup(UA_Server *server, UA_NodeId *outNodeId) {
  */
 static UA_StatusCode
 setSecurityGroupRolePermission(UA_Server *server, UA_NodeId securityGroupNodeId,
-                               void *nodeContext) {
-    if(!server && !nodeContext)
+                               const char *username) {
+    if(!server || !username)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_ByteString allowedUsername = UA_STRING((char *)nodeContext);
+    allowedUsername = UA_STRING((char *)(uintptr_t)username);
     return UA_Server_setNodeContext(server, securityGroupNodeId, &allowedUsername);
 }
 
@@ -427,7 +451,14 @@ main(int argc, char **argv) {
     UA_PubSubSecurityPolicy_Aes256Ctr(config.pubSubConfig.securityPolicies,
                                       config.logging);
 
-    /* User Access Control */
+    /* User Access Control. Register the demo user so that a client can
+     * actually activate a session under the name the SecurityGroup below
+     * grants access to. */
+    config.accessControl.clear(&config.accessControl);
+    res = UA_AccessControl_default(&config, enableAnon, NULL,
+                                   DEMO_LOGIN_COUNT, demoLogins);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
     config.accessControl.getUserExecutableOnObject = getUserExecutableOnObject_sks;
 
     server = UA_Server_newWithConfig(&config);
@@ -439,8 +470,7 @@ main(int argc, char **argv) {
     UA_NodeId outNodeId;
     addSecurityGroup(server, &outNodeId);
 
-    char *username = "user1";
-    setSecurityGroupRolePermission(server, outNodeId, username);
+    setSecurityGroupRolePermission(server, outNodeId, DEMO_USERNAME);
 
     UA_Server_enableAllPubSubComponents(server);
     UA_Server_runUntilInterrupt(server);

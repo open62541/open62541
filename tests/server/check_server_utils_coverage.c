@@ -40,7 +40,9 @@ static void teardown(void) {
  * UA_DataType so we can hand it to UA_Server_addDataType. */
 static UA_DataTypeMember customMember[1] = {
     {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
         .memberName = "value",
+#endif
         .memberType = &UA_TYPES[UA_TYPES_INT32],
         .isArray = false,
         .isOptional = false
@@ -51,7 +53,9 @@ static UA_DataType customType;
 
 static void initCustomType(UA_DataType *t, UA_UInt16 ns, UA_UInt32 idBase) {
     memset(t, 0, sizeof(*t));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     t->typeName = "MyCustomType";
+#endif
     t->typeId.namespaceIndex = ns;
     t->typeId.identifierType = UA_NODEIDTYPE_NUMERIC;
     t->typeId.identifier.numeric = idBase;
@@ -148,7 +152,9 @@ START_TEST(Utils_addDataType_preservesSelfReference) {
     recursiveType.memSize = sizeof(size_t) + sizeof(void *);
     recursiveType.pointerFree = false;
     recursiveType.members = &recursiveMember;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     recursiveMember.memberName = "children";
+#endif
     recursiveMember.memberType = &recursiveType;
     recursiveMember.isArray = true;
 
@@ -176,7 +182,9 @@ START_TEST(Utils_addDataType_fillsFirstList) {
      * duplicate type by the lookup guard. */
     static UA_DataTypeMember memberTemplate[1] = {
         {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
             .memberName = "value",
+#endif
             .memberType = &UA_TYPES[UA_TYPES_INT32],
             .isArray = false,
             .isOptional = false
@@ -279,6 +287,7 @@ START_TEST(Utils_typeHierarchy_entriesAreIntact) {
     UA_NodeId_clear(&c);
 } END_TEST
 
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
 START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
     /* Add a simple DataType alias without its own binary representation. */
     UA_NodeId aliasId = UA_NODEID_NUMERIC(1, 99400);
@@ -308,7 +317,8 @@ START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
     UA_StructureField_init(&field);
     field.name = UA_STRING("Timestamp");
     field.dataType = aliasId;
-    field.valueRank = UA_VALUERANK_SCALAR;
+    field.valueRank = _i == 2 ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
+    field.isOptional = (_i == 3);
 
     UA_StructureDescription description;
     UA_StructureDescription_init(&description);
@@ -319,7 +329,7 @@ START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
     description.structureDefinition.baseDataType =
         UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
     description.structureDefinition.structureType =
-        UA_STRUCTURETYPE_STRUCTURE;
+        _i == 3 ? UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS : UA_STRUCTURETYPE_STRUCTURE;
     description.structureDefinition.fieldsSize = 1;
     description.structureDefinition.fields = &field;
 
@@ -343,7 +353,11 @@ START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
     ck_assert_ptr_eq(registered->members[0].memberType,
                      &UA_TYPES[UA_TYPES_DATETIME]);
     ck_assert(UA_NodeId_equal(&field.dataType, &aliasId));
+    ck_assert_uint_eq(registered->members[0].isArray, _i == 2);
+    ck_assert_uint_eq(registered->members[0].isOptional, _i == 3);
 } END_TEST
+
+#endif
 
 START_TEST(Utils_resolveDataTypeRepresentation) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(1, 99500);
@@ -415,7 +429,9 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc, Utils_addDataType_preservesSelfReference);
     tcase_add_test(tc, Utils_addDataType_fillsFirstList);
     tcase_add_test(tc, Utils_addDataTypeFromDescription_empty_rejected);
-    tcase_add_loop_test(tc, Utils_addDataTypeFromDescription_resolvesAlias, 0, 2);
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
+    tcase_add_loop_test(tc, Utils_addDataTypeFromDescription_resolvesAlias, 0, 4);
+#endif
     tcase_add_loop_test(tc, Utils_resolveDataTypeRepresentation, 0, 4);
     suite_add_tcase(s, tc);
 

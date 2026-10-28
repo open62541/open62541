@@ -663,6 +663,7 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     UA_CHECK_MEM(server, UA_ServerConfig_clear(config); return NULL);
 
     server->config = *config;
+    server->maxRegisteredServers = 1000;
 
     /* If not defined, set logging to what the server has */
     if(!server->config.secureChannelPKI.logging)

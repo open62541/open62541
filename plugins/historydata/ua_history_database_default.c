@@ -672,6 +672,8 @@ UA_HistoryDatabase_default(UA_HistoryDataGathering gathering)
     UA_HistoryDatabaseContext_default *context =
             (UA_HistoryDatabaseContext_default*)
             UA_calloc(1, sizeof(UA_HistoryDatabaseContext_default));
+    if(!context)
+        return hdb;
     context->gathering = gathering;
     hdb.context = context;
     hdb.readRaw = &readRaw_service_default;

@@ -1201,6 +1201,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                              requestServer->discoveryUrlsSize,
                              requestServer->discoveryUrls);
 
+    /* Allow updates and removals even when the registration table is full. */
+    if(requestServer->isOnline && !rs &&
+       server->registeredServersSize >= server->maxRegisteredServers)
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+
     /* Server is shutting down. Remove it from the registered servers list */
     if(!requestServer->isOnline) {
         if(!rs) {

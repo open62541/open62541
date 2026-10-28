@@ -11,6 +11,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/util.h>
+#include <stdlib.h>
 #include <check.h>
 #include "test_helpers.h"
 

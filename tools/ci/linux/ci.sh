@@ -170,7 +170,7 @@ EOF
 
     x86_64-w64-mingw32-gcc -D_WIN32_WINNT=0x0600 \
         -Wall -Werror amalgamation_none_smoke.c open62541.c \
-        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi
+        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi -lbcrypt
 }
 
 function build_amalgamation_mt {
@@ -568,6 +568,7 @@ function unit_tests_alarms {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_MALLOC_SINGLETON=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_FORCE_WERROR=ON \

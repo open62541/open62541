@@ -76,7 +76,8 @@ class NodeId():
         # (numeric, string, guid) are defined, the order of preference for the ID
         # string is always numeric, guid, bytestring, string. Binary encoding only
         # applies to numeric values (UInt16).
-        idparts = idstring.strip().split(";")
+        idstring = idstring.strip()
+        idparts = idstring.split(";", 1) if idstring.startswith("ns=") else [idstring]
         for p in idparts:
             if p[:2] == "ns":
                 self.ns = int(p[3:])
@@ -128,13 +129,7 @@ class NodeId():
         if self.i is not None:
             return s + "i=" + str(self.i)
         if self.g is not None:
-            s = s + "g="
-            tmp = []
-            for i in self.g:
-                tmp.append(hex(i).replace("0x", ""))
-            for i in tmp:
-                s = s + "-" + i
-            return s.replace("g=-", "g=")
+            return s + "g=" + self.gAsString()
         if self.b is not None:
             return s + "b=" + str(self.b)
         if self.s is not None:

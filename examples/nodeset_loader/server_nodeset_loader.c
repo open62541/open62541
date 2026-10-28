@@ -5,6 +5,7 @@
 #include <open62541/server_config_default.h>
 #include "nodeset_loader_file.h"
 
+#include <stdlib.h>
 #include <signal.h>
 #include <stdio.h>
 

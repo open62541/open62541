@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+<NamespaceUris><Uri>urn:open62541:test:map-a</Uri></NamespaceUris>
+<UAVariable NodeId="ns=1;i=1001" BrowseName="1:OwnReference" DataType="i=17" ValueRank="-1" >
+<DisplayName>OwnReference</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:NodeId><uax:Identifier>ns=1;i=42</uax:Identifier></uax:NodeId></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=1002" BrowseName="1:OwnName" DataType="i=20" ValueRank="-1" >
+<DisplayName>OwnName</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:QualifiedName><uax:NamespaceIndex>1</uax:NamespaceIndex><uax:Name>Target</uax:Name></uax:QualifiedName></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=1003" BrowseName="1:UriReference" DataType="i=18" ValueRank="-1" >
+<DisplayName>UriReference</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:ExpandedNodeId><uax:Identifier>nsu=urn:open62541:test:map-a;i=42</uax:Identifier></uax:ExpandedNodeId></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=1004" BrowseName="1:Whitespace" DataType="i=12" ValueRank="-1" >
+<DisplayName>Whitespace</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:String>first
+  Grüße
+ last</uax:String></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=1007" BrowseName="1:CustomRecord" DataType="ns=1;i=9000" ValueRank="-1" >
+<DisplayName>CustomRecord</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:ExtensionObject><uax:TypeId><uax:Identifier>ns=1;i=9002</uax:Identifier></uax:TypeId><uax:Body><MappingRecord><Target><Identifier>ns=1;i=42</Identifier></Target><Label><NamespaceIndex>1</NamespaceIndex><Name>Target</Name></Label></MappingRecord></uax:Body></uax:ExtensionObject></Value></UAVariable>
+</UANodeSet>

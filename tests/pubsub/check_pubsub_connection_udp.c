@@ -226,6 +226,22 @@ START_TEST(AddConnectionWithNullConfig){
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
+/* The address is not a NetworkAddressUrlDataType. It must be rejected before
+ * the information model representation reads the (smaller) structure. */
+START_TEST(AddConnectionWithNetworkAddressDataType){
+    UA_StatusCode retVal;
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.name = UA_STRING("UADP Connection");
+    UA_NetworkAddressDataType networkAddress = {UA_STRING("eth0")};
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddress,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(getPSM(server)->connectionsSize, 0);
+    } END_TEST
+
 START_TEST(AddSingleConnectionWithMaximalConfiguration){
     UA_PubSubManager *psm = getPSM(server);
     UA_NetworkAddressUrlDataType networkAddressUrlData =
@@ -369,6 +385,7 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithoutPort);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithUnknownTransportURL);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithNullConfig);
+    tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithNetworkAddressDataType);
 
     TCase *tc_add_pubsub_connections_maximal_config = tcase_create("Create PubSub UDP Connections with maximal valid config");
     tcase_add_checked_fixture(tc_add_pubsub_connections_maximal_config, setup, teardown);

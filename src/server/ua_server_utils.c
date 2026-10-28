@@ -233,6 +233,7 @@ resolveDataTypeRepresentation(UA_Server *server, const UA_NodeId *typeId) {
     return type;
 }
 
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
 /* Replace an alias NodeId with the concrete datatype that defines its layout. */
 static UA_StatusCode
 normalizeDataTypeId(UA_Server *server, UA_NodeId *typeId) {
@@ -248,9 +249,12 @@ normalizeDataTypeId(UA_Server *server, UA_NodeId *typeId) {
     return UA_NodeId_copy(&representation->typeId, typeId);
 }
 
+#endif
+
 UA_StatusCode
 UA_Server_addDataTypeFromDescription(UA_Server *server,
                                      const UA_ExtensionObject *description) {
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
     /* Normalize simple aliases in a temporary copy for memory-layout
      * construction. */
     UA_ExtensionObject layoutDescription;
@@ -283,6 +287,15 @@ UA_Server_addDataTypeFromDescription(UA_Server *server,
     UA_ExtensionObject_clear(&layoutDescription);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+
+#else
+    UA_DataType dt;
+    UA_StatusCode res = UA_DataType_fromDescription(&dt, description,
+                                                    serverCustomTypes(server));
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+#endif
 
     /* Check that the type does not already exist. We do not allow changes to
      * DataTypes once they are set. */

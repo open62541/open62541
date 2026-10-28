@@ -517,7 +517,7 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
     /* Initialize the Session */
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
-    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
+    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_secureRandom());
 
     newentry->session.timeout = server->config.maxSessionTimeout;
     if(request->requestedSessionTimeout <= server->config.maxSessionTimeout &&
@@ -1182,12 +1182,16 @@ getClientUserId(const UA_ExtensionObject *userIdentityToken,
 
 #define UA_SESSION_REJECT                                               \
     do {                                                                \
+        UA_String_clear(&clientUserId);                                  \
+        UA_ByteString_clear(&userCertificate);                           \
         server->serverDiagnosticsSummary.rejectedSessionCount++;        \
         return;                                                         \
     } while(0)
 
 #define UA_SECURITY_REJECT                                              \
     do {                                                                \
+        UA_String_clear(&clientUserId);                                  \
+        UA_ByteString_clear(&userCertificate);                           \
         server->serverDiagnosticsSummary.securityRejectedSessionCount++; \
         server->serverDiagnosticsSummary.rejectedSessionCount++;        \
         return;                                                         \
@@ -1200,6 +1204,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                               UA_Session **outSession) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ResponseHeader *rh = &resp->responseHeader;
+    UA_String clientUserId = UA_STRING_NULL;
+    UA_ByteString userCertificate = UA_BYTESTRING_NULL;
 
     /* Get the session */
     UA_Session *session =
@@ -1330,20 +1336,28 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     /* An active Session cannot switch identities. Perform the comparison
      * before access control is called so a rejected reactivation cannot mutate
      * the existing Session context. */
-    UA_String clientUserId = UA_STRING_NULL;
     rh->serviceResult = getClientUserId(&req->userIdentityToken,
                                         utp->tokenType, &clientUserId);
-    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
-        UA_String_clear(&clientUserId);
+    if(rh->serviceResult != UA_STATUSCODE_GOOD)
         UA_SECURITY_REJECT;
+
+    /* Subject names need not uniquely identify certificates. Keep the full
+     * certificate for comparison while preserving the diagnostic user name. */
+    if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        const UA_X509IdentityToken *token = (const UA_X509IdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        rh->serviceResult =
+            UA_ByteString_copy(&token->certificateData, &userCertificate);
+        if(rh->serviceResult != UA_STATUSCODE_GOOD)
+            UA_SECURITY_REJECT;
     }
-    UA_Boolean identityChanged =
-        session->state == UA_SESSIONSTATE_ACTIVATED &&
-        (utp->tokenType != session->userTokenType ||
-         !UA_String_equal(&clientUserId, &session->clientUserIdOfSession));
-    UA_String_clear(&clientUserId);
-    if(identityChanged) {
-        rh->serviceResult = UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED;
+
+    if(session->state == UA_SESSIONSTATE_ACTIVATED &&
+       (utp->tokenType != session->userTokenType ||
+        !UA_String_equal(&clientUserId, &session->clientUserIdOfSession) ||
+        !UA_ByteString_equal(&userCertificate, &session->userCertificate))) {
+        rh->serviceResult =
+            UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED;
         UA_SECURITY_REJECT;
     }
 
@@ -1355,6 +1369,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                         &req->userIdentityToken, &session->context);
     if(session->state == UA_SESSIONSTATE_CLOSED) {
         rh->serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+        UA_String_clear(&clientUserId);
+        UA_ByteString_clear(&userCertificate);
         return;
     }
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
@@ -1463,36 +1479,35 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Activate the session */
-    if(session->state != UA_SESSIONSTATE_ACTIVATED) {
+    UA_Boolean firstActivation = session->state != UA_SESSIONSTATE_ACTIVATED;
+    if(firstActivation) {
         session->state = UA_SESSIONSTATE_ACTIVATED;
         server->activeSessionCount++;
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
 
-    /* Store the ClientUserId. tokenType can be NULL for the anonymous user. */
+    /* Transfer the validated identity without another allocation. */
     UA_String_clear(&session->clientUserIdOfSession);
-    const UA_DataType *tokenType = req->userIdentityToken.content.decoded.type;
-    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
-            req->userIdentityToken.content.decoded.data;
-        UA_String_copy(&userToken->userName, &session->clientUserIdOfSession);
-    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
-        UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
-            req->userIdentityToken.content.decoded.data;
-        UA_CertificateUtils_getSubjectName(&userCertToken->certificateData,
-                                           &session->clientUserIdOfSession);
-    } else {
-        /* TODO: Handle issued token */
-    }
+    session->clientUserIdOfSession = clientUserId;
+    UA_String_init(&clientUserId);
     session->userTokenType = utp->tokenType;
+    UA_ByteString_clear(&session->userCertificate);
+    session->userCertificate = userCertificate;
+    UA_ByteString_init(&userCertificate);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-    /* Add the ClientUserId to the diagnostics history. Ignoring errors in _appendCopy. */
+    /* Identity changes are rejected for active Sessions. Record the initial
+     * authenticated identity once instead of growing the history on every
+     * reactivation. */
     UA_SessionSecurityDiagnosticsDataType *ssd = &session->securityDiagnostics;
-    UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
-                        &ssd->clientUserIdHistorySize,
-                        &ssd->clientUserIdOfSession,
-                        &UA_TYPES[UA_TYPES_STRING]);
+    if(firstActivation) {
+        UA_StatusCode res =
+            UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
+                                &ssd->clientUserIdHistorySize,
+                                &session->clientUserIdOfSession,
+                                &UA_TYPES[UA_TYPES_STRING]);
+        (void)res;
+    }
 
     /* Store the auth mechanism */
     UA_String_clear(&ssd->authenticationMechanism);
@@ -1513,6 +1528,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED);
     if(session->state == UA_SESSIONSTATE_CLOSED) {
         rh->serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+        UA_String_clear(&clientUserId);
+        UA_ByteString_clear(&userCertificate);
         return;
     }
 

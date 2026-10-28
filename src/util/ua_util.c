@@ -28,6 +28,16 @@
 #if defined(UA_ARCHITECTURE_WIN32)
 #include <wtypes.h>
 #include <winbase.h>
+#include <bcrypt.h>
+#elif defined(UA_ARCHITECTURE_POSIX)
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#include <psa/crypto.h>
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#include <openssl/rand.h>
 #endif
 
 #include "../../deps/parse_num.h"
@@ -112,22 +122,30 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
                       UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
     UA_assert(number);
-    u32 n = 0;
+    /* Accumulate in 64 bits. n stays below 2^32 between the digits, so n * base
+     * + digit cannot overflow for any base up to 36. */
+    u64 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
     while(progress < buflen) {
         u8 c = buf[progress];
+        u32 digit;
         if(c >= '0' && c <= '9' && c <= '0' + (base-1))
-           n = (n * base) + c - '0';
+           digit = c - '0';
         else if(base > 9 && c >= 'a' && c <= 'z' && c <= 'a' + (base-11))
-           n = (n * base) + c-'a' + 10;
+           digit = c-'a' + 10;
         else if(base > 9 && c >= 'A' && c <= 'Z' && c <= 'A' + (base-11))
-           n = (n * base) + c-'A' + 10;
+           digit = c-'A' + 10;
         else
            break;
+        n = (n * base) + digit;
+        /* The number does not fit into 32 bits. Report no valid digits
+         * instead of returning a wrapped value. */
+        if(n > UA_UINT32_MAX)
+            return 0;
         ++progress;
     }
-    *number = n;
+    *number = (u32)n;
     return progress;
 }
 
@@ -684,6 +702,74 @@ UA_Guid_random(void) {
     return result;
 }
 
+/********************/
+/* Malloc Singleton */
+/********************/
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON_IMPLEMENTATION
+# include <stdlib.h>
+UA_EXPORT UA_TEST_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
+UA_EXPORT UA_TEST_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
+UA_EXPORT UA_TEST_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
+UA_EXPORT UA_TEST_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
+#endif
+
+/* Random bytes with a stronger distribution than UA_Guid_random /
+ * UA_UInt32_random above, for identifiers that must not repeat across
+ * separate server processes (e.g. the Session authenticationToken). Uses
+ * the linked crypto backend's DRBG when built with encryption support, and
+ * falls back to the operating system's random source otherwise. Returns
+ * UA_STATUSCODE_BADNOTSUPPORTED if no such source is available on this
+ * platform. */
+static UA_StatusCode
+UA_random_secureBytes(UA_Byte *buf, size_t length) {
+    if(length == 0)
+        return UA_STATUSCODE_GOOD;
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    /* PSA Crypto is shared by the supported mbedTLS 3 and 4 backends. */
+    if(psa_crypto_init() != PSA_SUCCESS ||
+       psa_generate_random(buf, length) != PSA_SUCCESS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    if(RAND_bytes(buf, (int)length) != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#elif defined(UA_ARCHITECTURE_WIN32)
+    if(!BCRYPT_SUCCESS(BCryptGenRandom(NULL, buf, (ULONG)length,
+                                        BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#elif defined(UA_ARCHITECTURE_POSIX)
+    int fd = open("/dev/urandom", O_RDONLY);
+    if(fd < 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t total = 0;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    while(total < length) {
+        ssize_t n = read(fd, buf + total, length - total);
+        if(n <= 0) {
+            res = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+        }
+        total += (size_t)n;
+    }
+    close(fd);
+    return res;
+#else
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+}
+
+UA_Guid
+UA_Guid_secureRandom(void) {
+    UA_Guid result;
+    if(UA_random_secureBytes((UA_Byte*)&result, sizeof(UA_Guid)) != UA_STATUSCODE_GOOD)
+        return UA_Guid_random(); /* No stronger random source on this platform */
+    return result;
+}
+
 /************************/
 /* ReferenceType Lookup */
 /************************/
@@ -1066,13 +1152,9 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao, UA_String 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
-        UA_Byte nodeIdBuf[512];
-        UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= nodeId_printEscape(&sao->typeDefinitionId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT);
-        res |= UA_String_append(&tmp, nodeIdBufStr);
-    }
+    if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId))
+        res |= nodeId_printEscape(&sao->typeDefinitionId, &tmp,
+                                 NULL, UA_ESCAPING_PERCENT);
 
     /* Print the BrowsePath */
     UA_RelativePathElement_init(&rpe);
@@ -1167,13 +1249,9 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId)) {
-        UA_Byte nodeIdBuf[512];
-        UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= nodeId_printEscape(&rvi->nodeId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT);
-        res |= UA_String_append(&tmp, nodeIdBufStr);
-    }
+    if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId))
+        res |= nodeId_printEscape(&rvi->nodeId, &tmp,
+                                 NULL, UA_ESCAPING_PERCENT);
 
     /* Print the attribute name */
     if(rvi->attributeId != UA_ATTRIBUTEID_VALUE) {

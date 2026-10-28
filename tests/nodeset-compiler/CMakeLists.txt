@@ -170,3 +170,18 @@ add_test(NAME test_generate_datatypes_cross_ns
 add_test(NAME test_generate_datatypes_symbolic_names
          COMMAND "${Python3_EXECUTABLE}"
                  "${CMAKE_CURRENT_SOURCE_DIR}/test_symbolic_names.py")
+# Values from different input files keep their original namespace tables.
+set(mapping_output "${CMAKE_BINARY_DIR}/src_generated/tests")
+set(mapping_large "${mapping_output}/namespace_mapping_large.xml")
+add_custom_command(OUTPUT "${mapping_large}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/generate_namespace_mapping_fixture.py" "${mapping_large}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/generate_namespace_mapping_fixture.py")
+ua_generate_nodeset(NAME "tests-value-mapping" OUTPUT_DIR "${mapping_output}"
+    DEPENDS_NS ${open62541_NS0_NODESETS} "${CMAKE_CURRENT_SOURCE_DIR}/namespace_mapping_custom.xml"
+    DEPENDS_TYPES "UA_TYPES"
+    FILE "${CMAKE_CURRENT_SOURCE_DIR}/namespace_mapping_a.xml"
+         "${CMAKE_CURRENT_SOURCE_DIR}/namespace_mapping_b.xml" "${mapping_large}")
+ua_add_test(check_nodeset_value_mapping.c EXTRASOURCES ${UA_NODESET_TESTS_VALUE_MAPPING_SOURCES})
+add_dependencies(check_nodeset_value_mapping open62541-generator-ns-tests-value-mapping)
+add_test(NAME test_nodeset_compiler_regressions
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_compiler_regressions.py")

@@ -9,6 +9,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/driver/gds_receiver.h>
+#include <stdlib.h>
 
 #include "ua_server_internal.h"
 

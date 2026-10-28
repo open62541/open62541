@@ -7,6 +7,8 @@
 # Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
 
 import re
+import ntpath
+import sys
 import copy
 from collections import OrderedDict
 import argparse
@@ -138,7 +140,7 @@ whitelistFuncAttrWarnUnusedResult = []  # for instances [ "String", "ByteString"
 
 # Escape C strings:
 def makeCLiteral(value):
-    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
+    return value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\n').replace('\r', r'\r')
 
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
@@ -157,7 +159,7 @@ def getNodeidTypeAndId(nodeId):
         return f"UA_NODEIDTYPE_NUMERIC, {{{nodeId[2:]}LU}}"
     if nodeId.startswith("s="):
         strId = nodeId[2:]
-        return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
+        return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=makeCLiteral(strId))
 
 def splitNodeidNs(nodeId):
     """Split an optional 'ns=X;' prefix from a nodeId string.
@@ -779,8 +781,8 @@ _UA_END_DECLS
 
 args = parser.parse_args()
 
-outname = args.outfile.split("/")[-1]
-inname = ', '.join(list(map(lambda x: x.name.split("/")[-1], args.type_bsd)))
+outname = ntpath.basename(args.outfile)
+inname = ', '.join(list(map(lambda x: ntpath.basename(x.name), args.type_bsd)))
 
 namespaceMap = {OPC_UA_NAMESPACE: 0}
 for m in args.namespace_map:
