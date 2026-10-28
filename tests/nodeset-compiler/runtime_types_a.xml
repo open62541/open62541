@@ -50,4 +50,6 @@
 <Definition Name="1:StructuredFlags" IsOptionSet="true"><Field Name="Read" Value="0"/><Field Name="High" Value="72"/></Definition></UADataType>
 <UADataType NodeId="ns=1;i=3050" BrowseName="1:AliasRecord"><DisplayName>AliasRecord</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=3001</Reference></References></UADataType>
 <UADataType NodeId="ns=1;i=3051" BrowseName="1:AliasHolder"><DisplayName>AliasHolder</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References><Definition Name="1:AliasHolder"><Field Name="Record" DataType="ns=1;i=3050"/></Definition></UADataType>
+<UADataType NodeId="ns=1;i=3060" BrowseName="1:MixedUnion"><DisplayName>MixedUnion</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">i=12756</Reference></References><Definition Name="1:MixedUnion" IsUnion="true"><Field Name="Number" DataType="i=7"/><Field Name="Text" DataType="i=12"/></Definition></UADataType>
+<UADataType NodeId="ns=1;i=3061" BrowseName="1:SmallUnion"><DisplayName>SmallUnion</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">i=12756</Reference></References><Definition Name="1:SmallUnion" IsUnion="true"><Field Name="Byte" DataType="i=3"/><Field Name="Word" DataType="i=5"/></Definition></UADataType>
 </UANodeSet>
