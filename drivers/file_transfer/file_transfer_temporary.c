@@ -27,7 +27,7 @@ isFileTypeMethod(const UA_NodeId *nodeId) {
  * references that the instantiation added to shared nodes (the types and the
  * FileType Method declarations) are removed, so browsing a type does not
  * reveal it. The children of the file are handled the same way. */
-static void
+static UA_StatusCode
 hideTransferNode(UA_Server *server, const UA_NodeId nodeId, size_t depth) {
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -38,27 +38,48 @@ hideTransferNode(UA_Server *server, const UA_NodeId nodeId, size_t depth) {
     UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
     UA_NodeId hasProperty = UA_NS0ID(HASPROPERTY);
     UA_NodeId hasComponent = UA_NS0ID(HASCOMPONENT);
-    for(size_t i = 0; i < br.referencesSize; i++) {
-        UA_ReferenceDescription *ref = &br.references[i];
-        if(!UA_ExpandedNodeId_isLocal(&ref->nodeId))
-            continue;
-        const UA_NodeId *target = &ref->nodeId.nodeId;
-        UA_Boolean child = (UA_NodeId_equal(&ref->referenceTypeId, &hasProperty) ||
-                            UA_NodeId_equal(&ref->referenceTypeId, &hasComponent)) &&
-            !isFileTypeMethod(target);
-        if(child) {
-            if(depth < 4)
-                hideTransferNode(server, *target, depth + 1);
-            continue;
+    UA_StatusCode res = br.statusCode;
+    while(res == UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < br.referencesSize && res == UA_STATUSCODE_GOOD; i++) {
+            UA_ReferenceDescription *ref = &br.references[i];
+            if(!UA_ExpandedNodeId_isLocal(&ref->nodeId))
+                continue;
+            const UA_NodeId *target = &ref->nodeId.nodeId;
+            UA_Boolean child = (UA_NodeId_equal(&ref->referenceTypeId, &hasProperty) ||
+                                UA_NodeId_equal(&ref->referenceTypeId, &hasComponent)) &&
+                !isFileTypeMethod(target);
+            if(child) {
+                res = (depth < 4) ? hideTransferNode(server, *target, depth + 1) :
+                    UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+                continue;
+            }
+            res = UA_Server_deleteReference(server, *target, ref->referenceTypeId, false,
+                                             UA_EXPANDEDNODEID_NODEID(nodeId), false);
+            /* An inverse reference already absent needs no further hiding. */
+            if(res == UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED)
+                res = UA_STATUSCODE_GOOD;
         }
-        UA_Server_deleteReference(server, *target, ref->referenceTypeId, false,
-                                  UA_EXPANDEDNODEID_NODEID(nodeId), false);
+        if(res != UA_STATUSCODE_GOOD || br.continuationPoint.length == 0)
+            break;
+        /* maxReferences=0 still observes maxReferencesPerNode. Only the
+         * targets' inverse references change, so this forward browse remains
+         * valid while all continuation pages are consumed. */
+        UA_BrowseResult next = UA_Server_browseNext(server, false, &br.continuationPoint);
+        res = next.statusCode;
+        if(res != UA_STATUSCODE_GOOD) {
+            /* BrowseNext can fail without returning or releasing its point. */
+            UA_BrowseResult_clear(&next);
+            break;
+        }
+        UA_BrowseResult_clear(&br);
+        br = next;
     }
     if(br.continuationPoint.length > 0) {
         UA_BrowseResult released = UA_Server_browseNext(server, true, &br.continuationPoint);
         UA_BrowseResult_clear(&released);
     }
     UA_BrowseResult_clear(&br);
+    return res;
 }
 
 /* Create the store file. The name is also the BrowseName of the Object. */
@@ -145,7 +166,7 @@ createTransferFile(UA_Server *server, FTEntry *root, const UA_NodeId *sessionId,
     if(res == UA_STATUSCODE_GOOD)
         res = bindObjectMethods(server, file);
     if(res == UA_STATUSCODE_GOOD)
-        hideTransferNode(server, nodeId, 0);
+        res = hideTransferNode(server, nodeId, 0);
 
     if(res != UA_STATUSCODE_GOOD) {
         if(generated && ftd->temporary.endTransfer) {
