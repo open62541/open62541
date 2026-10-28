@@ -481,11 +481,13 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
         UA_DataTypeMember *dtm = &type->members[i];
         const UA_EnumField *ef = &descr->enumDefinition.fields[i];
         dtm->memberType = (const UA_DataType*)(uintptr_t)ef->value;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
         dtm->memberName = (char*)UA_malloc(ef->name.length + 1);
         UA_CHECK(dtm->memberName != NULL,
                  UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
         memcpy((char*)(uintptr_t)dtm->memberName, ef->name.data, ef->name.length);
         *(char*)(uintptr_t)&dtm->memberName[ef->name.length] = '\0';
+#endif
     }
 
     return UA_STATUSCODE_GOOD;
@@ -514,7 +516,7 @@ UA_DataType_toEnumDescription(const UA_DataType *type,
     for(size_t i = 0; i < type->membersSize; i++) {
         const UA_DataTypeMember *dtm = &type->members[i];
         UA_EnumField *ef = &descr->enumDefinition.fields[i];
-        ef->value = (UA_Int64)(uintptr_t)dtm->memberType;
+        ef->value = (UA_Int64)(intptr_t)dtm->memberType;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_String name = UA_STRING((char*)(uintptr_t)dtm->memberName);
         ef->displayName.locale = UA_STRING_ALLOC("");

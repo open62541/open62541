@@ -187,6 +187,31 @@ START_TEST(definition_copyOwnedNodeIds) {
     ck_assert_uint_eq(original.xmlEncodingId.identifier.string.data[0], 'A');
 } END_TEST
 
+START_TEST(definition_negativeEnumRoundtrip) {
+    UA_DataTypeMember member = {UA_TYPENAME("Negative")
+        (const UA_DataType*)(intptr_t)-7, 0, false, false};
+    UA_DataType type;
+    memset(&type, 0, sizeof(type));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    type.typeName = "SignedEnum";
+#endif
+    type.typeId = UA_NODEID_NUMERIC(1, 8001);
+    type.typeKind = UA_DATATYPEKIND_ENUM;
+    type.memSize = sizeof(UA_Int32);
+    type.membersSize = 1;
+    type.members = &member;
+    UA_ExtensionObject description;
+    ck_assert_uint_eq(UA_DataType_toDescription(&type, &description), UA_STATUSCODE_GOOD);
+    UA_EnumDescription *enumeration = (UA_EnumDescription*)description.content.decoded.data;
+    ck_assert_int_eq(enumeration->enumDefinition.fields[0].value, -7);
+    UA_DataType reconstructed;
+    ck_assert_uint_eq(UA_DataType_fromDescription(&reconstructed, &description, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq((intptr_t)reconstructed.members[0].memberType, -7);
+    UA_DataType_clear(&reconstructed);
+    UA_ExtensionObject_clear(&description);
+} END_TEST
+
 START_TEST(definition_invalidStructureKindClearsOutput) {
     UA_StructureDescription description;
     UA_StructureDescription_init(&description);
@@ -207,6 +232,7 @@ START_TEST(definition_invalidStructureKindClearsOutput) {
 
 static Suite *testSuite_definition(void) {
     TCase *tc = tcase_create("DataTypeDefinition");
+    tcase_add_test(tc, definition_negativeEnumRoundtrip);
     tcase_add_loop_test(tc, definition_invalidStructureKindClearsOutput, 0, 2);
     tcase_add_test(tc, definition_copyOwnedNodeIds);
     tcase_add_loop_test(tc, definition_unionNativeAlignment, 0, 2);
