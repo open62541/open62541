@@ -809,7 +809,10 @@ FUNC_DECODE_BINARY(ExpandedNodeId) {
 /* QualifiedName */
 FUNC_ENCODE_BINARY(QualifiedName) {
     const UA_QualifiedName *src = (const UA_QualifiedName*)_src;
-    status ret = ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+    UA_UInt16 nsIndex = src->namespaceIndex;
+    if(ctx->opts.namespaceMapping)
+        nsIndex = UA_NamespaceMapping_local2Remote(ctx->opts.namespaceMapping, nsIndex);
+    status ret = ENCODE_DIRECT(&nsIndex, UInt16);
     /* Must check here so we can exchange the buffer in the string encoding */
     UA_CHECK_STATUS(ret, return ret);
     ret |= ENCODE_DIRECT(&src->name, String);
@@ -819,6 +822,9 @@ FUNC_ENCODE_BINARY(QualifiedName) {
 FUNC_DECODE_BINARY(QualifiedName) {
     UA_QualifiedName *dst = (UA_QualifiedName*)_dst;
     status ret = DECODE_DIRECT(&dst->namespaceIndex, UInt16);
+    if(ctx->opts.namespaceMapping)
+        dst->namespaceIndex = UA_NamespaceMapping_remote2Local(
+            ctx->opts.namespaceMapping, dst->namespaceIndex);
     ret |= DECODE_DIRECT(&dst->name, String);
     return ret;
 }
