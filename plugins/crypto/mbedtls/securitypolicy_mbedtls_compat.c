@@ -52,6 +52,15 @@ UA_mbedTLS_compat_isRsaKeyPair(const mbedtls_pk_context *key) {
 #endif
 }
 
+UA_Boolean
+UA_mbedTLS_compat_isRsaKey(const mbedtls_pk_context *key) {
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    return key && PSA_KEY_TYPE_IS_RSA(mbedtls_pk_get_key_type(key));
+#else
+    return key && mbedtls_pk_can_do(key, MBEDTLS_PK_RSA);
+#endif
+}
+
 /* Certificates and CRLs carry the signature options only before mbedTLS 4.
  * mbedTLS 4 replaces mbedtls_pk_type_t with mbedtls_pk_sigalg_t for the
  * signature algorithm. */

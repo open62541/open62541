@@ -25,6 +25,10 @@ UA_mbedTLS_compat_isEccKeyPair(const mbedtls_pk_context *key);
 UA_Boolean
 UA_mbedTLS_compat_isRsaKeyPair(const mbedtls_pk_context *key);
 
+/* Also true for the public key of a certificate */
+UA_Boolean
+UA_mbedTLS_compat_isRsaKey(const mbedtls_pk_context *key);
+
 UA_Boolean
 UA_mbedTLS_compat_verifyCertificateSignature(const mbedtls_x509_crt *certificate,
                                               mbedtls_x509_crt *issuer);
