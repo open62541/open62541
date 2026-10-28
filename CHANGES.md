@@ -107,6 +107,40 @@ it returns `Bad_ConfigurationError`. Otherwise, while the WriterGroup of a
 connected writer is enabled, it returns `Bad_InvalidState` and changes nothing.
 Before, the PublishedDataSet was freed even when removing a connected writer failed.
 
+### AccessControl: more Nodes are checked
+
+These changes apply to every AccessControl plugin, also without RBAC:
+
+- AddNodes calls `allowAddReference` with the parent as source and the new
+  NodeId as target, before the Node is created.
+- DeleteNodes calls `allowDeleteNode` for every child deleted along. One
+  refusal aborts the whole delete. Except for the local admin Session, an
+  incomplete lookup of the children aborts as well. The references to deleted
+  Nodes are removed without calling `allowDeleteReference`.
+- Browse omits the references whose target `allowBrowseNode` refuses, as
+  TranslateBrowsePathsToNodeIds already did.
+- CreateMonitoredItems for the EventNotifier returns the read error (e.g.
+  `Bad_UserAccessDenied`) instead of `Bad_InternalError`.
+
+### RBAC: sampling with the subscriber's rights
+
+MonitoredItems are sampled with the rights of the subscribing Session, also
+when a write of another Session triggers the sample. The local admin Session
+reads the RolePermissions of every Node, a detached Subscription none.
+
+### Events with the full Namespace Zero require Method calls
+
+Building with `UA_NAMESPACE_ZERO=FULL` and `UA_ENABLE_SUBSCRIPTIONS_EVENTS`
+now requires `UA_ENABLE_METHODCALLS`, also without RBAC: the Alarms &
+Conditions driver binds the ConditionType Methods.
+
+### Audit events omit the secrets of Method arguments
+
+The AuditUpdateMethodEvents of UpdateCertificate, UpdateCredential, AddUser,
+ModifyUser, ChangePassword, GetSecurityKeys and SetSecurityKeys omit
+passwords, private keys, credential secrets and security keys. Method copies
+made with `copyMethodsOnInstances` are not covered.
+
 ### PubSub message security with OpenSSL and LibreSSL
 
 The PubSub SecurityPolicies `PubSub-Aes128-CTR` and `PubSub-Aes256-CTR`
