@@ -11,15 +11,76 @@ Custom DataTypes
 
 When a ``UADataType`` contains a NodeSet2 ``Definition`` element, the compiler
 generates the matching C enum, structure, optional structure, or union in a
-static ``UA_TYPES_<NAME>`` array. Loading the generated namespace registers that
-array with the server. The ``DataTypeDefinition`` attribute is reconstructed
-from the static layout when it is read. Definitions can refer to custom
+static ``UA_TYPES_<NAME>`` array. The generated loader takes a
+``UA_Boolean copy_types`` argument, for example
+``namespace_example_generated(server, true)``. The ``DataTypeDefinition``
+attribute is reconstructed from the registered layout when it is read.
+Definitions can refer to custom
 datatypes declared later in the same NodeSet2 file; the compiler resolves those
 dependencies before code generation. Inheritance is expanded once by the
 NodeSet input adapter; the existing C datatype backend is shared with BSD input.
 Structure members must be scalar or one-dimensional arrays. Matrix and
 variable-rank fields are rejected because the current datatype layout cannot
-represent their encoding.
+represent their encoding. ``AllowSubTypes`` fields use ExtensionObjects for
+structures and Variants for other types, as in the runtime loader. OptionSets
+retain their integer base width or, for subtypes of the standard OptionSet,
+the two ByteStrings ``Value`` and ``ValidBits``.
+
+CMake imports standard types from the schema used to build the library. Direct
+compiler calls can select that schema directory with ``--types-schema``.
+
+Use ``copy_types = true`` to reuse generated code in several servers. The loader
+reconstructs server-owned descriptors through the same DataTypeDescription
+conversion used by runtime type loading. It maps type IDs and both encoding IDs
+by namespace URI, and resolves member pointers against that server's registered
+types. Dependencies must be loaded first, each with its own loader call; neither
+namespace zero nor all companion specifications need to be loaded in one call.
+One generated array can contain types from several namespaces. Self-references
+and mutually recursive groups are supported when the recursion passes through
+an array or optional member. Cycles consisting entirely of inline fields are
+rejected at generation time.
+
+In copy mode, the exported ``UA_TYPES_<NAME>`` addresses remain templates.
+Resolve an array index to the server's descriptor before setting a Variant,
+encoding a value, or comparing datatype pointers::
+
+    const UA_DataType *type = UA_Server_getGeneratedDataType(
+        server, &UA_TYPES_EXAMPLE_SOURCE, UA_TYPES_EXAMPLE_MYTYPE);
+
+The C structure layouts and generated allocation/copy/clear helpers remain
+usable. Descriptor addresses returned for different servers need not be equal.
+The server owns copied descriptors and releases them after its values and nodes.
+Applications must keep generated source metadata available until server deletion.
+Copy mode requires a build containing ``StructureDescription`` and related
+standard types; otherwise it returns ``BadNotSupported``.
+
+Use ``copy_types = false`` to preserve the exported descriptor addresses. The
+loader adjusts the namespace indexes of mutable static arrays in place. Each
+such array binds once to one server for the process lifetime, including after
+that server is deleted. A second server is rejected with ``BadInvalidState``.
+Pinned, const arrays can be shared when all namespace indexes match; a mismatch
+returns ``BadConfigurationError``. Copy mode also works with pinned arrays and
+allows different server indexes. An in-place type referencing a dependency must
+point at the dependency's actual registered descriptor; consequently, an
+in-place consumer of a copied dependency is rejected. Use copy mode consistently
+through the dependency chain when servers need independent namespace orders.
+Regenerate the loaders and datatype files for the entire dependency chain when
+upgrading to this API.
+
+The loader creates ReferenceTypes and raw DataType nodes before registering the
+types, then creates typed values and finishes the remaining nodes. XML values
+use the namespace table of their originating XML file, including nested
+ExtensionObjects, embedded binary bodies, NodeIds and QualifiedNames. Loading
+several XML files together therefore does not change the meaning of their local
+namespace indexes.
+
+Type-array registration validates and allocates everything before publishing
+one array. A failed namespace load removes the nodes explicitly declared by that loader.
+Application callback side effects follow the existing node lifecycle contract. Namespaces and
+successfully registered arrays remain available for retry and are cleaned up
+with the server. Repeating an already completed namespace load returns
+``BadNodeIdExists``. Serialize model-loading calls on each server and do not
+modify the server's custom-type chain while its nodes use those descriptors.
 
 A separate BSD type dictionary is still supported. It is only required when
 the NodeSet2 file does not contain complete ``Definition`` elements for its
@@ -354,7 +415,7 @@ defined objectType from myNS.xml:
         UA_Server *server = UA_Server_new();
         UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-        UA_StatusCode retval = myNS(server);
+        UA_StatusCode retval = myNS(server, true);
         /* Create nodes from nodeset */
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not add the example nodeset. "

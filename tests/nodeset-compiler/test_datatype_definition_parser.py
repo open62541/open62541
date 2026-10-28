@@ -126,8 +126,9 @@ def test_enum_values_and_definition_validation():
          True, NodeId("ns=0;i=12755"))
     ])
     abstract_option = abstract_parser.get_type_for_id(abstract_option_id)
-    require(abstract_option.strDataType == "UA_UInt32",
-            "a direct subtype of the abstract OptionSet did not use UInt32")
+    require(isinstance(abstract_option, StructType) and
+            [m.member_type.name for m in abstract_option.members] == ["ByteString", "ByteString"],
+            "an OptionSet subtype must retain Value/ValidBits ByteStrings")
 
 
 def test_structure_inheritance():

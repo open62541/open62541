@@ -72,7 +72,7 @@ START_TEST(Server_compareDiNodeset) {
 END_TEST
 
 START_TEST(Server_loadWithConstTypes) {
-    UA_StatusCode retVal = namespace_nodesetloader_di_generated(server);
+    UA_StatusCode retVal = namespace_nodesetloader_di_generated(server, false);
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* The loader must reuse the registered const definitions and still be

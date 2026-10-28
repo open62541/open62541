@@ -129,6 +129,13 @@ typedef struct {
 
 #endif
 
+typedef struct UA_GeneratedTypeBinding {
+    struct UA_GeneratedTypeBinding *next;
+    const UA_DataTypeArraySource *source;
+    UA_DataTypeArray array;
+    UA_Boolean copied;
+} UA_GeneratedTypeBinding;
+
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -161,6 +168,7 @@ struct UA_Server {
      * we can use customTypes_internal as the universal entry. */
     UA_DataTypeArray *customTypes_internal;
     size_t customTypes_internalSize;
+    UA_GeneratedTypeBinding *generatedTypes;
 
     /* Session Management */
     LIST_HEAD(session_list, session_list_entry) sessions;

@@ -81,6 +81,10 @@ parser.add_argument('-t', '--types-array',
                     default=[],
                     help='Types array for the given namespace. Can be used multiple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
 
+parser.add_argument('--types-schema', dest='typesSchema', default=None,
+                    help='Directory containing the NodeIds.csv and Opc.Ua.Types.bsd '
+                         'used to build the library. Defaults to the bundled schema.')
+
 parser.add_argument('--types-output',
                     metavar='<outputFile>',
                     type=str,
@@ -126,6 +130,7 @@ else:
 # Create a new nodeset. The nodeset name is not significant.
 # Parse the XML files
 ns = NodeSet()
+ns.standardTypesSchema = args.typesSchema
 nsCount = 0
 loadedFiles = list()
 

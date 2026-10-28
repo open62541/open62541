@@ -1309,6 +1309,26 @@ UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
 UA_EXPORT UA_THREADSAFE const UA_DataTypeArray *
 UA_Server_getDataTypes(UA_Server *server);
 
+/* Register a generated array after its DataType nodes and dependencies exist.
+ * copyTypes creates server-owned descriptors using the description converter.
+ * Otherwise mutable static arrays are bound once and cannot be reused by a
+ * second server, even after the first server is deleted. Const/pinned arrays
+ * can be shared when their namespace indexes match. Dependencies must already
+ * be registered; in-place member pointers must match those registrations.
+ * Registration is atomic for the array. Adding namespace nodes is separate. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_addGeneratedDataTypes(UA_Server *server, UA_DataTypeArraySource *source,
+                               size_t dependenciesSize,
+                               UA_DataTypeArraySource *const *dependencies,
+                               UA_Boolean copyTypes);
+
+/* Resolve a generated array index to this server's registered descriptor.
+ * The result is valid until the server is deleted. In copy mode, use it for
+ * namespace-sensitive operations instead of the exported static descriptor. */
+UA_EXPORT const UA_DataType * UA_THREADSAFE
+UA_Server_getGeneratedDataType(UA_Server *server,
+                               const UA_DataTypeArraySource *source, size_t index);
+
 /**
  * ViewNode
  * ~~~~~~~~ */

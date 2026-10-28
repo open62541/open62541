@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+<NamespaceUris><Uri>urn:open62541:test:types-a</Uri><Uri>urn:open62541:test:encodings</Uri></NamespaceUris>
+<Aliases><Alias Alias="HasSubtype">i=45</Alias><Alias Alias="HasEncoding">i=38</Alias>
+<Alias Alias="HasTypeDefinition">i=40</Alias><Alias Alias="Organizes">i=35</Alias></Aliases>
+<UADataType NodeId="ns=1;i=3001" BrowseName="1:RecordA"><DisplayName>RecordA</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+<Reference ReferenceType="HasEncoding">ns=1;i=5001</Reference></References>
+<Definition Name="1:RecordA"><Field Name="Number" DataType="i=7"/><Field Name="Target" DataType="i=17"/><Field Name="Label" DataType="i=20"/></Definition></UADataType>
+<UAObject NodeId="ns=1;i=5001" BrowseName="Default Binary"><DisplayName>Default Binary</DisplayName>
+<References><Reference ReferenceType="HasTypeDefinition">i=76</Reference></References></UAObject>
+<UAObject NodeId="ns=1;i=5002" BrowseName="Default XML"><DisplayName>Default XML</DisplayName>
+<References><Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+<Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3001</Reference></References></UAObject><UADataType NodeId="ns=1;i=3011" BrowseName="1:RecursiveA"><DisplayName>RecursiveA</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+<Reference ReferenceType="HasEncoding">ns=1;i=5011</Reference></References>
+<Definition Name="1:RecursiveA"><Field Name="Number" DataType="i=7"/><Field Name="Children" DataType="ns=1;i=3011" ValueRank="1"/></Definition></UADataType>
+<UAObject NodeId="ns=1;i=5011" BrowseName="Default Binary"><DisplayName>Default Binary</DisplayName>
+<References><Reference ReferenceType="HasTypeDefinition">i=76</Reference></References></UAObject>
+<UAObject NodeId="ns=1;i=5012" BrowseName="Default XML"><DisplayName>Default XML</DisplayName>
+<References><Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+<Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3011</Reference></References></UAObject><UAVariable NodeId="ns=1;i=6001" BrowseName="1:AValue" DataType="ns=1;i=3001" ValueRank="-1">
+<DisplayName>AValue</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+<Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References><Value><uax:ExtensionObject><uax:TypeId><uax:Identifier>ns=1;i=5002</uax:Identifier></uax:TypeId><uax:Body><RecordA><Number>42</Number><Target><Identifier>ns=1;i=6001</Identifier></Target>
+<Label><NamespaceIndex>1</NamespaceIndex><Name>target</Name></Label></RecordA></uax:Body></uax:ExtensionObject></Value></UAVariable>
+<UADataType NodeId="ns=1;i=3021" BrowseName="1:MutualA"><DisplayName>MutualA</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+<Definition Name="1:MutualA"><Field Name="Children" DataType="ns=1;i=3022" ValueRank="1"/></Definition></UADataType>
+<UADataType NodeId="ns=1;i=3022" BrowseName="1:MutualB"><DisplayName>MutualB</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+<Definition Name="1:MutualB"><Field Name="Parent" DataType="ns=1;i=3021"/></Definition></UADataType>
+<UADataType NodeId="ns=1;s=StringRecord" BrowseName="1:StringRecord"><DisplayName>StringRecord</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference><Reference ReferenceType="HasEncoding">ns=2;i=9001</Reference><Reference ReferenceType="HasEncoding">ns=2;i=9002</Reference></References>
+<Definition Name="1:StringRecord"><Field Name="Number" DataType="i=7"/></Definition></UADataType>
+<UAObject NodeId="ns=2;i=9001" BrowseName="Default Binary"><DisplayName>Default Binary</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=76</Reference></References></UAObject>
+<UAObject NodeId="ns=2;i=9002" BrowseName="Default XML"><DisplayName>Default XML</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=76</Reference></References></UAObject>
+<UADataType NodeId="ns=1;g=00000001-0002-0003-0004-000000000005" BrowseName="1:GuidRecord"><DisplayName>GuidRecord</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+<Definition Name="1:GuidRecord"><Field Name="Number" DataType="i=7"/></Definition></UADataType>
+<UADataType NodeId="ns=1;b=AAEC/w==" BrowseName="1:OpaqueIdRecord"><DisplayName>OpaqueIdRecord</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+<Definition Name="1:OpaqueIdRecord"><Field Name="Number" DataType="i=7"/></Definition></UADataType>
+<UADataType NodeId="ns=1;s=semi;quote&quot;slash\" BrowseName="1:EscapedIdRecord"><DisplayName>EscapedIdRecord</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+<Definition Name="1:EscapedIdRecord"><Field Name="Number" DataType="i=7"/></Definition></UADataType>
+<UADataType NodeId="ns=1;i=3031" BrowseName="1:FlexibleRecord"><DisplayName>FlexibleRecord</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+<Definition Name="1:FlexibleRecord"><Field Name="AnyStruct" DataType="ns=1;i=3040" AllowSubTypes="true"/><Field Name="AnyNumber" DataType="i=7" AllowSubTypes="true"/></Definition></UADataType>
+<UADataType NodeId="ns=1;i=3040" BrowseName="1:AbstractRecord" IsAbstract="true"><DisplayName>AbstractRecord</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References><Definition Name="1:AbstractRecord"/></UADataType>
+<UADataType NodeId="ns=1;i=3032" BrowseName="1:StructuredFlags"><DisplayName>StructuredFlags</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">i=12755</Reference></References>
+<Definition Name="1:StructuredFlags" IsOptionSet="true"><Field Name="Read" Value="0"/><Field Name="High" Value="72"/></Definition></UADataType>
+<UADataType NodeId="ns=1;i=3050" BrowseName="1:AliasRecord"><DisplayName>AliasRecord</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=3001</Reference></References></UADataType>
+<UADataType NodeId="ns=1;i=3051" BrowseName="1:AliasHolder"><DisplayName>AliasHolder</DisplayName><References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References><Definition Name="1:AliasHolder"><Field Name="Record" DataType="ns=1;i=3050"/></Definition></UADataType>
+</UANodeSet>

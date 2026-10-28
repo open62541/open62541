@@ -30,7 +30,10 @@ findType(size_t namespaceIndex, UA_UInt32 identifier) {
 
 START_TEST(Server_loadTypeDefinitionsFromNodeset) {
     /* Load the namespace and resolve its assigned runtime namespace index. */
-    UA_StatusCode retval = namespace_typedescriptions_generated(server);
+    UA_Boolean copyTypes = (_i != 0);
+    if(copyTypes)
+        UA_Server_addNamespace(server, "urn:unrelated");
+    UA_StatusCode retval = namespace_typedescriptions_generated(server, copyTypes);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t namespaceIndex = 0;
@@ -41,15 +44,17 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
     /* Verify nested and optional structure layouts. */
     const UA_DataType *address = findType(namespaceIndex, 3002);
     ck_assert_ptr_nonnull(address);
-    ck_assert_ptr_eq(address, &UA_TYPES_TYPEDESCRIPTIONS[
-                                  UA_TYPES_TYPEDESCRIPTIONS_ADDRESS]);
+    ck_assert_ptr_eq(address, UA_Server_getGeneratedDataType(
+        server, &UA_TYPES_TYPEDESCRIPTIONS_SOURCE, UA_TYPES_TYPEDESCRIPTIONS_ADDRESS));
+    if(!copyTypes)
+        ck_assert_ptr_eq(address, &UA_TYPES_TYPEDESCRIPTIONS[UA_TYPES_TYPEDESCRIPTIONS_ADDRESS]);
     ck_assert_uint_eq(address->typeKind, UA_DATATYPEKIND_STRUCTURE);
     ck_assert_uint_eq(address->membersSize, 2);
 
     const UA_DataType *person = findType(namespaceIndex, 3000);
     ck_assert_ptr_nonnull(person);
-    ck_assert_ptr_eq(person, &UA_TYPES_TYPEDESCRIPTIONS[
-                                 UA_TYPES_TYPEDESCRIPTIONS_PERSON]);
+    if(!copyTypes)
+        ck_assert_ptr_eq(person, &UA_TYPES_TYPEDESCRIPTIONS[UA_TYPES_TYPEDESCRIPTIONS_PERSON]);
     ck_assert_uint_eq(person->typeKind, UA_DATATYPEKIND_OPTSTRUCT);
     ck_assert_uint_eq(person->membersSize, 4);
     ck_assert_ptr_eq(person->members[1].memberType, address);
@@ -158,7 +163,11 @@ testSuite(void) {
     Suite *suite = suite_create("NodeSet datatype definitions");
     TCase *testCase = tcase_create("NodeSet2 Definition parsing");
     tcase_add_checked_fixture(testCase, setup, teardown);
-    tcase_add_test(testCase, Server_loadTypeDefinitionsFromNodeset);
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
+    tcase_add_loop_test(testCase, Server_loadTypeDefinitionsFromNodeset, 0, 2);
+#else
+    tcase_add_loop_test(testCase, Server_loadTypeDefinitionsFromNodeset, 0, 1);
+#endif
     suite_add_tcase(suite, testCase);
     return suite;
 }

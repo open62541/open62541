@@ -38,7 +38,7 @@ static void teardown(void) {
 /* DI is the first namespace added, so it gets the pinned index and the
  * namespace-order check in the generated init code passes. */
 START_TEST(Server_pinnedNamespaceMatches) {
-    UA_StatusCode retval = namespace_tests_di_generated(server);
+    UA_StatusCode retval = namespace_tests_di_generated(server, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t nsIndex = 0;
@@ -65,8 +65,8 @@ START_TEST(Server_pinnedNamespaceMismatch) {
     UA_UInt16 otherNs = UA_Server_addNamespace(server, "urn:open62541.tests:not-di");
     ck_assert_uint_eq(otherNs, DI_PINNED_NS_INDEX);
 
-    UA_StatusCode retval = namespace_tests_di_generated(server);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+    UA_StatusCode retval = namespace_tests_di_generated(server, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONFIGURATIONERROR);
 
     /* The namespace is registered before the check, but at the wrong index */
     size_t nsIndex = 0;

@@ -17,6 +17,28 @@ ua_add_test(check_nodeset_typedescriptions.c EXTRASOURCES ${UA_NODESET_TYPEDESCR
 add_dependencies(check_nodeset_typedescriptions open62541-generator-ns-typedescriptions)
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    ua_generate_nodeset_and_datatypes(
+        NAME "runtime-a"
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE_NS "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_a.xml")
+    ua_generate_nodeset_and_datatypes(
+        NAME "runtime-b"
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE_NS "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_b.xml"
+        DEPENDS "runtime-a")
+    ua_generate_nodeset(
+        NAME "runtime-ab"
+        GENERATE_TYPES
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_a.xml"
+             "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_b.xml"
+        DEPENDS_NS ${open62541_NS0_NODESETS}
+        DEPENDS_TYPES "UA_TYPES")
+    ua_add_test(check_nodeset_copy_types.c EXTRASOURCES
+        ${UA_NODESET_RUNTIME_A_SOURCES} ${UA_NODESET_RUNTIME_B_SOURCES}
+        ${UA_NODESET_RUNTIME_AB_SOURCES})
+    add_dependencies(check_nodeset_copy_types open62541-generator-ns-runtime-a
+                     open62541-generator-ns-runtime-b open62541-generator-ns-runtime-ab)
 
     # One const array containing two namespaces, used by nodesets with both
     # a matching name and an independently chosen name.

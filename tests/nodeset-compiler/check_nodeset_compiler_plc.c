@@ -27,13 +27,13 @@ static void teardown(void) {
 }
 
 START_TEST(Server_addDiNodeset) {
-    UA_StatusCode retval = namespace_tests_di_generated(server);
+    UA_StatusCode retval = namespace_tests_di_generated(server, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 START_TEST(Server_addPlcNodeset) {
-    UA_StatusCode retval = namespace_tests_plc_generated(server);
+    UA_StatusCode retval = namespace_tests_plc_generated(server, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST

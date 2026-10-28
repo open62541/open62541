@@ -29,7 +29,7 @@ setup(void) {
     ck_assert(server != NULL);
 
     // Add DI datatypes to server
-    const UA_StatusCode resDi = namespace_tests_di_generated(server);
+    const UA_StatusCode resDi = namespace_tests_di_generated(server, true);
     ck_assert_uint_eq(resDi, UA_STATUSCODE_GOOD);
     size_t diIndex = 0;
     const UA_StatusCode resIdx = UA_Server_getNamespaceByName(server,

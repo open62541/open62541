@@ -447,6 +447,7 @@ function(ua_generate_nodeset)
 
     add_custom_command(COMMAND ${Python3_EXECUTABLE}
                                ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
+                               --types-schema=${open62541_SCHEMA_DIR}
                                ${GEN_INTERNAL_HEADERS}
                                ${GEN_NS0}
                                ${GEN_BIN_SIZE}
@@ -464,6 +465,9 @@ function(ua_generate_nodeset)
                        DEPENDS ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/nodes.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset.py
+                               ${open62541_TOOLS_DIR}/nodeset_compiler/type_parser.py
+                               ${open62541_SCHEMA_DIR}/Opc.Ua.Types.bsd
+                               ${open62541_SCHEMA_DIR}/NodeIds.csv
                                ${open62541_TOOLS_DIR}/nodeset_compiler/datatypes.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541.py
                                ${UA_GEN_NS_FILE}

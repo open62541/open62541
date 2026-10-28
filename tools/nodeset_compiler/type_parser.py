@@ -373,6 +373,14 @@ class StructType(Type):
             if "DataType" in f.attributes:
                 memberid = NodeId(str(f.attributes["DataType"].value))
             member_type = types_by_id.get(str(memberid))
+            if f.getAttribute("AllowSubTypes").lower() == "true":
+                # Match runtime loading: structures travel as ExtensionObjects;
+                # other polymorphic values travel as Variants. An unresolved
+                # abstract structure has no concrete static layout yet.
+                is_structure = (member_type is None or
+                                isinstance(member_type, StructType) or
+                                member_type.name == "ExtensionObject")
+                member_type = types_by_id["ns=0;i=22" if is_structure else "ns=0;i=24"]
             if member_type is None:
                 raise TypeNotDefinedException(
                     "Unknown member DataType %s in %s" %
@@ -490,6 +498,29 @@ class TypeParser():
 
     def addTypesFromDefinitions(self, definitions, aliases=None):
         """Normalize NodeSet definitions into dependency-linked C layouts."""
+        # OptionSet (i=12755) is a structure containing Value and ValidBits
+        # ByteStrings. Its bit declarations never change that wire layout.
+        if "ns=0;i=12755" not in self.types_by_id:
+            option_set = StructType("types", "http://opcfoundation.org/UA/", "OptionSet")
+            option_set.nodeId = NodeId("i=12755")
+            option_set.baseTypeId = NodeId("i=22")
+            byte_string = self.types_by_id["ns=0;i=15"]
+            option_set.members = [StructMember("value", byte_string, False, False),
+                                  StructMember("validBits", byte_string, False, False)]
+            self.insert_type(option_set)
+        parents = {str(d[2]): d[4] for d in definitions if len(d) > 4}
+        parents.update({str(a[0]): a[1] for a in (aliases or [])})
+
+        def resolved_base(base_id):
+            visited = set()
+            while base_id is not None and str(base_id) not in visited:
+                visited.add(str(base_id))
+                base = self.types_by_id.get(str(base_id))
+                if base is not None:
+                    return base
+                base_id = parents.get(str(base_id))
+            return None
+
         # Create enums and structure shells before resolving structure fields.
         structs = []
         for definition in definitions:
@@ -505,14 +536,16 @@ class TypeParser():
             if "Name" not in dataTypeDefinition.attributes:
                 raise RuntimeError(f"DataType {nodeId} has a Definition without a Name")
 
-            if kind == "enum":
-                base_type = (self.types_by_id.get(str(base_id))
-                             if base_id is not None else None)
+            base_type = resolved_base(base_id)
+            structured_option = (dataTypeDefinition.getAttribute("IsOptionSet").lower() == "true"
+                                 and isinstance(base_type, StructType))
+            if kind == "enum" and not structured_option:
                 t = EnumerationType.from_nodeset_definition(
                     outname, targetNamespace, dataTypeDefinition, base_type)
             else:
                 t = StructType.from_nodeset_definition(
                     outname, targetNamespace, dataTypeDefinition)
+                t.structured_option = structured_option
                 structs.append((t, dataTypeDefinition))
             t.nodeId = nodeId
             t.baseTypeId = base_id
@@ -528,16 +561,28 @@ class TypeParser():
         while pending_aliases and changed:
             changed = False
             unresolved = []
-            for node_id, base_id in pending_aliases:
+            for alias in pending_aliases:
+                node_id, base_id = alias[:2]
                 if str(node_id) in self.types_by_id:
                     changed = True
                     continue
                 base_type = self.types_by_id.get(str(base_id))
-                if (base_type is None or isinstance(base_type, StructType) or
-                        base_type.name == "ExtensionObject"):
-                    unresolved.append((node_id, base_id))
+                if base_type is None or base_type.name == "ExtensionObject":
+                    unresolved.append(alias)
                     continue
-                self.types_by_id[str(node_id)] = base_type
+                if isinstance(base_type, StructType):
+                    if len(alias) < 6:
+                        unresolved.append(alias)
+                        continue
+                    _, _, name, namespace, is_local, alias_outname = alias
+                    datatype = StructType(alias_outname, namespace, name)
+                    datatype.nodeId = node_id
+                    datatype.baseTypeId = base_id
+                    datatype.isLocal = is_local
+                    self.insert_type(datatype)
+                    structs.append((datatype, None))
+                else:
+                    self.types_by_id[str(node_id)] = base_type
                 changed = True
             pending_aliases = unresolved
 
@@ -548,11 +593,6 @@ class TypeParser():
                 if (isinstance(t, EnumerationType) and t.isOptionSet and
                         t.baseTypeId is not None):
                     base_type = self.types_by_id.get(str(t.baseTypeId))
-                    # The abstract ns0 OptionSet DataType does not prescribe a
-                    # C layout. Companion specifications that derive directly
-                    # from it use the conventional UInt32 representation.
-                    if t.baseTypeId.ns == 0 and t.baseTypeId.i == 12755:
-                        base_type = self.types_by_id.get("ns=0;i=7")
                     t.set_base_type(base_type)
 
         # All structure shells are now indexed. Resolve base structures before
@@ -578,8 +618,23 @@ class TypeParser():
             base_definition = structs_by_type.get(id(base))
             if base_definition is not None:
                 parse_struct(*base_definition)
-            datatype._parse_nodeset_definition(
-                definition, self.types_by_id)
+            if definition is None:
+                datatype.members = []
+                datatype.own_members = []
+            elif getattr(datatype, "structured_option", False):
+                for field in get_definition_fields(definition):
+                    if not field.getAttribute("Name"):
+                        raise RuntimeError(f"Type {datatype.name} has an option without a Name")
+                    try:
+                        position = int(field.getAttribute("Value"))
+                        if position < 0:
+                            raise ValueError
+                    except ValueError as ex:
+                        raise RuntimeError(f"Type {datatype.name} has an invalid option bit position") from ex
+                datatype.members = []
+                datatype.own_members = []
+            else:
+                datatype._parse_nodeset_definition(definition, self.types_by_id)
             if isinstance(base, StructType):
                 datatype.members = ([copy.copy(member)
                                      for member in base.members] +

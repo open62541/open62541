@@ -392,6 +392,26 @@ class NodeSet:
         # Normalize inline definitions and externally owned BSD layouts.
         logger.info("Creating DataType definitions")
         typeParser = TypeParser({}, [], typesOutname, self.namespaceMapping)
+        # UA_TYPES contains standard structures and enums as well as the 25
+        # builtin wire types. Use the same schema as the library to resolve
+        # fields such as EUInformation without regenerating standard types.
+        schema = (Path(self.standardTypesSchema) if getattr(self, "standardTypesSchema", None)
+                  else Path(__file__).resolve().parent.parent / "schema")
+        with (schema / "NodeIds.csv").open() as nodeIds:
+            standard = CSVBSDTypeParser(
+                {}, [], False, "types", [], [str(schema / "Opc.Ua.Types.bsd")],
+                [nodeIds], [], {0: "http://opcfoundation.org/UA/"})
+            standard.create_types()
+        for namespace, datatypes in standard.types.items():
+            for datatype in datatypes.values():
+                if datatype.nodeId is None:
+                    continue
+                identifier = str(datatype.nodeId)
+                if "=" not in identifier:
+                    identifier = "i=" + identifier
+                datatype.nodeId = NodeId(identifier)
+                typeParser.types.setdefault(namespace, OrderedDict())[datatype.name] = datatype
+                typeParser.types_by_id[str(datatype.nodeId)] = datatype
         definitions = []
         aliases = []
         for node in self.nodes.values():
@@ -434,7 +454,12 @@ class NodeSet:
             if not fields:
                 baseTypeId = _baseDataTypeId(node)
                 if baseTypeId is not None:
-                    aliases.append((node.id, baseTypeId))
+                    outname = (node.typesArray[3:].lower()
+                               if node.typesArray.startswith("UA_") else typesOutname)
+                    aliases.append((node.id, baseTypeId, node.browseName.name,
+                                    self.namespaces[node.id.ns],
+                                    not node.hidden and generateTypes,
+                                    typesOutname if not node.hidden and generateTypes else outname))
 
         # Embedded and explicit BSD dictionaries are parsed before their NodeSet
         # namespace indexes and datatype-array owners are known. Rebind copied
@@ -456,6 +481,24 @@ class NodeSet:
                     member.member_type = normalized
         typeParser.addTypesFromDefinitions(definitions, aliases)
 
+        # Encoding objects are graph nodes, not fields of Definition. Resolve
+        # both reference directions after inverse references have been added.
+        for datatype in set(typeParser.types_by_id.values()):
+            node = self.nodes.get(datatype.nodeId)
+            if node is None:
+                continue
+            for ref in node.references:
+                if not ref.isForward or ref.referenceType != NodeId("i=38"):
+                    continue
+                encoding = self.nodes.get(ref.target)
+                if encoding is None:
+                    continue
+                if encoding.browseName.name == "Default Binary":
+                    datatype.binaryEncodingId = encoding.id
+                elif encoding.browseName.name == "Default XML":
+                    datatype.xmlEncodingId = encoding.id
+        typeParser.namespaceUris = list(self.namespaces)
+
         localTypes = []
         visiting = set()
         visited = set()
@@ -467,8 +510,7 @@ class NodeSet:
                 return
             if typeKey in visiting:
                 raise RuntimeError(
-                    "Mutually recursive DataTypes involving %s are not supported; "
-                    "use a self-recursive array or optional member instead" %
+                    "DataTypes involving %s have a cycle of inline members" %
                     datatype.name)
             visiting.add(typeKey)
             if isinstance(datatype, StructType):
@@ -477,7 +519,14 @@ class NodeSet:
                     addLocalType(base)
                 for member in datatype.members:
                     dependency = member.member_type
-                    if dependency is datatype or not dependency.isLocal:
+                    if not dependency.isLocal:
+                        continue
+                    # Pointer members only need a forward declaration. Inline
+                    # members and enum/alias typedefs need a complete layout.
+                    if ((member.is_array or member.is_optional) and
+                            isinstance(dependency, StructType)):
+                        if dependency is not datatype:
+                            dependency.needs_forward_declaration = True
                         continue
                     addLocalType(dependency)
             visiting.remove(typeKey)

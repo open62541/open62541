@@ -11,6 +11,8 @@ import ntpath
 import copy
 from collections import OrderedDict
 import argparse
+import base64
+import uuid
 
 from .type_parser import (BuiltinType, CSVBSDTypeParser, EnumerationType,
                           OpaqueType, StructType)
@@ -179,6 +181,19 @@ def getNodeidTypeAndId(nodeId):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=makeCLiteral(strId))
 
+    if nodeId.startswith("g="):
+        guid = uuid.UUID(nodeId[2:])
+        fields = guid.fields
+        tail = ", ".join("0x%02x" % byte for byte in guid.bytes[8:])
+        return ("UA_NODEIDTYPE_GUID, { .guid = {0x%08x, 0x%04x, 0x%04x, {%s}} }" %
+                (fields[0], fields[1], fields[2], tail))
+    if nodeId.startswith("b="):
+        data = base64.b64decode(nodeId[2:], validate=True)
+        literal = "".join("\\%03o" % byte for byte in data)
+        return ('UA_NODEIDTYPE_BYTESTRING, { .byteString = {%d, (UA_Byte*)"%s"} }' %
+                (len(data), literal))
+    raise RuntimeError("Unsupported NodeId: " + nodeId)
+
 def splitNodeidNs(nodeId):
     """Split an optional 'ns=X;' prefix from a nodeId string.
     Returns (namespaceindex_str, bare_nodeId)."""
@@ -234,7 +249,19 @@ class CGenerator:
         keeps the (then empty) namespace entry, so filtered_types can list
         namespaces that own no type in this array. Those do not constrain the
         baked namespace indices."""
-        return [ns for ns, types in self.filtered_types.items() if len(types) > 0]
+        namespaces = [ns for ns, types in self.filtered_types.items() if types]
+        uris = getattr(self.parser, "namespaceUris", None)
+        if uris is not None:
+            for types in self.filtered_types.values():
+                for datatype in types.values():
+                    for nodeid in (datatype.binaryEncodingId, datatype.xmlEncodingId):
+                        ns, bare = splitNodeidNs(nodeid)
+                        if not bare or (ns == "0" and bare == "i=0"):
+                            continue
+                        uri = uris[int(ns)]
+                        if uri not in namespaces:
+                            namespaces.append(uri)
+        return namespaces
 
     def _validate_namespace_map(self):
         """Sanity-check a user-provided --namespaceMap.
@@ -261,7 +288,8 @@ class CGenerator:
             byIndex[idx] = ns
 
         unknown = [ns for ns in self.namespaceMap
-                   if ns != OPC_UA_NAMESPACE and ns not in self.filtered_types]
+                   if ns != OPC_UA_NAMESPACE and ns not in self.filtered_types and
+                   ns not in self._contributing_namespaces()]
         if unknown:
             raise RuntimeError(
                 "--namespaceMap contains namespaces that do not appear in the "
@@ -357,18 +385,41 @@ class CGenerator:
         nsPrefix, bareId = splitNodeidNs(nodeIdStr)
         if not bareId:
             return "0", bareId
-        pinned = self.namespaceMap.get(datatype.namespaceUri)
+        uri = datatype.namespaceUri
+        uris = getattr(self.parser, "namespaceUris", None)
+        if uris is not None:
+            uri = uris[int(nsPrefix)]
+        pinned = self.namespaceMap.get(uri)
         if pinned is not None:
             return str(pinned), bareId
         return nsPrefix, bareId
 
-    def print_datatype(self, datatype):
-        nsIdx, bareNodeId = self._baked_nodeid(datatype, datatype.nodeId)
+    def _source_nodeid(self, datatype, nodeIdStr):
+        ns, bareId = splitNodeidNs(nodeIdStr)
+        if not bareId:
+            return "0", bareId
+        uris = getattr(self.parser, "namespaceUris", None)
+        if uris is not None:
+            uri = uris[int(ns)]
+        else:
+            # BSD CSV identifiers are relative to their type dictionary.
+            uri = datatype.namespaceUri
+            if int(ns) != 0:
+                uri = next((u for u, i in self.namespaceMap.items()
+                            if i == int(ns)), uri)
+        if uri not in self.source_namespace_uris:
+            self.source_namespace_uris.append(uri)
+        return str(self.source_namespace_uris.index(uri)), bareId
+
+    def print_datatype(self, datatype, origin=False):
+        nodeid = self._source_nodeid if origin else self._baked_nodeid
+        nsIdx, bareNodeId = nodeid(datatype, datatype.nodeId)
         typeid = "{{{}, {}}}".format(nsIdx, getNodeidTypeAndId(bareNodeId))
-        binNs, bareBinId = self._baked_nodeid(datatype, datatype.binaryEncodingId)
+        binNs, bareBinId = nodeid(datatype, datatype.binaryEncodingId)
         binaryEncodingId = "{{{}, {}}}".format(binNs, getNodeidTypeAndId(bareBinId))
-        xmlNs, bareXmlId = self._baked_nodeid(datatype, datatype.xmlEncodingId)
+        xmlNs, bareXmlId = nodeid(datatype, datatype.xmlEncodingId)
         xmlEncodingId = "{{{}, {}}}".format(xmlNs, getNodeidTypeAndId(bareXmlId))
+
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
@@ -537,7 +588,9 @@ class CGenerator:
             returnstr += "\n\n"
         if len(struct.members) == 0:
             raise Exception("Structs with no members are filtered out. Why not here?")
-        if struct.is_recursive:
+        if getattr(struct, "forward_declared", False):
+            returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
+        elif struct.is_recursive:
             returnstr += "typedef struct UA_{} UA_{};\n".format(makeCIdentifier(struct.name), makeCIdentifier(struct.name))
             returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
         else:
@@ -572,7 +625,7 @@ class CGenerator:
                     makeCIdentifier(type_name), makeCIdentifier(member.name))
         if struct.is_union:
             returnstr += "    } fields;\n"
-        if struct.is_recursive:
+        if struct.is_recursive or getattr(struct, "forward_declared", False):
             return returnstr + "};"
         return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
@@ -734,6 +787,21 @@ _UA_BEGIN_DECLS
             self.printh(
                 "extern " + self.export_macro + " " + const_q + "UA_DataType UA_" + outUpper + "[UA_" + outUpper + "_COUNT];")
 
+            if self.parser.outname not in ("types", "transport"):
+                self.printh("extern " + self.export_macro +
+                            " UA_DataTypeArraySource UA_" + outUpper + "_SOURCE;")
+
+            # NodeSet definitions may contain mutually recursive indirect
+            # members. Declare their names before printing complete layouts.
+            if hasattr(self.parser, "namespaceUris"):
+                for ns_types in self.filtered_types.values():
+                    for t in ns_types.values():
+                        if (getattr(t, "needs_forward_declaration", False) and
+                                t.name not in self.cross_ns_duplicate_types):
+                            t.forward_declared = True
+                            name = makeCIdentifier(t.name)
+                            self.printh("typedef struct UA_%s UA_%s;" % (name, name))
+
             typeIndex = 0
             for ns in self.filtered_types:
                 for t_name in self.filtered_types[ns]:
@@ -806,6 +874,23 @@ _UA_END_DECLS
                     self.printc("/* " + t.name + " */")
                     self.printc(self.print_datatype(t) + ",")
             self.printc("};\n")
+            if self.parser.outname not in ("types", "transport"):
+                self.source_namespace_uris = [OPC_UA_NAMESPACE]
+                self.printc("static const UA_DataType UA_" + outUpper + "_ORIGIN[] = {")
+                for ns in self.filtered_types:
+                    for t in self.filtered_types[ns].values():
+                        self.printc(self.print_datatype(t, origin=True) + ",")
+                self.printc("};")
+                self.printc("static const UA_String UA_" + outUpper + "_URIS[] = {")
+                for uri in self.source_namespace_uris:
+                    self.printc('    UA_STRING_STATIC("%s"),' % makeCLiteral(uri))
+                self.printc("};")
+                self.printc("UA_DataTypeArraySource UA_" + outUpper + "_SOURCE = {")
+                self.printc("    UA_" + outUpper + "_ORIGIN, UA_" + outUpper + ",")
+                self.printc("    UA_" + outUpper + "_COUNT, UA_" + outUpper + "_URIS,")
+                self.printc("    %d, %s, 0" % (len(self.source_namespace_uris),
+                                               "true" if self._can_be_const() else "false"))
+                self.printc("};")
 
 ###########################################
 # Execute with the command line arguments #

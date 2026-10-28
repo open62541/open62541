@@ -189,9 +189,13 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # cannot be loaded simultaneously.
 
     elseif(MODEL STREQUAL "ECM")
+        set(ecm_csv "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.csv")
+        if(EXISTS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv")
+            set(ecm_csv "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv")
+        endif()
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
-                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.csv"
+                FILE_CSV "${ecm_csv}"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia")

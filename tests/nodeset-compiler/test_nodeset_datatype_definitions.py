@@ -65,7 +65,7 @@ def test_generated_static_types(tmpdir):
             "inline XML did not generate the public datatype array")
     require("UA_Address_new" in types_header,
             "inline XML did not generate datatype helper functions")
-    require("customUA_TYPES_STATIC" in namespace_source,
+    require("UA_Server_addGeneratedDataTypes(server, &UA_TYPES_STATIC_SOURCE" in namespace_source,
             "generated static datatype array is not registered")
     require("UA_Server_addDataTypeFromDescription" not in namespace_source,
             "static datatype generation still constructs types from descriptions")
@@ -205,7 +205,7 @@ def test_imported_type_not_redeclared(tmpdir):
             "inherited BSD members retained a stale datatype-array owner")
 
 
-def test_mutual_recursion_rejected(tmpdir):
+def test_mutual_recursion(tmpdir):
     nodeset = tmpdir / "mutual.xml"
     write_nodeset(nodeset, """
         <UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
@@ -234,12 +234,24 @@ def test_mutual_recursion_rejected(tmpdir):
           </UADataType>
         </UANodeSet>
     """)
+    output = tmpdir / "mutual_generated"
+    types_output = tmpdir / "types_mutual"
     result = run_compiler(
-        tmpdir / "mutual_generated", "--existing", REDUCED_NODESET,
-        "--xml", nodeset, "--types-array", "UA_TYPES")
-    require(result.returncode != 0, "mutually recursive types were accepted")
-    require("Mutually recursive DataTypes" in result.stdout + result.stderr,
-            "mutual-recursion rejection did not have a focused diagnostic")
+        output, "--existing", REDUCED_NODESET,
+        "--xml", nodeset, "--types-array", "UA_TYPES",
+        "--types-output", types_output)
+    require(result.returncode == 0, result.stdout + result.stderr)
+    header = Path(f"{types_output}_generated.h").read_text(encoding="utf-8")
+    require("typedef struct UA_RecursiveA UA_RecursiveA;" in header and
+            "typedef struct UA_RecursiveB UA_RecursiveB;" in header,
+            "mutually recursive types need forward declarations")
+    # Replacing the array edges with inline fields creates an infinite layout.
+    nodeset.write_text(nodeset.read_text().replace('ValueRank="1"', ''), encoding="utf-8")
+    result = run_compiler(output, "--existing", REDUCED_NODESET,
+                          "--xml", nodeset, "--types-array", "UA_TYPES")
+    require(result.returncode != 0, "inline dependency cycle was accepted")
+    require("cycle of inline members" in result.stdout + result.stderr,
+            "inline-cycle rejection did not have a focused diagnostic")
 
 
 def test_empty_missing_and_differently_named_definitions(tmpdir):
@@ -296,13 +308,39 @@ def test_empty_missing_and_differently_named_definitions(tmpdir):
             "custom simple type did not use its builtin C representation")
 
 
+def test_standard_structure_members(tmpdir):
+    nodeset = tmpdir / "standard_fields.xml"
+    write_nodeset(nodeset, nodeset_document("""
+        <UADataType NodeId="ns=1;i=7110" BrowseName="1:StandardHolder">
+          <DisplayName>StandardHolder</DisplayName>
+          <References><Reference ReferenceType="i=45" IsForward="false">i=22</Reference></References>
+          <Definition Name="1:StandardHolder">
+            <Field Name="Units" DataType="i=887"/>
+            <Field Name="Token" DataType="i=322"/>
+          </Definition>
+        </UADataType>
+    """))
+    types_output = tmpdir / "types_standard"
+    result = run_compiler(tmpdir / "standard_generated", "--existing", REDUCED_NODESET,
+                          "--xml", nodeset, "--types-array", "UA_TYPES",
+                          "--types-output", types_output)
+    require(result.returncode == 0, result.stdout + result.stderr)
+    header = Path(f"{types_output}_generated.h").read_text(encoding="utf-8")
+    source = Path(f"{types_output}_generated.c").read_text(encoding="utf-8")
+    require("UA_EUInformation units;" in header, "standard structure was not resolved")
+    require("UA_UserNameIdentityToken token;" in header, "inherited standard type was not resolved")
+    require("UA_TYPES[UA_TYPES_EUINFORMATION]" in source,
+            "standard structure member does not reference UA_TYPES")
+
+
 def main():
     with tempfile.TemporaryDirectory() as directory:
         tmpdir = Path(directory)
         test_generated_static_types(tmpdir)
+        test_standard_structure_members(tmpdir)
         test_static_types_after_definitionless_dependency(tmpdir)
         test_imported_type_not_redeclared(tmpdir)
-        test_mutual_recursion_rejected(tmpdir)
+        test_mutual_recursion(tmpdir)
         test_empty_missing_and_differently_named_definitions(tmpdir)
 
 
