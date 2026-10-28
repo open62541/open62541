@@ -111,6 +111,65 @@ START_TEST(definition_emptyStructureHasStorage) {
     UA_DataType_clear(&type);
 } END_TEST
 
+START_TEST(definition_unionNativeAlignment) {
+    typedef struct {
+        UA_UInt32 switchField;
+        union { UA_Byte byte; UA_UInt16 word; } fields;
+    } SmallUnion;
+    typedef struct {
+        UA_UInt32 switchField;
+        union { UA_UInt32 number; UA_String text; } fields;
+    } MixedUnion;
+    UA_DataTypeMember members[2] = {
+        {UA_TYPENAME("First") &UA_TYPES[UA_TYPES_BYTE],
+         offsetof(SmallUnion, fields.byte), false, false},
+        {UA_TYPENAME("Second") &UA_TYPES[UA_TYPES_UINT16],
+         offsetof(SmallUnion, fields.word), false, false}};
+    UA_DataType original;
+    memset(&original, 0, sizeof(original));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    original.typeName = "NativeUnion";
+#endif
+    original.typeId = UA_NODEID_NUMERIC(1, 9001);
+    original.typeKind = UA_DATATYPEKIND_UNION;
+    original.memSize = sizeof(SmallUnion);
+    original.membersSize = 2;
+    original.members = members;
+    if(_i) {
+        original.memSize = sizeof(MixedUnion);
+        members[0].memberType = &UA_TYPES[UA_TYPES_UINT32];
+        members[0].padding = offsetof(MixedUnion, fields.number);
+        members[1].memberType = &UA_TYPES[UA_TYPES_STRING];
+        members[1].padding = offsetof(MixedUnion, fields.text);
+    }
+    UA_ExtensionObject description;
+    ck_assert_uint_eq(UA_DataType_toDescription(&original, &description), UA_STATUSCODE_GOOD);
+    UA_DataType reconstructed;
+    ck_assert_uint_eq(UA_DataType_fromDescription(&reconstructed, &description, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reconstructed.memSize, original.memSize);
+    for(size_t i = 0; i < 2; i++)
+        ck_assert_uint_eq(reconstructed.members[i].padding, members[i].padding);
+    /* Encoding through the reconstructed descriptor must use the C union's
+     * offset even for the member with weaker alignment. */
+    MixedUnion value;
+    memset(&value, 0, sizeof(value));
+    value.switchField = 1;
+    if(_i)
+        value.fields.number = 42;
+    else
+        ((SmallUnion*)(void*)&value)->fields.byte = 42;
+    UA_ByteString expected = UA_BYTESTRING_NULL;
+    UA_ByteString actual = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_encodeBinary(&value, &original, &expected, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_encodeBinary(&value, &reconstructed, &actual, NULL), UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&expected, &actual));
+    UA_ByteString_clear(&expected);
+    UA_ByteString_clear(&actual);
+    UA_ExtensionObject_clear(&description);
+    UA_DataType_clear(&reconstructed);
+} END_TEST
+
 START_TEST(definition_copyOwnedNodeIds) {
     UA_DataType original = UA_TYPES[UA_TYPES_ARGUMENT];
     original.typeId = UA_NODEID_STRING(2, "Argument");
@@ -150,6 +209,7 @@ static Suite *testSuite_definition(void) {
     TCase *tc = tcase_create("DataTypeDefinition");
     tcase_add_loop_test(tc, definition_invalidStructureKindClearsOutput, 0, 2);
     tcase_add_test(tc, definition_copyOwnedNodeIds);
+    tcase_add_loop_test(tc, definition_unionNativeAlignment, 0, 2);
     tcase_add_test(tc, definition_roundtrip_structure);
     tcase_add_test(tc, definition_roundtrip_structure_nested);
     tcase_add_test(tc, definition_roundtrip_simpleType);

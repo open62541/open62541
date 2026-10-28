@@ -120,7 +120,8 @@ type_alignment(const UA_DataType *type) {
        type->typeKind == UA_DATATYPEKIND_OPTSTRUCT ||
        type->typeKind == UA_DATATYPEKIND_UNION) {
         /* Maximum alignment of any member */
-        UA_Byte align = 1;
+        UA_Byte align = (type->typeKind == UA_DATATYPEKIND_UNION) ?
+            ALIGNMENT(UA_UInt32) : 1;
         for(size_t i = 0; i < type->membersSize; i++) {
             const UA_DataTypeMember *dtm = &type->members[i];
             if(dtm->isArray) {
@@ -323,6 +324,23 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
             type->overlayable = false;
 
         /* TODO: MaxStringLength */
+    }
+
+    /* A C union has one shared offset, aligned for its strongest member.
+     * The enclosing switch also contributes to the structure alignment. */
+    if(type->typeKind == UA_DATATYPEKIND_UNION && type->membersSize > 0) {
+        UA_Byte align = type_alignment(type);
+        size_t offset = sizeof(UA_UInt32) + PADDING(sizeof(UA_UInt32), align);
+        size_t payloadSize = 0;
+        for(size_t i = 0; i < type->membersSize; i++) {
+            UA_DataTypeMember *member = &type->members[i];
+            member->padding = (UA_Byte)offset;
+            size_t size = member->isArray ? sizeof(size_t) + sizeof(void*) :
+                member->memberType->memSize;
+            if(size > payloadSize)
+                payloadSize = size;
+        }
+        accSize = offset + payloadSize;
     }
 
     /* Add final padding according to the member alignment requirements */
