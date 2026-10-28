@@ -22,14 +22,9 @@
 #include <string.h>
 
 /* The settings file of the machine */
+static const UA_ByteString defaultSettings =
+    UA_STRING_STATIC("Speed=1000\nTemperature=150\n");
 static UA_ByteString settings;
-
-static UA_StatusCode
-restoreDefaults(void) {
-    UA_ByteString defaults = UA_BYTESTRING("Speed=1000\nTemperature=150\n");
-    UA_ByteString_clear(&settings);
-    return UA_ByteString_copy(&defaults, &settings);
-}
 
 /**************************************
  * Transfer Callbacks
@@ -80,7 +75,8 @@ restoreDefaultsCallback(UA_Server *server, const UA_NodeId *sessionId,
                         void *objectContext, size_t inputSize,
                         const UA_Variant *input, size_t outputSize,
                         UA_Variant *output) {
-    return restoreDefaults();
+    UA_ByteString_clear(&settings);
+    return UA_ByteString_copy(&defaultSettings, &settings);
 }
 
 /* The Machine with the RestoreDefaults Method */
@@ -140,7 +136,7 @@ addSettingsTransfer(UA_Server *server) {
 
 int main(void) {
     UA_Server *server = UA_Server_new();
-    UA_StatusCode retval = restoreDefaults();
+    UA_StatusCode retval = UA_ByteString_copy(&defaultSettings, &settings);
     addMachine(server);
     if(retval == UA_STATUSCODE_GOOD)
         retval = addSettingsTransfer(server);
