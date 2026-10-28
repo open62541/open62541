@@ -35,8 +35,7 @@
 #endif
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
-#include <mbedtls/entropy.h>
-#include <mbedtls/ctr_drbg.h>
+#include <psa/crypto.h>
 #elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include <openssl/rand.h>
 #endif
@@ -728,17 +727,11 @@ UA_random_secureBytes(UA_Byte *buf, size_t length) {
         return UA_STATUSCODE_GOOD;
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
-    mbedtls_entropy_context entropy;
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_context drbg;
-    mbedtls_ctr_drbg_init(&drbg);
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &entropy, NULL, 0) != 0 ||
-       mbedtls_ctr_drbg_random(&drbg, buf, length) != 0)
-        res = UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_ctr_drbg_free(&drbg);
-    mbedtls_entropy_free(&entropy);
-    return res;
+    /* PSA Crypto is shared by the supported mbedTLS 3 and 4 backends. */
+    if(psa_crypto_init() != PSA_SUCCESS ||
+       psa_generate_random(buf, length) != PSA_SUCCESS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
 #elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
     if(RAND_bytes(buf, (int)length) != 1)
         return UA_STATUSCODE_BADINTERNALERROR;
