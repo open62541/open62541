@@ -219,15 +219,14 @@ callServerConfigurationMethod(UA_Client *client, UA_UInt32 methodId,
 }
 
 /* Helper: call CreateSigningRequest for the RsaSha256ApplicationCertificate of
- * the DefaultApplicationGroup */
+ * the DefaultApplicationGroup with the SubjectName and the Nonce */
 static UA_StatusCode
-callCreateSigningRequest(UA_Client *client, UA_Boolean regenerateKey,
-                         UA_ByteString *csr) {
+callCreateSigningRequestWith(UA_Client *client, UA_String subjectName,
+                             UA_Boolean regenerateKey, UA_ByteString nonce,
+                             UA_ByteString *csr) {
     UA_NodeId groupId = UA_NODEID_NUMERIC(0,
         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    UA_String subjectName = UA_STRING_NULL;
-    UA_ByteString nonce = UA_BYTESTRING_NULL;
 
     UA_Variant inputArguments[5];
     UA_Variant_setScalar(&inputArguments[0], &groupId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -247,6 +246,18 @@ callCreateSigningRequest(UA_Client *client, UA_Boolean regenerateKey,
     }
     UA_Variant_clear(&out);
     return res;
+}
+
+/* Helper: call CreateSigningRequest with the SubjectName of the current
+ * certificate. A new private key requires a Nonce of at least 32 bytes. */
+static UA_StatusCode
+callCreateSigningRequest(UA_Client *client, UA_Boolean regenerateKey,
+                         UA_ByteString *csr) {
+    UA_Byte nonceData[32];
+    memset(nonceData, 0x2a, sizeof(nonceData));
+    UA_ByteString nonce = {sizeof(nonceData), nonceData};
+    return callCreateSigningRequestWith(client, UA_STRING_NULL, regenerateKey,
+                                        nonce, csr);
 }
 
 /* Helper: call UpdateCertificate without a PrivateKey. The server uses the
@@ -562,6 +573,58 @@ END_TEST
 
 #endif /* CAN_SIGN_CSR */
 
+/* Part 12 §7.10.10: The Nonce is at least 32 bytes long if
+ * RegeneratePrivateKey is true. The Server returns Bad_InvalidArgument for an
+ * invalid Nonce. */
+START_TEST(csr_reject_invalid_nonce) {
+    UA_Client *client = createSecureClient();
+    UA_Byte nonceData[32];
+    memset(nonceData, 0x2a, sizeof(nonceData));
+    UA_ByteString nonces[3] = {UA_BYTESTRING_NULL, {16, nonceData}, {31, nonceData}};
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    for(size_t i = 0; i < 3; i++) {
+        UA_StatusCode res =
+            callCreateSigningRequestWith(client, UA_STRING_NULL, true, nonces[i], &csr);
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+    }
+
+    /* Without a new private key, the Nonce is not used */
+    UA_StatusCode res =
+        callCreateSigningRequestWith(client, UA_STRING_NULL, false, nonces[0], &csr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&csr);
+
+    UA_ByteString nonce = {sizeof(nonceData), nonceData};
+    res = callCreateSigningRequestWith(client, UA_STRING_NULL, true, nonce, &csr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&csr);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.10.10: The SubjectName is a sequence of name value pairs
+ * separated by '/'. The Server returns Bad_InvalidArgument for an invalid
+ * SubjectName. */
+START_TEST(csr_reject_invalid_subject_name) {
+    UA_Client *client = createSecureClient();
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    UA_StatusCode res =
+        callCreateSigningRequestWith(client, UA_STRING("Invalid Subject Name"), false,
+                                     UA_BYTESTRING_NULL, &csr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    res = callCreateSigningRequestWith(client, UA_STRING("CN=open62541 Server/O=open62541"),
+                                       false, UA_BYTESTRING_NULL, &csr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&csr);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* CreateSigningRequest with RegeneratePrivateKey, then without, then with
  * again. The SecurityPolicy must not keep a pointer to a freed CSR key. The
  * GDS receiver calls a SecurityPolicy once for each of its endpoints (Sign and
@@ -596,6 +659,12 @@ static Suite *testSuite_gds_csr_key(void) {
     tcase_add_test(tc_key, securitypolicy_update_reject_csr_key_mismatch);
     suite_add_tcase(s, tc_key);
 #endif
+
+    TCase *tc_arguments = tcase_create("CSR Arguments");
+    tcase_add_checked_fixture(tc_arguments, setup, teardown);
+    tcase_add_test(tc_arguments, csr_reject_invalid_nonce);
+    tcase_add_test(tc_arguments, csr_reject_invalid_subject_name);
+    suite_add_tcase(s, tc_arguments);
 
     /* A CSR without a new key replaces a CSR with a new key. A dangling CSR
      * key in a SecurityPolicy would crash the test binary, so these tests run

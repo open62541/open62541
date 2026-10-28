@@ -15,6 +15,7 @@
 #include "test_helpers.h"
 #include "testing_clock.h"
 #include "certificates.h"
+#include "certificates_push.h"
 
 /* The TrustList Objects of the GDS receiver are served by file transfer
  * drivers (Part 12, 7.8.2). The Methods are called with the callbacks of the
@@ -502,14 +503,25 @@ START_TEST(writePositionsAndLimit) {
 } END_TEST
 
 START_TEST(closeAndUpdateFailures) {
-    /* Bytes that do not decode stage nothing and keep the handle open */
-    UA_UInt32 h = openList(&appList, admin(), WRITEMODE, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(writeList(&appList, admin(), h, UA_BYTESTRING("\x01\x02\x03")),
+    /* Bytes that do not decode stage nothing and keep the handle open. The
+     * CTT writes an encoded BuildInfo. */
+    UA_ByteString buildInfo = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_encodeBinary(&UA_Server_getConfig(server)->buildInfo,
+                                      &UA_TYPES[UA_TYPES_BUILDINFO], &buildInfo, NULL),
                       UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(closeAndUpdate(&appList, admin(), h), UA_STATUSCODE_BADINTERNALERROR);
-    ck_assert_uint_eq(openCount(&appList), 1);
-    ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_BADNOTHINGTODO);
+    UA_ByteString noTrustList[2] = {UA_BYTESTRING("\x01\x02\x03"), buildInfo};
+    UA_UInt32 h;
+    for(size_t i = 0; i < 2; i++) {
+        h = openList(&appList, admin(), WRITEMODE, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(writeList(&appList, admin(), h, noTrustList[i]),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(closeAndUpdate(&appList, admin(), h),
+                          UA_STATUSCODE_BADDECODINGERROR);
+        ck_assert_uint_eq(openCount(&appList), 1);
+        ck_assert_uint_eq(closeList(&appList, admin(), h), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_BADNOTHINGTODO);
+    }
+    UA_ByteString_clear(&buildInfo);
 
     /* A read handle cannot update */
     h = openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_GOOD);
@@ -676,6 +688,92 @@ START_TEST(acceptSuppressibleErrors) {
     ck_assert_uint_eq(trustedCount(pki), 1);
 } END_TEST
 
+/* A TrustList with the trusted certificate, its issuer CA and the CRL of the
+ * CA */
+static UA_StatusCode
+updateWithIssuer(UA_ByteString cert, UA_ByteString issuer, UA_ByteString crl) {
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    list.trustedCertificates = &cert;
+    list.trustedCertificatesSize = 1;
+    list.issuerCertificates = &issuer;
+    list.issuerCertificatesSize = 1;
+    list.issuerCrls = &crl;
+    list.issuerCrlsSize = 1;
+    return updateList(&appList, &list);
+}
+
+/* Certificates of applications and CAs are X.509 v3 (Part 6, 6.2.2). A
+ * certificate with an invalid structure is invalid. The Certificate Structure
+ * step is not suppressible (Part 4, 6.1.3). */
+START_TEST(rejectV2Certificate) {
+    UA_ByteString cert = {PUSH_V2_CA_CERT_DER_LENGTH, PUSH_V2_CA_CERT_DER_DATA};
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    list.trustedCertificates = &cert;
+    list.trustedCertificatesSize = 1;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_BADCERTIFICATEINVALID);
+} END_TEST
+
+/* The validity period of the issuer is suppressible (Part 4, 6.1.3). */
+START_TEST(acceptExpiredIssuer) {
+    UA_ByteString cert = {PUSH_EXPIRED_ISSUER_APP_CERT_DER_LENGTH,
+                          PUSH_EXPIRED_ISSUER_APP_CERT_DER_DATA};
+    UA_ByteString issuer = {PUSH_EXPIRED_CA_CERT_DER_LENGTH, PUSH_EXPIRED_CA_CERT_DER_DATA};
+    UA_ByteString crl = {PUSH_EXPIRED_CA_CRL_DER_LENGTH, PUSH_EXPIRED_CA_CRL_DER_DATA};
+    ck_assert_uint_eq(updateWithIssuer(cert, issuer, crl), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(trustedCount(&UA_Server_getConfig(server)->secureChannelPKI), 1);
+} END_TEST
+
+/* The KeyUsage of an application certificate lacks digitalSignature,
+ * keyEncipherment and dataEncipherment (Part 6, 6.2.2). The Certificate Usage
+ * step is suppressible, unless the certificate marks the usage as mandatory
+ * with a critical extension (Part 4, 6.1.3). */
+START_TEST(rejectCriticalKeyUsage) {
+    UA_ByteString issuer = {PUSH_CA_CERT_DER_LENGTH, PUSH_CA_CERT_DER_DATA};
+    UA_ByteString crl = {PUSH_CA_CRL_DER_LENGTH, PUSH_CA_CRL_DER_DATA};
+    UA_ByteString critical = {PUSH_KEYUSAGE_CRITICAL_APP_CERT_DER_LENGTH,
+                              PUSH_KEYUSAGE_CRITICAL_APP_CERT_DER_DATA};
+    ck_assert_uint_eq(updateWithIssuer(critical, issuer, crl),
+                      UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    UA_ByteString nonCritical = {PUSH_KEYUSAGE_NONCRITICAL_APP_CERT_DER_LENGTH,
+                                 PUSH_KEYUSAGE_NONCRITICAL_APP_CERT_DER_DATA};
+    ck_assert_uint_eq(updateWithIssuer(nonCritical, issuer, crl), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* The CRL of the issuer is expired. Finding the revocation list is
+ * suppressible (Part 4, 6.1.3). */
+START_TEST(acceptExpiredCrl) {
+    UA_ByteString cert = {PUSH_APP_CERT_DER_LENGTH, PUSH_APP_CERT_DER_DATA};
+    UA_ByteString issuer = {PUSH_CA_CERT_DER_LENGTH, PUSH_CA_CERT_DER_DATA};
+    UA_ByteString crl = {PUSH_CA_EXPIRED_CRL_DER_LENGTH, PUSH_CA_EXPIRED_CRL_DER_DATA};
+    ck_assert_uint_eq(updateWithIssuer(cert, issuer, crl), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(trustedCount(&UA_Server_getConfig(server)->secureChannelPKI), 1);
+} END_TEST
+
+/* The issuer list contains CA certificates (Part 12, 7.8.2.8). An application
+ * certificate cannot issue certificates. */
+START_TEST(rejectApplicationCertificateAsIssuer) {
+    UA_ByteString issuers[2] = {{PUSH_APP_CERT_DER_LENGTH, PUSH_APP_CERT_DER_DATA},
+                                {PUSH_CA_CERT_DER_LENGTH, PUSH_CA_CERT_DER_DATA}};
+    UA_ByteString crl = {PUSH_CA_CRL_DER_LENGTH, PUSH_CA_CRL_DER_DATA};
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCERTIFICATES |
+        UA_TRUSTLISTMASKS_ISSUERCRLS;
+    list.issuerCertificates = issuers;
+    list.issuerCertificatesSize = 2;
+    list.issuerCrls = &crl;
+    list.issuerCrlsSize = 1;
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_BADCERTIFICATEINVALID);
+} END_TEST
+
 /* Part 12 defines no validation rules for Purposes other than
  * ApplicationCertificateType (7.8.2.5) */
 START_TEST(userTokenGroupNotVerified) {
@@ -698,6 +796,7 @@ START_TEST(transactionOfAnotherSession) {
     ck_assert_uint_eq(writeList(&appList, admin(), h, encoded), UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&encoded);
     openList(&appList, &otherSession, UA_OPENFILEMODE_READ, UA_STATUSCODE_BADNOTREADABLE);
+    openList(&appList, &otherSession, WRITEMODE, UA_STATUSCODE_BADNOTWRITABLE);
     openList(&userList, &otherSession, UA_OPENFILEMODE_READ,
              UA_STATUSCODE_BADTRANSACTIONPENDING);
     openList(&userList, &otherSession, WRITEMODE, UA_STATUSCODE_BADTRANSACTIONPENDING);
@@ -1090,6 +1189,11 @@ int main(void) {
     tcase_add_test(tc, rejectRevokedCertificate);
     tcase_add_test(tc, rejectRevokedCa);
     tcase_add_test(tc, acceptSuppressibleErrors);
+    tcase_add_test(tc, rejectV2Certificate);
+    tcase_add_test(tc, acceptExpiredIssuer);
+    tcase_add_test(tc, rejectCriticalKeyUsage);
+    tcase_add_test(tc, acceptExpiredCrl);
+    tcase_add_test(tc, rejectApplicationCertificateAsIssuer);
     tcase_add_test(tc, userTokenGroupNotVerified);
     tcase_add_test(tc, transactionOfAnotherSession);
     tcase_add_test(tc, transactionKeptWhileWriting);
