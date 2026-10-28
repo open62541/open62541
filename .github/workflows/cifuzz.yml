@@ -7,14 +7,34 @@ jobs:
   Fuzzing:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v5
+      with:
+        # The ClusterFuzzLite runner looks here for the repository when
+        # checking whether a crash also affects an earlier build.
+        path: storage/open62541
+        fetch-depth: 0
     - name: Build Fuzzers
       id: build
-      uses: google/clusterfuzzlite/actions/build_fuzzers@v1
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        language: c++
-        sanitizer: address
-        dry-run: false
+      working-directory: storage/open62541
+      run: |
+        docker build -t open62541-fuzzers \
+          -f tools/ci/clusterfuzzlite/Dockerfile .
+        mkdir -p "$GITHUB_WORKSPACE/build-out" "$GITHUB_WORKSPACE/work"
+        fuzz_env=(
+          -e FUZZING_ENGINE=libfuzzer
+          -e SANITIZER=address
+          -e ARCHITECTURE=x86_64
+          -e FUZZING_LANGUAGE=c++
+          -e CIFUZZ=True
+        )
+        docker run --rm "${fuzz_env[@]}" \
+          -v "$GITHUB_WORKSPACE/build-out:/out" \
+          -v "$GITHUB_WORKSPACE/work:/work" \
+          open62541-fuzzers compile
+        docker run --rm "${fuzz_env[@]}" \
+          -e 'FUZZER_ARGS=-rss_limit_mb=2560 -timeout=25' \
+          -v "$GITHUB_WORKSPACE/build-out:/out" \
+          gcr.io/oss-fuzz-base/base-runner:v1 test_all.py
     - name: Run Fuzzers
       uses: google/clusterfuzzlite/actions/run_fuzzers@v1
       with:
