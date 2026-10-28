@@ -29,4 +29,5 @@
 <Value><uax:String>first
   Grüße
  last</uax:String></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=6006" BrowseName="1:LegacyDimensions" DataType="i=7" ValueRank="1" ArrayDimensions="1"><DisplayName>LegacyDimensions</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference><Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References><Value><uax:ListOfUInt32><uax:UInt32>1</uax:UInt32><uax:UInt32>2</uax:UInt32></uax:ListOfUInt32></Value></UAVariable>
 </UANodeSet>

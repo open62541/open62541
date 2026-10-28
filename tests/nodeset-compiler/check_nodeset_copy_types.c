@@ -159,6 +159,11 @@ checkGraph(UA_Server *server, UA_Boolean copied, UA_Boolean combined) {
     UA_String expected = UA_STRING("first\n  Grüße\n last");
     ck_assert(UA_String_equal((UA_String*)value.data, &expected));
     UA_Variant_clear(&value);
+    ck_assert_uint_eq(UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(b, 6006), &value),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(value.arrayLength, 1);
+    ck_assert_uint_eq(*(UA_UInt32*)value.data, 2);
+    UA_Variant_clear(&value);
 #endif
 }
 
