@@ -666,7 +666,7 @@ START_TEST(trustListMalformedUpdateKeepsHandle) {
     ck_assert_uint_eq(localFileOperation(APP_TRUSTLIST_ID(WRITE), handle, &truncated,
         &UA_TYPES[UA_TYPES_BYTESTRING], NULL), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(localFileOperation(APP_TRUSTLIST_ID(CLOSEANDUPDATE), handle,
-        NULL, NULL, NULL), UA_STATUSCODE_BADINTERNALERROR);
+        NULL, NULL, NULL), UA_STATUSCODE_BADDECODINGERROR);
     assertTrustListOpenCount(1);
     /* The failed update keeps the handle and its data available for a retry. */
     UA_ByteString suffix = {encoded.length - 3, encoded.data + 3};

@@ -307,6 +307,17 @@ verifyTrustListUpdate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
     if(res == UA_STATUSCODE_GOOD)
         res = UA_TrustListDataType_set(update, &trustList);
 
+    /* The issuer list contains CA certificates only (Part 12, 7.8.2.8) */
+    for(size_t i = 0; i < trustList.issuerCertificatesSize &&
+            res == UA_STATUSCODE_GOOD; i++) {
+        if(UA_CertificateUtils_checkCA(&trustList.issuerCertificates[i]) !=
+           UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                         "CloseAndUpdate: An issuer certificate is not a CA");
+            res = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        }
+    }
+
     const UA_ByteString *certificates[2] =
         {trustList.trustedCertificates, trustList.issuerCertificates};
     size_t certificatesSize[2] =
@@ -354,7 +365,7 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
                              &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_TrustListDataType_clear(&trustList);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;
     }
 
     /* Verify the new TrustList before it is staged. The update replaces the
@@ -606,6 +617,14 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     if(leafCertificate.length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
+    /* The certificate must parse before the PrivateKey is checked against it.
+     * A corrupted certificate is invalid, not a PrivateKey that does not
+     * match. */
+    size_t keySize = 0;
+    if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
+       UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -618,12 +637,6 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
         retval = UA_CertificateUtils_checkKeyPair(&leafCertificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
-    } else {
-        /* Validate the certificate before staging a keyless update. */
-        size_t keySize = 0;
-        if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
-           UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     /* The transaction is discarded once the queued ApplyChanges has run.
@@ -1156,6 +1169,12 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
     if(leafCertificate.length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
+    /* The certificate must parse before the PrivateKey is checked against it */
+    size_t keySize = 0;
+    if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
+       UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
     UA_Server *server = receiver->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
@@ -1164,11 +1183,6 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
            UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
         newPrivateKey = *privateKey;
-    } else {
-        size_t keySize = 0;
-        if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
-           UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     UA_CertificateGroup *certGroup = getCertGroup(server, &certGroupId);
