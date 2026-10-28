@@ -1093,7 +1093,7 @@ UA_OpenSSL_X509_AddSubjectAttributes(const UA_String* subject, X509_NAME* name) 
             }
         }
         if(delim == 0 || delim == strlen(token)-1) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
+            retval = UA_STATUSCODE_BADINVALIDARGUMENT;
             goto cleanup;
         }
 
@@ -1101,9 +1101,10 @@ UA_OpenSSL_X509_AddSubjectAttributes(const UA_String* subject, X509_NAME* name) 
         const unsigned char *para = (const unsigned char*)&token[delim+1];
 
         /* add attribute to X509_NAME */
+        /* Fails for an unknown attribute name */
         int result = X509_NAME_add_entry_by_txt(name, token, MBSTRING_UTF8, para, -1, -1, 0);
         if(!result) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
+            retval = UA_STATUSCODE_BADINVALIDARGUMENT;
             goto cleanup;
         }
 
@@ -1239,9 +1240,10 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             retval = UA_STATUSCODE_BADOUTOFMEMORY;
             goto cleanup;
         }
-        /* add subject attributes to name */
-        if(UA_OpenSSL_X509_AddSubjectAttributes(subjectName, name) != UA_STATUSCODE_GOOD) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
+        /* add subject attributes to name. An invalid SubjectName returns
+         * Bad_InvalidArgument (Part 12, 7.10.10). */
+        retval = UA_OpenSSL_X509_AddSubjectAttributes(subjectName, name);
+        if(retval != UA_STATUSCODE_GOOD) {
             X509_NAME_free(name);
             goto cleanup;
         }
