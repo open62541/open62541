@@ -20,6 +20,7 @@
 #include "test_helpers.h"
 #include "certificates.h"
 #include "certificates_crl.h"
+#include "certificates_push.h"
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 #include "mp_printf.h"
@@ -1256,6 +1257,99 @@ START_TEST(update_certificate_reject_truncated) {
 }
 END_TEST
 
+/* Helper: trust PUSH_CA_CERT_DER, the issuer of the PUSH_*_APP_CERT_DER
+ * certificates */
+static void
+trustPushCa(void) {
+    UA_ByteString ca = {PUSH_CA_CERT_DER_LENGTH, PUSH_CA_CERT_DER_DATA};
+    UA_ByteString crl = {PUSH_CA_CRL_DER_LENGTH, PUSH_CA_CRL_DER_DATA};
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES |
+        UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    trustList.trustedCertificates = &ca;
+    trustList.trustedCertificatesSize = 1;
+    trustList.trustedCrls = &crl;
+    trustList.trustedCrlsSize = 1;
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->addToTrustList(certGroup, &trustList);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+
+/* Helper: call UpdateCertificate with a PUSH_*_APP_CERT_DER certificate and
+ * its private key */
+static UA_StatusCode
+callUpdateCertificateWithPushKey(UA_Client *client, UA_ByteString certificate) {
+    UA_ByteString key = {PUSH_APP_KEY_DER_LENGTH, PUSH_APP_KEY_DER_DATA};
+    UA_String keyFormat = UA_STRING("PKCS8");
+    return callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                        &certificate, &keyFormat, &key);
+}
+
+/* A certificate with changed bytes is invalid, also if a PrivateKey is
+ * provided. The PrivateKey cannot match a certificate that does not parse. */
+START_TEST(update_certificate_reject_corrupted) {
+    UA_Client *client = createSecureClient();
+    trustPushCa();
+
+    UA_ByteString cert;
+    UA_ByteString original = {PUSH_APP_CERT_DER_LENGTH, PUSH_APP_CERT_DER_DATA};
+    ck_assert_uint_eq(UA_ByteString_copy(&original, &cert), UA_STATUSCODE_GOOD);
+
+    /* The signature at the end of the certificate */
+    cert.data[cert.length - 1] ^= 0xff;
+    UA_StatusCode retval = callUpdateCertificateWithPushKey(client, cert);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+
+    /* The tag of the TBSCertificate. The length of the certificate is kept. */
+    cert.data[cert.length - 1] ^= 0xff;
+    ck_assert_uint_eq(cert.data[4], 0x30);
+    cert.data[4] = 0x31;
+    retval = callUpdateCertificateWithPushKey(client, cert);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+
+    /* No transaction was started */
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_ByteString_clear(&cert);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.10.5: Suppressible errors are ignored. The validity period is
+ * suppressible (Part 4, 6.1.3). */
+START_TEST(update_certificate_accept_expired) {
+    UA_Client *client = createSecureClient();
+    trustPushCa();
+
+    UA_ByteString cert = {PUSH_EXPIRED_APP_CERT_DER_LENGTH, PUSH_EXPIRED_APP_CERT_DER_DATA};
+    UA_StatusCode retval = callUpdateCertificateWithPushKey(client, cert);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.10.5: Suppressible errors are ignored. The host name is
+ * suppressible (Part 4, 6.1.3). */
+START_TEST(update_certificate_accept_invalid_hostname) {
+    UA_Client *client = createSecureClient();
+    trustPushCa();
+
+    UA_ByteString cert = {PUSH_HOSTNAME_APP_CERT_DER_LENGTH, PUSH_HOSTNAME_APP_CERT_DER_DATA};
+    UA_StatusCode retval = callUpdateCertificateWithPushKey(client, cert);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Part 12 §7.8.2.6: AddCertificate rejects a certificate that is in the CRL of
  * its issuer CA with Bad_CertificateRevoked */
 START_TEST(add_certificate_reject_revoked) {
@@ -2168,6 +2262,9 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate_issuer_removed_in_staged_trustlist);
     tcase_add_test(tc_cert, update_certificate_chain_stages_leaf);
     tcase_add_test(tc_cert, update_certificate_reject_truncated);
+    tcase_add_test(tc_cert, update_certificate_reject_corrupted);
+    tcase_add_test(tc_cert, update_certificate_accept_expired);
+    tcase_add_test(tc_cert, update_certificate_accept_invalid_hostname);
     tcase_add_test(tc_cert, add_certificate_success);
     tcase_add_test(tc_cert, add_certificate_chain_adds_leaf);
     tcase_add_test(tc_cert, add_certificate_reject_ca);
