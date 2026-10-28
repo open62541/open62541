@@ -8,6 +8,7 @@
 /* Set architecture feature macros before Check includes any system headers. */
 #include <open62541/config.h>
 #include <check.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Keep tests usable with older Check releases shipped by CI toolchains. */

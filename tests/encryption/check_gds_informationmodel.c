@@ -11,6 +11,7 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/driver/gds_receiver.h>
+#include <stdlib.h>
 
 #include "ua_server_internal.h"
 

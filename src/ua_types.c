@@ -128,8 +128,14 @@ UA_StatusCode
 UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(t2, t1, sizeof(UA_DataType));
+    t2->typeId = UA_NODEID_NULL;
+    t2->binaryEncodingId = UA_NODEID_NULL;
+    t2->xmlEncodingId = UA_NODEID_NULL;
     t2->members = NULL;
     t2->membersSize = 0;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    t2->typeName = NULL;
+#endif
 
     /* Copy the typename */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -143,6 +149,16 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
     *(void**)(uintptr_t)&t2->typeName = t2Name;
 #endif
 
+    /* Copy the node IDs */
+    res = UA_NodeId_copy(&t1->typeId, &t2->typeId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+    res = UA_NodeId_copy(&t1->binaryEncodingId, &t2->binaryEncodingId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+    res = UA_NodeId_copy(&t1->xmlEncodingId, &t2->xmlEncodingId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
     /* Copy the members */
     if(t1->membersSize > 0) {
@@ -161,6 +177,7 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
             if(m1->memberType == t1)
                 m2->memberType = t2;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
+            m2->memberName = NULL;
             nameLen = strlen(m1->memberName) + 1;
             char *mName = (char*)UA_malloc(nameLen);
             if(!mName) {
@@ -2925,9 +2942,25 @@ UA_DataType_isNumeric(const UA_DataType *type) {
 /* Parse NumericRange */
 /**********************/
 
+/* An index that does not fit into 32 bits still has a valid syntax. It cannot
+ * address an element, so it saturates and the range checks return
+ * Bad_IndexRangeNoData or partial results. Bad_IndexRangeInvalid is only for
+ * an invalid syntax (Part 4, 7.27). */
+static size_t
+readIndex(const UA_Byte *buf, size_t buflen, UA_UInt32 *index) {
+    size_t progress = UA_readNumber(buf, buflen, index);
+    if(progress > 0)
+        return progress;
+    while(progress < buflen && buf[progress] >= '0' && buf[progress] <= '9')
+        progress++;
+    if(progress > 0)
+        *index = UA_UINT32_MAX;
+    return progress;
+}
+
 static size_t
 readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
-    size_t progress = UA_readNumber(buf, buflen, &dim->min);
+    size_t progress = readIndex(buf, buflen, &dim->min);
     if(progress == 0)
         return 0;
     if(buflen <= progress + 1 || buf[progress] != ':') {
@@ -2936,7 +2969,7 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
     }
 
     ++progress;
-    size_t progress2 = UA_readNumber(&buf[progress], buflen - progress, &dim->max);
+    size_t progress2 = readIndex(&buf[progress], buflen - progress, &dim->max);
     if(progress2 == 0)
         return 0;
 
@@ -2957,6 +2990,13 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
     while(true) {
         /* alloc dimensions */
         if(idx >= dimensionsMax) {
+            /* UA_Variant_copyRange and UA_Variant_setRange index at most
+             * UA_MAX_ARRAY_DIMS dimensions. A longer range has a valid syntax
+             * but addresses no data (Part 4, 7.27). */
+            if(dimensionsMax >= UA_MAX_ARRAY_DIMS) {
+                retval = UA_STATUSCODE_BADINDEXRANGENODATA;
+                break;
+            }
             UA_NumericRangeDimension *newds;
             size_t newdssize = sizeof(UA_NumericRangeDimension) * (dimensionsMax + 2);
             newds = (UA_NumericRangeDimension*)UA_realloc(dimensions, newdssize);

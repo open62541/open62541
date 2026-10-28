@@ -9,6 +9,7 @@
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
 import xml.dom.minidom as dom
+import xml.etree.ElementTree as ET
 import logging
 import codecs
 import re
@@ -52,35 +53,15 @@ def getSubTypesOf(nodeset, node, skipNodes=None):
     return re
 
 def extractNamespaces(xmlfile):
-    # Extract a list of namespaces used. The first namespace is always
-    # "http://opcfoundation.org/UA/". minidom gobbles up
-    # <NamespaceUris></NamespaceUris> elements, without a decent way to reliably
-    # access this dom2 <uri></uri> elements (only attribute xmlns= are accessible
-    # using minidom). We need them for dereferencing though... This function
-    # attempts to do just that.
-
+    """Read the URI table independently of XML formatting and prefixes."""
     namespaces = ["http://opcfoundation.org/UA/"]
-    infile = codecs.open(xmlfile.name, encoding='utf-8')
-    foundURIs = False
-    nsline = ""
-    for line in infile:
-        if "<namespaceuris>" in line.lower():
-            foundURIs = True
-        elif "</namespaceuris>" in line.lower():
-            nsline = nsline + line
+    with open(xmlfile.name, "rb") as source:
+        for _, element in ET.iterparse(source, events=("end",)):
+            if element.tag.rsplit("}", 1)[-1] != "NamespaceUris":
+                continue
+            for uri in element:
+                namespaces.append(uri.text or "")
             break
-        if foundURIs:
-            nsline = nsline + line
-
-    if len(nsline) > 0:
-        ns = dom.parseString(nsline).getElementsByTagName("NamespaceUris")
-        for uri in ns[0].childNodes:
-            if uri.nodeType != uri.ELEMENT_NODE:
-                continue
-            if uri.firstChild.data in namespaces:
-                continue
-            namespaces.append(uri.firstChild.data)
-    infile.close()
     return namespaces
 
 def buildAliasList(xmlelement):

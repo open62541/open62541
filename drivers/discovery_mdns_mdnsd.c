@@ -323,8 +323,17 @@ processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
             char *nextStr = strchr(caps, ',');
             if(nextStr)
                 *nextStr = '\0';
-            entry->serverOnNetwork.serverCapabilities[i] =
-                UA_STRING_ALLOC(caps);
+            UA_String capability = UA_STRING(caps);
+            res = UA_String_copy(&capability,
+                                  &entry->serverOnNetwork.serverCapabilities[i]);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_Array_delete(entry->serverOnNetwork.serverCapabilities,
+                                capsCount, &UA_TYPES[UA_TYPES_STRING]);
+                entry->serverOnNetwork.serverCapabilities = NULL;
+                entry->serverOnNetwork.serverCapabilitiesSize = 0;
+                xht_free(x);
+                return res;
+            }
             if(nextStr)
                 caps = nextStr + 1;
         }

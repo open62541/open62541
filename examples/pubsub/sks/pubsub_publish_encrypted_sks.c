@@ -13,6 +13,8 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
+#include <stdlib.h>
+
 #include "common.h"
 
 #define DEMO_SECURITYGROUPNAME "DemoSecurityGroup"

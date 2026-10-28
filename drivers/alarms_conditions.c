@@ -691,6 +691,9 @@ getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
 static UA_StatusCode
 getConditionBranchNodeId(AlarmsConditionsDriver *acd, const UA_ByteString *eventId,
                          UA_NodeId *outConditionBranchNodeId) {
+    if(!eventId)
+        return UA_STATUSCODE_BADEVENTIDUNKNOWN;
+
     *outConditionBranchNodeId = UA_NODEID_NULL;
     /* The function checks the BranchId based on the event Id, if BranchId ==
        NULL -> outConditionId = ConditionId */

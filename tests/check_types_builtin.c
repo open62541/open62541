@@ -1661,6 +1661,15 @@ START_TEST(UA_Variant_setRangeRejectsUnclampedSourceSize) {
     res = UA_Variant_setRangeCopy(&value, source, 13, range);
     ck_assert_uint_eq(res, UA_STATUSCODE_BADINDEXRANGEINVALID);
 
+    /* A source matching the reduced range is written */
+    UA_UInt32 fitting[7] = {1, 2, 3, 4, 5, 6, 7};
+    res = UA_Variant_setRangeCopy(&value, fitting, 7, range);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_UInt32 *data = (UA_UInt32*)value.data;
+    ck_assert_uint_eq(data[2], 0);
+    ck_assert_uint_eq(data[3], 1);
+    ck_assert_uint_eq(data[9], 7);
+
     UA_Variant_clear(&value);
 }
 END_TEST
@@ -1975,6 +1984,7 @@ START_TEST(UA_StatusCode_isGoodUncertain) {
     ck_assert(UA_StatusCode_isUncertain(UA_STATUSCODE_BADINTERNALERROR) == false);
 } END_TEST
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
 START_TEST(UA_findDataTypeByName_test) {
     UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "Boolean");
     const UA_DataType *type = UA_findDataTypeByName(&qn);
@@ -2000,6 +2010,8 @@ START_TEST(UA_findDataTypeByName_test) {
     type = UA_findDataTypeByName(&qn);
     ck_assert_ptr_eq(type, NULL);
 } END_TEST
+
+#endif
 
 START_TEST(UA_Variant_isArray_test) {
     UA_Variant v;
@@ -2374,7 +2386,9 @@ static Suite *testSuite_builtin(void) {
     TCase *tc_utils = tcase_create("utils");
     tcase_add_test(tc_utils, UA_StatusCode_utils);
     tcase_add_test(tc_utils, UA_StatusCode_isGoodUncertain);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     tcase_add_test(tc_utils, UA_findDataTypeByName_test);
+#endif
     tcase_add_test(tc_utils, UA_Variant_isArray_test);
     tcase_add_test(tc_utils, UA_DateTime_toUnixTime_test);
     tcase_add_test(tc_utils, UA_DataType_isNumeric_test);

@@ -9,6 +9,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/driver/gds_receiver.h>
+#include <stdlib.h>
 
 #include <check.h>
 #include "test_helpers.h"
@@ -82,6 +83,29 @@ START_TEST(csr_generation_new_priv_key) {
     ck_assert_uint_ne(csr->length, 0);
 
     UA_ByteString_delete(csr);
+}
+END_TEST
+
+START_TEST(csr_generation_regenerate_then_retain_key) {
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_Boolean regenerateKey = true;
+    UA_StatusCode retval =
+        UA_GDSReceiver_createSigningRequest(receiver, groupId, typeId, NULL,
+                                       &regenerateKey, NULL, &csr);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(csr.length, 0);
+    UA_ByteString_clear(&csr);
+
+    regenerateKey = false;
+    retval = UA_GDSReceiver_createSigningRequest(receiver, groupId, typeId, NULL,
+                                           &regenerateKey, NULL, &csr);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(csr.length, 0);
+    UA_ByteString_clear(&csr);
+
+    /* Teardown must not free the discarded CSR key again. */
 }
 END_TEST
 
@@ -167,6 +191,7 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, csr_generation_rsaSha);
     tcase_add_test(tc_cert, csr_generation_new_priv_key);
+    tcase_add_test(tc_cert, csr_generation_regenerate_then_retain_key);
     tcase_add_test(tc_cert, csr_generation_add_nonce);
     tcase_add_test(tc_cert, csr_generation_add_subject_name);
     tcase_add_test(tc_cert, csr_generation_wrong_typeId);

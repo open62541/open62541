@@ -256,6 +256,7 @@ struct UA_Server {
     /* Registered Servers */
     LIST_HEAD(, RegisteredServerRecord) registeredServers;
     size_t registeredServersSize;
+    size_t maxRegisteredServers;
 
     /* Servers On Network
      * TODO: Use a TAILQ for easier updates */
