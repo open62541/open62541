@@ -7287,6 +7287,7 @@ referencesNode(const UA_NodeId source, UA_BrowseDirection direction,
         UA_BrowseResult_clear(&br);
         br = next;
     }
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
     if(br.continuationPoint.length > 0) {
         UA_BrowseResult released = UA_Server_browseNext(server_ft, true, &br.continuationPoint);
         UA_BrowseResult_clear(&released);
@@ -7314,6 +7315,144 @@ START_TEST(temporaryFilesHidden) {
     callClose(file, h, UA_STATUSCODE_GOOD);
     ck_assert(!nodeExists(size));
     UA_NodeId_clear(&size);
+    UA_NodeId_clear(&file);
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
+/* Optional Properties make the file's forward references span multiple Browse
+ * pages. Check every shared Method and Property type, including copied Methods
+ * and their argument Properties. The file must keep its own forward references. */
+START_TEST(temporaryFilesHiddenWithBrowseLimit) {
+    resetTemporaryCallbacks();
+    UA_NodeId root;
+    newTemporaryDriver(true, true, "Temp", &root);
+    static UA_GlobalNodeLifecycle lifecycle;
+    memset(&lifecycle, 0, sizeof(lifecycle));
+    lifecycle.createOptionalChild = createEveryOptionalChild;
+    UA_ServerConfig *config = UA_Server_getConfig(server_ft);
+    config->nodeLifecycle = &lifecycle;
+    /* All 13 FileType declarations fit during instantiation. Including the
+     * HasTypeDefinition reference, the instance needs a second Browse page. */
+    config->maxReferencesPerNode = 13;
+    const UA_UInt32 methods[] = {
+        UA_NS0ID_FILETYPE_OPEN, UA_NS0ID_FILETYPE_CLOSE, UA_NS0ID_FILETYPE_READ,
+        UA_NS0ID_FILETYPE_WRITE, UA_NS0ID_FILETYPE_GETPOSITION,
+        UA_NS0ID_FILETYPE_SETPOSITION};
+
+    for(unsigned copied = 0; copied < 2; copied++) {
+        config->copyMethodsOnInstances = (UA_Boolean)copied;
+        for(unsigned write = 0; write < 2; write++) {
+            size_t continuationPoints = server_ft->adminSession.continuationPointsSize;
+            UA_NodeId file;
+            UA_UInt32 h = callGenerate(root, (UA_Boolean)write, &file, UA_STATUSCODE_GOOD);
+            ck_assert_uint_eq(server_ft->adminSession.continuationPointsSize,
+                              continuationPoints);
+            ck_assert(!referencesNode(root, UA_BROWSEDIRECTION_BOTH, file));
+            ck_assert(!referencesNode(UA_NS0ID(FILETYPE), UA_BROWSEDIRECTION_INVERSE, file));
+            for(size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++)
+                ck_assert(!referencesNode(UA_NODEID_NUMERIC(0, methods[i]),
+                                          UA_BROWSEDIRECTION_INVERSE, file));
+
+            /* Inspect all forward references across all pages, recursively.
+             * Every local child has a type reference but no inverse reference
+             * from its shared type. browseRecursive follows hierarchical refs. */
+            UA_BrowseDescription bd;
+            UA_BrowseDescription_init(&bd);
+            bd.nodeId = file;
+            bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+            bd.referenceTypeId = UA_NS0ID(HIERARCHICALREFERENCES);
+            bd.includeSubtypes = true;
+            size_t childrenSize = 0;
+            UA_ExpandedNodeId *children = NULL;
+            ck_assert_uint_eq(UA_Server_browseRecursive(server_ft, &bd, &childrenSize,
+                                                        &children), UA_STATUSCODE_GOOD);
+            for(size_t i = 0; i < childrenSize; i++) {
+                UA_NodeId id = children[i].nodeId;
+                /* Shared Namespace Zero Methods/arguments belong to the type,
+                 * not the transfer. Copied Methods/arguments are local children. */
+                if(id.namespaceIndex == 0)
+                    continue;
+                ck_assert(!referencesNode(UA_NS0ID(PROPERTYTYPE),
+                                          UA_BROWSEDIRECTION_INVERSE, id));
+            }
+            ck_assert(referencesNode(file, UA_BROWSEDIRECTION_FORWARD, UA_NS0ID(FILETYPE)));
+            UA_NodeId mime = resolveChild(server_ft, file, "MimeType");
+            callClose(file, h, UA_STATUSCODE_GOOD);
+            ck_assert(!nodeExists(file));
+            ck_assert(!nodeExists(mime));
+            UA_NodeId_clear(&mime);
+            UA_Array_delete(children, childrenSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+            UA_NodeId_clear(&file);
+        }
+    }
+    config->nodeLifecycle = NULL;
+    config->maxReferencesPerNode = 0;
+    config->copyMethodsOnInstances = false;
+    UA_NodeId_clear(&root);
+    resetTemporaryCallbacks();
+} END_TEST
+
+static UA_NodeId deepTransferNodes[6];
+
+/* Exceed the hiding recursion limit with application-created children. */
+static UA_StatusCode
+deepTransferConstructor(UA_Server *server, const UA_NodeId *sessionId,
+                        void *sessionContext, const UA_NodeId *typeId,
+                        void *typeContext, const UA_NodeId *nodeId, void **nodeContext) {
+    UA_StatusCode res = UA_NodeId_copy(nodeId, &deepTransferNodes[0]);
+    for(size_t i = 1; i < 6 && res == UA_STATUSCODE_GOOD; i++)
+        res = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
+            deepTransferNodes[i - 1], UA_NS0ID(HASCOMPONENT),
+            UA_QUALIFIEDNAME(1, "Child"), UA_NS0ID(BASEOBJECTTYPE),
+            UA_ObjectAttributes_default, NULL, &deepTransferNodes[i]);
+    return res;
+}
+
+/* An incompletely hidden file must not escape through a successful generate.
+ * Roll back nodes, storage and continuation points, and report the failure. */
+START_TEST(temporaryHidingFailureRollsBack) {
+    resetTemporaryCallbacks();
+    UA_NodeId root;
+    UA_FileTransferTemporaryOptions options = temporaryOptions(true, true);
+    options.generateFileForWrite = tempGenerateWrite;
+    UA_FileTransferNodeDescription description = temporaryDescription("Temp");
+    UA_Driver *driver = NULL;
+    ck_assert_uint_eq(UA_FileTransferDriver_newTemporary(server_ft, &options,
+        &description, &root, &driver), UA_STATUSCODE_GOOD);
+    registerTestDriver(driver);
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    UA_NodeTypeLifecycle lifecycle;
+    memset(&lifecycle, 0, sizeof(lifecycle));
+    lifecycle.constructor = deepTransferConstructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server_ft, UA_NS0ID(FILETYPE),
+                                                     lifecycle), UA_STATUSCODE_GOOD);
+    UA_Server_getConfig(server_ft)->maxReferencesPerNode = 13;
+    for(unsigned write = 0; write < 2; write++) {
+        size_t continuationPoints = server_ft->adminSession.continuationPointsSize;
+        callGenerate(root, (UA_Boolean)write, NULL, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+        ck_assert_uint_eq(server_ft->adminSession.continuationPointsSize, continuationPoints);
+        ck_assert_uint_eq(tempEndCalls, write + 1);
+        ck_assert_uint_eq(tempEndStatus, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+        ck_assert_uint_eq(ftd->entryCount, 1);
+        ck_assert_uint_eq(ftd->activeReads, 0);
+        ck_assert(!ftd->activeWrite);
+        UA_FileTransferFileInfo info;
+        UA_String path = write ? UA_STRING("write-2") : UA_STRING("read-1");
+        ck_assert_uint_eq(backendGetInfo(&ftd->backend.file, path, &info), UA_STATUSCODE_BADNOTFOUND);
+        for(size_t i = 0; i < 6; i++) {
+            ck_assert(!UA_NodeId_isNull(&deepTransferNodes[i]));
+            ck_assert(!nodeExists(deepTransferNodes[i]));
+            UA_NodeId_clear(&deepTransferNodes[i]);
+        }
+    }
+    memset(&lifecycle, 0, sizeof(lifecycle));
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(server_ft, UA_NS0ID(FILETYPE),
+                                                     lifecycle), UA_STATUSCODE_GOOD);
+    UA_Server_getConfig(server_ft)->maxReferencesPerNode = 0;
+    UA_NodeId file;
+    UA_UInt32 h = callGenerate(root, true, &file, UA_STATUSCODE_GOOD);
+    callClose(file, h, UA_STATUSCODE_GOOD);
     UA_NodeId_clear(&file);
     UA_NodeId_clear(&root);
     resetTemporaryCallbacks();
@@ -8030,6 +8169,8 @@ int main(void) {
     tcase_add_test(tc_temp, temporaryExclusiveWrite);
     tcase_add_test(tc_temp, temporaryCommitHandles);
     tcase_add_test(tc_temp, temporaryFilesHidden);
+    tcase_add_test(tc_temp, temporaryFilesHiddenWithBrowseLimit);
+    tcase_add_test(tc_temp, temporaryHidingFailureRollsBack);
     tcase_add_test(tc_temp, temporaryReuseObject);
     tcase_add_test(tc_temp, temporaryMissingMethodNodes);
     tcase_add_test(tc_temp, temporaryApplicationStore);
