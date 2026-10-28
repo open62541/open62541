@@ -111,8 +111,45 @@ START_TEST(definition_emptyStructureHasStorage) {
     UA_DataType_clear(&type);
 } END_TEST
 
+START_TEST(definition_copyOwnedNodeIds) {
+    UA_DataType original = UA_TYPES[UA_TYPES_ARGUMENT];
+    original.typeId = UA_NODEID_STRING(2, "Argument");
+    original.binaryEncodingId = UA_NODEID_STRING(3, "Argument.Binary");
+    original.xmlEncodingId = UA_NODEID_STRING(4, "Argument.XML");
+    UA_DataType copied;
+    ck_assert_uint_eq(UA_DataType_copy(&original, &copied), UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&original.typeId, &copied.typeId));
+    ck_assert_ptr_ne(original.typeId.identifier.string.data,
+                     copied.typeId.identifier.string.data);
+    ck_assert(UA_NodeId_equal(&original.binaryEncodingId, &copied.binaryEncodingId));
+    ck_assert(UA_NodeId_equal(&original.xmlEncodingId, &copied.xmlEncodingId));
+    UA_DataType_clear(&copied);
+    /* Clearing the copy must leave the borrowed original strings intact. */
+    ck_assert_uint_eq(original.xmlEncodingId.identifier.string.data[0], 'A');
+} END_TEST
+
+START_TEST(definition_invalidStructureKindClearsOutput) {
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = UA_NODEID_STRING(1, "Unsupported");
+    description.name = UA_QUALIFIEDNAME(1, "Unsupported");
+    description.structureDefinition.structureType = (_i == 0) ?
+        UA_STRUCTURETYPE_STRUCTUREWITHSUBTYPEDVALUES : (UA_StructureType)99;
+    UA_ExtensionObject object;
+    UA_ExtensionObject_setValueNoDelete(&object, &description, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    UA_DataType output;
+    ck_assert_uint_ne(UA_DataType_fromDescription(&output, &object, NULL), UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_isNull(&output.typeId));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    ck_assert_ptr_eq(output.typeName, NULL);
+#endif
+    UA_DataType_clear(&output);
+} END_TEST
+
 static Suite *testSuite_definition(void) {
     TCase *tc = tcase_create("DataTypeDefinition");
+    tcase_add_loop_test(tc, definition_invalidStructureKindClearsOutput, 0, 2);
+    tcase_add_test(tc, definition_copyOwnedNodeIds);
     tcase_add_test(tc, definition_roundtrip_structure);
     tcase_add_test(tc, definition_roundtrip_structure_nested);
     tcase_add_test(tc, definition_roundtrip_simpleType);

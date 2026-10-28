@@ -133,6 +133,9 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
     t2->xmlEncodingId = UA_NODEID_NULL;
     t2->members = NULL;
     t2->membersSize = 0;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    t2->typeName = NULL;
+#endif
 
     /* Copy the typename */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -173,6 +176,7 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
             if(m1->memberType == t1)
                 m2->memberType = t2;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
+            m2->memberName = NULL;
             nameLen = strlen(m1->memberName) + 1;
             char *mName = (char*)UA_malloc(nameLen);
             if(!mName) {
