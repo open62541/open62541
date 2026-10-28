@@ -959,7 +959,9 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
         }
     }
     if(mbedtls_x509write_csr_set_subject_name(&request, subject) != 0) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
+        /* The SubjectName argument cannot be parsed */
+        retval = (subjectName && subjectName->length > 0) ?
+            UA_STATUSCODE_BADINVALIDARGUMENT : UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
     retval = mbedtls_x509write_csrSetSubjectAltName(
