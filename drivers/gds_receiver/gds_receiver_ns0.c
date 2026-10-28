@@ -199,6 +199,12 @@ createSigningRequestAction(UA_Server *server,
     UA_String *subjectName = (UA_String *)input[2].data;
     UA_Boolean *regenerateKey = ((UA_Boolean *)input[3].data);
     UA_ByteString *nonce = (UA_ByteString *)input[4].data;
+
+    /* The Nonce has at least 32 bytes if a new private key is created (Part
+     * 12, 7.10.10) */
+    if(*regenerateKey && nonce->length < 32)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     UA_ByteString *csr = UA_ByteString_new();
     if(!csr)
         return UA_STATUSCODE_BADOUTOFMEMORY;
