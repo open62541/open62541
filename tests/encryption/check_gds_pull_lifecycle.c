@@ -5,7 +5,10 @@
 /* Lifecycle tests for the GDS Pull Requester driver. */
 
 #include <open62541/driver/gds_pull.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/plugin/log_stdout.h>
 
@@ -1749,6 +1752,104 @@ START_TEST(unassignedGroupIsJoinedBySigningRequest) {
     ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
+/* A secure client of the requester that authenticates with foreignCert. The
+ * state callback records whether its SecureChannel was closed after the
+ * Session was activated. The client does not reconnect afterwards. */
+static UA_Boolean foreignSessionActivated;
+static UA_Boolean foreignChannelClosed;
+
+static void
+foreignClientStateCallback(UA_Client *client,
+                           UA_SecureChannelState channelState,
+                           UA_SessionState sessionState,
+                           UA_StatusCode connectStatus) {
+    if(sessionState == UA_SESSIONSTATE_ACTIVATED)
+        foreignSessionActivated = true;
+    else if(foreignSessionActivated &&
+            channelState != UA_SECURECHANNELSTATE_OPEN)
+        foreignChannelClosed = true;
+}
+
+static UA_Client *
+connectForeignClient(void) {
+    foreignSessionActivated = false;
+    foreignChannelClosed = false;
+    UA_Client *client = UA_Client_new();
+    ck_assert_ptr_nonnull(client);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_StatusCode res = UA_ClientConfig_setDefaultEncryption(
+        cc, foreignCert, foreignKey, NULL, 0, NULL, 0);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->securityPolicyUri = UA_STRING_ALLOC(
+        "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:open62541.test.foreign");
+    cc->stateCallback = foreignClientStateCallback;
+
+    char url[32];
+    snprintf(url, sizeof(url), "opc.tcp://localhost:%u", REQUESTER_PORT);
+    ck_assert_uint_eq(UA_Client_connectAsync(client, url), UA_STATUSCODE_GOOD);
+
+    UA_SessionState sessionState = UA_SESSIONSTATE_CLOSED;
+    UA_StatusCode connectStatus = UA_STATUSCODE_GOOD;
+    UA_DateTime end = deadline();
+    while(sessionState != UA_SESSIONSTATE_ACTIVATED &&
+          connectStatus == UA_STATUSCODE_GOOD &&
+          UA_DateTime_nowMonotonic() < end) {
+        UA_Client_run_iterate(client, 0);
+        UA_Server_run_iterate(server, false);
+        UA_Client_getState(client, NULL, &sessionState, &connectStatus);
+    }
+    ck_assert_uint_eq(connectStatus, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sessionState, UA_SESSIONSTATE_ACTIVATED);
+    return client;
+}
+
+/* Iterate the requester and the client for the given time */
+static void
+runWithClient(UA_Client *client, UA_UInt32 ms) {
+    UA_DateTime end = UA_DateTime_nowMonotonic() + ms * UA_DATETIME_MSEC;
+    while(UA_DateTime_nowMonotonic() < end) {
+        UA_Client_run_iterate(client, 0);
+        UA_Server_run_iterate(server, false);
+    }
+}
+
+/* 7.6, 7.10.9: A downloaded TrustList is applied to the existing
+ * SecureChannels. The certificate of a connected client is removed from the
+ * TrustList of the CertificateManager. The requester closes its
+ * SecureChannel. */
+START_TEST(trustListUpdateClosesUntrustedChannels) {
+    setUpdateRequired(false);
+    UA_ByteString served[3] = {gdsCert, requesterCert, foreignCert};
+    setServedTrustList(served, 3);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_TRUSTLIST_UPDATED, 1));
+
+    /* The client is trusted by the downloaded TrustList */
+    UA_Client *client = connectForeignClient();
+    runWithClient(client, 200);
+    ck_assert(!foreignChannelClosed);
+
+    /* The client is no longer trusted */
+    setServedTrustList(served, 2);
+    ck_assert(runUntil(UA_GDSPULL_TRUSTLIST_UPDATED, 2));
+    ck_assert_uint_eq(payloadStatusCode(positionOf(UA_GDSPULL_TRUSTLIST_UPDATED, 2)),
+                      UA_STATUSCODE_GOOD);
+    MockCertificateManager c = snapshot();
+    assertLocalTrustListEquals(&c.trustList);
+
+    runWithClient(client, 500);
+    ck_assert_msg(foreignChannelClosed, "The SecureChannel of the client whose "
+                  "certificate was removed from the TrustList is still open");
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 /* The issued certificate does not match the private key of the CSR. It must
  * not replace the application instance certificate. */
 START_TEST(certificateNotMatchingKeyIsNotInstalled) {
@@ -2352,6 +2453,7 @@ main(void) {
     tcase_add_test(tc, startWhileStoppingKeepsRequestBinding);
     tcase_add_test(tc, unchangedTrustListIsNotDownloadedAgain);
     tcase_add_test(tc, changedTrustListIsDownloadedAgain);
+    tcase_add_test(tc, trustListUpdateClosesUntrustedChannels);
     tcase_add_test(tc, certificateNotMatchingKeyIsNotInstalled);
     tcase_add_test(tc, reconnectDuringFinishRetryKeepsRequestBinding);
     tcase_add_test(tc, secondCycleStartsWithRandomDelay);
