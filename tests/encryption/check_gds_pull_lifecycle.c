@@ -2548,6 +2548,59 @@ START_TEST(certificateIsInstalledIntoRequestedGroupOnly) {
     assertGroupCertificateIs(&defaultUserTokenGroup, &userTokenGroupCert);
 } END_TEST
 
+/* Remove the endpoints of a SecurityPolicy before the server is started. The
+ * SecurityPolicy stays configured. */
+static void
+removeEndpointsOf(const char *policyUri) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_String uri = UA_STRING((char*)(uintptr_t)policyUri);
+    size_t removed = 0;
+    for(size_t i = 0; i < config->endpointsSize;) {
+        if(!UA_String_equal(&config->endpoints[i].securityPolicyUri, &uri)) {
+            i++;
+            continue;
+        }
+        UA_EndpointDescription_clear(&config->endpoints[i]);
+        config->endpointsSize--;
+        memmove(&config->endpoints[i], &config->endpoints[i + 1],
+                (config->endpointsSize - i) * sizeof(UA_EndpointDescription));
+        removed++;
+    }
+    ck_assert_uint_gt(removed, 0);
+}
+
+/* 7.6: GetCertificateStatus is called "for each needed CertificateType". A
+ * (CertificateGroup, CertificateType) pair whose SecurityPolicies have no
+ * endpoint cannot be presented to a client, and a certificate for it cannot
+ * be installed. It is not requested, neither in the first cycle nor again in
+ * later cycles. */
+START_TEST(pairWithoutEndpointIsNotRequested) {
+    findSecurityPolicy(AES128_POLICY_URI)->certificateGroupId =
+        defaultUserTokenGroup;
+    removeEndpointsOf(AES128_POLICY_URI);
+    serveSecondGroup(requesterCert, UA_BYTESTRING_NULL);
+    mapSecondGroup();
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+
+    /* Only the DefaultApplicationGroup is requested */
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.requestsSize, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_ADDED, 1),
+                         &c.lastRequestId, &rsaSha256CertificateType);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+
+    /* No request is started for the pair in later cycles either */
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 3));
+    ck_assert_uint_eq(snapshot().startSigningRequest, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED), 0);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
 /* 7.10.9: The SecureChannels of a CertificateGroup are closed when its
  * certificate is replaced. A SecureChannel of a SecurityPolicy in another
  * CertificateGroup with the same CertificateType keeps its certificate, so
@@ -2769,6 +2822,7 @@ main(void) {
     tcase_add_test(tc, failedInstallationIsReRequestedInNextCycle);
     tcase_add_test(tc, installedCertificateClosesExistingChannels);
     tcase_add_test(tc, certificateIsInstalledIntoRequestedGroupOnly);
+    tcase_add_test(tc, pairWithoutEndpointIsNotRequested);
     tcase_add_test(tc, installedCertificateKeepsChannelsOfOtherGroups);
     suite_add_tcase(suite, tc);
 
