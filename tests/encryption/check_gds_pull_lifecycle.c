@@ -186,8 +186,10 @@ typedef struct {
     /* RequestId argument of each FinishRequest call */
     UA_NodeId finishRequestIds[MAX_FINISH_CALLS];
 
-    /* The SecureChannel opened last and the number of opened SecureChannels */
+    /* The SecureChannel opened last, the certificate the client presented in
+     * it (owned) and the number of opened SecureChannels */
     UA_UInt32 lastChannelId;
+    UA_ByteString lastClientCertificate;
     size_t channelsOpened;
 
     /* Call counters */
@@ -618,8 +620,15 @@ onCertificateManagerChannel(UA_Server *s, UA_ApplicationNotificationType type,
         &UA_TYPES[UA_TYPES_UINT32]);
     if(!channelId)
         return;
+    const UA_ByteString *certificate = (const UA_ByteString*)
+        UA_KeyValueMap_getScalar(&payload,
+                                 UA_QUALIFIEDNAME(0, "remote-certificate"),
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
     lockCm();
     cm.lastChannelId = *channelId;
+    UA_ByteString_clear(&cm.lastClientCertificate);
+    if(certificate)
+        UA_ByteString_copy(certificate, &cm.lastClientCertificate);
     cm.channelsOpened++;
     unlockCm();
 }
@@ -947,10 +956,19 @@ setupCertificateManager(void) {
     memset(&cm, 0, sizeof(cm));
     ck_assert(MUTEX_INIT(cmMutex));
 
-    /* The CertificateManager trusts the requester */
+    /* The CertificateManager trusts the requester, also with the key pair
+     * that StartNewKeyPairRequest issues to it */
     cm.server = newServer(GDS_PORT, &gdsCert, &gdsKey, &requesterCert, GDS_URI,
                           false);
     UA_ServerConfig *cmConfig = UA_Server_getConfig(cm.server);
+    UA_TrustListDataType newKeyPair;
+    UA_TrustListDataType_init(&newKeyPair);
+    newKeyPair.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    newKeyPair.trustedCertificates = &newKeyPairCert;
+    newKeyPair.trustedCertificatesSize = 1;
+    ck_assert_uint_eq(cmConfig->secureChannelPKI.addToTrustList(
+                          &cmConfig->secureChannelPKI, &newKeyPair),
+                      UA_STATUSCODE_GOOD);
     cmConfig->secureChannelNotificationCallback = onCertificateManagerChannel;
     cmGetUserAccessLevel = cmConfig->accessControl.getUserAccessLevel;
     cmConfig->accessControl.getUserAccessLevel = delayNamespaceRead;
@@ -1063,6 +1081,7 @@ teardownCertificateManager(void) {
     UA_TrustListDataType_clear(&cm.trustList);
     UA_ByteString_clear(&cm.trustListFile);
     UA_ByteString_clear(&cm.lastCsr);
+    UA_ByteString_clear(&cm.lastClientCertificate);
     ck_assert(MUTEX_DESTROY(cmMutex));
     memset(&cm, 0, sizeof(cm));
 }
@@ -2870,6 +2889,100 @@ START_TEST(installedCertificateKeepsChannelsOfOtherGroups) {
     UA_Client_delete(client);
 } END_TEST
 
+/* Stop the driver and start it again within the same server, for example to
+ * change a setting */
+static void
+restartRequester(void) {
+    stopRequester();
+    ck_assert_uint_eq(pull->drv.start(&pull->drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+}
+
+static void
+assertLastClientCertificateIs(const UA_ByteString *certificate) {
+    lockCm();
+    UA_Boolean equal =
+        UA_ByteString_equal(&cm.lastClientCertificate, certificate);
+    unlockCm();
+    ck_assert_msg(equal,
+                  "The CertificateManager saw another client certificate");
+}
+
+/* 7.6, 7.9.5: The renewed application instance certificate is also the
+ * identity of the connection to the CertificateManager. That stays so when
+ * the driver is stopped and started again. Otherwise the driver connects with
+ * the replaced certificate, and FinishRequest for a request started under the
+ * renewed certificate is refused. */
+START_TEST(restartKeepsRenewedClientIdentity) {
+    setCreatePrivateKey(true);
+    setIssuedKeyPair(newKeyPairCert, newKeyPairKey);
+
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    ck_assert_uint_eq(snapshot().startNewKeyPairRequest, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    assertLocalCertificateIs(&newKeyPairCert);
+    assertLastClientCertificateIs(&requesterCert);
+
+    /* The next cycle connects with the renewed key pair */
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    assertLastClientCertificateIs(&newKeyPairCert);
+
+    restartRequester();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 3));
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CYCLE_STARTED), 3);
+    assertLocalCertificateIs(&newKeyPairCert);
+    assertLastClientCertificateIs(&newKeyPairCert);
+    ck_assert_uint_eq(snapshot().startNewKeyPairRequest, 1);
+} END_TEST
+
+/* 7.6: The RequestIds the driver added and dropped while it was running are
+ * the outstanding requests after a restart, not the ones supplied when the
+ * driver was created. */
+START_TEST(restartKeepsLivePendingRequests) {
+    lockCm();
+    UA_NodeId restoredRequest = addRequest(cm.groupId);
+    unlockCm();
+    ck_assert(!UA_NodeId_isNull(&restoredRequest));
+    replaceRequester(GDS_ENDPOINT, 1, &restoredRequest);
+
+    /* The restored request is finished in the first cycle */
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 1);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_FINISHED, 1),
+                         &restoredRequest, &rsaSha256CertificateType);
+
+    /* A new request is started and stays outstanding */
+    setFinishMode(FINISH_PENDING);
+    setUpdateRequired(true);
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    MockCertificateManager c = snapshot();
+    UA_NodeId addedRequest = c.lastRequestId;
+    size_t addedFinishes = countFinishRequests(&c, &addedRequest);
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.requestsSize, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_ADDED, 1),
+                         &addedRequest, &rsaSha256CertificateType);
+
+    /* Restart to change a single setting */
+    setCycleTimeout(10000);
+    restartRequester();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 3));
+    c = snapshot();
+
+    /* The outstanding request is asked for. The finished one is not replayed
+     * and no second request is started. */
+    ck_assert_uint_gt(countFinishRequests(&c, &addedRequest), addedFinishes);
+    ck_assert_uint_eq(countFinishRequests(&c, &restoredRequest), 1);
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.requestsSize, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
 /******************************/
 /* Suite                      */
 /******************************/
@@ -3060,6 +3173,8 @@ main(void) {
     tcase_add_test(tc, oversizedTrustListIsReportedAsFailed);
     tcase_add_test(tc, failedTrustListOpenIsReported);
     tcase_add_test(tc, failedTrustListReadIsReported);
+    tcase_add_test(tc, restartKeepsRenewedClientIdentity);
+    tcase_add_test(tc, restartKeepsLivePendingRequests);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);
