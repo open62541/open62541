@@ -2506,26 +2506,62 @@ UA_GDSPull_runWorkflowCallback(UA_Server *server, void *data) {
  *
  * A parameter that is absent from the map leaves the current value alone, so
  * that a partial map can change a single setting between two starts. */
-/* The group mappings and the pending requests are parallel NodeId arrays: the
- * i-th entry of each array belongs to the same mapping or request. Returns
- * NULL if the key is absent or does not hold a NodeId array. */
-static const UA_NodeId *
-UA_GDSPull_readNodeIdArray(const UA_KeyValueMap *params, char *key,
-                           size_t *length) {
+/* A parameter of another type than documented is an error. Treating it as
+ * absent would silently keep the current value, e.g. drop the pending requests
+ * restored from scalar NodeIds and start new signing requests for them. */
+static UA_StatusCode
+UA_GDSPull_wrongParamType(const char *key, const UA_Logger *logging) {
+    UA_LOG_ERROR(logging, UA_LOGCATEGORY_SERVER,
+                 "The parameter %s of the GDS Pull driver has the wrong type",
+                 key);
+    return UA_STATUSCODE_BADCONFIGURATIONERROR;
+}
+
+/* Sets *value to NULL if the key is absent */
+static UA_StatusCode
+UA_GDSPull_readScalar(const UA_KeyValueMap *params, char *key,
+                      const UA_DataType *type, const void **value,
+                      const UA_Logger *logging) {
+    *value = NULL;
     const UA_Variant *v = UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, key));
-    if(!v || !UA_Variant_hasArrayType(v, &UA_TYPES[UA_TYPES_NODEID]))
-        return NULL;
+    if(!v)
+        return UA_STATUSCODE_GOOD;
+    if(!UA_Variant_hasScalarType(v, type))
+        return UA_GDSPull_wrongParamType(key, logging);
+    *value = v->data;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The group mappings and the pending requests are parallel NodeId arrays: the
+ * i-th entry of each array belongs to the same mapping or request. Sets *ids to
+ * NULL if the key is absent. */
+static UA_StatusCode
+UA_GDSPull_readNodeIdArray(const UA_KeyValueMap *params, char *key,
+                           const UA_NodeId **ids, size_t *length,
+                           const UA_Logger *logging) {
+    *ids = NULL;
+    const UA_Variant *v = UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, key));
+    if(!v)
+        return UA_STATUSCODE_GOOD;
+    if(!UA_Variant_hasArrayType(v, &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_GDSPull_wrongParamType(key, logging);
     *length = v->arrayLength;
-    return (const UA_NodeId *)v->data;
+    *ids = (const UA_NodeId *)v->data;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UA_GDSPull_readGroups(UA_GDSPullContext *ctx, const UA_Logger *logging) {
     size_t localSize = 0, remoteSize = 0;
-    const UA_NodeId *localIds = UA_GDSPull_readNodeIdArray(
-        &ctx->drv.params, "mappings-local-group-id", &localSize);
-    const UA_NodeId *remoteIds = UA_GDSPull_readNodeIdArray(
-        &ctx->drv.params, "mappings-remote-group-id", &remoteSize);
+    const UA_NodeId *localIds, *remoteIds;
+    UA_StatusCode res = UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "mappings-local-group-id", &localIds, &localSize,
+        logging);
+    res |= UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "mappings-remote-group-id", &remoteIds, &remoteSize,
+        logging);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     if(!localIds && !remoteIds)
         return UA_STATUSCODE_GOOD;
     if(!localIds || !remoteIds || localSize != remoteSize) {
@@ -2565,7 +2601,6 @@ UA_GDSPull_readGroups(UA_GDSPullContext *ctx, const UA_Logger *logging) {
             return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < localSize; i++) {
         res |= UA_NodeId_copy(&localIds[i], &groups[i].localGroupId);
         res |= UA_NodeId_copy(&remoteIds[i], &groups[i].remoteGroupId);
@@ -2589,12 +2624,18 @@ static UA_StatusCode
 UA_GDSPull_readPendingRequests(UA_GDSPullContext *ctx,
                                const UA_Logger *logging) {
     size_t requestSize = 0, groupSize = 0, typeSize = 0;
-    const UA_NodeId *requestIds = UA_GDSPull_readNodeIdArray(
-        &ctx->drv.params, "pending-request-id", &requestSize);
-    const UA_NodeId *groupIds = UA_GDSPull_readNodeIdArray(
-        &ctx->drv.params, "pending-certificate-group-id", &groupSize);
-    const UA_NodeId *typeIds = UA_GDSPull_readNodeIdArray(
-        &ctx->drv.params, "pending-certificate-type-id", &typeSize);
+    const UA_NodeId *requestIds, *groupIds, *typeIds;
+    UA_StatusCode res = UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "pending-request-id", &requestIds, &requestSize,
+        logging);
+    res |= UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "pending-certificate-group-id", &groupIds,
+        &groupSize, logging);
+    res |= UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "pending-certificate-type-id", &typeIds, &typeSize,
+        logging);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     if(!requestIds && !groupIds && !typeIds)
         return UA_STATUSCODE_GOOD;
     if(!requestIds || !groupIds || !typeIds ||
@@ -2617,7 +2658,6 @@ UA_GDSPull_readPendingRequests(UA_GDSPullContext *ctx,
             return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < requestSize; i++) {
         res |= UA_NodeId_copy(&requestIds[i], &requests[i].requestId);
         res |= UA_NodeId_copy(&groupIds[i], &requests[i].certificateGroupId);
@@ -2664,52 +2704,53 @@ UA_GDSPull_readParams(UA_GDSPullContext *ctx) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* optional parameters, type-checked before a value is replaced */
+    const void *applicationId, *createPrivateKey, *cycleInterval, *cycleTimeout;
+    UA_StatusCode res = UA_GDSPull_readScalar(
+        params, "application-id", &UA_TYPES[UA_TYPES_NODEID], &applicationId,
+        logging);
+    res |= UA_GDSPull_readScalar(params, "create-private-key",
+                                 &UA_TYPES[UA_TYPES_BOOLEAN],
+                                 &createPrivateKey, logging);
+    res |= UA_GDSPull_readScalar(params, "cycle-interval",
+                                 &UA_TYPES[UA_TYPES_UINT32], &cycleInterval,
+                                 logging);
+    res |= UA_GDSPull_readScalar(params, "cycle-timeout",
+                                 &UA_TYPES[UA_TYPES_UINT32], &cycleTimeout,
+                                 logging);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* replace previous value */
     UA_String_clear(&ctx->conf.gdsEndpointUrl);
     UA_ByteString_clear(&ctx->certificate);
     UA_ByteString_memZero(&ctx->privateKey);
     UA_ByteString_clear(&ctx->privateKey);
 
-    UA_StatusCode res = UA_String_copy(endpointUrl, &ctx->conf.gdsEndpointUrl);
+    res = UA_String_copy(endpointUrl, &ctx->conf.gdsEndpointUrl);
     res |= UA_ByteString_copy(certificate, &ctx->certificate);
     res |= UA_ByteString_copy(privateKey, &ctx->privateKey);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* optional parameters */
-    const UA_NodeId *applicationId =
-        (const UA_NodeId *)UA_KeyValueMap_getScalar(
-            params, UA_QUALIFIEDNAME(0, "application-id"),
-            &UA_TYPES[UA_TYPES_NODEID]);
     if(applicationId) {
         UA_NodeId_clear(&ctx->conf.applicationId);
-        res = UA_NodeId_copy(applicationId, &ctx->conf.applicationId);
+        res = UA_NodeId_copy((const UA_NodeId *)applicationId,
+                             &ctx->conf.applicationId);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
 
-    const UA_Boolean *createPrivateKey =
-        (const UA_Boolean *)UA_KeyValueMap_getScalar(
-            params, UA_QUALIFIEDNAME(0, "create-private-key"),
-            &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(createPrivateKey)
-        ctx->conf.createPrivateKey = *createPrivateKey;
+        ctx->conf.createPrivateKey = *(const UA_Boolean *)createPrivateKey;
 
-    const UA_UInt32 *cycleInterval =
-        (const UA_UInt32 *)UA_KeyValueMap_getScalar(
-            params, UA_QUALIFIEDNAME(0, "cycle-interval"),
-            &UA_TYPES[UA_TYPES_UINT32]);
-    if(cycleInterval && *cycleInterval > 0)
-        ctx->conf.cycleInterval = *cycleInterval;
+    if(cycleInterval && *(const UA_UInt32 *)cycleInterval > 0)
+        ctx->conf.cycleInterval = *(const UA_UInt32 *)cycleInterval;
     if(ctx->conf.cycleInterval == 0)
         ctx->conf.cycleInterval = UA_GDSPULL_DEFAULT_CYCLE_INTERVAL_MS;
 
-    const UA_UInt32 *cycleTimeout =
-        (const UA_UInt32 *)UA_KeyValueMap_getScalar(
-            params, UA_QUALIFIEDNAME(0, "cycle-timeout"),
-            &UA_TYPES[UA_TYPES_UINT32]);
-    if(cycleTimeout && *cycleTimeout > 0)
-        ctx->conf.cycleTimeout = *cycleTimeout;
+    if(cycleTimeout && *(const UA_UInt32 *)cycleTimeout > 0)
+        ctx->conf.cycleTimeout = *(const UA_UInt32 *)cycleTimeout;
     if(ctx->conf.cycleTimeout == 0)
         ctx->conf.cycleTimeout = UA_GDSPULL_DEFAULT_CYCLE_TIMEOUT_MS;
 

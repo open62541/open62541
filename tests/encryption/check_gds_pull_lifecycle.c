@@ -1654,6 +1654,97 @@ START_TEST(restoredPendingRequestIsFinishedWithoutNewRequest) {
     assertLocalCertificateIs(&requesterCert);
 } END_TEST
 
+static void
+setScalarParam(const char *key, const void *p, const UA_DataType *type) {
+    UA_QualifiedName name = UA_QUALIFIEDNAME(0, (char*)(uintptr_t)key);
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params, name, p, type),
+                      UA_STATUSCODE_GOOD);
+}
+
+/* The REQUEST_ADDED payload has scalar NodeIds. A request restored as scalars
+ * instead of NodeId arrays is not taken as "no pending requests". The driver
+ * does not start, so no second signing request is started for the pair. */
+START_TEST(restoredPendingRequestAsScalarsIsRejected) {
+    lockCm();
+    UA_NodeId pendingRequest = addRequest(cm.groupId);
+    unlockCm();
+    ck_assert(!UA_NodeId_isNull(&pendingRequest));
+    replaceRequester(GDS_ENDPOINT, 0, NULL);
+    setScalarParam("pending-request-id", &pendingRequest,
+                   &UA_TYPES[UA_TYPES_NODEID]);
+    setScalarParam("pending-certificate-group-id", &defaultApplicationGroup,
+                   &UA_TYPES[UA_TYPES_NODEID]);
+    setScalarParam("pending-certificate-type-id", &rsaSha256CertificateType,
+                   &UA_TYPES[UA_TYPES_NODEID]);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    serverStarted = true;
+    iterateFor(2 * CYCLE_INTERVAL_MS);
+    MockCertificateManager c = snapshot();
+    ck_assert_uint_eq(c.startSigningRequest, 0);
+    ck_assert_uint_eq(c.requestsSize, 1);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(pull->drv.start(&pull->drv),
+                      UA_STATUSCODE_BADCONFIGURATIONERROR);
+    ck_assert_uint_eq(notificationsSize, 0);
+} END_TEST
+
+/* A parameter of another type than documented is rejected and does not fall
+ * back to the default or to the current value */
+START_TEST(wrongTypedParamsAreRejected) {
+    startup();
+    stopRequester();
+
+    UA_Int32 int32 = CYCLE_INTERVAL_MS;
+    UA_UInt16 uint16 = 2000;
+    UA_UInt32 uint32 = 1;
+    UA_String string = UA_STRING("app");
+    struct {
+        const char *key;
+        const void *wrong;
+        const UA_DataType *wrongType;
+    } cases[] = {
+        {"cycle-interval", &int32, &UA_TYPES[UA_TYPES_INT32]},
+        {"cycle-timeout", &uint16, &UA_TYPES[UA_TYPES_UINT16]},
+        {"create-private-key", &uint32, &UA_TYPES[UA_TYPES_UINT32]},
+        {"application-id", &string, &UA_TYPES[UA_TYPES_STRING]},
+        {"mappings-local-group-id", &defaultApplicationGroup,
+         &UA_TYPES[UA_TYPES_NODEID]}
+    };
+    for(size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        UA_QualifiedName key =
+            UA_QUALIFIEDNAME(0, (char*)(uintptr_t)cases[i].key);
+        UA_Variant valid;
+        UA_Variant_init(&valid);
+        const UA_Variant *current = UA_KeyValueMap_get(&pull->drv.params, key);
+        UA_Boolean present = (current != NULL);
+        if(present)
+            ck_assert_uint_eq(UA_Variant_copy(current, &valid),
+                              UA_STATUSCODE_GOOD);
+
+        setScalarParam(cases[i].key, cases[i].wrong, cases[i].wrongType);
+        ck_assert_msg(pull->drv.start(&pull->drv) ==
+                      UA_STATUSCODE_BADCONFIGURATIONERROR,
+                      "%s of the wrong type is accepted", cases[i].key);
+        ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STOPPED);
+
+        /* Restore the valid value */
+        if(present) {
+            ck_assert_uint_eq(UA_KeyValueMap_set(&pull->drv.params, key,
+                                                 &valid),
+                              UA_STATUSCODE_GOOD);
+            UA_Variant_clear(&valid);
+        } else {
+            ck_assert_uint_eq(UA_KeyValueMap_remove(&pull->drv.params, key),
+                              UA_STATUSCODE_GOOD);
+        }
+    }
+
+    /* The restored params start the driver again */
+    ck_assert_uint_eq(pull->drv.start(&pull->drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
 /* Without a reachable CertificateManager the cycle ends without any request
  * and the driver keeps running until the server shuts down. Depending on the
  * host, the connection attempt is refused or hangs until the cycle times
@@ -2800,6 +2891,8 @@ main(void) {
     tcase_add_test(tc, rejectedRequestIsReplacedInNextCycle);
     tcase_add_test(tc, deniedRequestIsReplacedInNextCycle);
     tcase_add_test(tc, restoredPendingRequestIsFinishedWithoutNewRequest);
+    tcase_add_test(tc, restoredPendingRequestAsScalarsIsRejected);
+    tcase_add_test(tc, wrongTypedParamsAreRejected);
     tcase_add_test(tc, unreachableCertificateManager);
     tcase_add_test(tc, cycleTimeoutAbortsCycle);
     tcase_add_test(tc, stopDuringCycleAndReplaceRequester);
