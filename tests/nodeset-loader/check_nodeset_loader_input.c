@@ -172,6 +172,73 @@ START_TEST(Server_loadCustomHierarchicalParentReference) {
 }
 END_TEST
 
+static UA_UInt16 bindNsIndex = 0;
+
+static UA_StatusCode
+boundMethod(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+            const UA_NodeId *methodId, void *methodContext,
+            const UA_NodeId *objectId, void *objectContext,
+            size_t inputSize, const UA_Variant *input,
+            size_t outputSize, UA_Variant *output) {
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The type constructor binds the Method of the instance */
+static UA_StatusCode
+bindingConstructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *typeNodeId, void *typeNodeContext,
+                   const UA_NodeId *nodeId, void **nodeContext) {
+    UA_QualifiedName run = UA_QUALIFIEDNAME(bindNsIndex, "Run");
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(s, *nodeId, 1, &run);
+    if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize == 1)
+        UA_Server_setMethodNodeCallback(s, bpr.targets[0].targetId.nodeId, boundMethod);
+    UA_BrowsePathResult_clear(&bpr);
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The loader finishes an Object before its Method children. A callback the
+ * constructor of the Object's type set on a child Method is kept. */
+START_TEST(Server_keepConstructorBoundMethodCallback) {
+    const UA_XmlElement types = UA_STRING_STATIC(
+        "<UANodeSet><NamespaceUris><Uri>urn:open62541:loader:bind</Uri></NamespaceUris>"
+        "<UAObjectType NodeId=\"ns=1;i=10\" BrowseName=\"1:DeviceType\">"
+        "<DisplayName>DeviceType</DisplayName><References>"
+        "<Reference ReferenceType=\"i=45\" IsForward=\"false\">i=58</Reference>"
+        "</References></UAObjectType></UANodeSet>");
+    ck_assert_uint_eq(UA_Server_loadNodeset(server, types), UA_STATUSCODE_GOOD);
+    size_t nsIndex = 0;
+    ck_assert_uint_eq(UA_Server_getNamespaceByName(
+                          server, UA_STRING("urn:open62541:loader:bind"), &nsIndex),
+                      UA_STATUSCODE_GOOD);
+    bindNsIndex = (UA_UInt16)nsIndex;
+
+    UA_NodeTypeLifecycle lc;
+    memset(&lc, 0, sizeof(UA_NodeTypeLifecycle));
+    lc.constructor = bindingConstructor;
+    ck_assert_uint_eq(UA_Server_setNodeTypeLifecycle(
+                          server, UA_NODEID_NUMERIC(bindNsIndex, 10), lc),
+                      UA_STATUSCODE_GOOD);
+
+    const UA_XmlElement instance = UA_STRING_STATIC(
+        "<UANodeSet><NamespaceUris><Uri>urn:open62541:loader:bind</Uri></NamespaceUris>"
+        "<UAObject NodeId=\"ns=1;i=20\" BrowseName=\"1:Device\">"
+        "<DisplayName>Device</DisplayName><References>"
+        "<Reference ReferenceType=\"i=35\" IsForward=\"false\">i=85</Reference>"
+        "<Reference ReferenceType=\"i=40\">ns=1;i=10</Reference>"
+        "<Reference ReferenceType=\"i=47\">ns=1;i=21</Reference>"
+        "</References></UAObject>"
+        "<UAMethod NodeId=\"ns=1;i=21\" BrowseName=\"1:Run\" ParentNodeId=\"ns=1;i=20\">"
+        "<DisplayName>Run</DisplayName></UAMethod></UANodeSet>");
+    ck_assert_uint_eq(UA_Server_loadNodeset(server, instance), UA_STATUSCODE_GOOD);
+
+    UA_MethodCallback cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(
+                          server, UA_NODEID_NUMERIC(bindNsIndex, 21), &cb),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(cb == boundMethod);
+}
+END_TEST
+
 START_TEST(Server_rejectInvalidXmlElement) {
     const UA_XmlElement xml = UA_STRING_STATIC("<UANodeSet>");
     ck_assert_uint_eq(UA_Server_loadNodeset(server, xml), UA_STATUSCODE_BADDECODINGERROR);
@@ -539,6 +606,7 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_loadForwardParentReferences);
     tcase_add_test(tc_server, Server_loadCustomHierarchicalParentReference);
     tcase_add_test(tc_server, Server_rejectInvalidXmlElement);
+    tcase_add_test(tc_server, Server_keepConstructorBoundMethodCallback);
     tcase_add_test(tc_server, Server_ignoreMalformedArrayDimensions);
     tcase_add_test(tc_server, Server_loadMissingNodeAttributes);
     tcase_add_test(tc_server, Server_loadLegacyChildAttributes);

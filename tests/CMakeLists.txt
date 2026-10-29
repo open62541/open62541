@@ -248,6 +248,13 @@ ua_add_test(check_utf8.c)
 ua_add_test(check_musl_inet_pton.c)
 ua_add_test(check_config_default.c)
 
+if(UA_ENABLE_DRIVER_LOGOBJECT)
+    ua_add_test(check_logobject_backend_memory.c)
+    ua_add_test(server/check_server_logobject.c)
+    target_compile_definitions(check_server_logobject PRIVATE
+        LOGOBJECT_COMPANION_XML="${CMAKE_CURRENT_SOURCE_DIR}/server/logobject_companion.xml")
+endif()
+
 if(UNIX AND NOT APPLE)
     ua_add_test(check_log_syslog.c)
 endif()

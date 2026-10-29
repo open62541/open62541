@@ -36,6 +36,7 @@ server_needed_examples = {
         "client_connect_loop":"ci_server 4840 server.cert.der server.key.der client.cert.der",
         "client_encryption":"server_encryption server.cert.der server.key.der client.cert.der",
         "client_event_filter":"ci_server 4840 server.cert.der server.key.der client.cert.der",
+        "client_getrecords":"server_logobject",
         "client_historical":"tutorial_server_historicaldata",
         "client_method_async":"ci_server 4840 server.cert.der server.key.der client.cert.der",
         "client_subscription_loop":"ci_server 4840 server.cert.der server.key.der client.cert.der",

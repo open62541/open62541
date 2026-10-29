@@ -284,6 +284,15 @@ The Method service set is always compiled.
    enabled; the full Namespace Zero always includes them. With ``MINIMAL`` or
    ``NONE``, load the required types before constructing a file transfer driver.
 
+**UA_ENABLE_DRIVER_LOGOBJECT**
+   Build the LogObject driver of OPC UA Part 26 and add the LogObject types
+   to the reduced namespace zero. The driver exposes the ServerLog, which
+   captures the output of the server logger, and serves every LogObject in the
+   information model with the GetRecords Method. Requires a generated
+   namespace zero (``REDUCED`` or ``FULL``). Off by default and marked as
+   EXPERIMENTAL because the specification itself notes limited implementation
+   experience.
+
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
 
