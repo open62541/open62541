@@ -795,6 +795,7 @@ static UA_Boolean serverStarted;
 typedef struct {
     UA_GDSPullRequesterNotification type;
     UA_KeyValueMap payload;
+    UA_DateTime time; /* monotonic */
 } Notification;
 
 static Notification notifications[MAX_NOTIFICATIONS];
@@ -825,6 +826,7 @@ onNotification(UA_GDSPullRequester *requester, void *context,
     ck_assert_uint_lt(notificationsSize, MAX_NOTIFICATIONS);
     Notification *n = &notifications[notificationsSize++];
     n->type = type;
+    n->time = UA_DateTime_nowMonotonic();
     ck_assert_uint_eq(UA_KeyValueMap_copy(&payload, &n->payload), UA_STATUSCODE_GOOD);
     printf("GDS Pull notification %s\n", notificationName(type));
 }
@@ -856,6 +858,13 @@ positionOf(UA_GDSPullRequesterNotification type, size_t n) {
     }
     ck_abort_msg("Notification %s not found", notificationName(type));
     return 0;
+}
+
+/* Time between the n-th and the (n+1)-th notification of the type */
+static UA_DateTime
+timeBetween(UA_GDSPullRequesterNotification type, size_t n) {
+    return notifications[positionOf(type, n + 1)].time -
+           notifications[positionOf(type, n)].time;
 }
 
 static const UA_NodeId *
@@ -982,6 +991,15 @@ setCycleTimeout(UA_UInt32 cycleTimeout) {
     ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params,
                                                UA_QUALIFIEDNAME(0, "cycle-timeout"),
                                                &cycleTimeout, &UA_TYPES[UA_TYPES_UINT32]),
+                      UA_STATUSCODE_GOOD);
+}
+
+/* Change the cycle interval of the requester before the server is started */
+static void
+setCycleInterval(UA_UInt32 cycleInterval) {
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params,
+                                               UA_QUALIFIEDNAME(0, "cycle-interval"),
+                                               &cycleInterval, &UA_TYPES[UA_TYPES_UINT32]),
                       UA_STATUSCODE_GOOD);
 }
 
@@ -1608,6 +1626,39 @@ START_TEST(reconnectDuringFinishRetryKeepsRequestBinding) {
     UA_NodeId_clear(&requestB);
 } END_TEST
 
+/* 6.3: The second cycle starts with a random delay of 1% to 10% of the cycle
+ * period, so that applications started at the same time do not contact the
+ * CertificateManager at the same time in every cycle. The cycles after it keep
+ * the period. */
+#define RANDOM_DELAY_INTERVAL_MS 2000
+#define RANDOM_DELAY_TOLERANCE_MS 5
+
+START_TEST(secondCycleStartsWithRandomDelay) {
+    const UA_DateTime period = RANDOM_DELAY_INTERVAL_MS * UA_DATETIME_MSEC;
+    const UA_DateTime tolerance = RANDOM_DELAY_TOLERANCE_MS * UA_DATETIME_MSEC;
+    setCycleInterval(RANDOM_DELAY_INTERVAL_MS);
+
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_STARTED, 3));
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+
+    UA_DateTime second = timeBetween(UA_GDSPULL_CYCLE_STARTED, 1);
+    UA_DateTime third = timeBetween(UA_GDSPULL_CYCLE_STARTED, 2);
+    printf("Cycle 1 -> 2: %lld ms, cycle 2 -> 3: %lld ms\n",
+           (long long)(second / UA_DATETIME_MSEC),
+           (long long)(third / UA_DATETIME_MSEC));
+
+    /* The second cycle is delayed by at least 1% of the period ... */
+    ck_assert_int_ge(second, period + period / 100 - tolerance);
+    /* ... and by at most 10% (plus the scheduling latency) */
+    ck_assert_int_le(second, period + period / 10 + 20 * tolerance);
+    /* The third cycle follows the second one after one period */
+    ck_assert_int_ge(third, period - period / 100);
+    ck_assert_int_le(third, period + period / 100);
+
+    shutdownRequester();
+} END_TEST
+
 /******************************/
 /* Suite                      */
 /******************************/
@@ -1661,6 +1712,7 @@ main(void) {
     tcase_add_test(tc, changedTrustListIsDownloadedAgain);
     tcase_add_test(tc, certificateNotMatchingKeyIsNotInstalled);
     tcase_add_test(tc, reconnectDuringFinishRetryKeepsRequestBinding);
+    tcase_add_test(tc, secondCycleStartsWithRandomDelay);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);

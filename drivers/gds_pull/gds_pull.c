@@ -104,7 +104,13 @@ struct UA_GDSPullContext {
     /* Client calls are dispatched as stateless callbacks, so we must remember
      * where in the workflow we are. */
     UA_GDSPullStep currentStep;
+    /* One-shot timer that starts the next cycle */
     UA_UInt64 runWorkflowCallbackId;
+    /* Monotonic time at which the next cycle is due. Each cycle schedules the
+     * next one, so that the random delay of the second cycle (Part 12, 6.3)
+     * shifts all later cycles. */
+    UA_DateTime nextCycleTime;
+    UA_Boolean secondCycleDelayed;
     UA_UInt64 dispatchCallbackId;
     UA_UInt64 cycleTimeoutCallbackId;
     /* The client must not be deleted from within its own state callback. The
@@ -1980,9 +1986,51 @@ UA_GDSPull_runWorkflow(UA_Server *server, UA_GDSPullContext *ctx) {
 }
 
 static void
+UA_GDSPull_runWorkflowCallback(UA_Server *server, void *data);
+
+/* Part 12, 6.3: The second cycle starts with a random delay between 1% and 10%
+ * of the cycle period. Later cycles follow one period after their predecessor.
+ * A one-shot timer is used instead of a repeated callback, because the
+ * EventLoop would align a repeated callback with other cyclic callbacks of the
+ * server and undo the random delay. */
+static UA_StatusCode
+UA_GDSPull_scheduleNextCycle(UA_Server *server, UA_GDSPullContext *ctx) {
+    UA_UInt32 interval = ctx->conf.cycleInterval;
+    UA_DateTime delay = (UA_DateTime)interval * UA_DATETIME_MSEC;
+    if(!ctx->secondCycleDelayed) {
+        UA_UInt32 lo = interval / 100;
+        UA_UInt32 hi = interval / 10;
+        UA_UInt32 jitter = lo + UA_UInt32_random() % (hi - lo + 1);
+        delay += (UA_DateTime)jitter * UA_DATETIME_MSEC;
+        ctx->secondCycleDelayed = true;
+    }
+
+    /* Do not catch up with cycles that were missed */
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    ctx->nextCycleTime += delay;
+    if(ctx->nextCycleTime < now)
+        ctx->nextCycleTime = now + delay;
+
+    return UA_Server_addTimedCallback(server, UA_GDSPull_runWorkflowCallback,
+                                      ctx, ctx->nextCycleTime,
+                                      &ctx->runWorkflowCallbackId);
+}
+
+static void
 UA_GDSPull_runWorkflowCallback(UA_Server *server, void *data) {
     UA_GDSPullContext *ctx = (UA_GDSPullContext *)data;
-    UA_StatusCode res = UA_GDSPull_runWorkflow(server, ctx);
+
+    /* The one-shot timer is gone */
+    ctx->runWorkflowCallbackId = 0;
+    UA_StatusCode res = UA_GDSPull_scheduleNextCycle(server, ctx);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(
+            UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+            "The next GDS Pull cycle could not be scheduled: %s",
+            UA_StatusCode_name(res));
+    }
+
+    res = UA_GDSPull_runWorkflow(server, ctx);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(
             UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
@@ -2229,9 +2277,13 @@ UA_GDSPull_start(UA_Driver *drv) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    res = UA_Server_addRepeatedCallback(
-        drv->server, UA_GDSPull_runWorkflowCallback, ctx,
-        ctx->conf.cycleInterval, &ctx->runWorkflowCallbackId);
+    /* The first cycle starts one period after the start */
+    ctx->nextCycleTime = UA_DateTime_nowMonotonic() +
+        (UA_DateTime)ctx->conf.cycleInterval * UA_DATETIME_MSEC;
+    ctx->secondCycleDelayed = false;
+    res = UA_Server_addTimedCallback(
+        drv->server, UA_GDSPull_runWorkflowCallback, ctx, ctx->nextCycleTime,
+        &ctx->runWorkflowCallbackId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
