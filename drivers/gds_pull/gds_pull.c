@@ -2209,7 +2209,10 @@ static UA_StatusCode
 UA_GDSPull_start(UA_Driver *drv) {
     UA_GDSPullContext *ctx = (UA_GDSPullContext *)drv;
 
-    if(ctx->runWorkflowCallbackId != 0)
+    /* Also refused while STOPPING. Responses of the cycle that is torn down
+     * still arrive and are matched by the cursors into the pending requests
+     * and groups. Reloading these from the params would rebind them. */
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
     UA_StatusCode res = UA_GDSPull_readParams(ctx);
