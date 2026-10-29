@@ -197,4 +197,113 @@ cleanup:
     return res;
 }
 
+static void
+removeChannel(UA_GDSChannel *ch) {
+    LIST_REMOVE(ch, pointers);
+    UA_NodeId_clear(&ch->certificateTypeId);
+    UA_ByteString_clear(&ch->certificate);
+    UA_free(ch);
+}
+
+void
+UA_GDSChannels_notify(UA_GDSChannels *channels, UA_Server *server,
+                      UA_ApplicationNotificationType type,
+                      const UA_KeyValueMap payload) {
+    const UA_UInt32 *channelId = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &payload, UA_QUALIFIEDNAME(0, "securechannel-id"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(!channelId)
+        return;
+
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED) {
+        UA_GDSChannel *ch;
+        LIST_FOREACH(ch, channels, pointers) {
+            if(ch->channelId == *channelId) {
+                removeChannel(ch);
+                break;
+            }
+        }
+        return;
+    }
+
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED)
+        return;
+    const UA_NodeId *certificateTypeId =
+        (const UA_NodeId *)UA_KeyValueMap_getScalar(
+            &payload, UA_QUALIFIEDNAME(0, "certificate-type-id"),
+            &UA_TYPES[UA_TYPES_NODEID]);
+    const UA_ByteString *certificate =
+        (const UA_ByteString *)UA_KeyValueMap_getScalar(
+            &payload, UA_QUALIFIEDNAME(0, "remote-certificate"),
+            &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Boolean hasType = certificateTypeId &&
+        !UA_NodeId_isNull(certificateTypeId);
+    UA_Boolean hasCertificate = certificate && certificate->length > 0;
+    if(!hasType && !hasCertificate)
+        return;
+
+    UA_GDSChannel *ch = (UA_GDSChannel *)UA_calloc(1, sizeof(UA_GDSChannel));
+    UA_StatusCode res = UA_STATUSCODE_BADOUTOFMEMORY;
+    if(ch) {
+        res = UA_STATUSCODE_GOOD;
+        if(hasType)
+            res |= UA_NodeId_copy(certificateTypeId, &ch->certificateTypeId);
+        if(hasCertificate)
+            res |= UA_ByteString_copy(certificate, &ch->certificate);
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(UA_Server_getConfig(server)->logging,
+                       UA_LOGCATEGORY_SERVER,
+                       "Could not register SecureChannel %u (oom)",
+                       (unsigned)*channelId);
+        if(ch) {
+            UA_NodeId_clear(&ch->certificateTypeId);
+            UA_ByteString_clear(&ch->certificate);
+        }
+        UA_free(ch);
+        return;
+    }
+    ch->channelId = *channelId;
+    LIST_INSERT_HEAD(channels, ch, pointers);
+}
+
+void
+UA_GDSChannels_closeCertificateType(UA_GDSChannels *channels, UA_Server *server,
+                                    const UA_NodeId *certificateTypeId) {
+    UA_GDSChannel *ch, *chTmp;
+    LIST_FOREACH_SAFE(ch, channels, pointers, chTmp) {
+        if(!UA_NodeId_equal(&ch->certificateTypeId, certificateTypeId))
+            continue;
+        UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                    "Closing SecureChannel %u. It was opened for the replaced "
+                    "certificate.", (unsigned)ch->channelId);
+        UA_Server_closeSecureChannel(server, ch->channelId,
+                                     UA_SHUTDOWNREASON_CLOSE);
+    }
+}
+
+void
+UA_GDSChannels_closeUntrusted(UA_GDSChannels *channels, UA_Server *server,
+                              UA_CertificateGroup *certGroup) {
+    UA_GDSChannel *ch, *chTmp;
+    LIST_FOREACH_SAFE(ch, channels, pointers, chTmp) {
+        if(ch->certificate.length == 0 ||
+           certGroup->verifyCertificate(certGroup, &ch->certificate) ==
+           UA_STATUSCODE_GOOD)
+            continue;
+        UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
+                    "Closing SecureChannel %u. The client certificate is not "
+                    "trusted by the new TrustList.", (unsigned)ch->channelId);
+        UA_Server_closeSecureChannel(server, ch->channelId,
+                                     UA_SHUTDOWNREASON_CLOSE);
+    }
+}
+
+void
+UA_GDSChannels_clear(UA_GDSChannels *channels) {
+    UA_GDSChannel *ch, *chTmp;
+    LIST_FOREACH_SAFE(ch, channels, pointers, chTmp)
+        removeChannel(ch);
+}
+
 #endif /* UA_ENABLE_DRIVER_GDS_RECEIVER || UA_ENABLE_DRIVER_GDS_PULL */

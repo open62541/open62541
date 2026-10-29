@@ -926,28 +926,13 @@ secureChannel_delayedClose(void *application, void *context) {
     /* Shutdown SecureChannels that use an updated certificate type. If the
      * TrustList was updated, re-verify the remote certificates of the other
      * SecureChannels. Close the SecureChannel on failure. */
-    ChannelMetadata *cm;
-    UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
-    LIST_FOREACH(cm, &ctx->secureChannels, pointers) {
-        UA_Boolean closeChannel = false;
-        for(size_t i = 0; i < ctx->transaction.certificateInfosSize; i++) {
-            UA_GDSCertificateInfo *certInfo =
-                &ctx->transaction.certificateInfos[i];
-            if(UA_NodeId_equal(&cm->certificateTypeId,
-                               &certInfo->certificateType)) {
-                closeChannel = true;
-                break;
-            }
-        }
-        if(!closeChannel && trustListUpdated) {
-            UA_StatusCode res =
-                certGroup->verifyCertificate(certGroup, &cm->certificate);
-            closeChannel = (res != UA_STATUSCODE_GOOD);
-        }
-        if(closeChannel)
-            UA_Server_closeSecureChannel(server, cm->channelId,
-                                         UA_SHUTDOWNREASON_CLOSE);
-    }
+    for(size_t i = 0; i < ctx->transaction.certificateInfosSize; i++)
+        UA_GDSChannels_closeCertificateType(
+            &ctx->secureChannels, server,
+            &ctx->transaction.certificateInfos[i].certificateType);
+    if(trustListUpdated)
+        UA_GDSChannels_closeUntrusted(&ctx->secureChannels, server,
+                                      &sc->secureChannelPKI);
 
     UA_free(changes);
     ctx->transaction.applyChangesQueued = false;
@@ -994,13 +979,8 @@ static void
 closeChannelsAfterCertificateUpdate(void *application, void *context) {
     CloseChannelsCallback *ccb = (CloseChannelsCallback*)context;
     UA_GDSReceiverContext *ctx = ccb->ctx;
-    ChannelMetadata *cm, *cmTmp;
-    LIST_FOREACH_SAFE(cm, &ctx->secureChannels, pointers, cmTmp) {
-        if(!UA_NodeId_equal(&cm->certificateTypeId, &ccb->certificateTypeId))
-            continue;
-        UA_Server_closeSecureChannel(ctx->drv.server, cm->channelId,
-                                     UA_SHUTDOWNREASON_CLOSE);
-    }
+    UA_GDSChannels_closeCertificateType(&ctx->secureChannels, ctx->drv.server,
+                                        &ccb->certificateTypeId);
     UA_assert(ctx->pendingDelayedCallbacks > 0);
     ctx->pendingDelayedCallbacks--;
     if(ctx->pendingDelayedCallbacks == 0 &&
@@ -1386,55 +1366,8 @@ receiverNotificationCallback(UA_Driver *drv,
                     "Session with an open transaction has ended. "
                     "The transaction has been discarded.");
         UA_GDSTransaction_clear(transaction);
-    } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED) {
-        UA_UInt32 channelId = *(const UA_UInt32*)
-            UA_KeyValueMap_getScalar(&payload,
-                                     UA_QUALIFIEDNAME(0, "securechannel-id"),
-                                     &UA_TYPES[UA_TYPES_UINT32]);
-        UA_ByteString certificate = *(const UA_ByteString*)
-            UA_KeyValueMap_getScalar(&payload,
-                                     UA_QUALIFIEDNAME(0, "remote-certificate"),
-                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
-        const UA_NodeId *certificateTypeId = (const UA_NodeId*)
-            UA_KeyValueMap_getScalar(&payload,
-                                     UA_QUALIFIEDNAME(0, "certificate-type-id"),
-                                     &UA_TYPES[UA_TYPES_NODEID]);
-        if(!certificateTypeId)
-            return;
-
-        ChannelMetadata *cm = (ChannelMetadata*)UA_calloc(1, sizeof(ChannelMetadata));
-        if(!cm) {
-            UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
-            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
-                           "Could not register SecureChannel (oom)");
-            return;
-        }
-        cm->channelId = channelId;
-        UA_StatusCode res = UA_NodeId_copy(certificateTypeId,
-                                           &cm->certificateTypeId);
-        res |= UA_ByteString_copy(&certificate, &cm->certificate);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_NodeId_clear(&cm->certificateTypeId);
-            UA_ByteString_clear(&cm->certificate);
-            UA_free(cm);
-            return;
-        }
-        LIST_INSERT_HEAD(&ctx->secureChannels, cm, pointers);
-    } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED) {
-        UA_UInt32 channelId = *(const UA_UInt32*)
-            UA_KeyValueMap_getScalar(&payload,
-                                     UA_QUALIFIEDNAME(0, "securechannel-id"),
-                                     &UA_TYPES[UA_TYPES_UINT32]);
-        ChannelMetadata *cm;
-        LIST_FOREACH(cm, &ctx->secureChannels, pointers) {
-            if(cm->channelId != channelId)
-                continue;
-            LIST_REMOVE(cm, pointers);
-            UA_NodeId_clear(&cm->certificateTypeId);
-            UA_ByteString_clear(&cm->certificate);
-            UA_free(cm);
-            break;
-        }
+    } else {
+        UA_GDSChannels_notify(&ctx->secureChannels, drv->server, type, payload);
     }
 }
 
@@ -1505,14 +1438,7 @@ UA_GDSReceiver_free(UA_Driver *drv) {
     UA_GDSTransaction_clear(&ctx->transaction);
     UA_KeyValueMap_clear(&drv->params);
 
-    /* Free SecureChannel Metadata */
-    ChannelMetadata *cm, *cm_tmp;
-    LIST_FOREACH_SAFE(cm, &ctx->secureChannels, pointers, cm_tmp) {
-        LIST_REMOVE(cm, pointers);
-        UA_NodeId_clear(&cm->certificateTypeId);
-        UA_ByteString_clear(&cm->certificate);
-        UA_free(cm);
-    }
+    UA_GDSChannels_clear(&ctx->secureChannels);
 
     UA_GDSPendingCsr *pc, *pc_tmp;
     LIST_FOREACH_SAFE(pc, &ctx->pendingCsrs, pointers, pc_tmp) {
