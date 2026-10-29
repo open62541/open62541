@@ -13,7 +13,7 @@
 #include "thread_wrapper.h"
 
 #ifndef UA_ARCHITECTURE_WIN32
-#include <unistd.h>
+#include <time.h>
 #endif
 
 #define REQUESTER_PORT 14840
@@ -50,6 +50,7 @@
 
 #define MAX_NOTIFICATIONS 128
 #define MAX_REQUESTS 8
+#define MAX_FINISH_CALLS 32
 
 /* Certificates are created once for the whole suite */
 static UA_ByteString requesterCert, requesterKey;
@@ -107,6 +108,20 @@ typedef struct {
     UA_NodeId lastRequestId;
     UA_NodeId lastCertificateType;
     UA_ByteString lastCsr;
+
+    /* One FinishRequest call (1-based, 0 for none) is answered with its own
+     * mode after a delay. The delay blocks the CertificateManager thread but
+     * not cmMutex. */
+    size_t delayedFinishCall;
+    FinishMode delayedFinishMode;
+    UA_UInt32 delayedFinishMs;
+
+    /* RequestId argument of each FinishRequest call */
+    UA_NodeId finishRequestIds[MAX_FINISH_CALLS];
+
+    /* The SecureChannel opened last and the number of opened SecureChannels */
+    UA_UInt32 lastChannelId;
+    size_t channelsOpened;
 
     /* Call counters */
     size_t findApplications, registerApplication, getCertificateGroups,
@@ -297,10 +312,22 @@ MOCK_METHOD(mockStartNewKeyPairRequest) {
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
+static void
+sleepMs(UA_UInt32 ms) {
+#ifdef UA_ARCHITECTURE_WIN32
+    Sleep(ms);
+#else
+    struct timespec ts = {(time_t)(ms / 1000), (long)(ms % 1000) * 1000000L};
+    nanosleep(&ts, NULL);
+#endif
+}
+
 /* 7.9.5: FinishRequest(ApplicationId, RequestId)
- *        -> Certificate, PrivateKey, IssuerCertificates[] */
-MOCK_METHOD(answerFinishRequest) {
-    cm.finishRequest++;
+ *        -> Certificate, PrivateKey, IssuerCertificates[]
+ * Must be called with cmMutex held */
+static UA_StatusCode
+answerFinishRequest(const UA_Variant *input, UA_Variant *output,
+                    FinishMode mode) {
     UA_StatusCode res = checkApplicationId(&input[0]);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -314,7 +341,7 @@ MOCK_METHOD(answerFinishRequest) {
     if(!known)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    switch(cm.finishMode) {
+    switch(mode) {
     case FINISH_PENDING:
         return UA_STATUSCODE_BADNOTHINGTODO;
     case FINISH_REJECT:
@@ -337,18 +364,11 @@ MOCK_METHOD(answerFinishRequest) {
     return res;
 }
 
-static void
-mockSleep(void) {
-#ifdef UA_ARCHITECTURE_WIN32
-    Sleep(1);
-#else
-    usleep(1000);
-#endif
-}
-
-/* The answer is computed right away. A held response is sent once the test
- * releases it. The CertificateManager thread blocks in the meantime, so later
- * requests on the same connection are answered after this one. */
+/* Records the call and answers it. A delayed call is answered after the delay
+ * with its own mode. The answer to a held call is computed right away and sent
+ * once the test releases it. The CertificateManager thread blocks in both
+ * cases (but not cmMutex), so later requests on the same connection are
+ * answered after this one. */
 static UA_StatusCode
 mockFinishRequest(UA_Server *s, const UA_NodeId *sessionId,
                   void *sessionContext, const UA_NodeId *methodId,
@@ -356,18 +376,49 @@ mockFinishRequest(UA_Server *s, const UA_NodeId *sessionId,
                   void *objectContext, size_t inputSize,
                   const UA_Variant *input, size_t outputSize,
                   UA_Variant *output) {
-    UA_StatusCode res = answerFinishRequest(
-        s, sessionId, sessionContext, methodId, methodContext, objectId,
-        objectContext, inputSize, input, outputSize, output);
     lockCm();
-    size_t call = cm.finishRequest;
+    size_t call = ++cm.finishRequest;
+    if(call <= MAX_FINISH_CALLS &&
+       isScalar(&input[1], &UA_TYPES[UA_TYPES_NODEID]))
+        cm.finishRequestIds[call - 1] = *(const UA_NodeId*)input[1].data;
+    FinishMode mode = cm.finishMode;
+    UA_UInt32 delay = 0;
+    if(call == cm.delayedFinishCall) {
+        mode = cm.delayedFinishMode;
+        delay = cm.delayedFinishMs;
+    }
+    unlockCm();
+
+    if(delay > 0)
+        sleepMs(delay);
+
+    lockCm();
+    UA_StatusCode res = answerFinishRequest(input, output, mode);
     while(cm.holdFinishRequest == call) {
         unlockCm();
-        mockSleep();
+        sleepMs(1);
         lockCm();
     }
     unlockCm();
     return res;
+}
+
+/* Record the SecureChannels opened by the requester. Runs in the
+ * CertificateManager thread. */
+static void
+onCertificateManagerChannel(UA_Server *s, UA_ApplicationNotificationType type,
+                            const UA_KeyValueMap payload) {
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED)
+        return;
+    const UA_UInt32 *channelId = (const UA_UInt32*)UA_KeyValueMap_getScalar(
+        &payload, UA_QUALIFIEDNAME(0, "securechannel-id"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(!channelId)
+        return;
+    lockCm();
+    cm.lastChannelId = *channelId;
+    cm.channelsOpened++;
+    unlockCm();
 }
 
 /* 7.9.9: GetTrustList(ApplicationId, CertificateGroupId) -> TrustListId */
@@ -581,11 +632,13 @@ setServedTrustList(const UA_ByteString *certificates, size_t size) {
 }
 
 /* A server with all security policies that trusts one certificate. Unlike the
- * unit test helpers, the EventLoop keeps the real clock. */
+ * unit test helpers, the EventLoop keeps the real clock. With rsaMin, the
+ * deprecated SecurityPolicy#Basic128Rsa15 adds the certificate type
+ * RsaMinApplicationCertificateType. */
 static UA_Server *
 newServer(UA_UInt16 port, const UA_ByteString *certificate,
           const UA_ByteString *privateKey, const UA_ByteString *trusted,
-          const char *applicationUri) {
+          const char *applicationUri, UA_Boolean rsaMin) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
     config.logging = UA_Log_Stdout_new(UA_LOGLEVEL_INFO);
@@ -593,6 +646,17 @@ newServer(UA_UInt16 port, const UA_ByteString *certificate,
                           &config, port, certificate, privateKey, trusted, 1,
                           NULL, 0, NULL, 0),
                       UA_STATUSCODE_GOOD);
+    if(rsaMin) {
+        ck_assert_uint_eq(UA_ServerConfig_addSecurityPolicyBasic128Rsa15(
+                              &config, certificate, privateKey),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_ServerConfig_addEndpoint(
+                              &config,
+                              UA_STRING("http://opcfoundation.org/UA/"
+                                        "SecurityPolicy#Basic128Rsa15"),
+                              UA_MESSAGESECURITYMODE_SIGNANDENCRYPT),
+                          UA_STATUSCODE_GOOD);
+    }
     config.tcpReuseAddr = true;
     UA_String_clear(&config.applicationDescription.applicationUri);
     config.applicationDescription.applicationUri = UA_STRING_ALLOC(applicationUri);
@@ -613,7 +677,10 @@ setupCertificateManager(void) {
     ck_assert(MUTEX_INIT(cmMutex));
 
     /* The CertificateManager trusts the requester */
-    cm.server = newServer(GDS_PORT, &gdsCert, &gdsKey, &requesterCert, GDS_URI);
+    cm.server = newServer(GDS_PORT, &gdsCert, &gdsKey, &requesterCert, GDS_URI,
+                          false);
+    UA_Server_getConfig(cm.server)->secureChannelNotificationCallback =
+        onCertificateManagerChannel;
 
     cm.ns = UA_Server_addNamespace(cm.server, GDS_NS_URI);
     cm.applicationId = UA_NODEID_NUMERIC(cm.ns, GDSID_APPLICATION);
@@ -845,6 +912,15 @@ runUntil(UA_GDSPullRequesterNotification type, size_t n) {
     return countNotifications(type) >= n;
 }
 
+/* Iterate the requester for the given real time */
+static void
+iterateFor(UA_UInt32 ms) {
+    UA_DateTime end =
+        UA_DateTime_nowMonotonic() + (UA_DateTime)ms * UA_DATETIME_MSEC;
+    while(UA_DateTime_nowMonotonic() < end)
+        iterate();
+}
+
 static UA_GDSPullRequester *
 newRequester(const char *endpointUrl, size_t pendingSize,
              const UA_NodeId *pendingRequestIds) {
@@ -926,7 +1002,7 @@ setup(void) {
 
     /* The requester trusts the CertificateManager */
     server = newServer(REQUESTER_PORT, &requesterCert, &requesterKey, &gdsCert,
-                       REQUESTER_URI);
+                       REQUESTER_URI, false);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(UA_NodeId_equal(&config->secureChannelPKI.certificateGroupId,
                               &defaultApplicationGroup));
@@ -940,6 +1016,23 @@ setup(void) {
     pull = newRequester(GDS_ENDPOINT, 0, NULL);
     ck_assert_uint_eq(UA_Server_addDriver(server, &pull->drv), UA_STATUSCODE_GOOD);
     serverStarted = false;
+}
+
+/* Replace the requester server of the fixture before it is started. With
+ * SecurityPolicy#Basic128Rsa15, the DefaultApplicationGroup has a second
+ * certificate type, so one cycle starts two signing requests. */
+static void
+replaceRequesterServerWithRsaMin(void) {
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &pull->drv),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pull->drv.free(&pull->drv), UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+    server = newServer(REQUESTER_PORT, &requesterCert, &requesterKey, &gdsCert,
+                       REQUESTER_URI, true);
+    ck_assert_uint_eq(UA_Server_addNamespace(server, GDS_NS_URI), cm.ns);
+    pull = newRequester(GDS_ENDPOINT, 0, NULL);
+    ck_assert_uint_eq(UA_Server_addDriver(server, &pull->drv),
+                      UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -1418,6 +1511,103 @@ START_TEST(certificateNotMatchingKeyIsNotInstalled) {
     ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
+static size_t
+countFinishRequests(const MockCertificateManager *c,
+                    const UA_NodeId *requestId) {
+    size_t count = 0;
+    size_t calls = (c->finishRequest < MAX_FINISH_CALLS) ? c->finishRequest
+                                                          : MAX_FINISH_CALLS;
+    for(size_t i = 0; i < calls; i++)
+        count += UA_NodeId_equal(&c->finishRequestIds[i], requestId);
+    return count;
+}
+
+/* 7.6, 7.9.5: The connection to the CertificateManager is lost while the
+ * driver waits to repeat FinishRequest after Bad_NothingToDo. The client
+ * reconnects within the cycle. The repetition is still sent only once, and
+ * each FinishRequest result is applied to the request it was sent for.
+ *
+ * Request A is answered with Bad_NothingToDo, then the SecureChannel is
+ * closed by the CertificateManager. The next FinishRequest for A is approved
+ * after a delay. A FinishRequest for A that is sent twice is answered for
+ * the erased request with Bad_InvalidArgument. Request B stays pending. */
+START_TEST(reconnectDuringFinishRetryKeepsRequestBinding) {
+    replaceRequesterServerWithRsaMin();
+    lockCm();
+    cm.finishMode = FINISH_PENDING;
+    cm.delayedFinishCall = 2;
+    cm.delayedFinishMode = FINISH_APPROVE;
+    cm.delayedFinishMs = 1500;
+    unlockCm();
+
+    startup();
+
+    /* The first FinishRequest (for A) is answered with Bad_NothingToDo. Give
+     * the driver time to process the answer, then drop the connection. */
+    UA_DateTime end = deadline();
+    while(snapshot().finishRequest < 1 && UA_DateTime_nowMonotonic() < end)
+        iterate();
+    ck_assert_uint_eq(snapshot().finishRequest, 1);
+    iterateFor(200);
+    MockCertificateManager c = snapshot();
+    ck_assert_uint_eq(c.finishRequest, 1);
+    size_t channelsBefore = c.channelsOpened;
+    ck_assert_uint_eq(UA_Server_closeSecureChannel(cm.server, c.lastChannelId,
+                                                   UA_SHUTDOWNREASON_CLOSE),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    c = snapshot();
+
+    /* The client reconnected within the cycle */
+    ck_assert_uint_gt(c.channelsOpened, channelsBefore);
+
+    /* Two requests were started: A for RsaSha256 and B for RsaMin */
+    ck_assert_uint_eq(c.startSigningRequest, 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 2);
+    UA_NodeId requestA, requestB;
+    ck_assert_uint_eq(
+        UA_NodeId_copy(payloadNodeId(positionOf(UA_GDSPULL_REQUEST_ADDED, 1),
+                                     "request-id"), &requestA),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(
+        UA_NodeId_copy(payloadNodeId(positionOf(UA_GDSPULL_REQUEST_ADDED, 2),
+                                     "request-id"), &requestB),
+        UA_STATUSCODE_GOOD);
+
+    /* A is finished. B was never answered with a final result and is still
+     * pending at the CertificateManager and in the requester. */
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 1);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_FINISHED, 1), &requestA,
+                         &rsaSha256CertificateType);
+    ck_assert_uint_eq(c.requestsSize, 1);
+    ck_assert(UA_NodeId_equal(&c.requestIds[0], &requestB));
+    assertLocalCertificateIs(&requesterCert);
+
+    /* A was asked once before and once after the reconnect. B was asked at
+     * most 1 + 2 times (Bad_NothingToDo is repeated twice). */
+    ck_assert_uint_eq(countFinishRequests(&c, &requestA), 2);
+    ck_assert_uint_ge(countFinishRequests(&c, &requestB), 1);
+    ck_assert_uint_le(countFinishRequests(&c, &requestB), 3);
+
+    /* B is approved in the next cycle without a new signing request */
+    setFinishMode(FINISH_APPROVE);
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+    ck_assert_uint_eq(c.startSigningRequest, 2);
+    ck_assert_uint_eq(c.requestsSize, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 2);
+    ck_assert(UA_NodeId_equal(
+        payloadNodeId(positionOf(UA_GDSPULL_REQUEST_FINISHED, 2), "request-id"),
+        &requestB));
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+
+    UA_NodeId_clear(&requestA);
+    UA_NodeId_clear(&requestB);
+} END_TEST
+
 /******************************/
 /* Suite                      */
 /******************************/
@@ -1470,6 +1660,7 @@ main(void) {
     tcase_add_test(tc, unchangedTrustListIsNotDownloadedAgain);
     tcase_add_test(tc, changedTrustListIsDownloadedAgain);
     tcase_add_test(tc, certificateNotMatchingKeyIsNotInstalled);
+    tcase_add_test(tc, reconnectDuringFinishRetryKeepsRequestBinding);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);
