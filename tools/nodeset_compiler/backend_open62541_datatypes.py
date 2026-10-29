@@ -425,7 +425,7 @@ class CGenerator:
         # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
         isEnum = isinstance(datatype, EnumerationType)  and not datatype.isOptionSet
         return "{\n" + \
-               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % makeCLiteral(datatype.name) + \
+               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % makeCLiteral(getattr(datatype, "wire_name", getattr(datatype, "original_name", datatype.name))) + \
                "    " + typeid + ", /* .typeId */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    " + xmlEncodingId + ", /* .xmlEncodingId */\n" + \
