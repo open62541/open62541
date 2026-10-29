@@ -92,7 +92,10 @@ typedef void (*UA_GDSPullRequesterNotificationCallback)(
  * - cycle-interval: [UInt32]
  * - cycle-timeout: [UInt32]
  *
- * A cycle that has not finished cycle-timeout after
+ * The first cycle starts cycle-interval milliseconds after the driver is
+ * started. The second cycle starts with an additional random delay of 1% to
+ * 10% of cycle-interval (Part 12, 6.3), every later cycle one cycle-interval
+ * after its predecessor. A cycle that has not finished cycle-timeout after
  * it started is aborted and the connection to the CertificateManager is
  * closed.
  *
