@@ -451,6 +451,68 @@ UA_GDSPull_removeReRequest(UA_GDSPullContext *ctx,
             (ctx->reRequestsSize - index) * sizeof(UA_GDSPullReRequest));
 }
 
+/* The params are read again on every start. The driver writes the state it
+ * changes at runtime back to them, so that a stopped and restarted driver
+ * continues where it was and the params can be persisted as they are. */
+static UA_StatusCode
+UA_GDSPull_storeNodeIdArray(UA_GDSPullContext *ctx, char *key,
+                            UA_NodeId *ids, size_t size) {
+    UA_Variant v;
+    UA_Variant_setArray(&v, (size > 0) ? ids : UA_EMPTY_ARRAY_SENTINEL, size,
+                        &UA_TYPES[UA_TYPES_NODEID]);
+    return UA_KeyValueMap_set(&ctx->drv.params, UA_QUALIFIEDNAME(0, key), &v);
+}
+
+/* Write the live pending requests back to the pending-* params. If that
+ * fails, the params are removed. An absent param leaves the live set alone
+ * at the next start, while a stale one would replace it. */
+static void
+UA_GDSPull_storePendingRequests(UA_GDSPullContext *ctx) {
+    size_t size = ctx->pendingRequestsSize;
+    UA_NodeId *requestIds = NULL, *groupIds = NULL, *typeIds = NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(size > 0) {
+        requestIds = (UA_NodeId *)UA_malloc(3 * size * sizeof(UA_NodeId));
+        if(requestIds) {
+            groupIds = requestIds + size;
+            typeIds = groupIds + size;
+        } else {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
+
+    if(res == UA_STATUSCODE_GOOD) {
+        /* Shallow copies, UA_KeyValueMap_set copies them again */
+        for(size_t i = 0; i < size; i++) {
+            requestIds[i] = ctx->pendingRequests[i].requestId;
+            groupIds[i] = ctx->pendingRequests[i].certificateGroupId;
+            typeIds[i] = ctx->pendingRequests[i].certificateTypeId;
+        }
+        res = UA_GDSPull_storeNodeIdArray(ctx, "pending-request-id",
+                                          requestIds, size);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_GDSPull_storeNodeIdArray(
+                ctx, "pending-certificate-group-id", groupIds, size);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_GDSPull_storeNodeIdArray(
+                ctx, "pending-certificate-type-id", typeIds, size);
+    }
+    UA_free(requestIds);
+    if(res == UA_STATUSCODE_GOOD)
+        return;
+
+    UA_KeyValueMap_remove(&ctx->drv.params,
+                          UA_QUALIFIEDNAME(0, "pending-request-id"));
+    UA_KeyValueMap_remove(&ctx->drv.params,
+                          UA_QUALIFIEDNAME(0, "pending-certificate-group-id"));
+    UA_KeyValueMap_remove(&ctx->drv.params,
+                          UA_QUALIFIEDNAME(0, "pending-certificate-type-id"));
+    UA_LOG_WARNING(UA_Server_getConfig(ctx->drv.server)->logging,
+                   UA_LOGCATEGORY_SERVER,
+                   "The pending requests could not be written to the params "
+                   "of the GDS Pull driver (%s)", UA_StatusCode_name(res));
+}
+
 static void
 UA_GDSPull_dropPendingRequest(UA_GDSPullContext *ctx, size_t index,
                               UA_GDSPullRequesterNotification notification) {
@@ -460,6 +522,7 @@ UA_GDSPull_dropPendingRequest(UA_GDSPullContext *ctx, size_t index,
     memmove(&ctx->pendingRequests[index], &ctx->pendingRequests[index + 1],
             (ctx->pendingRequestsSize - index) *
                 sizeof(UA_GDSPullPendingRequest));
+    UA_GDSPull_storePendingRequests(ctx);
 
     /* Report the reduced set right away. Waiting for the end of the cycle
      * would leave a RequestId persisted that the CertificateManager no longer
@@ -494,6 +557,7 @@ UA_GDSPull_addPendingRequest(UA_GDSPullContext *ctx, const UA_NodeId *requestId,
         return res;
     }
     ctx->pendingRequestsSize++;
+    UA_GDSPull_storePendingRequests(ctx);
 
     /* The new request replaces one that was lost or whose certificate was
      * not installed */
@@ -540,6 +604,50 @@ UA_GDSPull_identityIsCertificateType(UA_GDSPullContext *ctx,
     return false;
 }
 
+/* The ByteString param under the key, if the params own it */
+static UA_ByteString *
+UA_GDSPull_storedByteString(UA_GDSPullContext *ctx, char *key) {
+    const UA_Variant *v =
+        UA_KeyValueMap_get(&ctx->drv.params, UA_QUALIFIEDNAME(0, key));
+    if(!v || v->storageType != UA_VARIANT_DATA ||
+       !UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_BYTESTRING]))
+        return NULL;
+    return (UA_ByteString *)v->data;
+}
+
+/* Write the identity back to client-certificate and client-key. The next
+ * start reads them again and would otherwise connect with the replaced
+ * certificate. Both values are copied before either param is replaced, so
+ * that the params never hold a certificate with the key of another one. */
+static UA_StatusCode
+UA_GDSPull_storeClientIdentity(UA_GDSPullContext *ctx) {
+    UA_ByteString *storedCertificate =
+        UA_GDSPull_storedByteString(ctx, "client-certificate");
+    UA_ByteString *storedPrivateKey =
+        UA_GDSPull_storedByteString(ctx, "client-key");
+    if(!storedCertificate || !storedPrivateKey)
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_ByteString_copy(&ctx->certificate, &certificate);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_ByteString_copy(&ctx->privateKey, &privateKey);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&certificate);
+        UA_ByteString_memZero(&privateKey);
+        UA_ByteString_clear(&privateKey);
+        return res;
+    }
+
+    UA_ByteString_clear(storedCertificate);
+    *storedCertificate = certificate;
+    UA_ByteString_memZero(storedPrivateKey);
+    UA_ByteString_clear(storedPrivateKey);
+    *storedPrivateKey = privateKey;
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 UA_GDSPull_updateClientIdentity(UA_GDSPullContext *ctx,
                                 const UA_ByteString certificate,
@@ -566,6 +674,14 @@ UA_GDSPull_updateClientIdentity(UA_GDSPullContext *ctx,
         UA_ByteString_clear(&ctx->privateKey);
         ctx->privateKey = newPrivateKey;
     }
+
+    res = UA_GDSPull_storeClientIdentity(ctx);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(UA_Server_getConfig(ctx->drv.server)->logging,
+                       UA_LOGCATEGORY_CLIENT,
+                       "The renewed identity could not be written to the "
+                       "params of the GDS Pull driver (%s)",
+                       UA_StatusCode_name(res));
 
     UA_LOG_INFO(UA_Server_getConfig(ctx->drv.server)->logging,
                 UA_LOGCATEGORY_CLIENT,
@@ -2528,7 +2644,10 @@ UA_GDSPull_runWorkflowCallback(UA_Server *server, void *data) {
  * stopped and started again picks the map up as it stands then.
  *
  * A parameter that is absent from the map leaves the current value alone, so
- * that a partial map can change a single setting between two starts. */
+ * that a partial map can change a single setting between two starts. The
+ * driver writes the client identity it renewed and its pending requests back
+ * to the map, so a restart continues with them and not with the values the
+ * driver was created with. */
 /* A parameter of another type than documented is an error. Treating it as
  * absent would silently keep the current value, e.g. drop the pending requests
  * restored from scalar NodeIds and start new signing requests for them. */

@@ -137,6 +137,13 @@ typedef void (*UA_GDSPullRequesterNotificationCallback)(
  * that is absent keeps its current value, i.e. the value of the previous
  * start. A parameter of another type than listed here fails the start with
  * BadConfigurationError.
+ *
+ * The driver writes the state it changes at runtime back to drv.params: the
+ * renewed certificate and private key to client-certificate and client-key
+ * when the renewed certificate is the one the driver connects with, and the
+ * outstanding requests to the pending- parameters whenever a request is added
+ * or removed. A driver that is stopped and started again continues with that
+ * state.
  * */
 UA_EXPORT UA_GDSPullRequester *
 UA_GDSPull_new(const UA_KeyValueMap params);
@@ -145,7 +152,8 @@ UA_GDSPull_new(const UA_KeyValueMap params);
  * example the pending requests, since a request might be outstanding for a
  * while before the CertificateManager issues a certificate. If the driver
  * crashes or restarts, the user should supply the previously outstanding
- * requests through the ``pending-`` parameters.
+ * requests through the ``pending-`` parameters. A driver that is only stopped
+ * and started again has them in drv.params already.
  *
  * The payload of a notification has these keys:
  *
