@@ -12,6 +12,10 @@
 #include <check.h>
 #include "thread_wrapper.h"
 
+#ifndef UA_ARCHITECTURE_WIN32
+#include <unistd.h>
+#endif
+
 #define REQUESTER_PORT 14840
 #define GDS_PORT 14841
 #define GDS_ENDPOINT "opc.tcp://localhost:14841"
@@ -82,6 +86,10 @@ typedef struct {
     UA_Boolean updateRequired;
     FinishMode finishMode;
     UA_ByteString issuedCertificate; /* not owned */
+
+    /* The response to the FinishRequest call with this (1-based) number is
+     * held back until the test sets the value to 0 */
+    size_t holdFinishRequest;
 
     /* Served TrustList: a raw UA Binary encoded TrustListDataType (7.8.2.1) */
     UA_TrustListDataType trustList;
@@ -291,7 +299,7 @@ MOCK_METHOD(mockStartNewKeyPairRequest) {
 
 /* 7.9.5: FinishRequest(ApplicationId, RequestId)
  *        -> Certificate, PrivateKey, IssuerCertificates[] */
-MOCK_METHOD(mockFinishRequest) {
+MOCK_METHOD(answerFinishRequest) {
     cm.finishRequest++;
     UA_StatusCode res = checkApplicationId(&input[0]);
     if(res != UA_STATUSCODE_GOOD)
@@ -326,6 +334,39 @@ MOCK_METHOD(mockFinishRequest) {
                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
     res |= UA_Variant_setArrayCopy(&output[2], NULL, 0,
                                    &UA_TYPES[UA_TYPES_BYTESTRING]);
+    return res;
+}
+
+static void
+mockSleep(void) {
+#ifdef UA_ARCHITECTURE_WIN32
+    Sleep(1);
+#else
+    usleep(1000);
+#endif
+}
+
+/* The answer is computed right away. A held response is sent once the test
+ * releases it. The CertificateManager thread blocks in the meantime, so later
+ * requests on the same connection are answered after this one. */
+static UA_StatusCode
+mockFinishRequest(UA_Server *s, const UA_NodeId *sessionId,
+                  void *sessionContext, const UA_NodeId *methodId,
+                  void *methodContext, const UA_NodeId *objectId,
+                  void *objectContext, size_t inputSize,
+                  const UA_Variant *input, size_t outputSize,
+                  UA_Variant *output) {
+    UA_StatusCode res = answerFinishRequest(
+        s, sessionId, sessionContext, methodId, methodContext, objectId,
+        objectContext, inputSize, input, outputSize, output);
+    lockCm();
+    size_t call = cm.finishRequest;
+    while(cm.holdFinishRequest == call) {
+        unlockCm();
+        mockSleep();
+        lockCm();
+    }
+    unlockCm();
     return res;
 }
 
@@ -659,6 +700,10 @@ setupCertificateManager(void) {
 
 static void
 teardownCertificateManager(void) {
+    /* Release a held FinishRequest of a failed test */
+    lockCm();
+    cm.holdFinishRequest = 0;
+    unlockCm();
     cmRunning = false;
     THREAD_JOIN(cmThread);
     ck_assert_uint_eq(UA_Server_run_shutdown(cm.server), UA_STATUSCODE_GOOD);
@@ -1258,6 +1303,58 @@ START_TEST(stopFromCycleStartedNotification) {
     shutdownRequester();
 } END_TEST
 
+/* 7.6: A FinishRequest result belongs to the RequestId it was called for. The
+ * driver is stopped while FinishRequest is in flight and the application tries
+ * to start it again right away. The driver must not reload its pending
+ * requests while the old cycle is still being torn down. The answer for the
+ * second request would otherwise be applied to the first reloaded one. */
+START_TEST(startWhileStoppingKeepsRequestBinding) {
+    lockCm();
+    UA_NodeId pendingRequests[2];
+    pendingRequests[0] = addRequest();
+    pendingRequests[1] = addRequest();
+    cm.holdFinishRequest = 2;
+    unlockCm();
+    replaceRequester(GDS_ENDPOINT, 2, pendingRequests);
+
+    /* The first request is finished. The answer for the second one is held
+     * back by the CertificateManager. */
+    startup();
+    UA_DateTime end = deadline();
+    while(snapshot().finishRequest < 2 && UA_DateTime_nowMonotonic() < end)
+        iterate();
+    ck_assert_uint_eq(snapshot().finishRequest, 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 1);
+
+    /* The pending-* params still hold both requests */
+    pull->drv.stop(&pull->drv);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STOPPING);
+    UA_StatusCode startRes = pull->drv.start(&pull->drv);
+
+    lockCm();
+    cm.holdFinishRequest = 0;
+    unlockCm();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+
+    /* Each request is reported once, with its own RequestId */
+    ck_assert_uint_eq(c.finishRequest, 2);
+    ck_assert_uint_eq(c.requestsSize, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 0);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_FINISHED, 1),
+                         &pendingRequests[0], &rsaSha256CertificateType);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_FINISHED, 2),
+                         &pendingRequests[1], &rsaSha256CertificateType);
+
+    /* The start was refused. The driver stopped and can be started again. */
+    ck_assert_uint_eq(startRes, UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(pull->drv.start(&pull->drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_STARTED, 2));
+} END_TEST
+
 /* 7.6, 7.8.2.1: The next cycle checks the certificate status again. The
  * LastUpdateTime of the TrustList has not changed, so the TrustList is not
  * downloaded again. */
@@ -1369,6 +1466,7 @@ main(void) {
     tcase_add_test(tc, cycleTimeoutAbortsCycle);
     tcase_add_test(tc, stopDuringCycleAndReplaceRequester);
     tcase_add_test(tc, stopFromCycleStartedNotification);
+    tcase_add_test(tc, startWhileStoppingKeepsRequestBinding);
     tcase_add_test(tc, unchangedTrustListIsNotDownloadedAgain);
     tcase_add_test(tc, changedTrustListIsDownloadedAgain);
     tcase_add_test(tc, certificateNotMatchingKeyIsNotInstalled);
