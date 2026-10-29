@@ -746,6 +746,24 @@ MOCK_METHOD(mockSetPosition) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Open fails without handing out a FileHandle */
+MOCK_METHOD(mockOpenFails) {
+    (void)input;
+    (void)output;
+    cm.open++;
+    return UA_STATUSCODE_BADINVALIDSTATE;
+}
+
+/* Read fails on an open file. The file stays open until Close. */
+MOCK_METHOD(mockReadFails) {
+    (void)output;
+    cm.read++;
+    UA_StatusCode res = checkFileHandle(&input[0]);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_STATUSCODE_BADINVALIDSTATE;
+}
+
 /* Address space of the mock */
 
 static UA_Argument
@@ -1982,6 +2000,69 @@ START_TEST(unassignedGroupIsJoinedBySigningRequest) {
     ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
+/* The TrustList could not be downloaded, so the local TrustList is not
+ * updated. The application is notified with the reason. */
+static void
+assertTrustListFailed(size_t n, UA_StatusCode status) {
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_TRUSTLIST_FAILED), n);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_TRUSTLIST_UPDATED), 0);
+    size_t failed = positionOf(UA_GDSPULL_TRUSTLIST_FAILED, n);
+    ck_assert_uint_eq(payloadStatusCode(failed), status);
+    ck_assert(UA_NodeId_equal(payloadNodeId(failed, "certificate-group-id"),
+                              &defaultApplicationGroup));
+    ck_assert_uint_lt(failed, positionOf(UA_GDSPULL_CYCLE_FINISHED, n));
+}
+
+/* 7.8.2.1: The served TrustList is larger than the maxTrustListSize of the
+ * requester. The download is aborted, the file closed and the failure
+ * reported. The unchanged TrustList is tried again in the next cycle, so the
+ * failure is reported again. */
+START_TEST(oversizedTrustListIsReportedAsFailed) {
+    MockCertificateManager c = snapshot();
+    ck_assert_uint_gt(c.trustListFile.length, 16);
+    UA_Server_getConfig(server)->maxTrustListSize = 16;
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    c = snapshot();
+    ck_assert_uint_eq(c.open, 1);
+    ck_assert_uint_eq(c.close, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    assertTrustListFailed(1, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    MockCertificateManager second = snapshot();
+    ck_assert_uint_eq(second.open, 2);
+    ck_assert_uint_gt(second.read, c.read);
+    ck_assert_uint_eq(second.close, 2);
+    assertTrustListFailed(2, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
+/* OPC 10000-20, C.2.1: Open of the TrustList fails. Nothing is read and the
+ * failure is reported. */
+START_TEST(failedTrustListOpenIsReported) {
+    setTrustListMethod("Open", mockOpenFails);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    ck_assert_uint_eq(c.open, 1);
+    ck_assert_uint_eq(c.read, 0);
+    assertTrustListFailed(1, UA_STATUSCODE_BADINVALIDSTATE);
+} END_TEST
+
+/* OPC 10000-20, C.2.3: Read of the TrustList fails. The file is closed and
+ * the failure is reported. */
+START_TEST(failedTrustListReadIsReported) {
+    setTrustListMethod("Read", mockReadFails);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    ck_assert_uint_eq(c.read, 1);
+    ck_assert_uint_eq(c.close, 1);
+    ck_assert_uint_eq(c.openHandle, 0);
+    assertTrustListFailed(1, UA_STATUSCODE_BADINVALIDSTATE);
+} END_TEST
+
 /* A secure client of the requester (Basic256Sha256, SignAndEncrypt). The
  * state callback records whether its SecureChannel left the OPEN state after
  * the Session was activated, and the status it left with. Only the first
@@ -2917,6 +2998,9 @@ main(void) {
     tcase_add_test(tc, certificateIsInstalledIntoRequestedGroupOnly);
     tcase_add_test(tc, pairWithoutEndpointIsNotRequested);
     tcase_add_test(tc, installedCertificateKeepsChannelsOfOtherGroups);
+    tcase_add_test(tc, oversizedTrustListIsReportedAsFailed);
+    tcase_add_test(tc, failedTrustListOpenIsReported);
+    tcase_add_test(tc, failedTrustListReadIsReported);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);

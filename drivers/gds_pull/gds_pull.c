@@ -184,6 +184,7 @@ struct UA_GDSPullContext {
         UA_DateTime lastUpdateTime;
         UA_UInt32 fileHandle;
         UA_ByteString data;
+        UA_StatusCode readStatus; /* Why the download was aborted */
     } trustList;
 
     /* The CertificateGroups managed via PullManagement. Supplied from
@@ -367,6 +368,7 @@ UA_GDSPull_clearTrustListScratch(UA_GDSPullContext *ctx) {
     UA_ByteString_clear(&ctx->trustList.data);
     ctx->trustList.lastUpdateTime = 0;
     ctx->trustList.fileHandle = 0;
+    ctx->trustList.readStatus = UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -1640,6 +1642,16 @@ UA_GDSPull_continueTrustList(UA_GDSPullContext *ctx) {
     return UA_GDSPull_scheduleDispatch(ctx, 0);
 }
 
+/* The remote TrustList of the current group could not be downloaded. The
+ * local TrustList is kept. A download cut off by stop() is not reported. */
+static UA_StatusCode
+UA_GDSPull_failTrustList(UA_GDSPullContext *ctx, UA_StatusCode status) {
+    if(ctx->drv.state == UA_LIFECYCLESTATE_STARTED)
+        notify_trustList(ctx, UA_GDSPULL_TRUSTLIST_FAILED,
+                         &ctx->groups[ctx->groupIndex].localGroupId, status);
+    return UA_GDSPull_continueTrustList(ctx);
+}
+
 static void
 UA_GDSPull_getTrustListCallback(UA_Client *client, void *userdata,
                                 UA_UInt32 requestId, UA_CallResponse *cr) {
@@ -1669,7 +1681,7 @@ UA_GDSPull_getTrustListCallback(UA_Client *client, void *userdata,
                        "GetTrustList for CertificateGroup %N failed (%s). The "
                        "local TrustList is kept.",
                        group->remoteGroupId, UA_StatusCode_name(res));
-        res = UA_GDSPull_continueTrustList(ctx);
+        res = UA_GDSPull_failTrustList(ctx, res);
     } else {
         ctx->currentStep = UA_GDSPULLSTEP_READ_LASTUPDATE;
         res = UA_GDSPull_scheduleDispatch(ctx, 0);
@@ -1702,7 +1714,7 @@ UA_GDSPull_workflowStepGetTrustList(UA_Client *client, UA_GDSPullContext *ctx) {
         UA_GDSPull_gdsNodeId(ctx, UA_GDSID_GETTRUSTLIST), 2, input,
         UA_GDSPull_getTrustListCallback, ctx, NULL);
     if(res != UA_STATUSCODE_GOOD)
-        UA_GDSPull_continueTrustList(ctx);
+        UA_GDSPull_failTrustList(ctx, res);
     return res;
 }
 
@@ -1797,7 +1809,7 @@ UA_GDSPull_translateTrustListCallback(UA_Client *client, void *userdata,
                        "The Open, Read and Close Methods of TrustList %N could "
                        "not be resolved (%s). The local TrustList is kept.",
                        group->trustListId, UA_StatusCode_name(res));
-        res = UA_GDSPull_continueTrustList(ctx);
+        res = UA_GDSPull_failTrustList(ctx, res);
     } else if(UA_NodeId_isNull(&ctx->trustList.lastUpdateTimeId)) {
         UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
                        "TrustList %N has no LastUpdateTime Property. The "
@@ -1850,7 +1862,7 @@ UA_GDSPull_workflowStepReadLastUpdate(UA_Client *client,
         UA_GDSPull_translateTrustListCallback,
         &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE], ctx, NULL);
     if(res != UA_STATUSCODE_GOOD)
-        UA_GDSPull_continueTrustList(ctx);
+        UA_GDSPull_failTrustList(ctx, res);
     return res;
 }
 
@@ -1882,7 +1894,7 @@ UA_GDSPull_openTrustListCallback(UA_Client *client, void *userdata,
                        "TrustList %N could not be opened for reading (%s). "
                        "The local TrustList is kept.",
                        group->trustListId, UA_StatusCode_name(res));
-        res = UA_GDSPull_continueTrustList(ctx);
+        res = UA_GDSPull_failTrustList(ctx, res);
     } else {
         UA_ByteString_clear(&ctx->trustList.data);
         ctx->currentStep = UA_GDSPULLSTEP_READ_TRUSTLIST;
@@ -1908,13 +1920,14 @@ UA_GDSPull_workflowStepOpenTrustList(UA_Client *client,
         client, group->trustListId, ctx->trustList.openId, 1, &input,
         UA_GDSPull_openTrustListCallback, ctx, NULL);
     if(res != UA_STATUSCODE_GOOD)
-        UA_GDSPull_continueTrustList(ctx);
+        UA_GDSPull_failTrustList(ctx, res);
     return res;
 }
 
 static void
-UA_GDSPull_abortTrustListRead(UA_GDSPullContext *ctx) {
+UA_GDSPull_abortTrustListRead(UA_GDSPullContext *ctx, UA_StatusCode status) {
     UA_ByteString_clear(&ctx->trustList.data);
+    ctx->trustList.readStatus = status;
     ctx->currentStep = UA_GDSPULLSTEP_CLOSE_TRUSTLIST;
 }
 
@@ -1967,7 +1980,7 @@ UA_GDSPull_readTrustListCallback(UA_Client *client, void *userdata,
                        "Reading TrustList %N failed (%s). The local TrustList "
                        "is kept.",
                        group->trustListId, UA_StatusCode_name(res));
-        UA_GDSPull_abortTrustListRead(ctx);
+        UA_GDSPull_abortTrustListRead(ctx, res);
     } else if(chunk.length == 0) {
         ctx->currentStep = UA_GDSPULLSTEP_CLOSE_TRUSTLIST;
     }
@@ -1995,16 +2008,19 @@ UA_GDSPull_workflowStepReadTrustList(UA_Client *client,
         client, group->trustListId, ctx->trustList.readId, 2, input,
         UA_GDSPull_readTrustListCallback, ctx, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_GDSPull_abortTrustListRead(ctx);
+        UA_GDSPull_abortTrustListRead(ctx, res);
         UA_GDSPull_scheduleDispatch(ctx, 0);
     }
     return res;
 }
 
+/* An empty file holds no TrustListDataType (7.8.2.1) */
 static UA_StatusCode
 UA_GDSPull_afterCloseTrustList(UA_GDSPullContext *ctx) {
+    if(ctx->trustList.readStatus != UA_STATUSCODE_GOOD)
+        return UA_GDSPull_failTrustList(ctx, ctx->trustList.readStatus);
     if(ctx->trustList.data.length == 0)
-        return UA_GDSPull_continueTrustList(ctx);
+        return UA_GDSPull_failTrustList(ctx, UA_STATUSCODE_BADDECODINGERROR);
     ctx->currentStep = UA_GDSPULLSTEP_COMMIT;
     return UA_GDSPull_scheduleDispatch(ctx, 0);
 }
