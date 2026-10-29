@@ -16,6 +16,19 @@
 #include <time.h>
 #endif
 
+/* A second certificate for an existing key needs the crypto library */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+#define CAN_RENEW_CERTIFICATE
+#elif defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#include <mbedtls/version.h>
+#if MBEDTLS_VERSION_NUMBER >= 0x03050000
+#include "crypto/mbedtls/securitypolicy_mbedtls_compat.h"
+#define CAN_RENEW_CERTIFICATE
+#endif
+#endif
+
 #define REQUESTER_PORT 14840
 #define GDS_PORT 14841
 #define GDS_ENDPOINT "opc.tcp://localhost:14841"
@@ -32,6 +45,7 @@
 #define GDSID_DIRECTORY_STARTNEWKEYPAIRREQUEST 154
 #define GDSID_DIRECTORY_STARTSIGNINGREQUEST 157
 #define GDSID_DIRECTORY_FINISHREQUEST 163
+#define GDSID_DIRECTORY_GETCERTIFICATES 174
 #define GDSID_DIRECTORY_GETTRUSTLIST 204
 #define GDSID_DIRECTORY_GETCERTIFICATESTATUS 225
 #define GDSID_DIRECTORY_GETCERTIFICATEGROUPS 508
@@ -56,6 +70,10 @@
 static UA_ByteString requesterCert, requesterKey;
 static UA_ByteString gdsCert, gdsKey;
 static UA_ByteString foreignCert, foreignKey;
+#ifdef CAN_RENEW_CERTIFICATE
+/* Another certificate for requesterKey */
+static UA_ByteString renewedCert;
+#endif
 
 static const UA_NodeId defaultApplicationGroup = {
     0, UA_NODEIDTYPE_NUMERIC,
@@ -71,10 +89,14 @@ typedef enum {
     FINISH_APPROVE, /* FinishRequest returns the issued certificate */
     FINISH_PENDING, /* FinishRequest returns Bad_NothingToDo */
     FINISH_REJECT,  /* FinishRequest returns Bad_RequestNotAllowed */
-    FINISH_DENIED   /* FinishRequest returns Bad_UserAccessDenied and keeps the
+    FINISH_DENIED,  /* FinishRequest returns Bad_UserAccessDenied and keeps the
                      * request, as a CertificateManager does that enforces
                      * 7.9.5 when the caller's certificate differs from the
                      * one used to start the request */
+    /* FinishRequest issues the certificate like FINISH_APPROVE, but the
+     * SecureChannel is closed before the response is sent. Then the mode
+     * falls back to FINISH_APPROVE. */
+    FINISH_APPROVE_LOST
 } FinishMode;
 
 typedef struct {
@@ -95,6 +117,14 @@ typedef struct {
     UA_Boolean assigned;
     FinishMode finishMode;
     UA_ByteString issuedCertificate; /* not owned */
+    UA_ByteString issuedPrivateKey; /* not owned, returned by FinishRequest */
+    /* GetCertificates returns the issued certificate once one was issued */
+    UA_Boolean certificateIssued;
+    /* Issued requests are not erased and FinishRequest answers them again,
+     * but the private key is handed out only once */
+    UA_Boolean keepIssuedRequests;
+    size_t keyDeliveredSize;
+    UA_NodeId keyDelivered[MAX_REQUESTS];
 
     /* The response to the FinishRequest call with this (1-based) number is
      * held back until the test sets the value to 0 */
@@ -138,7 +168,7 @@ typedef struct {
     /* Call counters */
     size_t findApplications, registerApplication, getCertificateGroups,
         getCertificateStatus, startSigningRequest, startNewKeyPairRequest,
-        finishRequest, getTrustList, open, read, close;
+        finishRequest, getCertificates, getTrustList, open, read, close;
 } MockCertificateManager;
 
 static MockCertificateManager cm;
@@ -366,9 +396,27 @@ MOCK_METHOD_DELAYED(mockStartSigningRequest, delayedStartSigningMs) {
                                     &UA_TYPES[UA_TYPES_NODEID]);
 }
 
+/* 7.9.4: StartNewKeyPairRequest(ApplicationId, CertificateGroupId,
+ *                                CertificateTypeId, SubjectName, DomainNames,
+ *                                PrivateKeyFormat, PrivateKeyPassword)
+ *        -> RequestId */
 MOCK_METHOD(mockStartNewKeyPairRequest) {
     cm.startNewKeyPairRequest++;
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    UA_StatusCode res = checkApplicationId(&input[0]);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = checkCertificateGroupId(&input[1]);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!isScalar(&input[2], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_NodeId requestId = addRequest();
+    if(UA_NodeId_isNull(&requestId))
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    cm.lastCertificateType = *(const UA_NodeId*)input[2].data;
+    cm.assigned = true; /* the application joins the group */
+    return UA_Variant_setScalarCopy(&output[0], &requestId,
+                                    &UA_TYPES[UA_TYPES_NODEID]);
 }
 
 /* 7.9.5: FinishRequest(ApplicationId, RequestId)
@@ -398,17 +446,43 @@ answerFinishRequest(const UA_Variant *input, UA_Variant *output,
         return UA_STATUSCODE_BADREQUESTNOTALLOWED;
     case FINISH_DENIED:
         return UA_STATUSCODE_BADUSERACCESSDENIED;
+    case FINISH_APPROVE_LOST:
     case FINISH_APPROVE:
     default:
         break;
     }
 
-    removeRequest(requestId);
+    /* Like most CertificateManagers, the request is gone once the
+     * certificate was handed out (7.9.5) */
+    UA_ByteString privateKey = cm.issuedPrivateKey;
+    if(cm.keepIssuedRequests) {
+        for(size_t i = 0; i < cm.keyDeliveredSize; i++) {
+            if(UA_NodeId_equal(&cm.keyDelivered[i], requestId))
+                privateKey = UA_BYTESTRING_NULL;
+        }
+        if(privateKey.length > 0 && cm.keyDeliveredSize < MAX_REQUESTS)
+            cm.keyDelivered[cm.keyDeliveredSize++] = *requestId;
+    } else {
+        removeRequest(requestId);
+    }
     cm.updateRequired = false; /* the application is up to date from now on */
-    UA_ByteString noPrivateKey = UA_BYTESTRING_NULL;
+    cm.certificateIssued = true;
+
+    /* The CertificateManager completed the request, but the response gets
+     * lost. The response is not sent on a closing SecureChannel. The Method
+     * runs with the server lock held, which is recursive.
+     * onCertificateManagerChannel takes cmMutex only for an opened
+     * SecureChannel. */
+    if(mode == FINISH_APPROVE_LOST) {
+        if(cm.finishMode == FINISH_APPROVE_LOST)
+            cm.finishMode = FINISH_APPROVE;
+        return UA_Server_closeSecureChannel(cm.server, cm.lastChannelId,
+                                            UA_SHUTDOWNREASON_CLOSE);
+    }
+
     res = UA_Variant_setScalarCopy(&output[0], &cm.issuedCertificate,
                                    &UA_TYPES[UA_TYPES_BYTESTRING]);
-    res |= UA_Variant_setScalarCopy(&output[1], &noPrivateKey,
+    res |= UA_Variant_setScalarCopy(&output[1], &privateKey,
                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
     res |= UA_Variant_setArrayCopy(&output[2], NULL, 0,
                                    &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -470,6 +544,25 @@ onCertificateManagerChannel(UA_Server *s, UA_ApplicationNotificationType type,
     cm.lastChannelId = *channelId;
     cm.channelsOpened++;
     unlockCm();
+}
+
+/* 7.9.8: GetCertificates(ApplicationId, CertificateGroupId)
+ *        -> CertificateTypeIds[], Certificates[]
+ * Only the certificate issued last is current. */
+MOCK_METHOD(mockGetCertificates) {
+    cm.getCertificates++;
+    UA_StatusCode res = checkApplicationId(&input[0]);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = checkCertificateGroupId(&input[1]);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    size_t size = cm.certificateIssued ? 1 : 0;
+    res = UA_Variant_setArrayCopy(&output[0], &cm.lastCertificateType, size,
+                                  &UA_TYPES[UA_TYPES_NODEID]);
+    res |= UA_Variant_setArrayCopy(&output[1], &cm.issuedCertificate, size,
+                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
+    return res;
 }
 
 /* 7.9.9: GetTrustList(ApplicationId, CertificateGroupId) -> TrustListId */
@@ -764,7 +857,7 @@ setupCertificateManager(void) {
     const UA_DataType *boolean = &UA_TYPES[UA_TYPES_BOOLEAN];
     const UA_DataType *string = &UA_TYPES[UA_TYPES_STRING];
 
-    UA_Argument in[4], out[3];
+    UA_Argument in[7], out[3];
 
     in[0] = argument("ApplicationUri", string, UA_VALUERANK_SCALAR);
     addDirectoryMethod(GDSID_DIRECTORY_FINDAPPLICATIONS, "FindApplications",
@@ -787,8 +880,12 @@ setupCertificateManager(void) {
     out[0] = argument("RequestId", nodeId, UA_VALUERANK_SCALAR);
     addDirectoryMethod(GDSID_DIRECTORY_STARTSIGNINGREQUEST, "StartSigningRequest",
                        mockStartSigningRequest, 4, in, 1, out);
+    in[3] = argument("SubjectName", string, UA_VALUERANK_SCALAR);
+    in[4] = argument("DomainNames", string, UA_VALUERANK_ONE_DIMENSION);
+    in[5] = argument("PrivateKeyFormat", string, UA_VALUERANK_SCALAR);
+    in[6] = argument("PrivateKeyPassword", string, UA_VALUERANK_SCALAR);
     addDirectoryMethod(GDSID_DIRECTORY_STARTNEWKEYPAIRREQUEST, "StartNewKeyPairRequest",
-                       mockStartNewKeyPairRequest, 0, NULL, 0, NULL);
+                       mockStartNewKeyPairRequest, 7, in, 1, out);
 
     in[1] = argument("RequestId", nodeId, UA_VALUERANK_SCALAR);
     out[0] = argument("Certificate", byteString, UA_VALUERANK_SCALAR);
@@ -798,6 +895,11 @@ setupCertificateManager(void) {
                        mockFinishRequest, 2, in, 3, out);
 
     in[1] = argument("CertificateGroupId", nodeId, UA_VALUERANK_SCALAR);
+    out[0] = argument("CertificateTypeIds", nodeId, UA_VALUERANK_ONE_DIMENSION);
+    out[1] = argument("Certificates", byteString, UA_VALUERANK_ONE_DIMENSION);
+    addDirectoryMethod(GDSID_DIRECTORY_GETCERTIFICATES, "GetCertificates",
+                       mockGetCertificates, 2, in, 2, out);
+
     out[0] = argument("TrustListId", nodeId, UA_VALUERANK_SCALAR);
     addDirectoryMethod(GDSID_DIRECTORY_GETTRUSTLIST, "GetTrustList",
                        mockGetTrustList, 2, in, 1, out);
@@ -1876,6 +1978,172 @@ START_TEST(finishResponseAfterCycleTimeoutIsApplied) {
     ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
+#ifdef CAN_RENEW_CERTIFICATE
+/* 7.9.5: The CertificateManager completed the request and erased it, but the
+ * FinishRequest response was lost with the SecureChannel. The RequestId is
+ * kept, and the next FinishRequest for it returns Bad_InvalidArgument. The
+ * request was made with StartSigningRequest, so the certificate is retrieved
+ * with GetCertificates (7.9.8) and installed. GetCertificateStatus reports no
+ * update from now on, the certificate would be lost otherwise. */
+START_TEST(lostFinishResponseIsRecoveredWithGetCertificates) {
+    setIssuedCertificate(renewedCert);
+    setFinishMode(FINISH_APPROVE_LOST);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    UA_NodeId lostRequest = c.lastRequestId;
+
+    /* The request is kept for the next cycle */
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.finishRequest, 1);
+    ck_assert_uint_eq(c.requestsSize, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 0);
+    assertLocalCertificateIs(&requesterCert);
+
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+
+    /* FinishRequest is asked once more, then the certificate is retrieved
+     * instead of starting a new request */
+    ck_assert_uint_eq(c.finishRequest, 2);
+    ck_assert_uint_eq(c.getCertificates, 1);
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED), 0);
+    size_t cycle = positionOf(UA_GDSPULL_CYCLE_FINISHED, 1);
+    size_t dropped = positionOf(UA_GDSPULL_REQUEST_DROPPED, 1);
+    size_t installed = positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 1);
+    ck_assert_uint_lt(cycle, dropped);
+    ck_assert_uint_lt(dropped, installed);
+    ck_assert_uint_lt(installed, positionOf(UA_GDSPULL_CYCLE_FINISHED, 2));
+    assertRequestPayload(dropped, &lostRequest, &rsaSha256CertificateType);
+    ck_assert(UA_NodeId_equal(payloadNodeId(installed, "certificate-group-id"),
+                              &defaultApplicationGroup));
+    ck_assert(UA_NodeId_equal(payloadNodeId(installed, "certificate-type-id"),
+                              &rsaSha256CertificateType));
+    ck_assert_uint_eq(payloadStatusCode(installed), UA_STATUSCODE_GOOD);
+    assertLocalCertificateIs(&renewedCert);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+#endif
+
+/* 7.9.5: Same as above, but the request was made with
+ * StartNewKeyPairRequest. The private key was handed out with the lost
+ * response, so the process is restarted with a new StartNewKeyPairRequest
+ * although GetCertificateStatus reports no update. */
+START_TEST(lostNewKeyPairResponseRestartsRequest) {
+    UA_Boolean createPrivateKey = true;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params,
+                                               UA_QUALIFIEDNAME(0, "create-private-key"),
+                                               &createPrivateKey,
+                                               &UA_TYPES[UA_TYPES_BOOLEAN]),
+                      UA_STATUSCODE_GOOD);
+    lockCm();
+    cm.issuedCertificate = foreignCert;
+    cm.issuedPrivateKey = foreignKey;
+    cm.finishMode = FINISH_APPROVE_LOST;
+    unlockCm();
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    UA_NodeId lostRequest = c.lastRequestId;
+
+    ck_assert_uint_eq(c.startNewKeyPairRequest, 1);
+    ck_assert_uint_eq(c.startSigningRequest, 0);
+    ck_assert_uint_eq(c.finishRequest, 1);
+    ck_assert_uint_eq(c.requestsSize, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 0);
+
+    /* The new request is not approved yet */
+    setFinishMode(FINISH_PENDING);
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+
+    ck_assert(!c.updateRequired);
+    ck_assert_uint_eq(c.startNewKeyPairRequest, 2);
+    ck_assert_uint_eq(c.startSigningRequest, 0);
+    ck_assert_uint_eq(c.requestsSize, 1);
+    ck_assert(!UA_NodeId_equal(&c.lastRequestId, &lostRequest));
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 0);
+    size_t dropped = positionOf(UA_GDSPULL_REQUEST_DROPPED, 1);
+    size_t added = positionOf(UA_GDSPULL_REQUEST_ADDED, 2);
+    ck_assert_uint_lt(positionOf(UA_GDSPULL_CYCLE_FINISHED, 1), dropped);
+    ck_assert_uint_lt(dropped, added);
+    ck_assert_uint_lt(added, positionOf(UA_GDSPULL_CYCLE_FINISHED, 2));
+    assertRequestPayload(dropped, &lostRequest, &rsaSha256CertificateType);
+    assertRequestPayload(added, &c.lastRequestId, &rsaSha256CertificateType);
+    assertLocalCertificateIs(&requesterCert);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
+/* 7.9.5: A CertificateManager that answers a repeated FinishRequest hands
+ * out the private key of StartNewKeyPairRequest only once. After a lost
+ * response, the repeated answer carries the certificate without the key. It
+ * cannot be installed, and the process is restarted with a new
+ * StartNewKeyPairRequest. */
+START_TEST(repeatedNewKeyPairResponseWithoutKeyRestartsRequest) {
+    UA_Boolean createPrivateKey = true;
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params,
+                                               UA_QUALIFIEDNAME(0, "create-private-key"),
+                                               &createPrivateKey,
+                                               &UA_TYPES[UA_TYPES_BOOLEAN]),
+                      UA_STATUSCODE_GOOD);
+    lockCm();
+    cm.issuedCertificate = foreignCert;
+    cm.issuedPrivateKey = foreignKey;
+    cm.keepIssuedRequests = true;
+    cm.finishMode = FINISH_APPROVE_LOST;
+    unlockCm();
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    UA_NodeId lostRequest = c.lastRequestId;
+
+    ck_assert_uint_eq(c.startNewKeyPairRequest, 1);
+    ck_assert_uint_eq(c.finishRequest, 1);
+    ck_assert_uint_eq(c.keyDeliveredSize, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 0);
+
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+
+    /* The repeated answer without the key fails, the new request brings
+     * certificate and key */
+    ck_assert(!c.updateRequired);
+    ck_assert_uint_eq(c.startNewKeyPairRequest, 2);
+    ck_assert_uint_eq(c.startSigningRequest, 0);
+    ck_assert_uint_eq(c.keyDeliveredSize, 2);
+    ck_assert(!UA_NodeId_equal(&c.lastRequestId, &lostRequest));
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    size_t failed = positionOf(UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED, 1);
+    size_t added = positionOf(UA_GDSPULL_REQUEST_ADDED, 2);
+    size_t installed = positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 1);
+    ck_assert_uint_lt(positionOf(UA_GDSPULL_CYCLE_FINISHED, 1), failed);
+    ck_assert_uint_lt(failed, added);
+    ck_assert_uint_lt(added, installed);
+    ck_assert_uint_lt(installed, positionOf(UA_GDSPULL_CYCLE_FINISHED, 2));
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_FINISHED, 1),
+                         &lostRequest, &rsaSha256CertificateType);
+    assertRequestPayload(added, &c.lastRequestId, &rsaSha256CertificateType);
+    ck_assert_uint_eq(payloadStatusCode(installed), UA_STATUSCODE_GOOD);
+    assertLocalCertificateIs(&foreignCert);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
 /******************************/
 /* Suite                      */
 /******************************/
@@ -1903,6 +2171,110 @@ createCertificate(const char *commonName, const char *uri,
     }
 }
 
+#ifdef CAN_RENEW_CERTIFICATE
+/* Issue a second self-signed certificate for the key of a certificate. The
+ * subject and the SubjectAltName are taken over, the serial number and the
+ * validity differ. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+static UA_StatusCode
+renewCertificate(const UA_ByteString *certificate,
+                 const UA_ByteString *privateKey, UA_ByteString *renewed) {
+    const unsigned char *p = certificate->data;
+    X509 *crt = d2i_X509(NULL, &p, (long)certificate->length);
+    p = privateKey->data;
+    EVP_PKEY *key = d2i_AutoPrivateKey(NULL, &p, (long)privateKey->length);
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    int len = 0;
+    if(!crt || !key ||
+       ASN1_INTEGER_set(X509_get_serialNumber(crt), 4711) != 1 ||
+       !X509_gmtime_adj(X509_getm_notBefore(crt), -60) ||
+       X509_sign(crt, key, EVP_sha256()) <= 0)
+        goto cleanup;
+    len = i2d_X509(crt, NULL);
+    if(len <= 0)
+        goto cleanup;
+    res = UA_ByteString_allocBuffer(renewed, (size_t)len);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    unsigned char *out = renewed->data;
+    if(i2d_X509(crt, &out) != len) {
+        UA_ByteString_clear(renewed);
+        res = UA_STATUSCODE_BADINTERNALERROR;
+    }
+cleanup:
+    EVP_PKEY_free(key);
+    X509_free(crt);
+    return res;
+}
+#else
+#define MAX_SAN_ENTRIES 8
+static UA_StatusCode
+renewCertificate(const UA_ByteString *certificate,
+                 const UA_ByteString *privateKey, UA_ByteString *renewed) {
+    mbedtls_x509_crt crt;
+    mbedtls_pk_context key;
+    mbedtls_x509write_cert out;
+    mbedtls_x509_san_list san[MAX_SAN_ENTRIES];
+    size_t sanSize = 0;
+    mbedtls_x509_crt_init(&crt);
+    mbedtls_pk_init(&key);
+    mbedtls_x509write_crt_init(&out);
+
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    char name[512];
+    unsigned char serial[2] = {0x12, 0x67};
+    unsigned char buf[4096];
+    int len = 0;
+    if(mbedtls_x509_crt_parse_der(&crt, certificate->data,
+                                  certificate->length) != 0 ||
+       UA_mbedTLS_compat_parsePrivateKey(&key, privateKey->data,
+                                         privateKey->length, NULL, 0) != 0)
+        goto cleanup;
+
+    mbedtls_x509write_crt_set_version(&out, MBEDTLS_X509_CRT_VERSION_3);
+    mbedtls_x509write_crt_set_md_alg(&out, MBEDTLS_MD_SHA256);
+    mbedtls_x509write_crt_set_subject_key(&out, &key);
+    mbedtls_x509write_crt_set_issuer_key(&out, &key);
+    if(mbedtls_x509_dn_gets(name, sizeof(name), &crt.subject) <= 0 ||
+       mbedtls_x509write_crt_set_subject_name(&out, name) != 0 ||
+       mbedtls_x509write_crt_set_issuer_name(&out, name) != 0 ||
+       mbedtls_x509write_crt_set_serial_raw(&out, serial, sizeof(serial)) != 0 ||
+       mbedtls_x509write_crt_set_validity(&out, "20240101000000",
+                                          "20991231235959") != 0)
+        goto cleanup;
+
+    for(const mbedtls_x509_sequence *cur = &crt.subject_alt_names;
+        cur && cur->buf.p; cur = cur->next) {
+        if(sanSize == MAX_SAN_ENTRIES ||
+           mbedtls_x509_parse_subject_alt_name(&cur->buf, &san[sanSize].node) != 0)
+            goto cleanup;
+        san[sanSize].next = NULL;
+        if(sanSize > 0)
+            san[sanSize - 1].next = &san[sanSize];
+        sanSize++;
+    }
+    if(sanSize > 0 &&
+       mbedtls_x509write_crt_set_subject_alternative_name(&out, san) != 0)
+        goto cleanup;
+
+    len = UA_mbedTLS_compat_writeCertificateDer(&out, buf, sizeof(buf));
+    if(len <= 0)
+        goto cleanup;
+    res = UA_ByteString_allocBuffer(renewed, (size_t)len);
+    if(res == UA_STATUSCODE_GOOD)
+        memcpy(renewed->data, buf + sizeof(buf) - (size_t)len, (size_t)len);
+
+cleanup:
+    for(size_t i = 0; i < sanSize; i++)
+        mbedtls_x509_free_subject_alt_name(&san[i].node);
+    mbedtls_x509write_crt_free(&out);
+    mbedtls_pk_free(&key);
+    mbedtls_x509_crt_free(&crt);
+    return res;
+}
+#endif
+#endif /* CAN_RENEW_CERTIFICATE */
+
 int
 main(void) {
     createCertificate("CN=GDS Pull Requester", "URI:" REQUESTER_URI,
@@ -1911,6 +2283,13 @@ main(void) {
                       &gdsKey, &gdsCert);
     createCertificate("CN=Foreign Application", "URI:urn:open62541.test.foreign",
                       &foreignKey, &foreignCert);
+#ifdef CAN_RENEW_CERTIFICATE
+    if(renewCertificate(&requesterCert, &requesterKey, &renewedCert) !=
+       UA_STATUSCODE_GOOD) {
+        fprintf(stderr, "Renewing the requester certificate failed\n");
+        exit(EXIT_FAILURE);
+    }
+#endif
 
     Suite *suite = suite_create("GDS Pull Requester lifecycle");
     TCase *tc = tcase_create("lifecycle");
@@ -1934,6 +2313,11 @@ main(void) {
     tcase_add_test(tc, unassignedGroupIsJoinedBySigningRequest);
     tcase_add_test(tc, startSigningResponseAfterCycleTimeoutIsKept);
     tcase_add_test(tc, finishResponseAfterCycleTimeoutIsApplied);
+#ifdef CAN_RENEW_CERTIFICATE
+    tcase_add_test(tc, lostFinishResponseIsRecoveredWithGetCertificates);
+#endif
+    tcase_add_test(tc, lostNewKeyPairResponseRestartsRequest);
+    tcase_add_test(tc, repeatedNewKeyPairResponseWithoutKeyRestartsRequest);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);
@@ -1948,5 +2332,8 @@ main(void) {
     UA_ByteString_clear(&gdsKey);
     UA_ByteString_clear(&foreignCert);
     UA_ByteString_clear(&foreignKey);
+#ifdef CAN_RENEW_CERTIFICATE
+    UA_ByteString_clear(&renewedCert);
+#endif
     return (failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
