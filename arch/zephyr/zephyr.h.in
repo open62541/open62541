@@ -24,8 +24,19 @@
  * another place */
 #include <version.h>
 
-/* Zephyr 3.7 and newer use the kernel allocator. Older releases use libc. */
-#ifndef UA_malloc
+#cmakedefine UA_ZEPHYR_MALLOC_EXTERN
+
+/* With CONFIG_OPEN62541_MALLOC_EXTERN the application defines the memory
+ * functions. Otherwise Zephyr 3.7 and newer use the kernel allocator and older
+ * releases use libc. */
+#if defined(UA_ZEPHYR_MALLOC_EXTERN)
+_UA_BEGIN_DECLS
+void *UA_malloc(size_t size);
+void *UA_calloc(size_t nelem, size_t elsize);
+void *UA_realloc(void *ptr, size_t size);
+void UA_free(void *ptr);
+_UA_END_DECLS
+#elif !defined(UA_malloc)
 # if KERNEL_VERSION_MAJOR >= 4 || \
      (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >= 7)
 #  include <zephyr/kernel.h>
