@@ -224,6 +224,14 @@ handleVariableNode(NodeSet *nodeset, const NL_VariableNode *node, UA_NodeId pare
     bool dataTypeOwned = getDataType(server, &node->datatype, &typeDefId, &dataType);
     attr.dataType = dataType;
     attr.valueRank = node->valueRank;
+    /* Resolve constrained ranks before decoding so scalar array defaults
+     * receive the same one-element wrapping as explicit ValueRank=1. */
+    if(!node->valueRankDefined && !UA_NodeId_isNull(&typeDefId)) {
+        UA_Int32 typeRank;
+        if(UA_Server_readValueRank(server, typeDefId, &typeRank) == UA_STATUSCODE_GOOD &&
+           typeRank >= 0)
+            attr.valueRank = typeRank;
+    }
     UA_UInt32 *arrDims = NULL;
     UA_StatusCode ret =
         getArrayDimensions(node->arrayDimensions, &attr.arrayDimensionsSize, &arrDims);
@@ -256,9 +264,8 @@ handleVariableNode(NodeSet *nodeset, const NL_VariableNode *node, UA_NodeId pare
 #endif
     }
 
-    /* Some legacy NodeSets omit ValueRank for an array and rely on the
-     * VariableType's permissive rank. Preserve the XML default for scalars,
-     * but accept that established representation for decoded arrays. */
+    /* An omitted rank also follows a permissive type for decoded arrays;
+     * scalar instances keep the XML scalar default. */
     if(!node->valueRankDefined && attr.value.type && !UA_Variant_isScalar(&attr.value) &&
        !UA_NodeId_isNull(&typeDefId))
         (void)UA_Server_readValueRank(server, typeDefId, &attr.valueRank);
