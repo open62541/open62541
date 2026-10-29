@@ -145,3 +145,32 @@ ua_add_test(check_nodeset_value_mapping.c EXTRASOURCES ${UA_NODESET_TESTS_VALUE_
 add_dependencies(check_nodeset_value_mapping open62541-generator-ns-tests-value-mapping)
 add_test(NAME test_nodeset_compiler_regressions
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_compiler_regressions.py")
+
+# Exercise the existing BSD frontend and one-argument namespace loader API.
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_XML_ENCODING AND UA_ENABLE_TYPEDESCRIPTION)
+    ua_generate_datatypes(NAME "types-tests-compiler-fixes"
+        TARGET_SUFFIX "types-tests-compiler-fixes"
+        FILE_CSV "${CMAKE_CURRENT_SOURCE_DIR}/compiler_regressions.csv"
+        FILES_BSD "${CMAKE_CURRENT_SOURCE_DIR}/compiler_regressions.bsd"
+        IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}")
+    ua_generate_nodeset(NAME "compiler-fixes"
+        FILE "${CMAKE_CURRENT_SOURCE_DIR}/compiler_regressions.xml"
+        FILES_BSD "${CMAKE_CURRENT_SOURCE_DIR}/compiler_regressions.bsd"
+        TYPES_ARRAY "UA_TYPES_TESTS_COMPILER_FIXES"
+        DEPENDS_NS ${open62541_NS0_NODESETS}
+        DEPENDS_TYPES "UA_TYPES"
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}")
+    ua_generate_nodeset(NAME "compiler-negative"
+        FILE "${CMAKE_CURRENT_SOURCE_DIR}/compiler_regressions_negative.xml"
+        FILES_BSD "${CMAKE_CURRENT_SOURCE_DIR}/compiler_regressions.bsd"
+        DEPENDS_NS ${open62541_NS0_NODESETS} "${CMAKE_CURRENT_SOURCE_DIR}/compiler_regressions.xml"
+        DEPENDS_TYPES "UA_TYPES" "UA_TYPES_TESTS_COMPILER_FIXES"
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}")
+    ua_add_test(check_nodeset_compiler_regressions.c EXTRASOURCES
+        ${UA_TYPES_TESTS_COMPILER_FIXES_SOURCES}
+        ${UA_NODESET_COMPILER_FIXES_SOURCES}
+        ${UA_NODESET_COMPILER_NEGATIVE_SOURCES})
+    add_dependencies(check_nodeset_compiler_regressions open62541-generator-ns-compiler-fixes
+                     open62541-generator-ns-compiler-negative open62541-generator-types-tests-compiler-fixes)
+endif()

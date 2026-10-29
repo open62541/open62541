@@ -261,10 +261,19 @@ def generateCommonVariableCode(node, nodeset):
     codeCleanup = []
     codeGlobal = []
 
-    if node.valueRank is None:
-        # Set the constrained value rank from the type/parent node
-        setNodeValueRankRecursive(node, nodeset)
-        code.append("/* Value rank inherited */")
+    rank_omitted = node.valueRank is None
+    if rank_omitted:
+        if isinstance(node, VariableTypeNode):
+            setNodeValueRankRecursive(node, nodeset)
+        else:
+            # NodeSet XML defaults instances to scalar. Only a decoded array
+            # without an explicit rank uses the VariableType's legacy rank.
+            node.valueRank = -1
+            type_definition = nodeset.getNodeTypeDefinition(node)
+            if type_definition is not None:
+                setNodeValueRankRecursive(type_definition, nodeset)
+                if type_definition.valueRank >= 0:
+                    node.valueRank = type_definition.valueRank
 
     code.append("attr.valueRank = %d;" % node.valueRank)
     if node.valueRank > 0:
@@ -278,6 +287,8 @@ def generateCommonVariableCode(node, nodeset):
                 code.append(f"arrayDimensions[{dim}] = 0;")
         code.append("attr.arrayDimensions = &arrayDimensions[0];")
 
+    if isinstance(node.dataType, str) and nodeset.getDataTypeNode(node.dataType) is None:
+        node.dataType = None
     if node.dataType is None:
         # Inherit the datatype from the HasTypeDefinition reference, as stated in the OPC UA Spec:
         # 6.4.2
@@ -294,6 +305,7 @@ def generateCommonVariableCode(node, nodeset):
                            str(node.dataType) + " of node " + \
                            node.browseName.name + " " + str(node.id))
 
+    node.dataType = nodeset.getDataTypeNode(node.dataType).id
     code.append("attr.dataType = %s;" % generateNodeIdCode(node.dataType))
 
     if node.value:
@@ -374,15 +386,62 @@ retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opt
             code.append("    attr.value.arrayLength = 1;")
             code.append("}")
             if valueIsScalar:
-                logger.warning(f"Node {str(node.id)}: ValueRank={node.valueRank} "
-                               f"but the XML value is scalar. "
-                               f"Auto-wrapping into a one-element array.")
+                logger.warning("Node %s: ValueRank=%s "
+                               "but the XML value is scalar. "
+                               "Auto-wrapping into a one-element array.",
+                               str(node.id), node.valueRank)
+        code.append("if(retVal == UA_STATUSCODE_GOOD && attr.value.type &&")
+        code.append("   !UA_NodeId_equal(&attr.dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {")
+        code.append("    const UA_DataType *target = UA_Server_findDataType(server, &attr.dataType);")
+        code.append("    if(!target) {")
+        code.append("        UA_NodeId representation = %s;" % generateNodeIdCode(dataTypeNode.id))
+        code.append("        target = UA_Server_findDataType(server, &representation);")
+        code.append("    }")
+        code.append("    size_t valuesSize = UA_Variant_isScalar(&attr.value) ? 1 : attr.value.arrayLength;")
+        code.append("    if(target && target->typeKind == UA_DATATYPEKIND_UINT32 && attr.value.type == &UA_TYPES[UA_TYPES_INT32]) {")
+        code.append("        UA_Boolean nonnegative = true;")
+        code.append("        for(size_t k = 0; k < valuesSize; k++)")
+        code.append("            if(((UA_Int32*)attr.value.data)[k] < 0) nonnegative = false;")
+        code.append("        if(nonnegative) {")
+        code.append("            for(size_t k = 0; k < valuesSize; k++) {")
+        code.append("                UA_UInt32 converted = (UA_UInt32)((UA_Int32*)attr.value.data)[k];")
+        code.append("                memcpy((UA_Byte*)attr.value.data + k * sizeof(UA_UInt32), &converted, sizeof(converted));")
+        code.append("            }")
+        code.append("            attr.value.type = target;")
+        code.append("        }")
+        code.append("    }")
+        code.append("    const UA_DataType *actual = attr.value.type;")
+        code.append("    if(actual == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT] && valuesSize > 0) {")
+        code.append("        UA_ExtensionObject *objects = (UA_ExtensionObject*)attr.value.data;")
+        code.append("        for(size_t k = 0; k < valuesSize; k++) {")
+        code.append("            if((objects[k].encoding != UA_EXTENSIONOBJECT_DECODED && objects[k].encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||")
+        code.append("               (k > 0 && objects[k].content.decoded.type != actual)) { actual = attr.value.type; break; }")
+        code.append("            actual = objects[k].content.decoded.type;")
+        code.append("        }")
+        code.append("    }")
+        code.append("    if(target && actual == &UA_TYPES[UA_TYPES_ARGUMENT] &&")
+        code.append("       target->typeKind != UA_DATATYPEKIND_STRUCTURE && target->typeKind != UA_DATATYPEKIND_OPTSTRUCT &&")
+        code.append("       target->typeKind != UA_DATATYPEKIND_UNION) UA_Variant_clear(&attr.value);")
+        code.append("}")
+        if node.valueRank > 1 and (node.arrayDimensions or isinstance(node, VariableTypeNode)):
+            code.append("if(retVal == UA_STATUSCODE_GOOD && attr.value.arrayLength > 0 && attr.arrayDimensionsSize > 0) {")
+            code.append("    UA_Array_delete(attr.value.arrayDimensions, attr.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);")
+            code.append("    attr.value.arrayDimensions = NULL; attr.value.arrayDimensionsSize = 0;")
+            code.append("    retVal = UA_Array_copy(attr.arrayDimensions, attr.arrayDimensionsSize, (void**)&attr.value.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);")
+            code.append("    if(retVal == UA_STATUSCODE_GOOD) attr.value.arrayDimensionsSize = attr.arrayDimensionsSize;")
+            code.append("}")
         if node.valueRank == 1:
             # Match the established loader repair for legacy array defaults.
             code.append("if(retVal == UA_STATUSCODE_GOOD && attr.arrayDimensionsSize == 1 &&")
             code.append("   attr.arrayDimensions[0] > 0 && attr.value.arrayLength > attr.arrayDimensions[0])")
             code.append("    attr.arrayDimensions[0] = attr.value.arrayLength <= UA_UINT32_MAX ?")
             code.append("        (UA_UInt32)attr.value.arrayLength : 0;")
+        if rank_omitted and not isinstance(node, VariableTypeNode):
+            type_definition = nodeset.getNodeTypeDefinition(node)
+            if type_definition is not None:
+                code.append("if(attr.value.type && !UA_Variant_isScalar(&attr.value))")
+                code.append("    (void)UA_Server_readValueRank(server, %s, &attr.valueRank);" %
+                            generateNodeIdCode(type_definition.id))
         code.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
         codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
