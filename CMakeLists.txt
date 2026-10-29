@@ -934,7 +934,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
 
 # Main Library
 
-set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
+set(lib_headers ${PROJECT_SOURCE_DIR}/include/open62541/internal/generated_types.h
+                ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                 ${PROJECT_SOURCE_DIR}/deps/base64.h
@@ -1911,6 +1912,11 @@ set(UA_install_tools_files "tools/generate_bsd.py"
                            "tools/generate_bsd.py")
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
         PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
+
+# Generated C implementations need this support interface. Keep it out of the
+# application-facing headers and the public amalgamated header.
+install(FILES ${PROJECT_SOURCE_DIR}/include/open62541/internal/generated_types.h
+        DESTINATION include/open62541/internal)
 
 # Recreate the include folder structure from the source also in /usr/include/open62541
 set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})

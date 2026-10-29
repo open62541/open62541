@@ -121,6 +121,7 @@ endfunction()
 # The resulting files will be put into ${OUTPUT_DIR} with the names:
 # - ${NAME}_generated.c
 # - ${NAME}_generated.h
+# - ${NAME}_generated_internal.h (implementation support)
 # - ${NAME}_generated.rst (optional / depends on GEN_DOC)
 #
 # The resulting cmake target is named ${TARGET_PREFIX}-${TARGET_SUFFIX}
@@ -269,6 +270,7 @@ function(ua_generate_datatypes)
                                ${UA_GEN_DOC_ARG}
                        OUTPUT  ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
                                ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
+                               ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_internal.h
                        DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/type_parser.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
@@ -282,11 +284,13 @@ function(ua_generate_datatypes)
     if(NOT TARGET ${TARGET_NAME})
         add_custom_target(${TARGET_NAME}
                           DEPENDS ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
-                                  ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h)
+                                  ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
+                                  ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_internal.h)
         export_target(UA_${UA_GEN_DT_NAME}
                       TARGET ${TARGET_NAME}
                       SOURCES ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
-                              ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h)
+                              ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
+                              ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_internal.h)
     endif()
 
     # Add to the injector list
@@ -414,7 +418,8 @@ function(ua_generate_nodeset)
         set(GEN_TYPES_OUTPUT "--types-output=${UA_GEN_NS_OUTPUT_DIR}/${TYPES_OUTPUT_NAME}")
         set(GENERATED_TYPES_SOURCES
             ${UA_GEN_NS_OUTPUT_DIR}/${TYPES_OUTPUT_NAME}_generated.c
-            ${UA_GEN_NS_OUTPUT_DIR}/${TYPES_OUTPUT_NAME}_generated.h)
+            ${UA_GEN_NS_OUTPUT_DIR}/${TYPES_OUTPUT_NAME}_generated.h
+            ${UA_GEN_NS_OUTPUT_DIR}/${TYPES_OUTPUT_NAME}_generated_internal.h)
     endif()
 
     set(GEN_IGNORE "")

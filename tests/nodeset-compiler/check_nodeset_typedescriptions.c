@@ -45,7 +45,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
     const UA_DataType *address = findType(namespaceIndex, 3002);
     ck_assert_ptr_ne(address, NULL);
     ck_assert_ptr_eq(address, UA_Server_getGeneratedDataType(
-        server, &UA_TYPES_TYPEDESCRIPTIONS_SOURCE, UA_TYPES_TYPEDESCRIPTIONS_ADDRESS));
+        server, &UA_TYPES_TYPEDESCRIPTIONS[UA_TYPES_TYPEDESCRIPTIONS_ADDRESS]));
     if(!copyTypes)
         ck_assert_ptr_eq(address, &UA_TYPES_TYPEDESCRIPTIONS[UA_TYPES_TYPEDESCRIPTIONS_ADDRESS]);
     ck_assert_uint_eq(address->typeKind, UA_DATATYPEKIND_STRUCTURE);

@@ -4,6 +4,10 @@
 #include "namespace_runtime_a_generated.h"
 #include "namespace_runtime_b_generated.h"
 
+/* These tests also exercise the generated implementation support directly. */
+#include "types_runtime_a_generated_internal.h"
+#include "types_runtime_b_generated_internal.h"
+
 #include "test_helpers.h"
 #include <check.h>
 #include <stdio.h>
@@ -44,7 +48,7 @@ checkGraph(UA_Server *server, UA_Boolean copied, UA_Boolean combined) {
         else
             ck_assert_ptr_eq(ta, exported);
         ck_assert_ptr_eq(ta, UA_Server_getGeneratedDataType(
-            server, &UA_TYPES_RUNTIME_A_SOURCE, UA_TYPES_RUNTIME_A_RECORDA));
+            server, &UA_TYPES_RUNTIME_A[UA_TYPES_RUNTIME_A_RECORDA]));
     }
     UA_NodeId recursiveId = UA_NODEID_NUMERIC(a, 3011);
     const UA_DataType *recursive = UA_Server_findDataType(server, &recursiveId);
@@ -199,9 +203,9 @@ START_TEST(copyIsolation) {
     checkGraph(first, true, false);
     checkGraph(second, true, false);
     const UA_DataType *t1 = UA_Server_getGeneratedDataType(
-        first, &UA_TYPES_RUNTIME_A_SOURCE, UA_TYPES_RUNTIME_A_RECORDA);
+        first, &UA_TYPES_RUNTIME_A[UA_TYPES_RUNTIME_A_RECORDA]);
     const UA_DataType *t2 = UA_Server_getGeneratedDataType(
-        second, &UA_TYPES_RUNTIME_A_SOURCE, UA_TYPES_RUNTIME_A_RECORDA);
+        second, &UA_TYPES_RUNTIME_A[UA_TYPES_RUNTIME_A_RECORDA]);
     ck_assert_ptr_ne(t1, t2);
     ck_assert_uint_ne(t1->typeId.namespaceIndex, t2->typeId.namespaceIndex);
     UA_Server_delete(first);
@@ -227,6 +231,31 @@ START_TEST(multipleFilesAndNamespaces) {
     UA_Server_addNamespace(server, "urn:unrelated");
     ck_assert_uint_eq(namespace_runtime_ab_generated(server, true), UA_STATUSCODE_GOOD);
     checkGraph(server, true, true);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(staticDescriptorLookup) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(server, NULL);
+    const UA_DataType *first = &UA_TYPES_RUNTIME_A[0];
+    const UA_DataType *last = &UA_TYPES_RUNTIME_A[UA_TYPES_RUNTIME_A_COUNT - 1];
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(NULL, first), NULL);
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(server, NULL), NULL);
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(server, first), NULL);
+    ck_assert_uint_eq(namespace_runtime_a_generated(server, true), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(UA_Server_getGeneratedDataType(server, first), NULL);
+    const UA_DataType *resolved = UA_Server_getGeneratedDataType(server, last);
+    ck_assert_ptr_ne(resolved, NULL);
+    ck_assert_ptr_ne(resolved, last);
+    ck_assert_ptr_eq(resolved, UA_Server_findDataType(server, &resolved->typeId));
+    /* Lookup identifies an array element by address, without reading its ID. */
+    UA_DataType unrelated = *resolved;
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(server, &unrelated), NULL);
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(server, resolved), NULL);
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(server, UA_TYPES_RUNTIME_B), NULL);
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(
+        server, UA_TYPES_RUNTIME_A + UA_TYPES_RUNTIME_A_COUNT), NULL);
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(server, &UA_TYPES[UA_TYPES_UINT32]), NULL);
     UA_Server_delete(server);
 } END_TEST
 
@@ -280,7 +309,8 @@ START_TEST(incompatibleDependencyIsRejected) {
     ck_assert_uint_eq(UA_Server_addGeneratedDataTypes(
         server, &UA_TYPES_RUNTIME_B_SOURCE, 1, dependencies, true),
         UA_STATUSCODE_BADTYPEMISMATCH);
-    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(server, &UA_TYPES_RUNTIME_B_SOURCE, 0), NULL);
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(
+        server, &UA_TYPES_RUNTIME_B[0]), NULL);
     UA_Server_delete(server);
 } END_TEST
 
@@ -303,14 +333,14 @@ START_TEST(retryAfterNodeCreationFailure) {
                       UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
     UA_Server_getConfig(server)->nodeLifecycle = NULL;
     const UA_DataType *type = UA_Server_getGeneratedDataType(
-        server, &UA_TYPES_RUNTIME_A_SOURCE, UA_TYPES_RUNTIME_A_RECORDA);
+        server, &UA_TYPES_RUNTIME_A[UA_TYPES_RUNTIME_A_RECORDA]);
     ck_assert_ptr_ne(type, NULL);
     UA_NodeClass nodeClass;
     ck_assert_uint_ne(UA_Server_readNodeClass(server, type->typeId, &nodeClass),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(namespace_runtime_a_generated(server, true), UA_STATUSCODE_GOOD);
     ck_assert_ptr_eq(type, UA_Server_getGeneratedDataType(
-        server, &UA_TYPES_RUNTIME_A_SOURCE, UA_TYPES_RUNTIME_A_RECORDA));
+        server, &UA_TYPES_RUNTIME_A[UA_TYPES_RUNTIME_A_RECORDA]));
     UA_Server_delete(server);
 } END_TEST
 
@@ -349,12 +379,12 @@ START_TEST(allocationFailures) {
         if(res != UA_STATUSCODE_GOOD) {
             ck_assert_ptr_eq(UA_Server_getDataTypes(server), NULL);
             ck_assert_ptr_eq(UA_Server_getGeneratedDataType(
-                server, &UA_TYPES_RUNTIME_A_SOURCE, 0), NULL);
+                server, &UA_TYPES_RUNTIME_A[0]), NULL);
             ck_assert_uint_eq(UA_Server_addGeneratedDataTypes(
                 server, &UA_TYPES_RUNTIME_A_SOURCE, 0, NULL, true), UA_STATUSCODE_GOOD);
         }
         const UA_DataType *loaded = UA_Server_getGeneratedDataType(
-            server, &UA_TYPES_RUNTIME_A_SOURCE, UA_TYPES_RUNTIME_A_RECORDA);
+            server, &UA_TYPES_RUNTIME_A[UA_TYPES_RUNTIME_A_RECORDA]);
         ck_assert_ptr_ne(loaded, NULL);
         ck_assert_uint_eq(loaded->membersSize, 3);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -390,6 +420,7 @@ int main(void) {
     tcase_add_test(tc, inPlaceRejectsCopiedDependency);
     tcase_add_test(tc, multipleFilesAndNamespaces);
     tcase_add_test(tc, registrationFailureIsAtomic);
+    tcase_add_test(tc, staticDescriptorLookup);
     tcase_add_test(tc, incompatibleDependencyIsRejected);
     tcase_add_test(tc, retryAfterNodeCreationFailure);
 #ifdef UA_TEST_GENERATED_TYPES_ALLOCATION_FAILURES

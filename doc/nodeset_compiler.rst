@@ -41,16 +41,19 @@ an array or optional member. Cycles consisting entirely of inline fields are
 rejected at generation time.
 
 In copy mode, the exported ``UA_TYPES_<NAME>`` addresses remain templates.
-Resolve an array index to the server's descriptor before setting a Variant,
+Resolve an exported static descriptor to the server's descriptor before setting a Variant,
 encoding a value, or comparing datatype pointers::
 
     const UA_DataType *type = UA_Server_getGeneratedDataType(
-        server, &UA_TYPES_EXAMPLE_SOURCE, UA_TYPES_EXAMPLE_MYTYPE);
+        server, &UA_TYPES_EXAMPLE[UA_TYPES_EXAMPLE_MYTYPE]);
 
 The C structure layouts and generated allocation/copy/clear helpers remain
 usable. Descriptor addresses returned for different servers need not be equal.
 The server owns copied descriptors and releases them after its values and nodes.
-Applications must keep generated source metadata available until server deletion.
+The generated modules must remain loaded until server deletion. Registration
+metadata is implementation support in ``*_generated_internal.h`` and
+``open62541/internal/generated_types.h``; application code only includes the
+public generated headers.
 Copy mode requires a build containing ``StructureDescription`` and related
 standard types; otherwise it returns ``BadNotSupported``.
 

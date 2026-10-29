@@ -647,6 +647,7 @@ class CGenerator:
         self._validate_namespace_map()
 
         self.print_header()
+        self.print_internal_header()
         self.print_description_array()
 
         self.fh.close()
@@ -787,10 +788,6 @@ _UA_BEGIN_DECLS
             self.printh(
                 "extern " + self.export_macro + " " + const_q + "UA_DataType UA_" + outUpper + "[UA_" + outUpper + "_COUNT];")
 
-            if self.parser.outname not in ("types", "transport"):
-                self.printh("extern " + self.export_macro +
-                            " UA_DataTypeArraySource UA_" + outUpper + "_SOURCE;")
-
             # NodeSet definitions may contain mutually recursive indirect
             # members. Declare their names before printing complete layouts.
             if hasattr(self.parser, "namespaceUris"):
@@ -831,6 +828,23 @@ _UA_END_DECLS
 
 #endif /* %s_GENERATED_H_ */\n''' % self.parser.outname.upper())
 
+    def print_internal_header(self):
+        """Keep registration metadata out of the generated application API."""
+        outUpper = self.parser.outname.upper()
+        with open(self.outfile + "_generated_internal.h", "w", encoding="utf-8") as header:
+            print("/* Generated implementation support. Do not include from applications. */",
+                  file=header)
+            print("#ifndef " + outUpper + "_GENERATED_INTERNAL_H_", file=header)
+            print("#define " + outUpper + "_GENERATED_INTERNAL_H_", file=header)
+            print('#include "' + self.parser.outname + '_generated.h"', file=header)
+            if self.parser.outname not in ("types", "transport") and any(self.filtered_types.values()):
+                print("#include <open62541/internal/generated_types.h>", file=header)
+                print("_UA_BEGIN_DECLS", file=header)
+                print("extern " + self.export_macro + " UA_DataTypeArraySource UA_" +
+                      outUpper + "_SOURCE;", file=header)
+                print("_UA_END_DECLS", file=header)
+            print("#endif /* " + outUpper + "_GENERATED_INTERNAL_H_ */", file=header)
+
     def print_doc(self):
         for ns in self.filtered_types:
             for _, t_name in enumerate(self.filtered_types[ns]):
@@ -852,6 +866,8 @@ _UA_END_DECLS
  **********************************/
 
 #include "''' + self.parser.outname + '''_generated.h"''')
+        if self.parser.outname not in ("types", "transport") and any(self.filtered_types.values()):
+            self.printc('#include "' + self.parser.outname + '_generated_internal.h"')
 
         totalCount = 0
         for ns in self.filtered_types:

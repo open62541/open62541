@@ -666,6 +666,14 @@ _UA_END_DECLS
 #include "%s.h"
 """ % (outfilebase))
 
+    writec("#include <open62541/internal/generated_types.h>")
+    for arr in dict.fromkeys(typesArray):
+        if arr != "UA_TYPES":
+            typeFile = arr.lower()
+            if typeFile.startswith("ua_"):
+                typeFile = typeFile[3:]
+            writec('#include "' + typeFile + '_generated_internal.h"')
+
     if any(node.id.b is not None for node in nodeset.nodes.values()):
         writec("""static UA_NodeId
 nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {

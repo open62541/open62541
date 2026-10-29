@@ -774,17 +774,22 @@ cleanup:
 }
 
 const UA_DataType *
-UA_Server_getGeneratedDataType(UA_Server *server, const UA_DataTypeArraySource *source,
-                               size_t index) {
-    if(!server || !source || index >= source->typesSize)
+UA_Server_getGeneratedDataType(UA_Server *server, const UA_DataType *staticType) {
+    if(!server || !staticType)
         return NULL;
     lockServer(server);
     const UA_DataType *result = NULL;
+    uintptr_t ptr = (uintptr_t)staticType;
     for(UA_GeneratedTypeBinding *b = server->generatedTypes; b; b = b->next) {
-        if(b->source == source) {
-            result = &b->array.types[index];
-            break;
-        }
+        uintptr_t base = (uintptr_t)b->source->staticTypes;
+        if(ptr < base)
+            continue;
+        uintptr_t offset = ptr - base;
+        if(offset % sizeof(UA_DataType) != 0 ||
+           offset / sizeof(UA_DataType) >= b->array.typesSize)
+            continue;
+        result = &b->array.types[offset / sizeof(UA_DataType)];
+        break;
     }
     unlockServer(server);
     return result;

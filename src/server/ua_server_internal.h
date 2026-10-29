@@ -22,6 +22,7 @@
 
 #define UA_INTERNAL
 #include <open62541/server.h>
+#include <open62541/internal/generated_types.h>
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"

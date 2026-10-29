@@ -65,6 +65,18 @@ def test_generated_static_types(tmpdir):
             "inline XML did not generate the public datatype array")
     require("UA_Address_new" in types_header,
             "inline XML did not generate datatype helper functions")
+    internal_header = Path(f"{types_output}_generated_internal.h").read_text(encoding="utf-8")
+    types_source = Path(f"{types_output}_generated.c").read_text(encoding="utf-8")
+    for header in (types_header, namespace_header):
+        require("UA_DataTypeArraySource" not in header and "_SOURCE" not in header,
+                "generated application header exposes registration metadata")
+        require("generated_internal.h" not in header and "internal/generated_types.h" not in header,
+                "generated application header includes implementation support")
+    require("UA_DataTypeArraySource UA_TYPES_STATIC_SOURCE" in internal_header,
+            "generated implementation header is missing registration metadata")
+    require('#include "types_static_generated_internal.h"' in types_source and
+            '#include "types_static_generated_internal.h"' in namespace_source,
+            "generated C does not include its private registration interface")
     require("UA_Server_addGeneratedDataTypes(server, &UA_TYPES_STATIC_SOURCE" in namespace_source,
             "generated static datatype array is not registered")
     require("UA_Server_addDataTypeFromDescription" not in namespace_source,

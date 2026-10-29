@@ -1071,20 +1071,6 @@ typedef struct UA_DataTypeArray {
                          * cleaned up */
 } UA_DataTypeArray;
 
-/* Generated datatype arrays retain an immutable origin for namespace remapping.
- * originTypes uses namespaceUris indexes. staticTypes is the exported array;
- * its namespace indexes may be adjusted by an in-place loader. Applications
- * must not modify this record. */
-typedef struct {
-    const UA_DataType *originTypes;
-    const UA_DataType *staticTypes;
-    size_t typesSize;
-    const UA_String *namespaceUris;
-    size_t namespaceUrisSize;
-    UA_Boolean staticTypesAreConst;
-    UA_atomic(uintptr_t) inUse;
-} UA_DataTypeArraySource;
-
 /* Returns the offset and type of a structure member. The return value is false
  * if the member was not found.
  *
