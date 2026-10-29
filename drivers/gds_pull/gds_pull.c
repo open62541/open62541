@@ -1094,9 +1094,27 @@ UA_GDSPull_hasPendingRequest(const UA_GDSPullContext *ctx,
     return false;
 }
 
+/* A certificate is installed through the endpoints that use a SecurityPolicy
+ * of the pair (UA_GDS_applyCertificateToPolicies). Without such an endpoint
+ * the certificate cannot be presented to a client and is not needed. */
+static UA_Boolean
+UA_GDSPull_pairHasEndpoint(UA_ServerConfig *sc,
+                           const UA_NodeId *certificateGroupId,
+                           const UA_NodeId *certificateTypeId) {
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        const UA_SecurityPolicy *sp =
+            UA_GDS_getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
+        if(sp && UA_NodeId_equal(&sp->certificateGroupId, certificateGroupId) &&
+           UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId))
+            return true;
+    }
+    return false;
+}
+
 /* The (group, type) pairs that need a certificate are the pairs of the
- * SecurityPolicies. Advance policyIndex to the next policy that stands for a
- * pair worth asking about, or return NULL when none is left. */
+ * SecurityPolicies that an endpoint uses (Part 12, 7.6 Table 21: "for each
+ * needed CertificateType"). Advance policyIndex to the next policy that stands
+ * for a pair worth asking about, or return NULL when none is left. */
 static UA_SecurityPolicy *
 UA_GDSPull_nextCertPolicy(UA_GDSPullContext *ctx,
                           struct UA_GDSPullGroup **group) {
@@ -1110,6 +1128,18 @@ UA_GDSPull_nextCertPolicy(UA_GDSPullContext *ctx,
             continue; /* not pull-managed */
         if(UA_GDSPull_earlierPolicyHasSamePair(sc, ctx->policyIndex))
             continue; /* the pair was already handled */
+        /* A certificate for the pair could never be installed. Requesting
+         * it would only get a useless certificate issued, and a failed
+         * installation is requested again in every cycle. */
+        if(!UA_GDSPull_pairHasEndpoint(sc, &sp->certificateGroupId,
+                                       &sp->certificateTypeId)) {
+            UA_LOG_DEBUG(sc->logging, UA_LOGCATEGORY_CLIENT,
+                         "No endpoint uses CertificateType %N of "
+                         "CertificateGroup %N. No certificate is requested "
+                         "for it.",
+                         sp->certificateTypeId, sp->certificateGroupId);
+            continue;
+        }
         /* A request from an earlier cycle is still open for this pair. The
          * CertificateManager reports UpdateRequired until it is finished, and
          * a second request would only duplicate it. */
