@@ -1217,6 +1217,47 @@ START_TEST(stopDuringCycleAndReplaceRequester) {
     ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
+/* Notification callback that stops the driver as soon as a cycle starts */
+static void
+stopOnCycleStarted(UA_GDSPullRequester *requester, void *context,
+                   UA_GDSPullRequesterNotification type,
+                   const UA_KeyValueMap payload) {
+    onNotification(requester, context, type, payload);
+    if(type == UA_GDSPULL_CYCLE_STARTED)
+        requester->drv.stop(&requester->drv);
+}
+
+/* The driver can be stopped from the notification callback when a cycle
+ * starts. The cycle ends without contacting the CertificateManager, the
+ * driver reaches STOPPED and no further cycle starts. */
+START_TEST(stopFromCycleStartedNotification) {
+    UA_GDSPull_setNotificationCallback(pull, stopOnCycleStarted, pull);
+    startup();
+
+    UA_DateTime end = deadline();
+    while(pull->drv.state != UA_LIFECYCLESTATE_STOPPED &&
+          UA_DateTime_nowMonotonic() < end)
+        iterate();
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STOPPED);
+
+    /* Give the EventLoop time to process the closed connection and a possible
+     * next cycle */
+    end = UA_DateTime_nowMonotonic() +
+        2 * CYCLE_INTERVAL_MS * UA_DATETIME_MSEC;
+    while(UA_DateTime_nowMonotonic() < end)
+        iterate();
+
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(notificationsSize, 2);
+    ck_assert_uint_eq(positionOf(UA_GDSPULL_CYCLE_STARTED, 1), 0);
+    ck_assert_uint_eq(positionOf(UA_GDSPULL_CYCLE_FINISHED, 1), 1);
+    MockCertificateManager c = snapshot();
+    ck_assert_uint_eq(c.getCertificateGroups, 0);
+    ck_assert_uint_eq(c.getCertificateStatus, 0);
+
+    shutdownRequester();
+} END_TEST
+
 /* 7.6, 7.8.2.1: The next cycle checks the certificate status again. The
  * LastUpdateTime of the TrustList has not changed, so the TrustList is not
  * downloaded again. */
@@ -1327,6 +1368,7 @@ main(void) {
     tcase_add_test(tc, unreachableCertificateManager);
     tcase_add_test(tc, cycleTimeoutAbortsCycle);
     tcase_add_test(tc, stopDuringCycleAndReplaceRequester);
+    tcase_add_test(tc, stopFromCycleStartedNotification);
     tcase_add_test(tc, unchangedTrustListIsNotDownloadedAgain);
     tcase_add_test(tc, changedTrustListIsDownloadedAgain);
     tcase_add_test(tc, certificateNotMatchingKeyIsNotInstalled);

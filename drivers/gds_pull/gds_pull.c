@@ -1960,6 +1960,12 @@ UA_GDSPull_runWorkflow(UA_Server *server, UA_GDSPullContext *ctx) {
 
     ctx->currentStep = UA_GDSPULLSTEP_CONNECT;
     notify_cycle(ctx, UA_GDSPULL_CYCLE_STARTED);
+
+    /* The notification callback may have stopped the driver. The teardown of
+     * the client is then already queued. Connecting now would open a socket
+     * that outlives the deleted client. */
+    if(ctx->drv.state != UA_LIFECYCLESTATE_STARTED || ctx->deleteClientQueued)
+        return UA_STATUSCODE_GOOD;
     return UA_Client_connectAsync(ctx->client, NULL);
 }
 
