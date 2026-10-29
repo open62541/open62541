@@ -153,6 +153,13 @@ config OPEN62541_MULTITHREADING
     default 0
     help
         Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)
+config OPEN62541_MALLOC_EXTERN
+    bool "Application-defined memory functions"
+    default n
+    help
+        Declare UA_malloc, UA_calloc, UA_realloc and UA_free as external
+        functions instead of mapping them to k_malloc and friends. The
+        application defines them, e.g. on a heap of its own.
 config OPEN62541_NAMESPACE_ZERO
     string "Namespace zero"
     default "REDUCED"
