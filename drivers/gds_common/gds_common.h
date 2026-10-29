@@ -11,6 +11,7 @@
 #define UA_DRIVER_GDS_COMMON_H_
 
 #include <open62541/server.h>
+#include "open62541_queue.h"
 
 #if defined(UA_ENABLE_DRIVER_GDS_RECEIVER) || defined(UA_ENABLE_DRIVER_GDS_PULL)
 
@@ -58,6 +59,47 @@ UA_GDS_applyCertificateToPolicies(UA_ServerConfig *sc,
                                   const UA_NodeId *certificateTypeId,
                                   const UA_ByteString certificate,
                                   const UA_ByteString privateKey);
+
+/* The server does not verify the certificates of its open SecureChannels again
+ * when a TrustList or a certificate of a SecurityPolicy is replaced. The GDS
+ * drivers close the affected SecureChannels themselves (Part 12, 7.10.9). The
+ * SecureChannels of the server cannot be enumerated, so the drivers track them
+ * from the SecureChannel notifications. */
+
+typedef struct UA_GDSChannel {
+    LIST_ENTRY(UA_GDSChannel) pointers;
+    UA_UInt32 channelId;
+    UA_NodeId certificateTypeId; /* null without a SecurityPolicy */
+    UA_ByteString certificate; /* empty without a client certificate */
+} UA_GDSChannel;
+
+typedef LIST_HEAD(UA_GDSChannels, UA_GDSChannel) UA_GDSChannels;
+
+/* Add the SecureChannel of a SECURECHANNEL_OPENED notification and remove the
+ * one of a SECURECHANNEL_CLOSED notification. SecurityPolicy None channels
+ * have nothing to close them for and are not added. */
+void
+UA_GDSChannels_notify(UA_GDSChannels *channels, UA_Server *server,
+                      UA_ApplicationNotificationType type,
+                      const UA_KeyValueMap payload);
+
+/* A SecureChannel keeps its SecurityPolicy when the client renews it. The
+ * renewal is checked against the new certificate and key of the
+ * SecurityPolicy and fails. Close the SecureChannels of the CertificateType,
+ * so that the clients reconnect with the new certificate. */
+void
+UA_GDSChannels_closeCertificateType(UA_GDSChannels *channels, UA_Server *server,
+                                    const UA_NodeId *certificateTypeId);
+
+/* Close the SecureChannels whose client certificate does not pass the
+ * verification with the new TrustList of the CertificateGroup. The server does
+ * not verify the certificate again when a SecureChannel is renewed. */
+void
+UA_GDSChannels_closeUntrusted(UA_GDSChannels *channels, UA_Server *server,
+                              UA_CertificateGroup *certGroup);
+
+void
+UA_GDSChannels_clear(UA_GDSChannels *channels);
 
 _UA_END_DECLS
 
