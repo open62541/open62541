@@ -124,6 +124,10 @@ typedef struct {
     FinishMode delayedFinishMode;
     UA_UInt32 delayedFinishMs;
 
+    /* The next StartSigningRequest is answered after this delay (one-shot).
+     * The delay blocks the CertificateManager thread but not cmMutex. */
+    UA_UInt32 delayedStartSigningMs;
+
     /* RequestId argument of each FinishRequest call */
     UA_NodeId finishRequestIds[MAX_FINISH_CALLS];
 
@@ -192,6 +196,16 @@ setIssuedCertificate(UA_ByteString certificate) {
     unlockCm();
 }
 
+static void
+sleepMs(UA_UInt32 ms) {
+#ifdef UA_ARCHITECTURE_WIN32
+    Sleep(ms);
+#else
+    struct timespec ts = {(time_t)(ms / 1000), (long)(ms % 1000) * 1000000L};
+    nanosleep(&ts, NULL);
+#endif
+}
+
 /* Method callbacks run in the CertificateManager thread. They must not use
  * the check assertions. */
 #define MOCK_METHOD(name)                                                    \
@@ -202,6 +216,32 @@ setIssuedCertificate(UA_ByteString certificate) {
         const UA_NodeId *methodId, void *methodContext,                      \
         const UA_NodeId *objectId, void *objectContext, size_t inputSize,    \
         const UA_Variant *input, size_t outputSize, UA_Variant *output) {    \
+        lockCm();                                                            \
+        UA_StatusCode res = name##Locked(input, output);                     \
+        unlockCm();                                                          \
+        return res;                                                          \
+    }                                                                        \
+    static UA_StatusCode name##Locked(const UA_Variant *input,               \
+                                      UA_Variant *output)
+
+/* Like MOCK_METHOD, but the method first waits for the one-shot delay in the
+ * given field. cmMutex is not held while waiting, so the tests can still take
+ * snapshots. Later requests on the same connection are answered after this
+ * one. */
+#define MOCK_METHOD_DELAYED(name, delayField)                                \
+    static UA_StatusCode name##Locked(const UA_Variant *input,               \
+                                      UA_Variant *output);                   \
+    static UA_StatusCode name(                                               \
+        UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,      \
+        const UA_NodeId *methodId, void *methodContext,                      \
+        const UA_NodeId *objectId, void *objectContext, size_t inputSize,    \
+        const UA_Variant *input, size_t outputSize, UA_Variant *output) {    \
+        lockCm();                                                            \
+        UA_UInt32 delay = cm.delayField;                                     \
+        cm.delayField = 0;                                                   \
+        unlockCm();                                                          \
+        if(delay > 0)                                                        \
+            sleepMs(delay);                                                  \
         lockCm();                                                            \
         UA_StatusCode res = name##Locked(input, output);                     \
         unlockCm();                                                          \
@@ -299,7 +339,7 @@ removeRequest(const UA_NodeId *id) {
 /* 7.9.3: StartSigningRequest(ApplicationId, CertificateGroupId,
  *                             CertificateTypeId, CertificateRequest)
  *        -> RequestId */
-MOCK_METHOD(mockStartSigningRequest) {
+MOCK_METHOD_DELAYED(mockStartSigningRequest, delayedStartSigningMs) {
     cm.startSigningRequest++;
     UA_StatusCode res = checkApplicationId(&input[0]);
     if(res != UA_STATUSCODE_GOOD)
@@ -329,16 +369,6 @@ MOCK_METHOD(mockStartSigningRequest) {
 MOCK_METHOD(mockStartNewKeyPairRequest) {
     cm.startNewKeyPairRequest++;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
-}
-
-static void
-sleepMs(UA_UInt32 ms) {
-#ifdef UA_ARCHITECTURE_WIN32
-    Sleep(ms);
-#else
-    struct timespec ts = {(time_t)(ms / 1000), (long)(ms % 1000) * 1000000L};
-    nanosleep(&ts, NULL);
-#endif
 }
 
 /* 7.9.5: FinishRequest(ApplicationId, RequestId)
@@ -1768,6 +1798,84 @@ START_TEST(secondCycleStartsWithRandomDelay) {
     shutdownRequester();
 } END_TEST
 
+/* 7.6, 7.9.3: The cycle times out while StartSigningRequest is processed. The
+ * response still arrives before the connection is closed. The RequestId the
+ * CertificateManager created is kept and finished in the next cycle instead
+ * of starting a second request. */
+START_TEST(startSigningResponseAfterCycleTimeoutIsKept) {
+    setFinishMode(FINISH_PENDING);
+    setCycleTimeout(1000);
+    lockCm();
+    cm.delayedStartSigningMs = 1500; /* answered after the cycle timeout */
+    unlockCm();
+
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    UA_NodeId firstRequest = c.lastRequestId;
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.requestsSize, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_ADDED, 1),
+                         &firstRequest, &c.lastCertificateType);
+    ck_assert_uint_lt(positionOf(UA_GDSPULL_REQUEST_ADDED, 1),
+                      positionOf(UA_GDSPULL_CYCLE_FINISHED, 1));
+
+    /* The next cycle asks for the result of the kept request */
+    size_t finishRequestsBefore = c.finishRequest;
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.requestsSize, 1);
+    ck_assert_uint_gt(c.finishRequest, finishRequestsBefore);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FAILED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 0);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
+/* 7.6, 7.9.5: The cycle times out while FinishRequest is processed. The
+ * CertificateManager hands the certificate over and forgets the request. The
+ * response still arrives before the connection is closed, so the certificate
+ * must be installed from it. */
+START_TEST(finishResponseAfterCycleTimeoutIsApplied) {
+    lockCm();
+    UA_NodeId pendingRequest = addRequest();
+    cm.delayedFinishCall = 1; /* answered after the cycle timeout */
+    cm.delayedFinishMode = FINISH_APPROVE;
+    cm.delayedFinishMs = 1500;
+    unlockCm();
+    ck_assert(!UA_NodeId_isNull(&pendingRequest));
+    replaceRequester(GDS_ENDPOINT, 1, &pendingRequest);
+    setCycleTimeout(1000);
+
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    ck_assert_uint_eq(c.finishRequest, 1);
+    ck_assert_uint_eq(c.requestsSize, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_FINISHED, 1),
+                         &pendingRequest, &rsaSha256CertificateType);
+    size_t installed = positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 1);
+    ck_assert(UA_NodeId_equal(payloadNodeId(installed, "certificate-group-id"),
+                              &defaultApplicationGroup));
+    ck_assert(UA_NodeId_equal(payloadNodeId(installed, "certificate-type-id"),
+                              &rsaSha256CertificateType));
+    ck_assert_uint_eq(payloadStatusCode(installed), UA_STATUSCODE_GOOD);
+    ck_assert_uint_lt(installed, positionOf(UA_GDSPULL_CYCLE_FINISHED, 1));
+    assertLocalCertificateIs(&requesterCert);
+
+    /* The finished request is not asked for again */
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+    ck_assert_uint_eq(c.finishRequest, 1);
+    ck_assert_uint_eq(c.startSigningRequest, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 0);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
 /******************************/
 /* Suite                      */
 /******************************/
@@ -1824,6 +1932,8 @@ main(void) {
     tcase_add_test(tc, reconnectDuringFinishRetryKeepsRequestBinding);
     tcase_add_test(tc, secondCycleStartsWithRandomDelay);
     tcase_add_test(tc, unassignedGroupIsJoinedBySigningRequest);
+    tcase_add_test(tc, startSigningResponseAfterCycleTimeoutIsKept);
+    tcase_add_test(tc, finishResponseAfterCycleTimeoutIsApplied);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);
