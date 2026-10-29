@@ -2144,6 +2144,51 @@ START_TEST(repeatedNewKeyPairResponseWithoutKeyRestartsRequest) {
     ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
+/* 7.6: The issued certificate could not be installed, but the
+ * CertificateManager considers it the current one and no longer reports
+ * UpdateRequired. The application still needs a certificate, so a new request
+ * is sent in the next cycle. */
+START_TEST(failedInstallationIsReRequestedInNextCycle) {
+    setIssuedCertificate(foreignCert);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    UA_NodeId failedRequest = c.lastRequestId;
+
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert(!c.updateRequired);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 0);
+    assertLocalCertificateIs(&requesterCert);
+
+    /* The CertificateManager issues a matching certificate for the new
+     * request */
+    setIssuedCertificate(requesterCert);
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+
+    ck_assert_uint_eq(c.startSigningRequest, 2);
+    ck_assert_uint_eq(c.finishRequest, 2);
+    ck_assert_uint_eq(c.requestsSize, 0);
+    ck_assert(!UA_NodeId_equal(&c.lastRequestId, &failedRequest));
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    size_t added = positionOf(UA_GDSPULL_REQUEST_ADDED, 2);
+    ck_assert_uint_lt(positionOf(UA_GDSPULL_CYCLE_FINISHED, 1), added);
+    assertRequestPayload(added, &c.lastRequestId, &rsaSha256CertificateType);
+    size_t installed = positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 1);
+    ck_assert_uint_lt(added, installed);
+    ck_assert_uint_eq(payloadStatusCode(installed), UA_STATUSCODE_GOOD);
+    assertLocalCertificateIs(&requesterCert);
+
+    /* Installed now, so the third cycle follows GetCertificateStatus again */
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 3));
+    ck_assert_uint_eq(snapshot().startSigningRequest, 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 2);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
 /******************************/
 /* Suite                      */
 /******************************/
@@ -2318,6 +2363,7 @@ main(void) {
 #endif
     tcase_add_test(tc, lostNewKeyPairResponseRestartsRequest);
     tcase_add_test(tc, repeatedNewKeyPairResponseWithoutKeyRestartsRequest);
+    tcase_add_test(tc, failedInstallationIsReRequestedInNextCycle);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);
