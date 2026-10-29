@@ -4,6 +4,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import csv
 import ast
+import base64
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 import subprocess
@@ -33,10 +34,71 @@ def test_literals_and_opaque_metadata():
     assert not OpaqueType('types_test', xml, 'urn:test', 'String').pointerfree
 
 
+def run_nodeset(output, *arguments):
+    return subprocess.run([sys.executable, str(ROOT/'tools/nodeset_compiler/nodeset_compiler.py'),
+                           *map(str, arguments), str(output)], capture_output=True, text=True)
+
+
+def test_reference_dependencies(tmp):
+    # Non-hierarchical dictionary links may point outside the supplied closure;
+    # missing structural dependencies must still be rejected.
+    document = '''<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+      <NamespaceUris><Uri>urn:references</Uri></NamespaceUris>
+      <UAReferenceType NodeId="ns=1;i=2" BrowseName="1:CustomOrganizes">
+        <DisplayName>CustomOrganizes</DisplayName><References>
+          <Reference ReferenceType="i=45" IsForward="false">i=35</Reference>
+        </References></UAReferenceType>
+      <UAObject NodeId="ns=1;i=1" BrowseName="1:Source"><DisplayName>Source</DisplayName>
+        <References><Reference ReferenceType="i=40">i=61</Reference>
+          <Reference ReferenceType="REF">ns=1;i=9999</Reference>
+        </References></UAObject></UANodeSet>'''
+    nodeset = tmp/'reference_dependencies.xml'
+    standard = ROOT/'tools/schema/Opc.Ua.NodeSet2.Reduced.xml'
+    nodeset.write_text(document.replace('REF', 'i=39'))
+    result = run_nodeset(tmp/'external_generated', '--existing', standard, '--xml', nodeset)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'WARNING' in result.stdout and 'will not be generated' in result.stdout
+    for reference_type, diagnostic in [('i=35', 'unknown target'),
+                                       ('ns=1;i=2', 'unknown target'),
+                                       ('ns=1;i=9998', 'unknown reference type')]:
+        nodeset.write_text(document.replace('REF', reference_type))
+        result = run_nodeset(tmp/'missing_dependency_generated', '--existing', standard, '--xml', nodeset)
+        assert result.returncode != 0 and diagnostic in result.stdout + result.stderr, result.stdout + result.stderr
+
+
+def test_embedded_standard_structures(tmp):
+    dictionary = '''<opc:TypeDictionary xmlns:opc="http://opcfoundation.org/BinarySchema/"
+        xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="urn:legacy">
+        <opc:StructuredType Name="LegacyPosition">
+          <opc:Field Name="Position" TypeName="ua:3DCartesianCoordinates"/>
+        </opc:StructuredType></opc:TypeDictionary>'''
+    encoded = base64.b64encode(dictionary.encode()).decode()
+    dependency = tmp/'legacy_dictionary.xml'
+    dependency.write_text(f'''<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+      <NamespaceUris><Uri>urn:legacy</Uri></NamespaceUris>
+      <UAVariable NodeId="ns=1;i=1" BrowseName="1:Dictionary" SymbolicName="Legacy_BinarySchema" DataType="i=15">
+        <DisplayName>Dictionary</DisplayName>
+        <References><Reference ReferenceType="i=40">i=63</Reference></References>
+        <Value><ByteString>{encoded}</ByteString></Value>
+      </UAVariable></UANodeSet>''')
+    root = tmp/'legacy_root.xml'
+    root.write_text('''<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+      <NamespaceUris><Uri>urn:legacy-root</Uri></NamespaceUris>
+      <UAObject NodeId="ns=1;i=2" BrowseName="1:Root"><DisplayName>Root</DisplayName>
+        <References><Reference ReferenceType="i=40">i=61</Reference></References>
+      </UAObject></UANodeSet>''')
+    result = run_nodeset(tmp/'legacy_generated', '--existing',
+        ROOT/'tools/schema/Opc.Ua.NodeSet2.Reduced.xml', '--existing', dependency, '--xml', root)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+
 def main():
     test_literals_and_opaque_metadata()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
+        test_reference_dependencies(tmp)
+        test_embedded_standard_structures(tmp)
         uri = tmp / 'uris.xml'
         uri.write_text('<UANodeSet><NamespaceUris><Uri>urn:a</Uri><Uri>urn:a</Uri>'
                        '<Uri>urn:b</Uri></NamespaceUris><Other/></UANodeSet>')
