@@ -80,6 +80,20 @@ typedef struct {
     UA_NodeId certificateTypeId;
 } UA_GDSPullPendingRequest;
 
+/* Why a (group, type) pair gets a new request whatever GetCertificateStatus
+ * says */
+typedef enum {
+    /* The FinishRequest response may have been lost (Part 12, 7.9.5) */
+    UA_GDSPULL_REREQUEST_LOST,
+    /* The issued certificate could not be installed */
+    UA_GDSPULL_REREQUEST_NOTINSTALLED
+} UA_GDSPullReRequestReason;
+
+typedef struct {
+    UA_GDSPullPendingRequest request; /* the request that is replaced */
+    UA_GDSPullReRequestReason reason;
+} UA_GDSPullReRequest;
+
 typedef enum {
     UA_GDSPULLSTEP_IDLE,
     UA_GDSPULLSTEP_CONNECT,
@@ -144,13 +158,15 @@ struct UA_GDSPullContext {
      * back with BadNothingToDo in this cycle */
     UA_Byte finishAttempts;
 
-    /* The (group, type) pairs of requests whose FinishRequest response may
-     * have been lost (Part 12, 7.9.5). GET_CERT_STATUS starts a new request
-     * for them whatever UpdateRequired says, as the CertificateManager
-     * considers the lost certificate current. The RequestId is the one of the
-     * lost request. Kept until the new request is added. */
-    size_t lostRequestsSize;
-    UA_GDSPullPendingRequest *lostRequests;
+    /* The (group, type) pairs that GET_CERT_STATUS starts a new request for
+     * whatever UpdateRequired says. The CertificateManager considers the
+     * certificate it issued last current, but the application did not get
+     * it: the FinishRequest response may have been lost (Part 12, 7.9.5), or
+     * the certificate could not be installed. A failed request is replaced by
+     * a new one (7.6). Kept in memory until the new request is added or a
+     * certificate for the pair is installed. */
+    size_t reRequestsSize;
+    UA_GDSPullReRequest *reRequests;
     /* GET_CERTIFICATES retrieves the certificate of this lost request and
      * returns to recoveryStep afterwards */
     UA_GDSPullPendingRequest recovery;
@@ -368,61 +384,64 @@ UA_GDSPull_copyRequest(const UA_GDSPullPendingRequest *src,
 }
 
 static void
-UA_GDSPull_clearLostRequests(UA_GDSPullContext *ctx) {
-    for(size_t i = 0; i < ctx->lostRequestsSize; i++)
-        UA_GDSPull_clearRequest(&ctx->lostRequests[i]);
-    UA_free(ctx->lostRequests);
-    ctx->lostRequests = NULL;
-    ctx->lostRequestsSize = 0;
+UA_GDSPull_clearReRequests(UA_GDSPullContext *ctx) {
+    for(size_t i = 0; i < ctx->reRequestsSize; i++)
+        UA_GDSPull_clearRequest(&ctx->reRequests[i].request);
+    UA_free(ctx->reRequests);
+    ctx->reRequests = NULL;
+    ctx->reRequestsSize = 0;
     UA_GDSPull_clearRequest(&ctx->recovery);
 }
 
 static size_t
-UA_GDSPull_findLostRequest(const UA_GDSPullContext *ctx,
-                           const UA_NodeId *certificateGroupId,
-                           const UA_NodeId *certificateTypeId) {
-    for(size_t i = 0; i < ctx->lostRequestsSize; i++) {
-        const UA_GDSPullPendingRequest *lost = &ctx->lostRequests[i];
-        if(UA_NodeId_equal(&lost->certificateGroupId, certificateGroupId) &&
-           UA_NodeId_equal(&lost->certificateTypeId, certificateTypeId))
+UA_GDSPull_findReRequest(const UA_GDSPullContext *ctx,
+                         const UA_NodeId *certificateGroupId,
+                         const UA_NodeId *certificateTypeId) {
+    for(size_t i = 0; i < ctx->reRequestsSize; i++) {
+        const UA_GDSPullPendingRequest *old = &ctx->reRequests[i].request;
+        if(UA_NodeId_equal(&old->certificateGroupId, certificateGroupId) &&
+           UA_NodeId_equal(&old->certificateTypeId, certificateTypeId))
             return i;
     }
-    return ctx->lostRequestsSize;
+    return ctx->reRequestsSize;
 }
 
 static UA_StatusCode
-UA_GDSPull_addLostRequest(UA_GDSPullContext *ctx,
-                          const UA_GDSPullPendingRequest *request) {
-    if(UA_GDSPull_findLostRequest(ctx, &request->certificateGroupId,
-                                  &request->certificateTypeId) <
-       ctx->lostRequestsSize)
+UA_GDSPull_addReRequest(UA_GDSPullContext *ctx,
+                        const UA_GDSPullPendingRequest *request,
+                        UA_GDSPullReRequestReason reason) {
+    if(UA_GDSPull_findReRequest(ctx, &request->certificateGroupId,
+                                &request->certificateTypeId) <
+       ctx->reRequestsSize)
         return UA_STATUSCODE_GOOD; /* the pair gets a new request already */
 
-    UA_GDSPullPendingRequest *grown = (UA_GDSPullPendingRequest *)UA_realloc(
-        ctx->lostRequests,
-        (ctx->lostRequestsSize + 1) * sizeof(UA_GDSPullPendingRequest));
+    UA_GDSPullReRequest *grown = (UA_GDSPullReRequest *)UA_realloc(
+        ctx->reRequests,
+        (ctx->reRequestsSize + 1) * sizeof(UA_GDSPullReRequest));
     if(!grown)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    ctx->lostRequests = grown;
-    UA_StatusCode res =
-        UA_GDSPull_copyRequest(request, &grown[ctx->lostRequestsSize]);
-    if(res == UA_STATUSCODE_GOOD)
-        ctx->lostRequestsSize++;
-    return res;
+    ctx->reRequests = grown;
+    UA_GDSPullReRequest *entry = &grown[ctx->reRequestsSize];
+    UA_StatusCode res = UA_GDSPull_copyRequest(request, &entry->request);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    entry->reason = reason;
+    ctx->reRequestsSize++;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
-UA_GDSPull_removeLostRequest(UA_GDSPullContext *ctx,
-                             const UA_NodeId *certificateGroupId,
-                             const UA_NodeId *certificateTypeId) {
-    size_t index = UA_GDSPull_findLostRequest(ctx, certificateGroupId,
-                                              certificateTypeId);
-    if(index >= ctx->lostRequestsSize)
+UA_GDSPull_removeReRequest(UA_GDSPullContext *ctx,
+                           const UA_NodeId *certificateGroupId,
+                           const UA_NodeId *certificateTypeId) {
+    size_t index = UA_GDSPull_findReRequest(ctx, certificateGroupId,
+                                            certificateTypeId);
+    if(index >= ctx->reRequestsSize)
         return;
-    UA_GDSPull_clearRequest(&ctx->lostRequests[index]);
-    ctx->lostRequestsSize--;
-    memmove(&ctx->lostRequests[index], &ctx->lostRequests[index + 1],
-            (ctx->lostRequestsSize - index) * sizeof(UA_GDSPullPendingRequest));
+    UA_GDSPull_clearRequest(&ctx->reRequests[index].request);
+    ctx->reRequestsSize--;
+    memmove(&ctx->reRequests[index], &ctx->reRequests[index + 1],
+            (ctx->reRequestsSize - index) * sizeof(UA_GDSPullReRequest));
 }
 
 static void
@@ -469,8 +488,9 @@ UA_GDSPull_addPendingRequest(UA_GDSPullContext *ctx, const UA_NodeId *requestId,
     }
     ctx->pendingRequestsSize++;
 
-    /* The new request replaces a lost one */
-    UA_GDSPull_removeLostRequest(ctx, certificateGroupId, certificateTypeId);
+    /* The new request replaces one that was lost or whose certificate was
+     * not installed */
+    UA_GDSPull_removeReRequest(ctx, certificateGroupId, certificateTypeId);
 
     /* Report the grown set right away for the same reason the drop does. A
      * RequestId that only lives in memory is orphaned if the application goes
@@ -675,7 +695,8 @@ UA_GDSPull_recoverLostRequest(UA_GDSPullContext *ctx, UA_Boolean aborted,
     UA_GDSPullPendingRequest *lost =
         &ctx->pendingRequests[ctx->pendingRequestIndex];
     UA_GDSPull_clearRequest(&ctx->recovery);
-    UA_StatusCode res = UA_GDSPull_addLostRequest(ctx, lost);
+    UA_StatusCode res =
+        UA_GDSPull_addReRequest(ctx, lost, UA_GDSPULL_REREQUEST_LOST);
     if(res == UA_STATUSCODE_GOOD && !ctx->conf.createPrivateKey && !aborted) {
         res = UA_GDSPull_copyRequest(lost, &ctx->recovery);
         if(res == UA_STATUSCODE_GOOD) {
@@ -780,16 +801,17 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
             issuersSize = result->outputArguments[2].arrayLength;
         }
 
+        UA_GDSPullPendingRequest *pending =
+            &ctx->pendingRequests[ctx->pendingRequestIndex];
         UA_GDSPullRequesterNotification notification =
             UA_GDSPULL_REQUEST_FINISHED;
         if(certificate.length == 0) {
             notification = UA_GDSPULL_REQUEST_DROPPED;
+            res = UA_STATUSCODE_BADUNEXPECTEDERROR;
             UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
                            "FinishRequest succeeded but returned no "
                            "certificate. The signing request is discarded.");
         } else {
-            UA_GDSPullPendingRequest *pending =
-                &ctx->pendingRequests[ctx->pendingRequestIndex];
             res = UA_GDSPull_applyPendingCertificate(
                 ctx, pending, certificate, privateKey, issuers, issuersSize);
             if(res != UA_STATUSCODE_GOOD)
@@ -807,16 +829,35 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
                                    : UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED,
                                &pending->certificateGroupId,
                                &pending->certificateTypeId, res);
-            /* A repeated FinishRequest after StartNewKeyPairRequest can
-             * return the certificate without the private key, which went
-             * with a lost response. Restart the process (7.9.5). */
-            if(res != UA_STATUSCODE_GOOD && ctx->conf.createPrivateKey &&
-               privateKey.length == 0 &&
-               UA_GDSPull_addLostRequest(ctx, pending) != UA_STATUSCODE_GOOD)
-                UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
-                               "No new certificate can be requested for the "
-                               "certificate without a private key");
         }
+
+        /* The CertificateManager has issued a certificate for the request and
+         * no longer reports UpdateRequired for the pair. If the application
+         * did not get it, the pair is requested again regardless (Part 12,
+         * 7.6: a request that failed is replaced by a new one). A repeated
+         * FinishRequest after StartNewKeyPairRequest can return the
+         * certificate without the private key, which went with a lost
+         * response. That restarts the process (7.9.5). */
+        UA_StatusCode markRes = UA_STATUSCODE_GOOD;
+        if(res == UA_STATUSCODE_GOOD) {
+            UA_GDSPull_removeReRequest(ctx, &pending->certificateGroupId,
+                                       &pending->certificateTypeId);
+        } else {
+            UA_GDSPullReRequestReason reason =
+                (certificate.length > 0 && ctx->conf.createPrivateKey &&
+                 privateKey.length == 0)
+                    ? UA_GDSPULL_REREQUEST_LOST
+                    : UA_GDSPULL_REREQUEST_NOTINSTALLED;
+            markRes = UA_GDSPull_addReRequest(ctx, pending, reason);
+        }
+        if(markRes != UA_STATUSCODE_GOOD)
+            UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                           "No new certificate of CertificateType %N for "
+                           "CertificateGroup %N can be requested (%s)",
+                           pending->certificateTypeId,
+                           pending->certificateGroupId,
+                           UA_StatusCode_name(markRes));
+
         UA_GDSPull_dropPendingRequest(ctx, ctx->pendingRequestIndex,
                                       notification);
     }
@@ -1132,17 +1173,20 @@ UA_GDSPull_workflowStepGetCertStatus(UA_Client *client,
         return UA_GDSPull_scheduleDispatch(ctx, 0);
     }
 
-    /* The CertificateManager reports no update for the certificate of a lost
-     * response. START_SIGNING acts on the pair at policyIndex. */
-    if(UA_GDSPull_findLostRequest(ctx, &sp->certificateGroupId,
-                                  &sp->certificateTypeId) <
-       ctx->lostRequestsSize) {
+    /* The CertificateManager would judge the certificate it issued last, not
+     * the one in use. START_SIGNING acts on the pair at policyIndex. */
+    size_t reRequest = UA_GDSPull_findReRequest(ctx, &sp->certificateGroupId,
+                                                &sp->certificateTypeId);
+    if(reRequest < ctx->reRequestsSize) {
         UA_LOG_INFO(UA_Client_getConfig(client)->logging,
                     UA_LOGCATEGORY_CLIENT,
                     "A new certificate of CertificateType %N for "
-                    "CertificateGroup %N is requested. The response to the "
-                    "previous request was lost.",
-                    sp->certificateTypeId, sp->certificateGroupId);
+                    "CertificateGroup %N is requested. %s",
+                    sp->certificateTypeId, sp->certificateGroupId,
+                    (ctx->reRequests[reRequest].reason ==
+                     UA_GDSPULL_REREQUEST_LOST)
+                        ? "The response to the previous request was lost."
+                        : "The last certificate could not be installed.");
         ctx->currentStep = UA_GDSPULLSTEP_START_SIGNING;
         return UA_GDSPull_scheduleDispatch(ctx, 0);
     }
@@ -1457,8 +1501,8 @@ UA_GDSPull_getCertificatesCallback(UA_Client *client, void *data,
                     "The current certificate of CertificateType %N is "
                     "already installed",
                     lost->certificateTypeId);
-        UA_GDSPull_removeLostRequest(ctx, &lost->certificateGroupId,
-                                     &lost->certificateTypeId);
+        UA_GDSPull_removeReRequest(ctx, &lost->certificateGroupId,
+                                   &lost->certificateTypeId);
     } else {
         /* The key of the signing request is still held by the
          * SecurityPolicies. A certificate for another key is rejected. */
@@ -1481,8 +1525,8 @@ UA_GDSPull_getCertificatesCallback(UA_Client *client, void *data,
                            &lost->certificateGroupId, &lost->certificateTypeId,
                            res);
         if(res == UA_STATUSCODE_GOOD)
-            UA_GDSPull_removeLostRequest(ctx, &lost->certificateGroupId,
-                                         &lost->certificateTypeId);
+            UA_GDSPull_removeReRequest(ctx, &lost->certificateGroupId,
+                                       &lost->certificateTypeId);
     }
 
     /* Nothing else redispatches after an async response */
@@ -1494,7 +1538,7 @@ UA_GDSPull_getCertificatesCallback(UA_Client *client, void *data,
 }
 
 /* Retrieve the certificate of the lost request in ctx->recovery. The pair
- * stays in lostRequests and gets a new request if this fails. */
+ * stays in reRequests and gets a new request if this fails. */
 static UA_StatusCode
 UA_GDSPull_workflowStepGetCertificates(UA_Client *client,
                                        UA_GDSPullContext *ctx) {
@@ -2690,7 +2734,7 @@ UA_GDSPull_free(UA_Driver *drv) {
     UA_ByteString_memZero(&ctx->privateKey);
     UA_ByteString_clear(&ctx->privateKey);
     UA_GDSPull_clearPendingRequests(ctx);
-    UA_GDSPull_clearLostRequests(ctx);
+    UA_GDSPull_clearReRequests(ctx);
     UA_GDSPull_clearGroups(ctx);
     UA_GDSPull_clearTrustListScratch(ctx);
     UA_free(ctx);
