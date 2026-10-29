@@ -107,6 +107,9 @@ struct UA_GDSPullContext {
     /* Client calls are dispatched as stateless callbacks, so we must remember
      * where in the workflow we are. */
     UA_GDSPullStep currentStep;
+    /* The step the cycle timeout interrupted. Its call may still be answered
+     * before the session is closed. IDLE if no step was interrupted. */
+    UA_GDSPullStep abortedStep;
     /* One-shot timer that starts the next cycle */
     UA_UInt64 runWorkflowCallbackId;
     /* Monotonic time at which the next cycle is due. Each cycle schedules the
@@ -188,6 +191,21 @@ static UA_StatusCode
 UA_GDSPull_finishWorkflow(UA_Client *client, UA_GDSPullContext *ctx) {
     ctx->currentStep = UA_GDSPULLSTEP_DISCONNECT;
     return UA_Client_disconnectAsync(client);
+}
+
+/* Whether a response belongs to the step that the cycle timeout interrupted.
+ * CloseSession is queued behind the outstanding call, so the result still
+ * arrives. The result of Start*Request and FinishRequest is state at the
+ * CertificateManager: a RequestId it created, or a request it forgot after
+ * handing out the certificate. The result is recorded, but the workflow does
+ * not go on. */
+static UA_Boolean
+UA_GDSPull_takeAbortedResponse(UA_GDSPullContext *ctx, UA_GDSPullStep step) {
+    if(ctx->currentStep != UA_GDSPULLSTEP_DISCONNECT ||
+       ctx->abortedStep != step)
+        return false;
+    ctx->abortedStep = UA_GDSPULLSTEP_IDLE;
+    return true;
 }
 
 static void
@@ -553,9 +571,15 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
     UA_GDSPullContext *ctx = (UA_GDSPullContext *)userdata;
     const UA_Logger *logging = UA_Client_getConfig(client)->logging;
 
+    /* The cycle timeout interrupted the call. The certificate is still
+     * applied, the request is not asked for again. */
+    UA_Boolean aborted =
+        UA_GDSPull_takeAbortedResponse(ctx, UA_GDSPULLSTEP_FINISH_PENDING) ||
+        UA_GDSPull_takeAbortedResponse(ctx, UA_GDSPULLSTEP_FINISH_REQUEST);
+
     /* The workflow moved on or was torn down while the call was in flight */
     if((ctx->currentStep != UA_GDSPULLSTEP_FINISH_PENDING &&
-        ctx->currentStep != UA_GDSPULLSTEP_FINISH_REQUEST) ||
+        ctx->currentStep != UA_GDSPULLSTEP_FINISH_REQUEST && !aborted) ||
        ctx->pendingRequestIndex >= ctx->pendingRequestsSize)
         return;
 
@@ -651,6 +675,8 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
     /* The cursor is on the next request now, unless the same one is asked
      * again */
     ctx->finishAttempts = retry ? (UA_Byte)(ctx->finishAttempts + 1) : 0;
+    if(aborted)
+        return;
 
     /* Nothing else redispatches after an async response */
     res = UA_GDSPull_scheduleDispatch(ctx,
@@ -1016,8 +1042,13 @@ UA_GDSPull_startSigningCallback(UA_Client *client, void *data,
     const char *method = ctx->conf.createPrivateKey ? "StartNewKeyPairRequest"
                                                     : "StartSigningRequest";
 
+    /* The cycle timeout interrupted the call. The RequestId is still
+     * recorded, the next pair is not asked for. */
+    UA_Boolean aborted =
+        UA_GDSPull_takeAbortedResponse(ctx, UA_GDSPULLSTEP_START_SIGNING);
+
     /* The workflow moved on or was torn down while the call was in flight */
-    if(ctx->currentStep != UA_GDSPULLSTEP_START_SIGNING)
+    if(ctx->currentStep != UA_GDSPULLSTEP_START_SIGNING && !aborted)
         return;
 
     UA_CallMethodResult *result = NULL;
@@ -1053,6 +1084,8 @@ UA_GDSPull_startSigningCallback(UA_Client *client, void *data,
                     "Started a certificate request (%s) for CertificateType %N",
                     method, sp->certificateTypeId);
 
+    if(aborted)
+        return;
     res = UA_GDSPull_continueCertStatus(ctx);
     if(res != UA_STATUSCODE_GOOD)
         UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
@@ -1738,6 +1771,8 @@ UA_GDSPull_deleteClientCallback(void *application, void *context) {
         ctx->cycleTimeoutCallbackId = 0;
     }
 
+    /* Calls cancelled by the deletion have no result to record */
+    ctx->abortedStep = UA_GDSPULLSTEP_IDLE;
     UA_Client_delete(ctx->client);
     ctx->client = NULL;
     ctx->currentStep = UA_GDSPULLSTEP_IDLE;
@@ -1943,6 +1978,7 @@ UA_GDSPull_cycleTimeoutCallback(UA_Server *server, void *data) {
                    "The GDS Pull cycle did not finish within %u ms. The "
                    "connection to the CertificateManager is closed.",
                    (unsigned)ctx->conf.cycleTimeout);
+    ctx->abortedStep = ctx->currentStep;
     UA_GDSPull_finishWorkflow(ctx->client, ctx);
 }
 
