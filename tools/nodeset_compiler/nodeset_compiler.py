@@ -148,24 +148,12 @@ def getTypesArray(nsIdx):
 
 def consumesTypesArray(xmlfile):
     """Whether this NodeSet consumes the next positional datatype array."""
-    tree = etree.parse(xmlfile)
-    root = tree.getroot()
-
-    for elem in root.iter():
-        if not elem.tag.endswith('UADataType'):
-            continue
-        if not args.typesOutput:
-            xmlfile.seek(0)
-            return True
-        for definition in elem:
-            if not definition.tag.endswith('Definition'):
-                continue
-            if any(field.tag.endswith('Field') for field in definition):
-                xmlfile.seek(0)
-                return True
-    # No generated datatype layout found
+    from .type_parser import has_native_types
+    root = etree.parse(xmlfile).getroot()
     xmlfile.seek(0)
-    return False
+    if not args.typesOutput:
+        return any(elem.tag.rsplit("}", 1)[-1] == "UADataType" for elem in root)
+    return has_native_types(root)
 
 for xmlfile in args.existing:
     if xmlfile.name in loadedFiles:

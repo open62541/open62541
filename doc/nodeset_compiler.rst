@@ -20,11 +20,22 @@ datatypes declared later in the same NodeSet2 file; the compiler resolves those
 dependencies before code generation. Inheritance is expanded once by the
 NodeSet input adapter; the existing C datatype backend is shared with BSD input.
 Structure members must be scalar or one-dimensional arrays. Matrix and
-variable-rank fields are rejected because the current datatype layout cannot
-represent their encoding. ``AllowSubTypes`` fields use ExtensionObjects for
+variable-rank fields produce a warning: their native descriptors, and native
+layouts that depend on them, are omitted because the current datatype layout
+cannot represent their encoding. The namespace nodes are still generated. ``AllowSubTypes`` fields use ExtensionObjects for
 structures and Variants for other types, as in the runtime loader. OptionSets
 retain their integer base width or, for subtypes of the standard OptionSet,
-the two ByteStrings ``Value`` and ``ValidBits``.
+the two ByteStrings ``Value`` and ``ValidBits``. Simple aliases retain the
+builtin C representation and receive their own descriptors, preserving field
+datatype IDs across model boundaries.
+
+For static XML generation, inline definitions also determine the layouts of
+XML dependencies. Embedded legacy BSD dictionaries provide fallbacks for types
+without inline definitions. An explicitly supplied BSD remains authoritative
+for its imported layouts. A companion type that conflicts with an SDK type name
+receives a deterministic namespace suffix in its C name. Uppercase companion
+type names are qualified the same way to avoid SDK macro and factory names.
+Datatype metadata retains the original XML BrowseName and field spellings.
 
 CMake imports standard types from the schema used to build the library. Direct
 compiler calls can select that schema directory with ``--types-schema``.

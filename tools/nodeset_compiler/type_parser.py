@@ -5,6 +5,7 @@ import xml.etree.ElementTree as etree
 import xml.dom.minidom as dom
 import copy
 import re
+import logging
 from collections import OrderedDict
 
 from .datatypes import QualifiedName, NodeId
@@ -61,6 +62,10 @@ type_aliases = {"CharArray": "String"}
 
 user_opaque_type_mapping = {}  # contains user defined opaque type mapping
 
+class UnsupportedDataTypeLayout(RuntimeError):
+    """A legal wire layout that cannot be represented by UA_DataType."""
+
+
 class TypeNotDefinedException(Exception):
     pass
 
@@ -93,6 +98,31 @@ def get_definition_fields(definition):
     return [child for child in definition.childNodes
             if child.nodeType == child.ELEMENT_NODE and
             child.localName == "Field"]
+
+
+def has_native_types(root):
+    """Whether a NodeSet owns static layouts, including simple type aliases."""
+    local = lambda element: element.tag.rsplit("}", 1)[-1]
+    aliases = {e.attrib["Alias"]: e.text for section in root
+               if local(section) == "Aliases" for e in section}
+    for node in root:
+        if local(node) != "UADataType":
+            continue
+        for child in node:
+            if local(child) == "Definition" and any(local(e) == "Field" for e in child):
+                return True
+            if local(child) != "References":
+                continue
+            for ref in child:
+                kind = aliases.get(ref.get("ReferenceType"), ref.get("ReferenceType"))
+                if kind not in ("HasSubtype", "i=45", "ns=0;i=45") or ref.get("IsForward") != "false":
+                    continue
+                base = aliases.get(ref.text.strip(), ref.text.strip())
+                # A fieldless subtype of Structure has no native C layout.
+                # Derived concrete layouts and simple aliases do own descriptors.
+                if base not in ("i=22", "ns=0;i=22", "Structure", "ExtensionObject"):
+                    return True
+    return False
 
 
 class Type:
@@ -171,11 +201,8 @@ class EnumerationType(Type):
                     not field.getAttribute("Name")):
                 raise RuntimeError(
                     f"Type {result.name} has an enum field without a Name")
-            if "Value" not in field.attributes:
-                raise RuntimeError(
-                    f"Type {result.name} enum field {field.getAttribute('Name')} "
-                    "has no Value")
-            value_text = field.getAttribute("Value")
+            # Legacy dictionaries omit some enum values; the runtime uses zero.
+            value_text = field.getAttribute("Value") if "Value" in field.attributes else "0"
             try:
                 value = int(value_text)
             except ValueError as ex:
@@ -317,7 +344,7 @@ class StructType(Type):
                     f"Type {self.name} field {original_name} has invalid "
                     f"ValueRank {value_rank}")
             if value_rank not in (-1, 1):
-                raise RuntimeError(
+                raise UnsupportedDataTypeLayout(
                     f"Type {self.name} field {original_name} has unsupported "
                     f"ValueRank {value_rank}: only scalar and one-dimensional "
                     f"members fit the fixed C structure layout")
@@ -392,9 +419,10 @@ class StructType(Type):
                         f"member {original_name}")
                 self.is_recursive = True
 
-            self.members.append(StructMember(
-                name, member_type, is_array, is_optional,
-                data_type_id=memberid))
+            member = StructMember(name, member_type, is_array, is_optional,
+                                  data_type_id=memberid)
+            member.original_name = original_name
+            self.members.append(member)
 
         self.update_pointerfree()
         self.own_members = list(self.members)
@@ -446,8 +474,9 @@ class StructType(Type):
             else:
                 member_type = get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
 
-            self.members.append(StructMember(
-                member_name, member_type, is_array, member_is_optional))
+            member = StructMember(member_name, member_type, is_array, member_is_optional)
+            member.original_name = child.get("Name")
+            self.members.append(member)
 
 
 class TypeParser():
@@ -488,7 +517,7 @@ class TypeParser():
         if len(fields) == 0:
             return None
         value_fields = ["Value" in field.attributes for field in fields]
-        if all(value_fields):
+        if all(value_fields) or (any(value_fields) and not any("DataType" in field.attributes for field in fields)):
             return "enum"
         if any(value_fields):
             raise RuntimeError(
@@ -496,7 +525,7 @@ class TypeParser():
                 "mixes enum and structure fields")
         return "struct"
 
-    def addTypesFromDefinitions(self, definitions, aliases=None):
+    def addTypesFromDefinitions(self, definitions, aliases=None, native_aliases=False):
         """Normalize NodeSet definitions into dependency-linked C layouts."""
         # OptionSet (i=12755) is a structure containing Value and ValidBits
         # ByteStrings. Its bit declarations never change that wire layout.
@@ -581,6 +610,23 @@ class TypeParser():
                     datatype.isLocal = is_local
                     self.insert_type(datatype)
                     structs.append((datatype, None))
+                elif len(alias) >= 6 and (alias[4] or
+                        (native_aliases and alias[3] != "http://opcfoundation.org/UA/")):
+                    _, _, name, namespace, is_local, alias_outname = alias
+                    if isinstance(base_type, EnumerationType) and not base_type.isOptionSet:
+                        datatype = EnumerationType(alias_outname, namespace, name)
+                    else:
+                        if isinstance(base_type, OpaqueType):
+                            representation = base_type.base_type
+                        elif isinstance(base_type, EnumerationType):
+                            representation = base_type.strDataType[3:]
+                        else:
+                            representation = base_type.name
+                        datatype = OpaqueType(alias_outname, namespace, name, representation)
+                    datatype.nodeId = node_id
+                    datatype.baseTypeId = base_id
+                    datatype.isLocal = is_local
+                    self.insert_type(datatype)
                 else:
                     self.types_by_id[str(node_id)] = base_type
                 changed = True
@@ -634,7 +680,12 @@ class TypeParser():
                 datatype.members = []
                 datatype.own_members = []
             else:
-                datatype._parse_nodeset_definition(definition, self.types_by_id)
+                try:
+                    datatype._parse_nodeset_definition(definition, self.types_by_id)
+                except UnsupportedDataTypeLayout as error:
+                    datatype.unsupported = str(error)
+                    datatype.members = []
+                    datatype.own_members = []
             if isinstance(base, StructType):
                 datatype.members = ([copy.copy(member)
                                      for member in base.members] +
@@ -645,6 +696,30 @@ class TypeParser():
 
         for datatype, definition in structs:
             parse_struct(datatype, definition)
+
+        # Retain shells for polymorphic references and namespace declarations,
+        # but never export a partial or invented native layout. A direct member
+        # or base with no native layout also makes its containing type unusable.
+        changed = True
+        while changed:
+            changed = False
+            for datatype, _ in structs:
+                if getattr(datatype, "unsupported", None):
+                    continue
+                dependencies = [m.member_type for m in datatype.members]
+                base = self.types_by_id.get(str(datatype.baseTypeId))
+                if base is not None:
+                    dependencies.append(base)
+                for dependency in dependencies:
+                    if getattr(dependency, "unsupported", None):
+                        datatype.unsupported = "depends on unsupported native type " + dependency.name
+                        changed = True
+                        break
+        for datatype, _ in structs:
+            if getattr(datatype, "unsupported", None):
+                logging.getLogger(__name__).warning(
+                    "Omitting native datatype %s: %s; its namespace node is retained",
+                    datatype.name, datatype.unsupported)
 
         # Pointer-freeness can depend on a structure declared later. Iterate
         # to a fixed point after all member links have been resolved.

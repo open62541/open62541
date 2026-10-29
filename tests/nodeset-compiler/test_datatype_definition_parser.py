@@ -48,18 +48,12 @@ def test_unsupported_ranks():
             f'<Field Name="Value" DataType="i=12" ValueRank="{value_rank}"/>'
             '</Definition>')
         parser = TypeParser({}, [], "bad_rank", {})
-        try:
-            parser.addTypesFromDefinitions([
-                (document.documentElement, "urn:bad-rank",
-                 NodeId("ns=1;i=7001"), True)])
-        except RuntimeError as error:
-            message = str(error)
-            require(f"ValueRank {value_rank}" in message and
-                    "fixed C structure layout" in message,
-                    f"ValueRank {value_rank} diagnostic is not focused: "
-                    f"{message}")
-        else:
-            raise AssertionError(f"ValueRank {value_rank} was accepted")
+        parser.addTypesFromDefinitions([
+            (document.documentElement, "urn:bad-rank",
+             NodeId("ns=1;i=7001"), True)])
+        datatype = parser.get_type_for_id(NodeId("ns=1;i=7001"))
+        require(f"ValueRank {value_rank}" in datatype.unsupported,
+                "unsupported layout was not marked for omission")
 
 
 def test_enum_values_and_definition_validation():
@@ -251,8 +245,9 @@ def test_loader_definition_contracts():
 
     matrix = next(node for node in document.getElementsByTagName("UADataType")
                   if node.getAttribute("NodeId") == "ns=1;i=7101")
-    require_error(matrix.getElementsByTagName("Definition")[0].toxml(),
-                  "unsupported ValueRank 2")
+    require("unsupported ValueRank 2" in
+            parse_definition(matrix.getElementsByTagName("Definition")[0].toxml()).unsupported,
+            "matrix layout was not marked for omission")
 
 
 def test_alias_resolution_boundaries():

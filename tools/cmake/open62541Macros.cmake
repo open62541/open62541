@@ -654,9 +654,9 @@ function(ua_generate_nodeset_and_datatypes)
         if(UA_GEN_IMPORT_BSD)
             message(FATAL_ERROR "IMPORT_BSD requires FILE_BSD")
         endif()
-        file(STRINGS "${UA_GEN_FILE_NS}" INLINE_TYPE_DEFINITION
-             LIMIT_COUNT 1 REGEX "<([A-Za-z0-9_]+:)?Definition[ >]")
-        if(INLINE_TYPE_DEFINITION)
+        file(STRINGS "${UA_GEN_FILE_NS}" INLINE_TYPE_DECLARATION
+             LIMIT_COUNT 1 REGEX "<([A-Za-z0-9_]+:)?UADataType([ >]|$)")
+        if(INLINE_TYPE_DECLARATION)
             set(NODESET_GENERATE_TYPES "GENERATE_TYPES")
         else()
             unset(UA_TYPES_${GEN_NAME_UPPER}_TARGET CACHE)

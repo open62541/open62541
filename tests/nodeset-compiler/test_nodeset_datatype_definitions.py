@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import base64
 import subprocess
 import sys
 import tempfile
@@ -285,7 +286,7 @@ def test_empty_missing_and_differently_named_definitions(tmpdir):
           <References><Reference ReferenceType="HasSubtype"
             IsForward="false">i=22</Reference></References>
           <Definition Name="1:DefinitionType">
-            <Field Name="AliasedValue" DataType="StringAlias"/>
+            <Field Name="aliasedValue" DataType="StringAlias"/>
           </Definition>
         </UADataType>
         <UADataType NodeId="ns=1;i=7104" BrowseName="1:SimpleString">
@@ -316,8 +317,15 @@ def test_empty_missing_and_differently_named_definitions(tmpdir):
             "Definition Name is not used for the generated C type")
     require("UA_String aliasedValue;" in header,
             "definition field alias was not resolved")
-    require("UA_String value;" in header,
-            "custom simple type did not use its builtin C representation")
+    source = Path(f"{types_output}_generated.c").read_text()
+    require('UA_TYPENAME("BrowseType")' in source,
+            "XML datatype metadata used the C declaration name instead of the BrowseName")
+    require('UA_TYPENAME("aliasedValue")' in source,
+            "datatype metadata changed the case of an XML field name")
+    require("typedef UA_String UA_SimpleString;" in header and "UA_SimpleString value;" in header,
+            "custom simple type did not retain its builtin C representation")
+    require("UA_TYPES_DEFINITION_EDGES_SIMPLESTRING" in source,
+            "custom simple type is missing its own metadata descriptor")
 
 
 def test_standard_structure_members(tmpdir):
@@ -345,9 +353,93 @@ def test_standard_structure_members(tmpdir):
             "standard structure member does not reference UA_TYPES")
 
 
+def test_unsupported_layouts_keep_namespace(tmpdir):
+    nodeset = tmpdir / "unsupported.xml"
+    write_nodeset(nodeset, nodeset_document("""
+        <UADataType NodeId="ns=1;i=8001" BrowseName="1:Flexible">
+          <DisplayName>Flexible</DisplayName>
+          <References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+          <Definition Name="Flexible"><Field Name="Value" DataType="i=12" ValueRank="-2"/></Definition>
+        </UADataType>
+        <UADataType NodeId="ns=1;i=8002" BrowseName="1:Direct">
+          <DisplayName>Direct</DisplayName>
+          <References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+          <Definition Name="Direct"><Field Name="Value" DataType="ns=1;i=8001"/></Definition>
+        </UADataType>
+        <UADataType NodeId="ns=1;i=8003" BrowseName="1:Polymorphic">
+          <DisplayName>Polymorphic</DisplayName>
+          <References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+          <Definition Name="Polymorphic"><Field Name="Value" DataType="ns=1;i=8001" AllowSubTypes="true"/></Definition>
+        </UADataType>
+    """))
+    output = tmpdir / "namespace_unsupported_generated"
+    types = tmpdir / "types_unsupported"
+    result = run_compiler(output, "--existing", REDUCED_NODESET, "--xml", nodeset,
+                          "--types-array", "UA_TYPES", "--types-output", types)
+    require(result.returncode == 0, result.stdout + result.stderr)
+    require("WARNING" in result.stdout and "Omitting native datatype Flexible" in result.stdout
+            and "Omitting native datatype Direct" in result.stdout,
+            "omitted native layouts did not produce warnings")
+    header = Path(f"{types}_generated.h").read_text()
+    require("UA_Flexible" not in header and "UA_Direct" not in header,
+            "unsupported native descriptors were generated")
+    require("UA_Polymorphic" in header and "UA_ExtensionObject value" in header,
+            "polymorphic references to unsupported layouts were lost")
+    namespace = output.with_suffix(".c").read_text()
+    require(all(str(i) in namespace for i in (8001, 8002, 8003)),
+            "namespace generation discarded an unsupported datatype node")
+
+
+def test_embedded_dictionary_does_not_override_xml(tmpdir):
+    bsd = """<opc:TypeDictionary xmlns:opc="http://opcfoundation.org/BinarySchema/"
+        TargetNamespace="urn:test"><opc:StructuredType Name="BaseRecord">
+        <opc:Field Name="Value" TypeName="opc:ByteString"/>
+        </opc:StructuredType></opc:TypeDictionary>"""
+    schema = tmpdir / "embedded.bsd"
+    schema.write_text(bsd)
+    encoded = base64.b64encode(bsd.encode()).decode()
+    dependency = tmpdir / "embedded_dependency.xml"
+    write_nodeset(dependency, nodeset_document(f"""
+        <UADataType NodeId="ns=1;i=8101" BrowseName="1:BaseRecord">
+          <DisplayName>BaseRecord</DisplayName>
+          <References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
+          <Definition Name="BaseRecord"><Field Name="Value" DataType="i=12"/></Definition>
+        </UADataType>
+        <UAVariable NodeId="ns=1;i=8199" BrowseName="1:Dictionary"
+                    SymbolicName="Dictionary_BinarySchema" DataType="i=15">
+          <DisplayName>Dictionary</DisplayName>
+          <References><Reference ReferenceType="i=40">i=63</Reference></References>
+          <Value><ByteString>{encoded}</ByteString></Value>
+        </UAVariable>
+    """))
+    local = tmpdir / "embedded_local.xml"
+    write_nodeset(local, nodeset_document("""
+        <UADataType NodeId="ns=1;i=8102" BrowseName="1:DerivedRecord">
+          <DisplayName>DerivedRecord</DisplayName>
+          <References><Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=8101</Reference></References>
+          <Definition Name="DerivedRecord"><Field Name="Extra" DataType="i=7"/></Definition>
+        </UADataType>
+    """))
+    for explicit in (False, True):
+        types = tmpdir / ("types_explicit" if explicit else "types_embedded")
+        arguments = ["--existing", REDUCED_NODESET, "--existing", dependency,
+                     "--xml", local, "--types-array", "UA_TYPES",
+                     "--types-array", "UA_TYPES_DEPENDENCY", "--types-output", types]
+        if explicit:
+            arguments += ["--bsd", schema]
+        result = run_compiler(tmpdir / (types.name + "_namespace"), *arguments)
+        require(result.returncode == 0, result.stdout + result.stderr)
+        header = Path(f"{types}_generated.h").read_text()
+        expected = "UA_ByteString value;" if explicit else "UA_String value;"
+        require(expected in header,
+                "dependency used the wrong frontend's datatype representation")
+
+
 def main():
     with tempfile.TemporaryDirectory() as directory:
         tmpdir = Path(directory)
+        test_embedded_dictionary_does_not_override_xml(tmpdir)
+        test_unsupported_layouts_keep_namespace(tmpdir)
         test_generated_static_types(tmpdir)
         test_standard_structure_members(tmpdir)
         test_static_types_after_definitionless_dependency(tmpdir)

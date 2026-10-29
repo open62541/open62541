@@ -15,6 +15,7 @@ import codecs
 import re
 from pathlib import Path
 import copy
+import hashlib
 from collections import OrderedDict
 
 from .datatypes import NodeId
@@ -437,7 +438,8 @@ class NodeSet:
             # Prefer the representation already parsed from a supplied BSD. This
             # keeps NodeSet definitions usable for runtime metadata without
             # redeclaring datatypes owned by an external generated types array.
-            if not isLocal and node.typesArray != "UA_TYPES":
+            if (not isLocal and node.typesArray != "UA_TYPES" and
+                    not (generateTypes and fields and not getattr(self, "explicitBsd", False))):
                 namespace_types = self.parser.types.get(
                     self.namespaces[node.id.ns], {})
                 external = namespace_types.get(node.browseName.name)
@@ -479,7 +481,8 @@ class NodeSet:
                         (member.member_type.namespaceUri, member.member_type.name))
                 if normalized is not None:
                     member.member_type = normalized
-        typeParser.addTypesFromDefinitions(definitions, aliases)
+        typeParser.addTypesFromDefinitions(
+            definitions, aliases, native_aliases=generateTypes and not getattr(self, "explicitBsd", False))
 
         # Encoding objects are graph nodes, not fields of Definition. Resolve
         # both reference directions after inverse references have been added.
@@ -487,6 +490,7 @@ class NodeSet:
             node = self.nodes.get(datatype.nodeId)
             if node is None:
                 continue
+            datatype.wire_name = node.browseName.name
             for ref in node.references:
                 if not ref.isForward or ref.referenceType != NodeId("i=38"):
                     continue
@@ -499,6 +503,24 @@ class NodeSet:
                     datatype.xmlEncodingId = encoding.id
         typeParser.namespaceUris = list(self.namespaces)
 
+        # Standard SDK typedefs are already included in every generated header.
+        # Qualify incompatible companion types deterministically so their C ABI
+        # cannot accidentally alias a standard type with the same BrowseName.
+        from .backend_open62541_datatypes import _types_definition_equal
+        standard_names = {t.name: t for t in typeParser.types_by_id.values()
+                          if t.namespaceUri == "http://opcfoundation.org/UA/"}
+        for datatype in set(typeParser.types_by_id.values()):
+            standard_type = standard_names.get(datatype.name)
+            if (datatype.namespaceUri != "http://opcfoundation.org/UA/" and
+                    (datatype.name.isupper() or
+                     (standard_type is not None and datatype is not standard_type and
+                      not _types_definition_equal(datatype, standard_type)))):
+                datatype.original_name = datatype.name
+                suffix = hashlib.sha256(datatype.namespaceUri.encode()).hexdigest()[:8]
+                datatype.name += "_" + suffix
+        for namespace, datatypes in typeParser.types.items():
+            typeParser.types[namespace] = OrderedDict((t.name, t) for t in datatypes.values())
+
         localTypes = []
         visiting = set()
         visited = set()
@@ -506,6 +528,8 @@ class NodeSet:
         def addLocalType(datatype):
             """Append one local type after all local layout dependencies."""
             typeKey = id(datatype)
+            if getattr(datatype, "unsupported", None):
+                return
             if typeKey in visited:
                 return
             if typeKey in visiting:
@@ -575,7 +599,7 @@ class NodeSet:
         generatedTypes = OrderedDict()
         importedTypes = OrderedDict()
         for datatype in typeParser.types_by_id.values():
-            if datatype.isLocal:
+            if datatype.isLocal or getattr(datatype, "unsupported", None):
                 continue
             namespaceTypes = importedTypes.setdefault(datatype.namespaceUri,
                                                        OrderedDict())
@@ -592,14 +616,15 @@ class NodeSet:
 
     def generateParser(self, existing, infiles , bsdFile):
         self.all_files = []
-        # Use the standard schema accompanying the supplied namespace-zero
-        # NodeSet, so embedded dictionaries can resolve standard structures.
-        schema = Path(__file__).resolve().parent.parent / "schema"
-        for xmlfile in existing:
-            candidate = Path(xmlfile.name).parent
-            if (candidate / "Opc.Ua.Types.bsd").is_file():
-                schema = candidate
-                break
+        self.explicitBsd = bool(bsdFile)
+        schema = (Path(self.standardTypesSchema) if getattr(self, "standardTypesSchema", None)
+                  else Path(__file__).resolve().parent.parent / "schema")
+        if not getattr(self, "standardTypesSchema", None):
+            for xmlfile in existing:
+                candidate = Path(xmlfile.name).parent
+                if (candidate / "Opc.Ua.Types.bsd").is_file():
+                    schema = candidate
+                    break
         import_bsd = ["UA_TYPES#" + str(schema / "Opc.Ua.Types.bsd")]
         type_bsd = []
         for xmlfile in existing:
