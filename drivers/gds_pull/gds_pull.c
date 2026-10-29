@@ -60,9 +60,12 @@ struct UA_GDSPullConfiguration {
 struct UA_GDSPullGroup {
     UA_NodeId localGroupId;
     UA_NodeId remoteGroupId;
-    /* Whether pull groups are valid is decided by querying the assigned remote
-     * certificate groups of the GDS. Whenever a remote certificate group is found
-     * to be not assigned, this is set to `false` to avoid retries. */
+    /* Whether the application belongs to the remote certificate group. Set by
+     * GetCertificateGroups in every cycle and by a successful FinishRequest.
+     * Only GetTrustList needs it (Part 12, 7.9.9). Certificates are requested
+     * regardless: GetCertificateStatus reports UpdateRequired for a group the
+     * application does not belong to, and Start*Request joins it (7.9.3,
+     * 7.9.4, 7.9.10). */
     UA_Boolean assigned;
     UA_NodeId trustListId;
     UA_DateTime lastUpdateTime;
@@ -533,6 +536,17 @@ UA_GDSPull_workflowStepReadNamespaces(UA_Client *client,
     return UA_GDSPull_scheduleDispatch(ctx, 0);
 }
 
+static struct UA_GDSPullGroup *
+UA_GDSPull_findGroupByLocalId(UA_GDSPullContext *ctx,
+                              const UA_NodeId *certGroupId) {
+    for(size_t groupIndex = 0; groupIndex < ctx->groupsSize; groupIndex++) {
+        if(UA_NodeId_equal(&ctx->groups[groupIndex].localGroupId, certGroupId))
+            return &ctx->groups[groupIndex];
+    }
+
+    return NULL;
+}
+
 static void
 UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
                                  UA_UInt32 requestId, UA_CallResponse *cr) {
@@ -582,6 +596,15 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
             ctx->pendingRequestIndex++;
         }
     } else {
+        /* The CertificateManager assigns the application to the group before
+         * FinishRequest succeeds (7.9.3, 7.9.4). Its TrustList can be read in
+         * this cycle already. */
+        struct UA_GDSPullGroup *group = UA_GDSPull_findGroupByLocalId(
+            ctx, &ctx->pendingRequests[ctx->pendingRequestIndex]
+                      .certificateGroupId);
+        if(group)
+            group->assigned = true;
+
         UA_ByteString certificate = UA_GDSPull_byteStringOutput(result, 0);
         UA_ByteString privateKey = UA_GDSPull_byteStringOutput(result, 1);
         UA_ByteString *issuers = NULL;
@@ -698,11 +721,12 @@ UA_GDSPull_markAssignedGroups(UA_GDSPullContext *ctx, const UA_Logger *logging,
             group->assigned =
                 UA_NodeId_equal(&group->remoteGroupId, &remoteGroupIds[j]);
         if(!group->assigned)
-            UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
-                           "The CertificateManager does not list "
-                           "CertificateGroup %N for this application. The "
-                           "local group %N is skipped in this cycle.",
-                           group->remoteGroupId, group->localGroupId);
+            UA_LOG_INFO(logging, UA_LOGCATEGORY_CLIENT,
+                        "The CertificateManager does not list "
+                        "CertificateGroup %N for this application. The "
+                        "certificates of the local group %N are requested, "
+                        "its TrustList is read once the group is joined.",
+                        group->remoteGroupId, group->localGroupId);
     }
 
     /* Assigned by an administrator, but no local group is mapped to it */
@@ -807,17 +831,6 @@ UA_GDSPull_workflowStepGetCertificateGroups(UA_Client *client,
     return res;
 }
 
-static struct UA_GDSPullGroup *
-UA_GDSPull_findGroupByLocalId(UA_GDSPullContext *ctx,
-                              const UA_NodeId *certGroupId) {
-    for(size_t groupIndex = 0; groupIndex < ctx->groupsSize; groupIndex++) {
-        if(UA_NodeId_equal(&ctx->groups[groupIndex].localGroupId, certGroupId))
-            return &ctx->groups[groupIndex];
-    }
-
-    return NULL;
-}
-
 /* Several SecurityPolicies share one certificate (Basic256Sha256, Aes128 and
  * Aes256 all use an RsaSha256 certificate). Only the first policy of a
  * (group, type) pair stands for the pair. */
@@ -859,8 +872,8 @@ UA_GDSPull_nextCertPolicy(UA_GDSPullContext *ctx,
         if(UA_NodeId_isNull(&sp->certificateTypeId))
             continue; /* SecurityPolicy#None */
         *group = UA_GDSPull_findGroupByLocalId(ctx, &sp->certificateGroupId);
-        if(!*group || !(*group)->assigned)
-            continue; /* not pull-managed or not assigned */
+        if(!*group)
+            continue; /* not pull-managed */
         if(UA_GDSPull_earlierPolicyHasSamePair(sc, ctx->policyIndex))
             continue; /* the pair was already handled */
         /* A request from an earlier cycle is still open for this pair. The
