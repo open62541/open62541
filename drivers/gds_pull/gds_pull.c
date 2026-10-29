@@ -533,20 +533,6 @@ UA_GDSPull_workflowStepReadNamespaces(UA_Client *client,
     return UA_GDSPull_scheduleDispatch(ctx, 0);
 }
 
-static UA_Boolean
-UA_GDSPull_requestIsGone(UA_StatusCode res) {
-    switch(res) {
-    case UA_STATUSCODE_BADINVALIDARGUMENT:
-    case UA_STATUSCODE_BADNODEIDINVALID:
-    case UA_STATUSCODE_BADNODEIDUNKNOWN:
-    case UA_STATUSCODE_BADNOTFOUND:
-    case UA_STATUSCODE_BADREQUESTNOTALLOWED:
-        return true;
-    default:
-        return false;
-    }
-}
-
 static void
 UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
                                  UA_UInt32 requestId, UA_CallResponse *cr) {
@@ -575,7 +561,13 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
         if(!retry)
             ctx->pendingRequestIndex++;
     } else if(res != UA_STATUSCODE_GOOD) {
-        if(UA_GDSPull_requestIsGone(res)) {
+        /* Any other Bad result of the method itself means that a new request
+         * has to be sent in the next cycle (Part 12, 7.6 Table 21). This also
+         * covers Bad_UserAccessDenied for a request that was started with
+         * another client certificate (7.9.5). A failed service call (timeout,
+         * closed channel or session) says nothing about the request. */
+        if(cr->responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+           cr->resultsSize == 1) {
             UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
                            "FinishRequest failed (%s). The signing request is "
                            "discarded.",
