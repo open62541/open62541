@@ -109,9 +109,16 @@ END_TEST
 START_TEST(readValueRank) {
     UA_Int32 rank;
     UA_Variant dims;
-    // scalar
+    /* An omitted rank uses the XML scalar default with a permissive type. */
     UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &rank);
-    ck_assert_int_eq(rank, -2);
+    ck_assert_int_eq(rank, UA_VALUERANK_SCALAR);
+    ck_assert_uint_eq(UA_Server_readValueRank(
+        server, UA_NODEID_NUMERIC(testNamespaceIndex, 8001), &rank), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rank, UA_VALUERANK_SCALAR);
+    /* An explicitly requested permissive rank remains unchanged. */
+    ck_assert_uint_eq(UA_Server_readValueRank(
+        server, UA_NODEID_NUMERIC(testNamespaceIndex, 8004), &rank), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rank, UA_VALUERANK_ANY);
     UA_Variant_init(&dims);
     UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &dims);
     ck_assert_uint_eq(dims.arrayLength, 0);
