@@ -27,8 +27,6 @@ from io import StringIO
 import logging
 logger = logging.getLogger(__name__)
 
-# Strip invalid characters to create valid C identifiers (variable names etc):
-
 # Escape C strings:
 def makeCLiteral(value):
     if value is None:
@@ -555,6 +553,9 @@ def generateNodeCode_begin(node, nodeset, code_global):
             format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
     code.append("".join(addnode))
 
+    code.append('if(retVal != UA_STATUSCODE_GOOD) UA_LOG_ERROR(UA_Server_getConfig(server)->logging,')
+    code.append('    UA_LOGCATEGORY_USERLAND, "Cannot add generated node %%N (%%s)", %s, UA_StatusCode_name(retVal));' %
+                generateNodeIdCode(node.id))
     code.extend(codeCleanup)
     return "\n".join(code)
 
@@ -712,7 +713,11 @@ nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
 
-        writec("return " + generateNodeCode_finish(node))
+        writec("UA_StatusCode retVal = " + generateNodeCode_finish(node))
+        writec('if(retVal != UA_STATUSCODE_GOOD) UA_LOG_ERROR(UA_Server_getConfig(server)->logging,')
+        writec('    UA_LOGCATEGORY_USERLAND, "Cannot finish generated node %%N (%%s)", %s, UA_StatusCode_name(retVal));' %
+               generateNodeIdCode(node.id))
+        writec("return retVal;")
         writec("}")
 
         # ReferenceTypeNodes have to be _finished immediately. The _begin phase
