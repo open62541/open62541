@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 import logging
 import codecs
 import re
+from pathlib import Path
 from collections import OrderedDict
 
 from .datatypes import NodeId
@@ -93,7 +94,9 @@ class NodeSet:
         self.namespaceMapping = {}
 
     def sanitize(self):
-        # Sanitize reference consistency
+        # Hierarchical/type dependencies must exist. Other references may
+        # legitimately point outside the supplied model closure.
+        required = set(self.getRelevantOrderingReferences())
         for n in self.nodes.values():
             for ref in n.references:
                 if not ref.source == n.id:
@@ -101,8 +104,10 @@ class NodeSet:
                 if ref.referenceType not in self.nodes:
                     raise Exception("Reference " + str(ref) + " has an unknown reference type")
                 if ref.target not in self.nodes:
-                    print(self.namespaces)
-                    raise Exception("Reference " + str(ref) + " has an unknown target")
+                    if ref.referenceType in required:
+                        raise Exception("Reference " + str(ref) + " has an unknown target")
+                    logger.warning("Reference %s points outside the supplied NodeSets; "
+                                   "it will not be generated", ref)
 
     def addNamespace(self, nsURL):
         if nsURL not in self.namespaces:
@@ -293,10 +298,15 @@ class NodeSet:
 
     def getDataTypeNode(self, dataType):
         if isinstance(dataType, str):
-            if not valueIsInternalType(dataType):
-                logger.error("Not a valid dataType string: " + dataType)
-                return None
-            return self.nodes[NodeId(self.aliases[dataType])]
+            if dataType in self.aliases:
+                return self.getDataTypeNode(NodeId(self.aliases[dataType]))
+            name = {"Variant": "BaseDataType", "ExtensionObject": "Structure"}.get(dataType, dataType)
+            for node in self.nodes.values():
+                if (isinstance(node, DataTypeNode) and node.id.ns == 0 and
+                        1 <= node.id.i <= 25 and node.browseName.name == name):
+                    return node
+            logger.warning("Ignoring undeclared datatype alias %s; using the VariableType representation", dataType)
+            return None
         if isinstance(dataType, NodeId):
             if dataType.i == 0:
                 return None
@@ -308,17 +318,32 @@ class NodeSet:
         return None
 
     def getRelevantOrderingReferences(self):
-        relevant_types = set()
-        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HierarchicalReferences"), []))
-        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HasEncoding"), []))
-        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HasTypeDefinition"), []))
-        return list(map(lambda x: x.id, relevant_types))
+        # sanitize() runs before inverse references are synthesized. Derive the
+        # reference hierarchy from either direction, including custom subtypes.
+        required = {NodeId("i=33"), NodeId("i=38"), NodeId("i=40")}
+        types = {node.id: node for node in self.nodes.values()
+                 if isinstance(node, ReferenceTypeNode)}
+        changed = True
+        while changed:
+            changed = False
+            for node in types.values():
+                for ref in node.references:
+                    if ref.referenceType != hassubtype:
+                        continue
+                    parent, child = ((node.id, ref.target) if ref.isForward
+                                     else (ref.target, node.id))
+                    if parent in required and child in types and child not in required:
+                        required.add(child)
+                        changed = True
+        return list(required)
 
     def addInverseReferences(self):
         # Ensure that every reference has an inverse reference in the target
         for u in self.nodes.values():
             for ref in u.references.copy():
                 back = Reference(ref.target, ref.referenceType, ref.source, not ref.isForward)
+                if ref.target not in self.nodes:
+                    continue
                 self.nodes[ref.target].references[back] = None # dict key does not make a duplicate entry
 
     def setNodeParent(self):
@@ -342,7 +367,15 @@ class NodeSet:
 
     def generateParser(self, existing, infiles , bsdFile):
         self.all_files = []
-        import_bsd = []
+        # Use the standard schema accompanying the supplied namespace-zero
+        # NodeSet, so embedded dictionaries can resolve standard structures.
+        schema = Path(__file__).resolve().parent.parent / "schema"
+        for xmlfile in existing:
+            candidate = Path(xmlfile.name).parent
+            if (candidate / "Opc.Ua.Types.bsd").is_file():
+                schema = candidate
+                break
+        import_bsd = ["UA_TYPES#" + str(schema / "Opc.Ua.Types.bsd")]
         type_bsd = []
         for xmlfile in existing:
             if xmlfile.name == "deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml":
