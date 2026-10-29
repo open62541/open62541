@@ -92,4 +92,22 @@
       <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=1000</Reference></References>
     <Value><uax:Int32>42</uax:Int32></Value>
   </UAVariable>
+  <UAVariable NodeId="ns=1;i=1010" BrowseName="1:EmptyUnsignedAlias" DataType="ns=1;i=7003" ValueRank="1">
+    <DisplayName>EmptyUnsignedAlias</DisplayName><References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=1000</Reference></References>
+    <Value><uax:ListOfInt32/></Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=1011" BrowseName="1:EmptyExtensionObjects" DataType="i=22" ValueRank="1">
+    <DisplayName>EmptyExtensionObjects</DisplayName><References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=1000</Reference></References>
+    <Value><uax:ListOfExtensionObject/></Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=1012" BrowseName="1:UnsignedAliasArray" DataType="ns=1;i=7003" ValueRank="1">
+    <DisplayName>UnsignedAliasArray</DisplayName><References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=1000</Reference></References>
+    <Value><uax:ListOfInt32><uax:Int32>0</uax:Int32><uax:Int32>42</uax:Int32></uax:ListOfInt32></Value>
+  </UAVariable>
 </UANodeSet>
