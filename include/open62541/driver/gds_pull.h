@@ -88,21 +88,32 @@ typedef void (*UA_GDSPullRequesterNotificationCallback)(
  * The following parameters are optional:
  *
  * - application-id: [NodeId]
- * - create-private-key: [Boolean]
- * - cycle-interval: [UInt32]
- * - cycle-timeout: [UInt32]
+ * - create-private-key: [Boolean] (default false)
+ * - cycle-interval: [UInt32] (milliseconds, default 5000)
+ * - cycle-timeout: [UInt32] (milliseconds, default 60000)
+ *
+ * The application-id is the NodeId that the GDS assigned to the application
+ * when it was registered (Part 12, 7.6). It is the first argument of every
+ * PullManagement method. Without it, no method is called: a cycle connects to
+ * the CertificateManager, logs a warning and closes the connection again.
  *
  * The first cycle starts cycle-interval milliseconds after the driver is
  * started. The second cycle starts with an additional random delay of 1% to
  * 10% of cycle-interval (Part 12, 6.3), every later cycle one cycle-interval
- * after its predecessor. A cycle that has not finished cycle-timeout after
- * it started is aborted and the connection to the CertificateManager is
- * closed.
+ * after its predecessor. A cycle that has not finished cycle-timeout
+ * milliseconds after it started is aborted and the connection to the
+ * CertificateManager is closed. A cycle-interval or cycle-timeout of 0 selects
+ * the default on the first start and keeps the current value on a later
+ * start.
  *
  * The managed certificate groups with the local and remote mappings:
  *
  * - mappings-local-group-id: [NodeId array]
  * - mappings-remote-group-id: [NodeId array]
+ *
+ * The i-th entries of the two arrays are one mapping. The local id is the
+ * NodeId of a CertificateGroup of this server, the remote id the NodeId of
+ * the CertificateGroup at the CertificateManager.
  *
  * The outstanding signing requests the driver is notified about:
  *
@@ -110,12 +121,22 @@ typedef void (*UA_GDSPullRequesterNotificationCallback)(
  * - pending-certificate-group-id: [NodeId array]
  * - pending-certificate-type-id: [NodeId array]
  *
+ * The i-th entries of the three arrays are one request. Its group id is the
+ * local id of the mapping (mappings-local-group-id), not the remote id that
+ * the request was made for at the CertificateManager. A request with another
+ * group id is not matched to its CertificateGroup: the driver can start a
+ * second request for the same certificate.
+ *
  * The REQUEST_ADDED notification has a single request with the scalar NodeIds
  * request-id, certificate-group-id and certificate-type-id. These are appended
- * to the arrays of the pending- parameters.
+ * to the arrays of the pending- parameters. REQUEST_FINISHED and
+ * REQUEST_DROPPED have the same keys. The request with this request-id is
+ * then removed from the arrays.
  *
- * The driver reads the parameters when it is started. A parameter of another
- * type than listed here fails the start with BadConfigurationError.
+ * The driver reads the parameters when it is started. An optional parameter
+ * that is absent keeps its current value, i.e. the value of the previous
+ * start. A parameter of another type than listed here fails the start with
+ * BadConfigurationError.
  * */
 UA_EXPORT UA_GDSPullRequester *
 UA_GDSPull_new(const UA_KeyValueMap params);
@@ -124,7 +145,21 @@ UA_GDSPull_new(const UA_KeyValueMap params);
  * example the pending requests, since a request might be outstanding for a
  * while before the CertificateManager issues a certificate. If the driver
  * crashes or restarts, the user should supply the previously outstanding
- * requests through the ``pending-`` parameters. */
+ * requests through the ``pending-`` parameters.
+ *
+ * The payload of a notification has these keys:
+ *
+ * - CYCLE_STARTED, CYCLE_FINISHED: endpoint-url [String]
+ * - REQUEST_ADDED, REQUEST_FINISHED, REQUEST_DROPPED: request-id,
+ *   certificate-group-id, certificate-type-id [NodeId]
+ * - REQUEST_FAILED, CERTIFICATE_INSTALLED, CERTIFICATE_INSTALLATION_FAILED:
+ *   certificate-group-id, certificate-type-id [NodeId], status-code
+ *   [StatusCode]
+ * - TRUSTLIST_UPDATED, TRUSTLIST_FAILED: certificate-group-id [NodeId],
+ *   status-code [StatusCode]
+ *
+ * The certificate-group-id is always the local id of the mapping. The payload
+ * is only valid during the callback. */
 UA_EXPORT void
 UA_GDSPull_setNotificationCallback(
     UA_GDSPullRequester *pull, UA_GDSPullRequesterNotificationCallback callback,
