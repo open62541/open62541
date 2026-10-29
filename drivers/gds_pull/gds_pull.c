@@ -190,6 +190,10 @@ struct UA_GDSPullContext {
      * outside. */
     size_t groupsSize;
     struct UA_GDSPullGroup *groups;
+
+    /* The SecureChannels of the server. Their certificates are verified again
+     * when the TrustList of the SecureChannels is replaced. */
+    UA_GDSChannels channels;
 };
 
 static UA_INLINE UA_NodeId
@@ -2046,6 +2050,9 @@ UA_GDSPull_workflowStepCommit(UA_Client *client, UA_GDSPullContext *ctx) {
                     (unsigned)trustList.trustedCrlsSize,
                     (unsigned)trustList.issuerCertificatesSize,
                     (unsigned)trustList.issuerCrlsSize);
+        if(certGroup == &sc->secureChannelPKI)
+            UA_GDSChannels_closeUntrusted(&ctx->channels, ctx->drv.server,
+                                          certGroup);
     }
     notify_trustList(ctx,
                      (res == UA_STATUSCODE_GOOD) ? UA_GDSPULL_TRUSTLIST_UPDATED
@@ -2720,12 +2727,23 @@ UA_GDSPull_stop(UA_Driver *drv) {
     drv->state = UA_LIFECYCLESTATE_STOPPED;
 }
 
+/* Track the SecureChannels of the server, see UA_GDSChannels_notify */
+static void
+UA_GDSPull_notificationCallback(UA_Driver *drv,
+                                UA_ApplicationNotificationType type,
+                                const UA_KeyValueMap payload) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)drv;
+    UA_GDSChannels_notify(&ctx->channels, drv->server, type, payload);
+}
+
 static UA_StatusCode
 UA_GDSPull_free(UA_Driver *drv) {
     UA_GDSPullContext *ctx = (UA_GDSPullContext *)drv;
 
     if(drv->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINVALIDSTATE;
+
+    UA_GDSChannels_clear(&ctx->channels);
 
     UA_KeyValueMap_clear(&ctx->drv.params);
     UA_String_clear(&ctx->conf.gdsEndpointUrl);
@@ -2759,6 +2777,8 @@ UA_GDSPull_new(const UA_KeyValueMap params) {
     ctx->drv.start = UA_GDSPull_start;
     ctx->drv.stop = UA_GDSPull_stop;
     ctx->drv.free = UA_GDSPull_free;
+    ctx->drv.notificationCallback = UA_GDSPull_notificationCallback;
+    ctx->drv.notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL;
 
     return (UA_GDSPullRequester *)ctx;
 }
