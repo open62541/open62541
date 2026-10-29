@@ -109,6 +109,13 @@ typedef void (*UA_GDSPullRequesterNotificationCallback)(
  * - pending-request-id: [NodeId array]
  * - pending-certificate-group-id: [NodeId array]
  * - pending-certificate-type-id: [NodeId array]
+ *
+ * The REQUEST_ADDED notification has a single request with the scalar NodeIds
+ * request-id, certificate-group-id and certificate-type-id. These are appended
+ * to the arrays of the pending- parameters.
+ *
+ * The driver reads the parameters when it is started. A parameter of another
+ * type than listed here fails the start with BadConfigurationError.
  * */
 UA_EXPORT UA_GDSPullRequester *
 UA_GDSPull_new(const UA_KeyValueMap params);
