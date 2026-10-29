@@ -38,6 +38,8 @@
 #define UNUSED_ENDPOINT "opc.tcp://localhost:14842"
 
 #define REQUESTER_URI "urn:open62541.test.gds-pull-requester"
+#define AES128_POLICY_URI \
+    "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep"
 #define GDS_URI "urn:open62541.test.certificate-manager"
 
 /* Well-known NodeIds of the GDS namespace (Opc.Ua.Gds.NodeIds.csv) */
@@ -55,6 +57,7 @@
 #define GDSID_DIRECTORY_CERTIFICATEGROUPS 614
 #define GDSID_DIRECTORY_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP 615
 #define GDSID_DIRECTORY_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST 616
+#define GDSID_DIRECTORY_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP 683
 
 /* Identifiers handed out by the mock CertificateManager */
 #define GDSID_APPLICATION 1000
@@ -79,10 +82,15 @@ static UA_ByteString renewedCert;
 #endif
 /* A new key pair for the requester. Issued by StartNewKeyPairRequest. */
 static UA_ByteString newKeyPairCert, newKeyPairKey;
+/* Another new key pair, issued for the second CertificateGroup */
+static UA_ByteString userTokenGroupCert, userTokenGroupKey;
 
 static const UA_NodeId defaultApplicationGroup = {
     0, UA_NODEIDTYPE_NUMERIC,
     {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP}};
+static const UA_NodeId defaultUserTokenGroup = {
+    0, UA_NODEIDTYPE_NUMERIC,
+    {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP}};
 static const UA_NodeId rsaSha256CertificateType = {
     0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE}};
 
@@ -135,6 +143,12 @@ typedef struct {
      * held back until the test sets the value to 0 */
     size_t holdFinishRequest;
 
+    /* A second CertificateGroup, served when not null. Its requests are
+     * answered with issuedCertificate2 and issuedPrivateKey2. */
+    UA_NodeId groupId2;
+    UA_ByteString issuedCertificate2; /* not owned */
+    UA_ByteString issuedPrivateKey2;  /* not owned */
+
     /* Served TrustList: a raw UA Binary encoded TrustListDataType (7.8.2.1) */
     UA_TrustListDataType trustList;
     UA_ByteString trustListFile;
@@ -148,6 +162,7 @@ typedef struct {
     UA_UInt32 nextRequest;
     size_t requestsSize;
     UA_NodeId requestIds[MAX_REQUESTS];
+    UA_NodeId requestGroups[MAX_REQUESTS];
     UA_NodeId lastRequestId;
     UA_NodeId lastCertificateType;
     UA_ByteString lastCsr;
@@ -241,6 +256,19 @@ setIssuedKeyPair(UA_ByteString certificate, UA_ByteString privateKey) {
     unlockCm();
 }
 
+/* Serve a second CertificateGroup next to the DefaultApplicationGroup. The
+ * requester is a member of both. Its requests are answered with this
+ * certificate and private key. */
+static void
+serveSecondGroup(UA_ByteString certificate, UA_ByteString privateKey) {
+    lockCm();
+    cm.groupId2 = UA_NODEID_NUMERIC(
+        cm.ns, GDSID_DIRECTORY_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    cm.issuedCertificate2 = certificate;
+    cm.issuedPrivateKey2 = privateKey;
+    unlockCm();
+}
+
 static void
 sleepMs(UA_UInt32 ms) {
 #ifdef UA_ARCHITECTURE_WIN32
@@ -317,7 +345,18 @@ checkCertificateGroupId(const UA_Variant *v) {
     const UA_NodeId *id = (const UA_NodeId*)v->data;
     if(UA_NodeId_isNull(id) || UA_NodeId_equal(id, &cm.groupId))
         return UA_STATUSCODE_GOOD;
+    if(!UA_NodeId_isNull(&cm.groupId2) && UA_NodeId_equal(id, &cm.groupId2))
+        return UA_STATUSCODE_GOOD;
     return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
+/* The group of a checked CertificateGroupId argument */
+static UA_NodeId
+certificateGroupOf(const UA_Variant *v) {
+    const UA_NodeId *id = (const UA_NodeId*)v->data;
+    if(!UA_NodeId_isNull(&cm.groupId2) && UA_NodeId_equal(id, &cm.groupId2))
+        return cm.groupId2;
+    return cm.groupId;
 }
 
 /* Registration (6.5) is not part of the Pull Management Workflow */
@@ -337,8 +376,14 @@ MOCK_METHOD(mockGetCertificateGroups) {
     UA_StatusCode res = checkApplicationId(&input[0]);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    size_t groupsSize = cm.assigned ? 1 : 0;
-    return UA_Variant_setArrayCopy(&output[0], &cm.groupId, groupsSize,
+    /* The application is always a member of the second group */
+    UA_NodeId groups[2];
+    size_t groupsSize = 0;
+    if(cm.assigned)
+        groups[groupsSize++] = cm.groupId;
+    if(!UA_NodeId_isNull(&cm.groupId2))
+        groups[groupsSize++] = cm.groupId2;
+    return UA_Variant_setArrayCopy(&output[0], groups, groupsSize,
                                    &UA_TYPES[UA_TYPES_NODEID]);
 }
 
@@ -360,10 +405,11 @@ MOCK_METHOD(mockGetCertificateStatus) {
 
 /* Must be called with cmMutex held */
 static UA_NodeId
-addRequest(void) {
+addRequest(UA_NodeId groupId) {
     if(cm.requestsSize >= MAX_REQUESTS)
         return UA_NODEID_NULL;
     UA_NodeId id = UA_NODEID_NUMERIC(cm.ns, GDSID_FIRST_REQUEST + cm.nextRequest++);
+    cm.requestGroups[cm.requestsSize] = groupId;
     cm.requestIds[cm.requestsSize++] = id;
     cm.lastRequestId = id;
     return id;
@@ -375,7 +421,9 @@ removeRequest(const UA_NodeId *id) {
     for(size_t i = 0; i < cm.requestsSize; i++) {
         if(!UA_NodeId_equal(&cm.requestIds[i], id))
             continue;
-        cm.requestIds[i] = cm.requestIds[--cm.requestsSize];
+        cm.requestsSize--;
+        cm.requestIds[i] = cm.requestIds[cm.requestsSize];
+        cm.requestGroups[i] = cm.requestGroups[cm.requestsSize];
         return true;
     }
     return false;
@@ -402,7 +450,7 @@ MOCK_METHOD_DELAYED(mockStartSigningRequest, delayedStartSigningMs) {
     res = UA_ByteString_copy(csr, &cm.lastCsr);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    UA_NodeId requestId = addRequest();
+    UA_NodeId requestId = addRequest(certificateGroupOf(&input[1]));
     if(UA_NodeId_isNull(&requestId))
         return UA_STATUSCODE_BADTOOMANYOPERATIONS;
     cm.lastCertificateType = *(const UA_NodeId*)input[2].data;
@@ -425,7 +473,7 @@ MOCK_METHOD(mockStartNewKeyPairRequest) {
         return res;
     if(!isScalar(&input[2], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_NodeId requestId = addRequest();
+    UA_NodeId requestId = addRequest(certificateGroupOf(&input[1]));
     if(UA_NodeId_isNull(&requestId))
         return UA_STATUSCODE_BADTOOMANYOPERATIONS;
     cm.lastCertificateType = *(const UA_NodeId*)input[2].data;
@@ -447,11 +495,22 @@ answerFinishRequest(const UA_Variant *input, UA_Variant *output,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     const UA_NodeId *requestId = (const UA_NodeId*)input[1].data;
 
-    UA_Boolean known = false;
-    for(size_t i = 0; i < cm.requestsSize; i++)
-        known |= UA_NodeId_equal(&cm.requestIds[i], requestId);
-    if(!known)
+    const UA_NodeId *groupId = NULL;
+    for(size_t i = 0; i < cm.requestsSize; i++) {
+        if(UA_NodeId_equal(&cm.requestIds[i], requestId))
+            groupId = &cm.requestGroups[i];
+    }
+    if(!groupId)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* The certificate issued for the group of the request */
+    UA_ByteString certificate = cm.issuedCertificate;
+    UA_ByteString privateKey = cm.issuedPrivateKey;
+    if(!UA_NodeId_isNull(&cm.groupId2) &&
+       UA_NodeId_equal(groupId, &cm.groupId2)) {
+        certificate = cm.issuedCertificate2;
+        privateKey = cm.issuedPrivateKey2;
+    }
 
     switch(mode) {
     case FINISH_PENDING:
@@ -469,7 +528,6 @@ answerFinishRequest(const UA_Variant *input, UA_Variant *output,
 
     /* Like most CertificateManagers, the request is gone once the
      * certificate was handed out (7.9.5) */
-    UA_ByteString privateKey = cm.issuedPrivateKey;
     if(cm.keepIssuedRequests) {
         for(size_t i = 0; i < cm.keyDeliveredSize; i++) {
             if(UA_NodeId_equal(&cm.keyDelivered[i], requestId))
@@ -495,7 +553,7 @@ answerFinishRequest(const UA_Variant *input, UA_Variant *output,
                                             UA_SHUTDOWNREASON_CLOSE);
     }
 
-    res = UA_Variant_setScalarCopy(&output[0], &cm.issuedCertificate,
+    res = UA_Variant_setScalarCopy(&output[0], &certificate,
                                    &UA_TYPES[UA_TYPES_BYTESTRING]);
     res |= UA_Variant_setScalarCopy(&output[1], &privateKey,
                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -580,7 +638,8 @@ MOCK_METHOD(mockGetCertificates) {
     return res;
 }
 
-/* 7.9.9: GetTrustList(ApplicationId, CertificateGroupId) -> TrustListId */
+/* 7.9.9: GetTrustList(ApplicationId, CertificateGroupId) -> TrustListId.
+ * Both groups share the served TrustList. */
 MOCK_METHOD(mockGetTrustList) {
     cm.getTrustList++;
     UA_StatusCode res = checkApplicationId(&input[0]);
@@ -1186,6 +1245,37 @@ setCreatePrivateKey(UA_Boolean createPrivateKey) {
                       UA_STATUSCODE_GOOD);
 }
 
+/* Map the local DefaultUserTokenGroup to the second group of the
+ * CertificateManager as well. Must be called before the server is started. */
+static void
+mapSecondGroup(void) {
+    UA_NodeId local[2] = {defaultApplicationGroup, defaultUserTokenGroup};
+    UA_NodeId remote[2] = {cm.groupId, cm.groupId2};
+    UA_Variant v;
+    UA_Variant_setArray(&v, local, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_KeyValueMap_set(&pull->drv.params,
+                                         UA_QUALIFIEDNAME(0, "mappings-local-group-id"),
+                                         &v),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_setArray(&v, remote, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_KeyValueMap_set(&pull->drv.params,
+                                         UA_QUALIFIEDNAME(0, "mappings-remote-group-id"),
+                                         &v),
+                      UA_STATUSCODE_GOOD);
+}
+
+static UA_SecurityPolicy *
+findSecurityPolicy(const char *policyUri) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_String uri = UA_STRING((char*)(uintptr_t)policyUri);
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(UA_String_equal(&config->securityPolicies[i].policyUri, &uri))
+            return &config->securityPolicies[i];
+    }
+    ck_abort_msg("SecurityPolicy %s not found", policyUri);
+    return NULL;
+}
+
 /* Replace the requester of the fixture before the server is started */
 static void
 replaceRequester(const char *endpointUrl, size_t pendingSize,
@@ -1308,6 +1398,32 @@ assertLocalCertificateIs(const UA_ByteString *certificate) {
         if(sp->localCertificate.length == 0)
             continue;
         ck_assert(UA_ByteString_equal(&sp->localCertificate, certificate));
+        checked++;
+    }
+    ck_assert_uint_gt(checked, 0);
+}
+
+/* The SecurityPolicies of the local group, and the endpoints that use them,
+ * present the certificate */
+static void
+assertGroupCertificateIs(const UA_NodeId *certificateGroupId,
+                         const UA_ByteString *certificate) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    size_t checked = 0;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &config->securityPolicies[i];
+        if(!UA_NodeId_equal(&sp->certificateGroupId, certificateGroupId))
+            continue;
+        ck_assert_msg(UA_ByteString_equal(&sp->localCertificate, certificate),
+                      "SecurityPolicy %.*s of CertificateGroup %u presents "
+                      "another certificate", (int)sp->policyUri.length,
+                      (const char*)sp->policyUri.data,
+                      certificateGroupId->identifier.numeric);
+        for(size_t j = 0; j < config->endpointsSize; j++) {
+            UA_EndpointDescription *ed = &config->endpoints[j];
+            if(UA_String_equal(&ed->securityPolicyUri, &sp->policyUri))
+                ck_assert(UA_ByteString_equal(&ed->serverCertificate, certificate));
+        }
         checked++;
     }
     ck_assert_uint_gt(checked, 0);
@@ -1518,7 +1634,7 @@ START_TEST(deniedRequestIsReplacedInNextCycle) {
  * FinishRequest. No new signing request is started for it. */
 START_TEST(restoredPendingRequestIsFinishedWithoutNewRequest) {
     lockCm();
-    UA_NodeId pendingRequest = addRequest();
+    UA_NodeId pendingRequest = addRequest(cm.groupId);
     unlockCm();
     ck_assert(!UA_NodeId_isNull(&pendingRequest));
     replaceRequester(GDS_ENDPOINT, 1, &pendingRequest);
@@ -1651,8 +1767,8 @@ START_TEST(stopFromCycleStartedNotification) {
 START_TEST(startWhileStoppingKeepsRequestBinding) {
     lockCm();
     UA_NodeId pendingRequests[2];
-    pendingRequests[0] = addRequest();
-    pendingRequests[1] = addRequest();
+    pendingRequests[0] = addRequest(cm.groupId);
+    pendingRequests[1] = addRequest(cm.groupId);
     cm.holdFinishRequest = 2;
     unlockCm();
     replaceRequester(GDS_ENDPOINT, 2, pendingRequests);
@@ -1799,9 +1915,11 @@ secureClientStateCallback(UA_Client *client,
 
 /* A secureChannelLifeTime of 0 keeps the default of the client */
 static UA_Client *
-connectSecureClient(UA_ByteString certificate, UA_ByteString privateKey,
-                    const char *applicationUri,
-                    UA_UInt32 secureChannelLifeTime) {
+connectSecureClientWithPolicy(const char *securityPolicyUri,
+                              UA_ByteString certificate,
+                              UA_ByteString privateKey,
+                              const char *applicationUri,
+                              UA_UInt32 secureChannelLifeTime) {
     clientSessionActivated = false;
     clientChannelClosed = false;
     clientCloseStatus = UA_STATUSCODE_GOOD;
@@ -1813,8 +1931,7 @@ connectSecureClient(UA_ByteString certificate, UA_ByteString privateKey,
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    cc->securityPolicyUri = UA_STRING_ALLOC(
-        "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    cc->securityPolicyUri = UA_STRING_ALLOC(securityPolicyUri);
     UA_String_clear(&cc->clientDescription.applicationUri);
     cc->clientDescription.applicationUri = UA_STRING_ALLOC(applicationUri);
     if(secureChannelLifeTime > 0)
@@ -1838,6 +1955,15 @@ connectSecureClient(UA_ByteString certificate, UA_ByteString privateKey,
     ck_assert_uint_eq(connectStatus, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(sessionState, UA_SESSIONSTATE_ACTIVATED);
     return client;
+}
+
+static UA_Client *
+connectSecureClient(UA_ByteString certificate, UA_ByteString privateKey,
+                    const char *applicationUri,
+                    UA_UInt32 secureChannelLifeTime) {
+    return connectSecureClientWithPolicy(
+        "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
+        certificate, privateKey, applicationUri, secureChannelLifeTime);
 }
 
 /* Iterate the requester and the client for the given time */
@@ -2089,7 +2215,7 @@ START_TEST(startSigningResponseAfterCycleTimeoutIsKept) {
  * must be installed from it. */
 START_TEST(finishResponseAfterCycleTimeoutIsApplied) {
     lockCm();
-    UA_NodeId pendingRequest = addRequest();
+    UA_NodeId pendingRequest = addRequest(cm.groupId);
     cm.delayedFinishCall = 1; /* answered after the cycle timeout */
     cm.delayedFinishMode = FINISH_APPROVE;
     cm.delayedFinishMs = 1500;
@@ -2387,6 +2513,80 @@ START_TEST(installedCertificateClosesExistingChannels) {
     UA_Client_delete(client);
 } END_TEST
 
+/* 7.9.4, 7.9.5: A certificate is requested for a (CertificateGroup,
+ * CertificateType) pair. The local DefaultApplicationGroup and
+ * DefaultUserTokenGroup both have RsaSha256 SecurityPolicies, so two requests
+ * are made in one cycle. Each issued certificate replaces the certificate of
+ * its own group only. */
+START_TEST(certificateIsInstalledIntoRequestedGroupOnly) {
+    findSecurityPolicy(AES128_POLICY_URI)->certificateGroupId =
+        defaultUserTokenGroup;
+    setIssuedKeyPair(newKeyPairCert, newKeyPairKey);
+    serveSecondGroup(userTokenGroupCert, userTokenGroupKey);
+    setCreatePrivateKey(true);
+    mapSecondGroup();
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+
+    /* One request per group */
+    ck_assert_uint_eq(c.startSigningRequest, 0);
+    ck_assert_uint_eq(c.startNewKeyPairRequest, 2);
+    ck_assert_uint_eq(c.finishRequest, 2);
+    ck_assert_uint_eq(c.requestsSize, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED), 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 2);
+    size_t first = positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 1);
+    size_t second = positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 2);
+    ck_assert_uint_eq(payloadStatusCode(first), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(payloadStatusCode(second), UA_STATUSCODE_GOOD);
+    ck_assert(!UA_NodeId_equal(payloadNodeId(first, "certificate-group-id"),
+                               payloadNodeId(second, "certificate-group-id")));
+
+    assertGroupCertificateIs(&defaultApplicationGroup, &newKeyPairCert);
+    assertGroupCertificateIs(&defaultUserTokenGroup, &userTokenGroupCert);
+} END_TEST
+
+/* 7.10.9: The SecureChannels of a CertificateGroup are closed when its
+ * certificate is replaced. A SecureChannel of a SecurityPolicy in another
+ * CertificateGroup with the same CertificateType keeps its certificate, so
+ * it stays open and its token renewals succeed. Only the
+ * DefaultApplicationGroup is pull-managed. */
+START_TEST(installedCertificateKeepsChannelsOfOtherGroups) {
+    findSecurityPolicy(AES128_POLICY_URI)->certificateGroupId =
+        defaultUserTokenGroup;
+    setCreatePrivateKey(true);
+    setIssuedKeyPair(newKeyPairCert, newKeyPairKey);
+    setFinishMode(FINISH_PENDING);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    ck_assert_uint_eq(snapshot().requestsSize, 1);
+
+    /* Connect through the DefaultUserTokenGroup, then let the next cycle
+     * install the certificate of the DefaultApplicationGroup */
+    UA_Client *client =
+        connectSecureClientWithPolicy(AES128_POLICY_URI, gdsCert, gdsKey,
+                                      GDS_URI, CHANNEL_CLIENT_LIFETIME_MS);
+    setFinishMode(FINISH_APPROVE);
+    ck_assert(runWithClientUntil(client, UA_GDSPULL_CERTIFICATE_INSTALLED, 1));
+    ck_assert_uint_eq(payloadStatusCode(positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 1)),
+                      UA_STATUSCODE_GOOD);
+    assertGroupCertificateIs(&defaultApplicationGroup, &newKeyPairCert);
+    ck_assert(UA_ByteString_equal(
+        &findSecurityPolicy(AES128_POLICY_URI)->localCertificate,
+        &requesterCert));
+
+    /* The time covers at least one token renewal of the client */
+    runWithClient(client, 3 * CHANNEL_CLIENT_LIFETIME_MS / 2);
+    ck_assert_msg(!clientChannelClosed, "The SecureChannel of the "
+                  "DefaultUserTokenGroup was closed (%s)",
+                  UA_StatusCode_name(clientCloseStatus));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 /******************************/
 /* Suite                      */
 /******************************/
@@ -2528,6 +2728,8 @@ main(void) {
                       &foreignKey, &foreignCert);
     createCertificate("CN=GDS Pull Requester", "URI:" REQUESTER_URI,
                       &newKeyPairKey, &newKeyPairCert);
+    createCertificate("CN=GDS Pull Requester UserToken", "URI:" REQUESTER_URI,
+                      &userTokenGroupKey, &userTokenGroupCert);
 #ifdef CAN_RENEW_CERTIFICATE
     if(renewCertificate(&requesterCert, &requesterKey, &renewedCert) !=
        UA_STATUSCODE_GOOD) {
@@ -2566,6 +2768,8 @@ main(void) {
     tcase_add_test(tc, repeatedNewKeyPairResponseWithoutKeyRestartsRequest);
     tcase_add_test(tc, failedInstallationIsReRequestedInNextCycle);
     tcase_add_test(tc, installedCertificateClosesExistingChannels);
+    tcase_add_test(tc, certificateIsInstalledIntoRequestedGroupOnly);
+    tcase_add_test(tc, installedCertificateKeepsChannelsOfOtherGroups);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);
@@ -2582,6 +2786,8 @@ main(void) {
     UA_ByteString_clear(&foreignKey);
     UA_ByteString_clear(&newKeyPairCert);
     UA_ByteString_clear(&newKeyPairKey);
+    UA_ByteString_clear(&userTokenGroupCert);
+    UA_ByteString_clear(&userTokenGroupKey);
 #ifdef CAN_RENEW_CERTIFICATE
     UA_ByteString_clear(&renewedCert);
 #endif
