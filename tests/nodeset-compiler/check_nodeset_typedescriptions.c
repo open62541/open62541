@@ -14,7 +14,7 @@ static UA_Server *server;
 static void
 setup(void) {
     server = UA_Server_newForUnitTest();
-    ck_assert_ptr_nonnull(server);
+    ck_assert_ptr_ne(server, NULL);
 }
 
 static void
@@ -43,7 +43,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
 
     /* Verify nested and optional structure layouts. */
     const UA_DataType *address = findType(namespaceIndex, 3002);
-    ck_assert_ptr_nonnull(address);
+    ck_assert_ptr_ne(address, NULL);
     ck_assert_ptr_eq(address, UA_Server_getGeneratedDataType(
         server, &UA_TYPES_TYPEDESCRIPTIONS_SOURCE, UA_TYPES_TYPEDESCRIPTIONS_ADDRESS));
     if(!copyTypes)
@@ -52,7 +52,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
     ck_assert_uint_eq(address->membersSize, 2);
 
     const UA_DataType *person = findType(namespaceIndex, 3000);
-    ck_assert_ptr_nonnull(person);
+    ck_assert_ptr_ne(person, NULL);
     if(!copyTypes)
         ck_assert_ptr_eq(person, &UA_TYPES_TYPEDESCRIPTIONS[UA_TYPES_TYPEDESCRIPTIONS_PERSON]);
     ck_assert_uint_eq(person->typeKind, UA_DATATYPEKIND_OPTSTRUCT);
@@ -63,7 +63,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
 
     /* Verify enum, union and OptionSet representations. */
     const UA_DataType *enumeration = findType(namespaceIndex, 3001);
-    ck_assert_ptr_nonnull(enumeration);
+    ck_assert_ptr_ne(enumeration, NULL);
     ck_assert_uint_eq(enumeration->typeKind, UA_DATATYPEKIND_ENUM);
     ck_assert_uint_eq(enumeration->membersSize, 3);
     ck_assert_int_eq((UA_Int64)(intptr_t)enumeration->members[0].memberType, -7);
@@ -71,12 +71,12 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
     ck_assert_int_eq((UA_Int64)(intptr_t)enumeration->members[2].memberType, 3);
 
     const UA_DataType *measurement = findType(namespaceIndex, 3003);
-    ck_assert_ptr_nonnull(measurement);
+    ck_assert_ptr_ne(measurement, NULL);
     ck_assert_uint_eq(measurement->typeKind, UA_DATATYPEKIND_UNION);
     ck_assert_uint_eq(measurement->membersSize, 2);
 
     const UA_DataType *optionSet = findType(namespaceIndex, 3004);
-    ck_assert_ptr_nonnull(optionSet);
+    ck_assert_ptr_ne(optionSet, NULL);
     ck_assert_uint_eq(optionSet->typeKind, UA_DATATYPEKIND_UINT32);
     ck_assert_uint_eq(optionSet->memSize, sizeof(UA_UInt32));
     ck_assert_uint_eq(optionSet->membersSize, 0);
@@ -84,7 +84,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
 
     /* Exercise copy and clear for a self-recursive array member. */
     const UA_DataType *recursive = findType(namespaceIndex, 3005);
-    ck_assert_ptr_nonnull(recursive);
+    ck_assert_ptr_ne(recursive, NULL);
     ck_assert_uint_eq(recursive->typeKind, UA_DATATYPEKIND_STRUCTURE);
     ck_assert_uint_eq(recursive->membersSize, 2);
     ck_assert(recursive->members[1].isArray);
@@ -95,7 +95,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
     source.childrenSize = 1;
     source.children = (UA_RecursiveRecord *)UA_calloc(
         source.childrenSize, sizeof(UA_RecursiveRecord));
-    ck_assert_ptr_nonnull(source.children);
+    ck_assert_ptr_ne(source.children, NULL);
     source.children[0].name = UA_STRING_ALLOC("child");
     UA_RecursiveRecord copy = {0};
     retval = UA_copy(&source, &copy, recursive);
@@ -108,7 +108,7 @@ START_TEST(Server_loadTypeDefinitionsFromNodeset) {
 
     /* One-dimensional fields use the size-plus-pointer array layout. */
     const UA_DataType *ranked = findType(namespaceIndex, 3006);
-    ck_assert_ptr_nonnull(ranked);
+    ck_assert_ptr_ne(ranked, NULL);
     ck_assert_uint_eq(ranked->typeKind, UA_DATATYPEKIND_STRUCTURE);
     ck_assert_uint_eq(ranked->membersSize, 2);
     ck_assert(ranked->members[0].isArray);

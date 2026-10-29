@@ -8,7 +8,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SOURCE_DIR = HERE.parent.parent
-NODESET_DIR = SOURCE_DIR / "deps" / "ua-nodeset"
+NODESET_DIR = Path(os.environ.get("UA_NODESET_DIR",
+                                 SOURCE_DIR / "deps" / "ua-nodeset"))
 
 sys.path.insert(0, os.fspath(SOURCE_DIR / "tools"))
 from nodeset_compiler.datatypes import NodeId

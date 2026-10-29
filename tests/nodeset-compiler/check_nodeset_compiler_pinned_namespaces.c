@@ -20,7 +20,7 @@ static UA_Server *server;
 static void
 setup(void) {
     server = UA_Server_newForUnitTest();
-    ck_assert_ptr_nonnull(server);
+    ck_assert_ptr_ne(server, NULL);
 }
 
 static void
@@ -57,7 +57,7 @@ START_TEST(swappedNamespaces) {
     ck_assert_uint_eq(UA_Server_addNamespace(server, NS_B), 2);
     ck_assert_uint_eq(UA_Server_addNamespace(server, NS_A), 3);
     ck_assert_uint_eq(loadNodeset(_i), UA_STATUSCODE_BADCONFIGURATIONERROR);
-    ck_assert_ptr_null(UA_Server_getConfig(server)->customDataTypes);
+    ck_assert_ptr_eq(UA_Server_getConfig(server)->customDataTypes, NULL);
 }
 END_TEST
 
@@ -65,7 +65,7 @@ START_TEST(secondNamespaceMismatch) {
     ck_assert_uint_eq(UA_Server_addNamespace(server, NS_A), 2);
     ck_assert_uint_eq(UA_Server_addNamespace(server, "urn:unrelated"), 3);
     ck_assert_uint_eq(loadNodeset(_i), UA_STATUSCODE_BADCONFIGURATIONERROR);
-    ck_assert_ptr_null(UA_Server_getConfig(server)->customDataTypes);
+    ck_assert_ptr_eq(UA_Server_getConfig(server)->customDataTypes, NULL);
 }
 END_TEST
 
@@ -73,7 +73,7 @@ START_TEST(firstNamespaceMismatch) {
     ck_assert_uint_eq(UA_Server_addNamespace(server, "urn:unrelated"), 2);
     ck_assert_uint_eq(UA_Server_addNamespace(server, NS_B), 3);
     ck_assert_uint_eq(loadNodeset(_i), UA_STATUSCODE_BADCONFIGURATIONERROR);
-    ck_assert_ptr_null(UA_Server_getConfig(server)->customDataTypes);
+    ck_assert_ptr_eq(UA_Server_getConfig(server)->customDataTypes, NULL);
 }
 END_TEST
 
@@ -85,7 +85,7 @@ START_TEST(copyPinnedWithDifferentNamespaces) {
     for(size_t i = 0; i < UA_TYPES_TESTS_PINNED_MULTI_COUNT; i++) {
         const UA_DataType *type = UA_Server_getGeneratedDataType(
             server, &UA_TYPES_TESTS_PINNED_MULTI_SOURCE, i);
-        ck_assert_ptr_nonnull(type);
+        ck_assert_ptr_ne(type, NULL);
         ck_assert_ptr_ne(type, &UA_TYPES_TESTS_PINNED_MULTI[i]);
         ck_assert_uint_eq(type->typeId.namespaceIndex,
             i == UA_TYPES_TESTS_PINNED_MULTI_PINNEDA ? 4 : 2);

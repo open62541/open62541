@@ -235,3 +235,6 @@ add_test(NAME test_datatype_definition_parser
 add_test(NAME test_nodeset_bsd_equivalence
          COMMAND "${Python3_EXECUTABLE}"
                  "${CMAKE_CURRENT_SOURCE_DIR}/test_nodeset_bsd_equivalence.py")
+
+set_tests_properties(test_nodeset_bsd_equivalence PROPERTIES
+    ENVIRONMENT "UA_NODESET_DIR=${UA_NODESET_DIR}")

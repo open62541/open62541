@@ -29,8 +29,8 @@ checkGraph(UA_Server *server, UA_Boolean copied, UA_Boolean combined) {
     UA_NodeId bId = UA_NODEID_NUMERIC(b, 3001);
     const UA_DataType *ta = UA_Server_findDataType(server, &aId);
     const UA_DataType *tb = UA_Server_findDataType(server, &bId);
-    ck_assert_ptr_nonnull(ta);
-    ck_assert_ptr_nonnull(tb);
+    ck_assert_ptr_ne(ta, NULL);
+    ck_assert_ptr_ne(tb, NULL);
     ck_assert_ptr_eq(tb->members[0].memberType, ta);
     ck_assert_uint_eq(ta->binaryEncodingId.namespaceIndex, a);
     ck_assert_uint_eq(ta->binaryEncodingId.identifier.numeric, 5001);
@@ -48,33 +48,33 @@ checkGraph(UA_Server *server, UA_Boolean copied, UA_Boolean combined) {
     }
     UA_NodeId recursiveId = UA_NODEID_NUMERIC(a, 3011);
     const UA_DataType *recursive = UA_Server_findDataType(server, &recursiveId);
-    ck_assert_ptr_nonnull(recursive);
+    ck_assert_ptr_ne(recursive, NULL);
     ck_assert_ptr_eq(recursive->members[1].memberType, recursive);
     UA_NodeId mutualAId = UA_NODEID_NUMERIC(a, 3021);
     UA_NodeId mutualBId = UA_NODEID_NUMERIC(a, 3022);
     const UA_DataType *ma = UA_Server_findDataType(server, &mutualAId);
     const UA_DataType *mb = UA_Server_findDataType(server, &mutualBId);
-    ck_assert_ptr_nonnull(ma);
-    ck_assert_ptr_nonnull(mb);
+    ck_assert_ptr_ne(ma, NULL);
+    ck_assert_ptr_ne(mb, NULL);
     ck_assert_ptr_eq(ma->members[0].memberType, mb);
     ck_assert_ptr_eq(mb->members[0].memberType, ma);
     UA_NodeId aliasId = UA_NODEID_NUMERIC(a, 3050);
     UA_NodeId holderId = UA_NODEID_NUMERIC(a, 3051);
     const UA_DataType *alias = UA_Server_findDataType(server, &aliasId);
     const UA_DataType *holder = UA_Server_findDataType(server, &holderId);
-    ck_assert_ptr_nonnull(alias);
-    ck_assert_ptr_nonnull(holder);
+    ck_assert_ptr_ne(alias, NULL);
+    ck_assert_ptr_ne(holder, NULL);
     ck_assert_ptr_eq(holder->members[0].memberType, alias);
     ck_assert_uint_eq(alias->memSize, ta->memSize);
     ck_assert_uint_eq(alias->membersSize, ta->membersSize);
     UA_NodeId flexibleId = UA_NODEID_NUMERIC(a, 3031);
     const UA_DataType *flexible = UA_Server_findDataType(server, &flexibleId);
-    ck_assert_ptr_nonnull(flexible);
+    ck_assert_ptr_ne(flexible, NULL);
     ck_assert_ptr_eq(flexible->members[0].memberType, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     ck_assert_ptr_eq(flexible->members[1].memberType, &UA_TYPES[UA_TYPES_VARIANT]);
     UA_NodeId flagsId = UA_NODEID_NUMERIC(a, 3032);
     const UA_DataType *flags = UA_Server_findDataType(server, &flagsId);
-    ck_assert_ptr_nonnull(flags);
+    ck_assert_ptr_ne(flags, NULL);
     ck_assert_uint_eq(flags->typeKind, UA_DATATYPEKIND_STRUCTURE);
     ck_assert_uint_eq(flags->memSize, sizeof(UA_OptionSet));
     ck_assert_uint_eq(flags->membersSize, 2);
@@ -82,12 +82,12 @@ checkGraph(UA_Server *server, UA_Boolean copied, UA_Boolean combined) {
     ck_assert_ptr_eq(flags->members[1].memberType, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_NodeId stringId = UA_NODEID_STRING(a, "StringRecord");
     const UA_DataType *stringType = UA_Server_findDataType(server, &stringId);
-    ck_assert_ptr_nonnull(stringType);
+    ck_assert_ptr_ne(stringType, NULL);
     UA_UInt16 encNs = namespaceIndex(server, "urn:open62541:test:encodings");
     ck_assert_uint_eq(stringType->binaryEncodingId.namespaceIndex, encNs);
     ck_assert_uint_eq(stringType->xmlEncodingId.namespaceIndex, encNs);
     UA_NodeId guidId = UA_NODEID_GUID(a, UA_GUID("00000001-0002-0003-0004-000000000005"));
-    ck_assert_ptr_nonnull(UA_Server_findDataType(server, &guidId));
+    ck_assert_ptr_ne(UA_Server_findDataType(server, &guidId), NULL);
     UA_Byte opaqueBytes[] = {0, 1, 2, 255};
     UA_NodeId opaqueId;
     memset(&opaqueId, 0, sizeof(opaqueId));
@@ -95,9 +95,9 @@ checkGraph(UA_Server *server, UA_Boolean copied, UA_Boolean combined) {
     opaqueId.identifierType = UA_NODEIDTYPE_BYTESTRING;
     opaqueId.identifier.byteString.data = opaqueBytes;
     opaqueId.identifier.byteString.length = sizeof(opaqueBytes);
-    ck_assert_ptr_nonnull(UA_Server_findDataType(server, &opaqueId));
+    ck_assert_ptr_ne(UA_Server_findDataType(server, &opaqueId), NULL);
     UA_NodeId escapedId = UA_NODEID_STRING(a, "semi;quote\"slash\\");
-    ck_assert_ptr_nonnull(UA_Server_findDataType(server, &escapedId));
+    ck_assert_ptr_ne(UA_Server_findDataType(server, &escapedId), NULL);
 #ifdef UA_ENABLE_XML_ENCODING
     UA_Variant value;
     ck_assert_uint_eq(UA_Server_readValue(server, UA_NODEID_NUMERIC(b, 6001), &value),
@@ -179,7 +179,7 @@ START_TEST(inPlaceBinding) {
     ck_assert_ptr_eq(UA_Server_getDataTypes(server), head);
     UA_Server *second = UA_Server_newForUnitTest();
     ck_assert_uint_eq(namespace_runtime_a_generated(second, false), UA_STATUSCODE_BADINVALIDSTATE);
-    ck_assert_ptr_null(UA_Server_getDataTypes(second));
+    ck_assert_ptr_eq(UA_Server_getDataTypes(second), NULL);
     UA_NodeClass nodeClass;
     ck_assert_uint_ne(UA_Server_readNodeClass(second,
         UA_NODEID_NUMERIC(namespaceIndex(second, A_URI), 3001), &nodeClass), UA_STATUSCODE_GOOD);
@@ -215,7 +215,7 @@ START_TEST(inPlaceRejectsCopiedDependency) {
     ck_assert_uint_eq(namespace_runtime_b_generated(server, false),
                       UA_STATUSCODE_BADCONFIGURATIONERROR);
     UA_NodeId bId = UA_NODEID_NUMERIC(namespaceIndex(server, B_URI), 3001);
-    ck_assert_ptr_null(UA_Server_findDataType(server, &bId));
+    ck_assert_ptr_eq(UA_Server_findDataType(server, &bId), NULL);
     ck_assert_uint_eq(namespace_runtime_b_generated(server, true), UA_STATUSCODE_GOOD);
     checkGraph(server, true, false);
     UA_Server_delete(server);
@@ -243,12 +243,12 @@ START_TEST(registrationFailureIsAtomic) {
     origin[UA_TYPES_RUNTIME_A_STRINGRECORD].memSize++;
     ck_assert_uint_eq(UA_Server_addGeneratedDataTypes(server, &source, 0, NULL, true),
                       UA_STATUSCODE_BADTYPEMISMATCH);
-    ck_assert_ptr_null(UA_Server_getDataTypes(server));
+    ck_assert_ptr_eq(UA_Server_getDataTypes(server), NULL);
     memcpy(origin, UA_TYPES_RUNTIME_A_SOURCE.originTypes, sizeof(origin));
     origin[UA_TYPES_RUNTIME_A_STRINGRECORD].typeId = origin[0].typeId;
     ck_assert_uint_eq(UA_Server_addGeneratedDataTypes(server, &source, 0, NULL, true),
                       UA_STATUSCODE_BADNODEIDEXISTS);
-    ck_assert_ptr_null(UA_Server_getDataTypes(server));
+    ck_assert_ptr_eq(UA_Server_getDataTypes(server), NULL);
     memcpy(origin, UA_TYPES_RUNTIME_A_SOURCE.originTypes, sizeof(origin));
     ck_assert_uint_eq(UA_Server_addGeneratedDataTypes(server, &source, 0, NULL, true),
                       UA_STATUSCODE_GOOD);
@@ -280,7 +280,7 @@ START_TEST(incompatibleDependencyIsRejected) {
     ck_assert_uint_eq(UA_Server_addGeneratedDataTypes(
         server, &UA_TYPES_RUNTIME_B_SOURCE, 1, dependencies, true),
         UA_STATUSCODE_BADTYPEMISMATCH);
-    ck_assert_ptr_null(UA_Server_getGeneratedDataType(server, &UA_TYPES_RUNTIME_B_SOURCE, 0));
+    ck_assert_ptr_eq(UA_Server_getGeneratedDataType(server, &UA_TYPES_RUNTIME_B_SOURCE, 0), NULL);
     UA_Server_delete(server);
 } END_TEST
 
@@ -304,7 +304,7 @@ START_TEST(retryAfterNodeCreationFailure) {
     UA_Server_getConfig(server)->nodeLifecycle = NULL;
     const UA_DataType *type = UA_Server_getGeneratedDataType(
         server, &UA_TYPES_RUNTIME_A_SOURCE, UA_TYPES_RUNTIME_A_RECORDA);
-    ck_assert_ptr_nonnull(type);
+    ck_assert_ptr_ne(type, NULL);
     UA_NodeClass nodeClass;
     ck_assert_uint_ne(UA_Server_readNodeClass(server, type->typeId, &nodeClass),
                       UA_STATUSCODE_GOOD);
@@ -347,15 +347,15 @@ START_TEST(allocationFailures) {
             server, &UA_TYPES_RUNTIME_A_SOURCE, 0, NULL, true);
         failingAllocation = (size_t)-1;
         if(res != UA_STATUSCODE_GOOD) {
-            ck_assert_ptr_null(UA_Server_getDataTypes(server));
-            ck_assert_ptr_null(UA_Server_getGeneratedDataType(
-                server, &UA_TYPES_RUNTIME_A_SOURCE, 0));
+            ck_assert_ptr_eq(UA_Server_getDataTypes(server), NULL);
+            ck_assert_ptr_eq(UA_Server_getGeneratedDataType(
+                server, &UA_TYPES_RUNTIME_A_SOURCE, 0), NULL);
             ck_assert_uint_eq(UA_Server_addGeneratedDataTypes(
                 server, &UA_TYPES_RUNTIME_A_SOURCE, 0, NULL, true), UA_STATUSCODE_GOOD);
         }
         const UA_DataType *loaded = UA_Server_getGeneratedDataType(
             server, &UA_TYPES_RUNTIME_A_SOURCE, UA_TYPES_RUNTIME_A_RECORDA);
-        ck_assert_ptr_nonnull(loaded);
+        ck_assert_ptr_ne(loaded, NULL);
         ck_assert_uint_eq(loaded->membersSize, 3);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         ck_assert_str_eq(loaded->typeName, "RecordA");

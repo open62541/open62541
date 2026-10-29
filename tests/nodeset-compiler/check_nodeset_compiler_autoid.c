@@ -50,9 +50,9 @@ START_TEST(Server_addAutoIDNodeset) {
     const UA_DataType *rfidAccessResult =
         UA_Server_findDataType(server, &rfidAccessResultId);
     const UA_DataType *location = UA_Server_findDataType(server, &locationId);
-    ck_assert_ptr_nonnull(accessResult);
-    ck_assert_ptr_nonnull(rfidAccessResult);
-    ck_assert_ptr_nonnull(location);
+    ck_assert_ptr_ne(accessResult, NULL);
+    ck_assert_ptr_ne(rfidAccessResult, NULL);
+    ck_assert_ptr_ne(location, NULL);
     ck_assert_uint_eq(accessResult->membersSize, 3);
     ck_assert_uint_eq(rfidAccessResult->membersSize, 10);
     ck_assert_uint_eq(rfidAccessResult->typeKind, UA_DATATYPEKIND_OPTSTRUCT);
