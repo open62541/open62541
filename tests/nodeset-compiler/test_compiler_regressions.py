@@ -3,6 +3,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import csv
+import ast
+from xml.dom import minidom
+import xml.etree.ElementTree as ET
 import subprocess
 import sys
 import tempfile
@@ -11,10 +14,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 from nodeset_compiler.nodeset import extractNamespaces, NodeSet
-from nodeset_compiler.datatypes import NodeId
+from nodeset_compiler.datatypes import NodeId, LocalizedText
+from nodeset_compiler.backend_open62541 import makeCLiteral, makeCIdentifier, splitStringLiterals
+from nodeset_compiler.type_parser import OpaqueType
+
+
+def test_literals_and_opaque_metadata():
+    value = ' leading ' + ('a\\b"c\n\r\\' * 140) + ' trailing '
+    for length in (1, 2, 3, 5, 500):
+        assert ast.literal_eval('(' + splitStringLiterals(makeCLiteral(value), length) + ')') == value
+    for name in ('unsigned', 'default', 'class', 'and_eq', 'char16_t', '3DRecord'):
+        assert makeCIdentifier(name) != name
+    text = LocalizedText(minidom.parseString(
+        '<LocalizedText Locale="en"> text with spaces </LocalizedText>').documentElement)
+    assert text.locale == 'en' and text.text == ' text with spaces '
+    xml = ET.fromstring('<OpaqueType Name="Alias"/>')
+    assert OpaqueType('types_test', xml, 'urn:test', 'UInt32').pointerfree
+    assert not OpaqueType('types_test', xml, 'urn:test', 'String').pointerfree
 
 
 def main():
+    test_literals_and_opaque_metadata()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         uri = tmp / 'uris.xml'

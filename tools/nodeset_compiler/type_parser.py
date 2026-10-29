@@ -58,6 +58,10 @@ def get_type_for_name(xml_type_name, types, xmlNamespaces):
         resultNs = 'http://opcfoundation.org/UA/'
     if resultNs not in types:
         raise TypeNotDefinedException(f"Unknown namespace: '{resultNs}'")
+    # Older dictionaries use the BrowseName spelling of standard 3D types.
+    if (resultNs == 'http://opcfoundation.org/UA/' and
+            member_type_name not in types[resultNs] and member_type_name.startswith('3D')):
+        member_type_name = 'ThreeD' + member_type_name[2:]
     if member_type_name not in types[resultNs]:
         raise TypeNotDefinedException(f"Unknown type: '{member_type_name}'")
     return types[resultNs][member_type_name]
@@ -140,6 +144,7 @@ class OpaqueType(Type):
     def __init__(self, outname, xml, namespace, base_type):
         Type.__init__(self, outname, xml, namespace)
         self.base_type = base_type
+        self.pointerfree = base_type in builtin_pointerfree
 
 
 class StructMember:
@@ -198,7 +203,9 @@ class StructType(Type):
             else:
                 member_type = get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
 
-            self.members.append(StructMember(member_name, member_type, is_array, member_is_optional))
+            member = StructMember(member_name, member_type, is_array, member_is_optional)
+            member.original_name = child.get("Name")
+            self.members.append(member)
 
         self.pointerfree = True
         for m in self.members:

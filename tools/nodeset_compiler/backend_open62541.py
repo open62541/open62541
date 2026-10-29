@@ -27,9 +27,20 @@ logger = logging.getLogger(__name__)
 
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
-    keywords = frozenset(["double", "int", "float", "char"])
+    keywords = frozenset((
+        "auto break case char const continue default do double else enum extern float for goto if inline "
+        "int long register restrict return short signed sizeof static struct switch typedef union "
+        "unsigned void volatile while _Alignas _Alignof _Atomic _Bool _Complex _Generic _Imaginary "
+        "_Noreturn _Static_assert _Thread_local _BitInt _Decimal32 _Decimal64 _Decimal128 typeof "
+        "typeof_unqual alignas alignof and and_eq asm bitand bitor bool catch char8_t char16_t char32_t "
+        "class compl concept consteval constexpr constinit const_cast co_await co_return co_yield "
+        "decltype delete dynamic_cast explicit export false friend mutable namespace new noexcept not "
+        "not_eq nullptr operator or or_eq private protected public reinterpret_cast requires "
+        "static_assert static_cast template this thread_local throw true try typeid typename using "
+        "virtual wchar_t xor xor_eq "
+    ).split())
     sanitized = re.sub(r'[^\w]', '', value)
-    if sanitized in keywords:
+    if not sanitized or sanitized[0].isdigit() or sanitized in keywords:
         return "_" + sanitized
     else:
         return sanitized
@@ -46,22 +57,29 @@ def splitStringLiterals(value, splitLength=500):
     E.g. "Some very long text" will be split into "Some ver" "y long te" "xt"
     On VS2008 there is a maximum allowed length of a single string literal.
     """
-    value = value.strip()
-    if len(value) < splitLength or splitLength == 0:
-        return "\"" + re.sub(r'(?<!\\)"', r'\\"', value) + "\""
-    ret = ""
-    tmp = value
-    while len(tmp) > splitLength:
-        ret += "\"" + tmp[:splitLength].replace('"', r'\"') + "\" "
-        tmp = tmp[splitLength:]
-    ret += "\"" + re.sub(r'(?<!\\)"', r'\\"', tmp) + "\" "
-    return ret
+    # Input is already C-escaped. Split only between complete escape tokens.
+    if splitLength <= 0:
+        return '"' + value + '"'
+    pieces = []
+    start = 0
+    while len(value) - start > splitLength:
+        end = start + splitLength
+        backslashes = 0
+        while end - backslashes > start and value[end - backslashes - 1] == "\\":
+            backslashes += 1
+        if backslashes % 2:
+            end -= 1
+        if end == start:
+            end += 2  # Keep even a single escaped character intact.
+        pieces.append(value[start:end])
+        start = end
+    pieces.append(value[start:])
+    return " ".join('"' + piece + '"' for piece in pieces)
 
 def generateLocalizedTextCode(value, alloc=False):
-    if value.text is None:
-        value.text = ""
-    vt = makeCLiteral(value.text)
-    return "UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale, splitStringLiterals(vt))
+    locale = "NULL" if value.locale is None else splitStringLiterals(makeCLiteral(value.locale))
+    text = "NULL" if value.text is None else splitStringLiterals(makeCLiteral(value.text))
+    return "UA_LOCALIZEDTEXT{}({}, {})".format("_ALLOC" if alloc else "", locale, text)
 
 def generateQualifiedNameCode(value, alloc=False,):
     if value.name is None:
@@ -125,8 +143,7 @@ def generateReferenceTypeNodeCode(node):
     if node.symmetric:
         code.append("attr.symmetric  = true;")
     if node.inverseName != "":
-        code.append("attr.inverseName  = UA_LOCALIZEDTEXT(\"\", \"%s\");" % \
-                    node.inverseName)
+        code.append("attr.inverseName = %s;" % generateLocalizedTextCode(node.inverseName))
     return code
 
 def generateObjectNodeCode(node):
