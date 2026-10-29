@@ -526,10 +526,12 @@ UA_GDSPull_sameCertificate(UA_ByteString *a, UA_ByteString *b) {
 static UA_Boolean
 UA_GDSPull_identityIsCertificateType(UA_GDSPullContext *ctx,
                                      UA_ServerConfig *sc,
+                                     const UA_NodeId *certificateGroupId,
                                      const UA_NodeId *certificateTypeId) {
     for(size_t i = 0; i < sc->securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &sc->securityPolicies[i];
-        if(UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId) &&
+        if(UA_NodeId_equal(&sp->certificateGroupId, certificateGroupId) &&
+           UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId) &&
            UA_GDSPull_sameCertificate(&sp->localCertificate, &ctx->certificate))
             return true;
     }
@@ -611,15 +613,22 @@ UA_GDSPull_applyPendingCertificate(UA_GDSPullContext *ctx,
     }
 
     UA_Boolean renewsIdentity = UA_GDSPull_identityIsCertificateType(
-        ctx, sc, &pending->certificateTypeId);
+        ctx, sc, &pending->certificateGroupId, &pending->certificateTypeId);
 
+    /* The certificate was requested for one (group, type) pair. The
+     * SecurityPolicies of another group with the same CertificateType keep
+     * the certificate issued for that group (7.9.3, 7.9.4). */
     UA_StatusCode res = UA_GDS_applyCertificateToPolicies(
-        sc, &pending->certificateTypeId, certificate, privateKey);
+        sc, &pending->certificateGroupId, &pending->certificateTypeId,
+        certificate, privateKey);
     if(res != UA_STATUSCODE_GOOD)
         return res;
     if(renewsIdentity)
         UA_GDSPull_updateClientIdentity(ctx, certificate, privateKey);
+    /* The SecurityPolicies of other groups keep their certificate, so their
+     * SecureChannels stay open */
     UA_GDSChannels_closeCertificateType(&ctx->channels, ctx->drv.server,
+                                        &pending->certificateGroupId,
                                         &pending->certificateTypeId);
     return UA_STATUSCODE_GOOD;
 }

@@ -92,6 +92,7 @@ UA_GDS_getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri
 
 UA_StatusCode
 UA_GDS_applyCertificateToPolicies(UA_ServerConfig *sc,
+                                  const UA_NodeId *certificateGroupId,
                                   const UA_NodeId *certificateTypeId,
                                   const UA_ByteString certificate,
                                   const UA_ByteString privateKey) {
@@ -116,6 +117,9 @@ UA_GDS_applyCertificateToPolicies(UA_ServerConfig *sc,
             goto cleanup;
         }
         if(!UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId))
+            continue;
+        if(certificateGroupId &&
+           !UA_NodeId_equal(&sp->certificateGroupId, certificateGroupId))
             continue;
 
         res = UA_ByteString_copy(&certificate, &endpointCertificates[i]);
@@ -200,6 +204,7 @@ cleanup:
 static void
 removeChannel(UA_GDSChannel *ch) {
     LIST_REMOVE(ch, pointers);
+    UA_NodeId_clear(&ch->certificateGroupId);
     UA_NodeId_clear(&ch->certificateTypeId);
     UA_ByteString_clear(&ch->certificate);
     UA_free(ch);
@@ -242,21 +247,36 @@ UA_GDSChannels_notify(UA_GDSChannels *channels, UA_Server *server,
     if(!hasType && !hasCertificate)
         return;
 
+    /* The payload names the SecurityPolicy but not its CertificateGroup */
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    const UA_NodeId *certificateGroupId = NULL;
+    const UA_String *policyUri = (const UA_String *)UA_KeyValueMap_getScalar(
+        &payload, UA_QUALIFIEDNAME(0, "security-policy-url"),
+        &UA_TYPES[UA_TYPES_STRING]);
+    if(hasType && policyUri) {
+        UA_SecurityPolicy *sp = UA_GDS_getSecPolicyByUri(sc, policyUri);
+        if(sp)
+            certificateGroupId = &sp->certificateGroupId;
+    }
+
     UA_GDSChannel *ch = (UA_GDSChannel *)UA_calloc(1, sizeof(UA_GDSChannel));
     UA_StatusCode res = UA_STATUSCODE_BADOUTOFMEMORY;
     if(ch) {
         res = UA_STATUSCODE_GOOD;
         if(hasType)
             res |= UA_NodeId_copy(certificateTypeId, &ch->certificateTypeId);
+        if(certificateGroupId)
+            res |= UA_NodeId_copy(certificateGroupId,
+                                  &ch->certificateGroupId);
         if(hasCertificate)
             res |= UA_ByteString_copy(certificate, &ch->certificate);
     }
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_Server_getConfig(server)->logging,
-                       UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
                        "Could not register SecureChannel %u (oom)",
                        (unsigned)*channelId);
         if(ch) {
+            UA_NodeId_clear(&ch->certificateGroupId);
             UA_NodeId_clear(&ch->certificateTypeId);
             UA_ByteString_clear(&ch->certificate);
         }
@@ -269,10 +289,13 @@ UA_GDSChannels_notify(UA_GDSChannels *channels, UA_Server *server,
 
 void
 UA_GDSChannels_closeCertificateType(UA_GDSChannels *channels, UA_Server *server,
+                                    const UA_NodeId *certificateGroupId,
                                     const UA_NodeId *certificateTypeId) {
     UA_GDSChannel *ch, *chTmp;
     LIST_FOREACH_SAFE(ch, channels, pointers, chTmp) {
-        if(!UA_NodeId_equal(&ch->certificateTypeId, certificateTypeId))
+        if((certificateGroupId &&
+            !UA_NodeId_equal(&ch->certificateGroupId, certificateGroupId)) ||
+           !UA_NodeId_equal(&ch->certificateTypeId, certificateTypeId))
             continue;
         UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,
                     "Closing SecureChannel %u. It was opened for the replaced "
