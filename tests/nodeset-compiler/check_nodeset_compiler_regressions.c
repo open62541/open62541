@@ -79,6 +79,30 @@ START_TEST(checkGeneratedValues) {
 }
 END_TEST
 
+START_TEST(preserveArrayDefaults) {
+    UA_Variant value = readValue(1010);
+    ck_assert(!UA_Variant_isScalar(&value));
+    ck_assert_uint_eq(value.type->typeKind, UA_DATATYPEKIND_UINT32);
+    ck_assert_uint_eq(value.arrayLength, 0);
+    ck_assert_ptr_eq(value.data, UA_EMPTY_ARRAY_SENTINEL);
+    UA_Variant_clear(&value);
+
+    value = readValue(1011);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]));
+    ck_assert_uint_eq(value.arrayLength, 0);
+    ck_assert_ptr_eq(value.data, UA_EMPTY_ARRAY_SENTINEL);
+    UA_Variant_clear(&value);
+
+    value = readValue(1012);
+    ck_assert(!UA_Variant_isScalar(&value));
+    ck_assert_uint_eq(value.type->typeKind, UA_DATATYPEKIND_UINT32);
+    ck_assert_uint_eq(value.arrayLength, 2);
+    ck_assert_uint_eq(((UA_UInt32*)value.data)[0], 0);
+    ck_assert_uint_eq(((UA_UInt32*)value.data)[1], 42);
+    UA_Variant_clear(&value);
+}
+END_TEST
+
 static void
 checkText(const UA_LocalizedText *text, const char *prefix, const char *chunk,
           const char *locale) {
@@ -181,6 +205,7 @@ main(void) {
     TCase *testCase = tcase_create("Existing BSD compiler");
     tcase_add_checked_fixture(testCase, setup, teardown);
     tcase_add_test(testCase, checkGeneratedValues);
+    tcase_add_test(testCase, preserveArrayDefaults);
     tcase_add_test(testCase, preserveLocalizedText);
     tcase_add_test(testCase, preserveRanksAndMatrixValues);
     tcase_add_test(testCase, preserveNativeMetadata);

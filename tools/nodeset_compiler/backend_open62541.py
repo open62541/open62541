@@ -397,7 +397,11 @@ retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opt
         code.append("        UA_NodeId representation = %s;" % generateNodeIdCode(dataTypeNode.id))
         code.append("        target = UA_Server_findDataType(server, &representation);")
         code.append("    }")
-        code.append("    size_t valuesSize = UA_Variant_isScalar(&attr.value) ? 1 : attr.value.arrayLength;")
+        # A null data pointer has no elements, even when its type is known.
+        # Keep empty arrays eligible for the datatype-only conversion below.
+        code.append("    size_t valuesSize = 0;")
+        code.append("    if(attr.value.data)")
+        code.append("        valuesSize = UA_Variant_isScalar(&attr.value) ? 1 : attr.value.arrayLength;")
         code.append("    if(target && target->typeKind == UA_DATATYPEKIND_UINT32 && attr.value.type == &UA_TYPES[UA_TYPES_INT32]) {")
         code.append("        UA_Boolean nonnegative = true;")
         code.append("        for(size_t k = 0; k < valuesSize; k++)")
