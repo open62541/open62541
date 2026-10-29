@@ -12,6 +12,7 @@
 #include <open62541/driver/gds_receiver.h>
 #include <open62541/plugin/certificategroup.h>
 #include "open62541_queue.h"
+#include "../gds_common/gds_common.h"
 
 #ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
 
@@ -42,13 +43,6 @@ typedef struct {
     UA_DelayedCallback dc;
     UA_Boolean applyChangesQueued;
 } UA_GDSTransaction;
-
-typedef struct ChannelMetadata {
-    LIST_ENTRY(ChannelMetadata) pointers;
-    UA_UInt32 channelId;
-    UA_NodeId certificateTypeId;
-    UA_ByteString certificate;
-} ChannelMetadata;
 
 /* The CSR of the last CreateSigningRequest for a certificate type. The
  * SecurityPolicies keep the private key of the CSR until a certificate for it
@@ -90,7 +84,7 @@ struct UA_GDSReceiverContext {
     UA_Boolean initialized;
     UA_GDSTransaction transaction;
     UA_GDSTrustList trustLists[UA_GDSRECEIVER_TRUSTLISTS];
-    LIST_HEAD(, ChannelMetadata) secureChannels;
+    UA_GDSChannels secureChannels;
     LIST_HEAD(, UA_GDSPendingCsr) pendingCsrs;
     size_t pendingDelayedCallbacks;
 };
