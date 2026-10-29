@@ -28,7 +28,6 @@
 #define UA_GDSID_GETCERTIFICATEGROUPS 508
 
 #define UA_GDSPULL_NAMESPACE_RETRY_MS 50
-#define UA_GDSPULL_NAMESPACE_MAX_RETRY 40
 /* A signing request started in this cycle is asked for its result this many
  * more times after a short delay before it is left for the next cycle. Part
  * 12, 7.6 suggests "a small number like 2". */
@@ -142,7 +141,8 @@ struct UA_GDSPullContext {
     /* The GDS namespace index is resolved once in the beginning and then used for
      * method calls. */
     UA_UInt16 gdsNsIndex;
-    UA_UInt16 namespaceRetries;
+    /* Monotonic time until which the index is looked up again */
+    UA_DateTime namespaceDeadline;
 
     /* The certificate that will be used by the client to connect to the GDS. Should
      * generally be equal to the application instance certificate. */
@@ -654,7 +654,14 @@ UA_GDSPull_scheduleDispatch(UA_GDSPullContext *ctx, UA_UInt32 delayMs) {
 
 static UA_StatusCode
 UA_GDSPull_workflowStepConnect(UA_Client *client, UA_GDSPullContext *ctx) {
-    ctx->namespaceRetries = 0;
+    /* The client reads the NamespaceArray after the session was activated.
+     * The index is known when the response arrived, at the latest after the
+     * request timeout of the client. A timeout of 0 means no limit, then the
+     * cycle timeout ends the wait. */
+    UA_UInt32 timeout = UA_Client_getConfig(client)->timeout;
+    ctx->namespaceDeadline = (timeout > 0) ?
+        UA_DateTime_nowMonotonic() + (UA_DateTime)timeout * UA_DATETIME_MSEC :
+        UA_INT64_MAX;
     ctx->pendingRequestIndex = 0;
     ctx->finishAttempts = 0;
     ctx->policyIndex = 0;
@@ -671,7 +678,7 @@ UA_GDSPull_workflowStepReadNamespaces(UA_Client *client,
     UA_StatusCode res = UA_Client_getNamespaceIndex(
         client, UA_STRING(UA_GDS_NAMESPACE_URI), &nsIndex);
     if(res != UA_STATUSCODE_GOOD) {
-        if(++ctx->namespaceRetries > UA_GDSPULL_NAMESPACE_MAX_RETRY) {
+        if(UA_DateTime_nowMonotonic() >= ctx->namespaceDeadline) {
             UA_LOG_WARNING(UA_Client_getConfig(client)->logging,
                            UA_LOGCATEGORY_CLIENT,
                            "The CertificateManager does not expose the "
@@ -2209,7 +2216,7 @@ UA_GDSPull_deleteClientCallback(void *application, void *context) {
     ctx->currentStep = UA_GDSPULLSTEP_IDLE;
     ctx->deleteClientQueued = false;
     ctx->gdsNsIndex = 0;
-    ctx->namespaceRetries = 0;
+    ctx->namespaceDeadline = 0;
     ctx->pendingRequestIndex = 0;
     ctx->finishAttempts = 0;
     ctx->policyIndex = 0;

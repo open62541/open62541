@@ -178,6 +178,11 @@ typedef struct {
      * The delay blocks the CertificateManager thread but not cmMutex. */
     UA_UInt32 delayedStartSigningMs;
 
+    /* The next Read of the Server_NamespaceArray value is answered after this
+     * delay (one-shot). The delay blocks the CertificateManager thread but
+     * not cmMutex. */
+    UA_UInt32 delayedNamespaceReadMs;
+
     /* RequestId argument of each FinishRequest call */
     UA_NodeId finishRequestIds[MAX_FINISH_CALLS];
 
@@ -904,6 +909,33 @@ newServer(UA_UInt16 port, const UA_ByteString *certificate,
     return s;
 }
 
+/* The access level callback of the CertificateManager before it was wrapped */
+static UA_Byte
+(*cmGetUserAccessLevel)(UA_Server *s, UA_AccessControl *ac,
+                        const UA_NodeId *sessionId, void *sessionContext,
+                        const UA_NodeId *nodeId, void *nodeContext);
+
+/* The Read service asks for the access level of every Variable it reads the
+ * value of. That is the hook to delay the NamespaceArray Read the client
+ * sends after the session was activated. Runs in the CertificateManager
+ * thread. */
+static UA_Byte
+delayNamespaceRead(UA_Server *s, UA_AccessControl *ac,
+                   const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *nodeId, void *nodeContext) {
+    UA_NodeId namespaceArray = UA_NS0ID(SERVER_NAMESPACEARRAY);
+    if(UA_NodeId_equal(nodeId, &namespaceArray)) {
+        lockCm();
+        UA_UInt32 delay = cm.delayedNamespaceReadMs;
+        cm.delayedNamespaceReadMs = 0;
+        unlockCm();
+        if(delay > 0)
+            sleepMs(delay);
+    }
+    return cmGetUserAccessLevel(s, ac, sessionId, sessionContext, nodeId,
+                                nodeContext);
+}
+
 THREAD_CALLBACK(certificateManagerLoop) {
     while(cmRunning)
         UA_Server_run_iterate(cm.server, true);
@@ -918,8 +950,10 @@ setupCertificateManager(void) {
     /* The CertificateManager trusts the requester */
     cm.server = newServer(GDS_PORT, &gdsCert, &gdsKey, &requesterCert, GDS_URI,
                           false);
-    UA_Server_getConfig(cm.server)->secureChannelNotificationCallback =
-        onCertificateManagerChannel;
+    UA_ServerConfig *cmConfig = UA_Server_getConfig(cm.server);
+    cmConfig->secureChannelNotificationCallback = onCertificateManagerChannel;
+    cmGetUserAccessLevel = cmConfig->accessControl.getUserAccessLevel;
+    cmConfig->accessControl.getUserAccessLevel = delayNamespaceRead;
 
     cm.ns = UA_Server_addNamespace(cm.server, GDS_NS_URI);
     cm.applicationId = UA_NODEID_NUMERIC(cm.ns, GDSID_APPLICATION);
@@ -1794,6 +1828,30 @@ START_TEST(cycleTimeoutAbortsCycle) {
     ck_assert_uint_eq(snapshot().getCertificateGroups, 0);
 
     shutdownRequester();
+} END_TEST
+
+/* The client reads the NamespaceArray after the session was activated and
+ * waits for the response up to its request timeout (5 s by default). A
+ * CertificateManager that answers after 2.5 s still exposes the GDS
+ * namespace. The pending request is finished in the same cycle. */
+START_TEST(slowNamespaceReadDoesNotAbortCycle) {
+    lockCm();
+    UA_NodeId pendingRequest = addRequest(cm.groupId);
+    cm.delayedNamespaceReadMs = 2500;
+    unlockCm();
+    ck_assert(!UA_NodeId_isNull(&pendingRequest));
+    replaceRequester(GDS_ENDPOINT, 1, &pendingRequest);
+
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+
+    ck_assert_uint_eq(c.delayedNamespaceReadMs, 0);
+    ck_assert_uint_eq(c.finishRequest, 1);
+    ck_assert_uint_gt(c.getCertificateGroups, 0);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    assertLocalCertificateIs(&requesterCert);
 } END_TEST
 
 /* The driver can be stopped while a cycle is active. The workflow ends, the
@@ -2976,6 +3034,7 @@ main(void) {
     tcase_add_test(tc, wrongTypedParamsAreRejected);
     tcase_add_test(tc, unreachableCertificateManager);
     tcase_add_test(tc, cycleTimeoutAbortsCycle);
+    tcase_add_test(tc, slowNamespaceReadDoesNotAbortCycle);
     tcase_add_test(tc, stopDuringCycleAndReplaceRequester);
     tcase_add_test(tc, stopFromCycleStartedNotification);
     tcase_add_test(tc, startWhileStoppingKeepsRequestBinding);
