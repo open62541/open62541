@@ -89,6 +89,10 @@ typedef struct {
     /* Configurable behaviour. UpdateRequired is reported until a certificate
      * has been issued. */
     UA_Boolean updateRequired;
+    /* Whether the application belongs to the CertificateGroup. An application
+     * that does not belong to it joins with a successful StartSigningRequest
+     * (7.9.3), as in a CertificateManager that assigns groups on request. */
+    UA_Boolean assigned;
     FinishMode finishMode;
     UA_ByteString issuedCertificate; /* not owned */
 
@@ -175,6 +179,13 @@ setUpdateRequired(UA_Boolean updateRequired) {
 }
 
 static void
+setAssigned(UA_Boolean assigned) {
+    lockCm();
+    cm.assigned = assigned;
+    unlockCm();
+}
+
+static void
 setIssuedCertificate(UA_ByteString certificate) {
     lockCm();
     cm.issuedCertificate = certificate;
@@ -241,7 +252,8 @@ MOCK_METHOD(mockGetCertificateGroups) {
     UA_StatusCode res = checkApplicationId(&input[0]);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    return UA_Variant_setArrayCopy(&output[0], &cm.groupId, 1,
+    size_t groupsSize = cm.assigned ? 1 : 0;
+    return UA_Variant_setArrayCopy(&output[0], &cm.groupId, groupsSize,
                                    &UA_TYPES[UA_TYPES_NODEID]);
 }
 
@@ -255,7 +267,9 @@ MOCK_METHOD(mockGetCertificateStatus) {
     res = checkCertificateGroupId(&input[1]);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    return UA_Variant_setScalarCopy(&output[0], &cm.updateRequired,
+    /* Always TRUE for a group the application does not belong to */
+    UA_Boolean updateRequired = cm.updateRequired || !cm.assigned;
+    return UA_Variant_setScalarCopy(&output[0], &updateRequired,
                                     &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
@@ -307,6 +321,7 @@ MOCK_METHOD(mockStartSigningRequest) {
     if(UA_NodeId_isNull(&requestId))
         return UA_STATUSCODE_BADTOOMANYOPERATIONS;
     cm.lastCertificateType = *(const UA_NodeId*)input[2].data;
+    cm.assigned = true; /* the application joins the group */
     return UA_Variant_setScalarCopy(&output[0], &requestId,
                                     &UA_TYPES[UA_TYPES_NODEID]);
 }
@@ -436,6 +451,9 @@ MOCK_METHOD(mockGetTrustList) {
     res = checkCertificateGroupId(&input[1]);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    /* Only for a group the application belongs to */
+    if(!cm.assigned)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     return UA_Variant_setScalarCopy(&output[0], &cm.trustListId,
                                     &UA_TYPES[UA_TYPES_NODEID]);
 }
@@ -695,6 +713,7 @@ setupCertificateManager(void) {
     cm.trustListId = UA_NODEID_NUMERIC(
         cm.ns, GDSID_DIRECTORY_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
     cm.updateRequired = true;
+    cm.assigned = true;
     cm.finishMode = FINISH_APPROVE;
     cm.issuedCertificate = requesterCert;
 
@@ -1560,6 +1579,44 @@ START_TEST(changedTrustListIsDownloadedAgain) {
     assertLocalTrustListEquals(&c.trustList);
 } END_TEST
 
+/* 7.9.10, 7.9.3: The application does not belong to the CertificateGroup
+ * yet, so GetCertificateGroups returns an empty list. GetCertificateStatus
+ * reports UpdateRequired for the group and StartSigningRequest joins it. The
+ * certificate is issued and the TrustList of the joined group is read in the
+ * same cycle. */
+START_TEST(unassignedGroupIsJoinedBySigningRequest) {
+    setAssigned(false);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+
+    ck_assert_uint_eq(c.getCertificateGroups, 1);
+    ck_assert_uint_gt(c.getCertificateStatus, 0);
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.finishRequest, 1);
+    ck_assert_uint_eq(c.getTrustList, 1);
+    ck_assert(c.assigned);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_TRUSTLIST_UPDATED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_TRUSTLIST_FAILED), 0);
+    ck_assert(UA_NodeId_equal(
+        payloadNodeId(positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 1),
+                      "certificate-group-id"),
+        &defaultApplicationGroup));
+    assertLocalCertificateIs(&requesterCert);
+    assertLocalTrustListEquals(&c.trustList);
+
+    /* The next cycle finds the group assigned and does not request again */
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+    ck_assert_uint_eq(c.getCertificateGroups, 2);
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.getTrustList, 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
 /* The issued certificate does not match the private key of the CSR. It must
  * not replace the application instance certificate. */
 START_TEST(certificateNotMatchingKeyIsNotInstalled) {
@@ -1766,6 +1823,7 @@ main(void) {
     tcase_add_test(tc, certificateNotMatchingKeyIsNotInstalled);
     tcase_add_test(tc, reconnectDuringFinishRetryKeepsRequestBinding);
     tcase_add_test(tc, secondCycleStartsWithRandomDelay);
+    tcase_add_test(tc, unassignedGroupIsJoinedBySigningRequest);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);
