@@ -1802,6 +1802,16 @@ UA_GDSPull_clientCallback(UA_Client *client, UA_SecureChannelState channelState,
     if(channelState == UA_SECURECHANNELSTATE_CLOSING)
         return;
 
+    /* A scheduled dispatch continues the workflow once the session is
+     * activated. This is the case after a reconnect within the cycle while the
+     * FinishRequest repetition is pending. Dispatching here as well would send
+     * the current step twice, and the second response would be applied to the
+     * request the cursor points to by then (Part 12, 7.6). Calls that were in
+     * flight when the SecureChannel closed have been cancelled already. */
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)UA_Client_getContext(client);
+    if(ctx->dispatchCallbackId != 0)
+        return;
+
     UA_StatusCode res = UA_GDSPull_dispatchWorkflowStep(client, sessionState);
     if(res != UA_STATUSCODE_GOOD)
         UA_LOG_WARNING(
