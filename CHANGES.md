@@ -3,6 +3,12 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Own memory functions on Zephyr
+
+With `CONFIG_OPEN62541_MALLOC_EXTERN`, `UA_malloc`, `UA_calloc`, `UA_realloc`
+and `UA_free` are declared as external functions that the application
+defines, instead of being mapped to `k_malloc` and friends.
+
 ### Client reconnects with backoff and gives up
 
 A lost connection is re-dialed with a delay that starts at the new
