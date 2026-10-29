@@ -928,7 +928,7 @@ secureChannel_delayedClose(void *application, void *context) {
      * SecureChannels. Close the SecureChannel on failure. */
     for(size_t i = 0; i < ctx->transaction.certificateInfosSize; i++)
         UA_GDSChannels_closeCertificateType(
-            &ctx->secureChannels, server,
+            &ctx->secureChannels, server, NULL,
             &ctx->transaction.certificateInfos[i].certificateType);
     if(trustListUpdated)
         UA_GDSChannels_closeUntrusted(&ctx->secureChannels, server,
@@ -980,7 +980,7 @@ closeChannelsAfterCertificateUpdate(void *application, void *context) {
     CloseChannelsCallback *ccb = (CloseChannelsCallback*)context;
     UA_GDSReceiverContext *ctx = ccb->ctx;
     UA_GDSChannels_closeCertificateType(&ctx->secureChannels, ctx->drv.server,
-                                        &ccb->certificateTypeId);
+                                        NULL, &ccb->certificateTypeId);
     UA_assert(ctx->pendingDelayedCallbacks > 0);
     ctx->pendingDelayedCallbacks--;
     if(ctx->pendingDelayedCallbacks == 0 &&
@@ -1061,7 +1061,7 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
         return res;
     }
 
-    res = UA_GDS_applyCertificateToPolicies(sc, &certificateTypeId,
+    res = UA_GDS_applyCertificateToPolicies(sc, NULL, &certificateTypeId,
                                             leafCertificate, newPrivateKey);
     if(res != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&ccb->certificateTypeId);
@@ -1274,8 +1274,8 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
         UA_ByteString certificate = certInfo.certificate;
         UA_ByteString privateKey = certInfo.privateKey;
 
-        retval = UA_GDS_applyCertificateToPolicies(sc, &certTypeId, certificate,
-                                                   privateKey);
+        retval = UA_GDS_applyCertificateToPolicies(sc, NULL, &certTypeId,
+                                                   certificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
             goto rollback;
         consumePendingCsr(ctx, &certTypeId, &certificate, &privateKey);

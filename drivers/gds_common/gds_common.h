@@ -44,6 +44,8 @@ UA_SecurityPolicy *
 UA_GDS_getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri);
 
 /* Update every SecurityPolicy and endpoint that uses the certificate type.
+ * With a certificateGroupId, only the SecurityPolicies of that
+ * CertificateGroup are updated. NULL selects the policies of every group.
  * First resolve all endpoint policies and allocate the replacement endpoint
  * certificates. This ensures configuration and allocation errors are reported
  * before any live policy is changed. A SecurityPolicy referenced by multiple
@@ -56,6 +58,7 @@ UA_GDS_getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri
  * a policy after an earlier policy succeeded is therefore logged explicitly. */
 UA_StatusCode
 UA_GDS_applyCertificateToPolicies(UA_ServerConfig *sc,
+                                  const UA_NodeId *certificateGroupId,
                                   const UA_NodeId *certificateTypeId,
                                   const UA_ByteString certificate,
                                   const UA_ByteString privateKey);
@@ -69,6 +72,7 @@ UA_GDS_applyCertificateToPolicies(UA_ServerConfig *sc,
 typedef struct UA_GDSChannel {
     LIST_ENTRY(UA_GDSChannel) pointers;
     UA_UInt32 channelId;
+    UA_NodeId certificateGroupId; /* null without a SecurityPolicy */
     UA_NodeId certificateTypeId; /* null without a SecurityPolicy */
     UA_ByteString certificate; /* empty without a client certificate */
 } UA_GDSChannel;
@@ -86,9 +90,12 @@ UA_GDSChannels_notify(UA_GDSChannels *channels, UA_Server *server,
 /* A SecureChannel keeps its SecurityPolicy when the client renews it. The
  * renewal is checked against the new certificate and key of the
  * SecurityPolicy and fails. Close the SecureChannels of the CertificateType,
- * so that the clients reconnect with the new certificate. */
+ * so that the clients reconnect with the new certificate. With a
+ * certificateGroupId, only the SecureChannels of that CertificateGroup are
+ * closed. NULL selects every group. */
 void
 UA_GDSChannels_closeCertificateType(UA_GDSChannels *channels, UA_Server *server,
+                                    const UA_NodeId *certificateGroupId,
                                     const UA_NodeId *certificateTypeId);
 
 /* Close the SecureChannels whose client certificate does not pass the
