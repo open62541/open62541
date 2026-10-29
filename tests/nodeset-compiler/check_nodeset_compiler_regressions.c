@@ -19,7 +19,7 @@ static UA_DataTypeArray customTypes = {
 static void
 setup(void) {
     compiled = UA_Server_newForUnitTest();
-    ck_assert_ptr_nonnull(compiled);
+    ck_assert_ptr_ne(compiled, NULL);
     UA_Server_getConfig(compiled)->customDataTypes = &customTypes;
     ck_assert_uint_eq(namespace_compiler_fixes_generated(compiled), UA_STATUSCODE_GOOD);
 }
@@ -92,7 +92,7 @@ checkText(const UA_LocalizedText *text, const char *prefix, const char *chunk,
     UA_String expectedLocale = locale ? UA_STRING((char*)(uintptr_t)locale) : UA_STRING_NULL;
     ck_assert(UA_String_equal(&text->locale, &expectedLocale));
     if(!locale)
-        ck_assert_ptr_null(text->locale.data);
+        ck_assert_ptr_eq(text->locale.data, NULL);
 }
 
 START_TEST(preserveLocalizedText) {
