@@ -191,8 +191,9 @@ struct UA_GDSPullContext {
     size_t groupsSize;
     struct UA_GDSPullGroup *groups;
 
-    /* The SecureChannels of the server. Their certificates are verified again
-     * when the TrustList of the SecureChannels is replaced. */
+    /* The SecureChannels of the server. They are closed when the certificate
+     * of their CertificateType is replaced. Their client certificates are
+     * verified again when the TrustList of the SecureChannels is replaced. */
     UA_GDSChannels channels;
 };
 
@@ -614,9 +615,13 @@ UA_GDSPull_applyPendingCertificate(UA_GDSPullContext *ctx,
 
     UA_StatusCode res = UA_GDS_applyCertificateToPolicies(
         sc, &pending->certificateTypeId, certificate, privateKey);
-    if(res == UA_STATUSCODE_GOOD && renewsIdentity)
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(renewsIdentity)
         UA_GDSPull_updateClientIdentity(ctx, certificate, privateKey);
-    return res;
+    UA_GDSChannels_closeCertificateType(&ctx->channels, ctx->drv.server,
+                                        &pending->certificateTypeId);
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Defined below. The dispatch loop is cyclic: a workflow step schedules this

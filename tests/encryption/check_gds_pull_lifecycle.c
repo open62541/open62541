@@ -77,6 +77,8 @@ static UA_ByteString foreignCert, foreignKey;
 /* Another certificate for requesterKey */
 static UA_ByteString renewedCert;
 #endif
+/* A new key pair for the requester. Issued by StartNewKeyPairRequest. */
+static UA_ByteString newKeyPairCert, newKeyPairKey;
 
 static const UA_NodeId defaultApplicationGroup = {
     0, UA_NODEIDTYPE_NUMERIC,
@@ -226,6 +228,16 @@ static void
 setIssuedCertificate(UA_ByteString certificate) {
     lockCm();
     cm.issuedCertificate = certificate;
+    unlockCm();
+}
+
+/* The certificate and private key FinishRequest returns for a
+ * StartNewKeyPairRequest */
+static void
+setIssuedKeyPair(UA_ByteString certificate, UA_ByteString privateKey) {
+    lockCm();
+    cm.issuedCertificate = certificate;
+    cm.issuedPrivateKey = privateKey;
     unlockCm();
 }
 
@@ -1163,6 +1175,17 @@ setCycleInterval(UA_UInt32 cycleInterval) {
                       UA_STATUSCODE_GOOD);
 }
 
+/* Let the CertificateManager create the key pair (StartNewKeyPairRequest).
+ * Must be called before the server is started. */
+static void
+setCreatePrivateKey(UA_Boolean createPrivateKey) {
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params,
+                                               UA_QUALIFIEDNAME(0, "create-private-key"),
+                                               &createPrivateKey,
+                                               &UA_TYPES[UA_TYPES_BOOLEAN]),
+                      UA_STATUSCODE_GOOD);
+}
+
 /* Replace the requester of the fixture before the server is started */
 static void
 replaceRequester(const char *endpointUrl, size_t pendingSize,
@@ -1752,42 +1775,51 @@ START_TEST(unassignedGroupIsJoinedBySigningRequest) {
     ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
-/* A secure client of the requester that authenticates with foreignCert. The
- * state callback records whether its SecureChannel was closed after the
- * Session was activated. The client does not reconnect afterwards. */
-static UA_Boolean foreignSessionActivated;
-static UA_Boolean foreignChannelClosed;
+/* A secure client of the requester (Basic256Sha256, SignAndEncrypt). The
+ * state callback records whether its SecureChannel left the OPEN state after
+ * the Session was activated, and the status it left with. Only the first
+ * close is recorded. */
+static UA_Boolean clientSessionActivated;
+static UA_Boolean clientChannelClosed;
+static UA_StatusCode clientCloseStatus;
 
 static void
-foreignClientStateCallback(UA_Client *client,
-                           UA_SecureChannelState channelState,
-                           UA_SessionState sessionState,
-                           UA_StatusCode connectStatus) {
+secureClientStateCallback(UA_Client *client,
+                          UA_SecureChannelState channelState,
+                          UA_SessionState sessionState,
+                          UA_StatusCode connectStatus) {
     if(sessionState == UA_SESSIONSTATE_ACTIVATED)
-        foreignSessionActivated = true;
-    else if(foreignSessionActivated &&
-            channelState != UA_SECURECHANNELSTATE_OPEN)
-        foreignChannelClosed = true;
+        clientSessionActivated = true;
+    else if(clientSessionActivated && !clientChannelClosed &&
+            channelState != UA_SECURECHANNELSTATE_OPEN) {
+        clientChannelClosed = true;
+        clientCloseStatus = connectStatus;
+    }
 }
 
+/* A secureChannelLifeTime of 0 keeps the default of the client */
 static UA_Client *
-connectForeignClient(void) {
-    foreignSessionActivated = false;
-    foreignChannelClosed = false;
+connectSecureClient(UA_ByteString certificate, UA_ByteString privateKey,
+                    const char *applicationUri,
+                    UA_UInt32 secureChannelLifeTime) {
+    clientSessionActivated = false;
+    clientChannelClosed = false;
+    clientCloseStatus = UA_STATUSCODE_GOOD;
     UA_Client *client = UA_Client_new();
     ck_assert_ptr_nonnull(client);
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_StatusCode res = UA_ClientConfig_setDefaultEncryption(
-        cc, foreignCert, foreignKey, NULL, 0, NULL, 0);
+        cc, certificate, privateKey, NULL, 0, NULL, 0);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     cc->securityPolicyUri = UA_STRING_ALLOC(
         "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     UA_String_clear(&cc->clientDescription.applicationUri);
-    cc->clientDescription.applicationUri =
-        UA_STRING_ALLOC("urn:open62541.test.foreign");
-    cc->stateCallback = foreignClientStateCallback;
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC(applicationUri);
+    if(secureChannelLifeTime > 0)
+        cc->secureChannelLifeTime = secureChannelLifeTime;
+    cc->stateCallback = secureClientStateCallback;
 
     char url[32];
     snprintf(url, sizeof(url), "opc.tcp://localhost:%u", REQUESTER_PORT);
@@ -1818,6 +1850,19 @@ runWithClient(UA_Client *client, UA_UInt32 ms) {
     }
 }
 
+/* Iterate the requester and the client until the n-th notification of the
+ * given type was seen */
+static UA_Boolean
+runWithClientUntil(UA_Client *client, UA_GDSPullRequesterNotification type,
+                   size_t n) {
+    UA_DateTime end = deadline();
+    while(countNotifications(type) < n && UA_DateTime_nowMonotonic() < end) {
+        UA_Client_run_iterate(client, 0);
+        UA_Server_run_iterate(server, false);
+    }
+    return countNotifications(type) >= n;
+}
+
 /* 7.6, 7.10.9: A downloaded TrustList is applied to the existing
  * SecureChannels. The certificate of a connected client is removed from the
  * TrustList of the CertificateManager. The requester closes its
@@ -1830,9 +1875,10 @@ START_TEST(trustListUpdateClosesUntrustedChannels) {
     ck_assert(runUntil(UA_GDSPULL_TRUSTLIST_UPDATED, 1));
 
     /* The client is trusted by the downloaded TrustList */
-    UA_Client *client = connectForeignClient();
+    UA_Client *client = connectSecureClient(foreignCert, foreignKey,
+                                            "urn:open62541.test.foreign", 0);
     runWithClient(client, 200);
-    ck_assert(!foreignChannelClosed);
+    ck_assert(!clientChannelClosed);
 
     /* The client is no longer trusted */
     setServedTrustList(served, 2);
@@ -1843,7 +1889,7 @@ START_TEST(trustListUpdateClosesUntrustedChannels) {
     assertLocalTrustListEquals(&c.trustList);
 
     runWithClient(client, 500);
-    ck_assert_msg(foreignChannelClosed, "The SecureChannel of the client whose "
+    ck_assert_msg(clientChannelClosed, "The SecureChannel of the client whose "
                   "certificate was removed from the TrustList is still open");
 
     UA_Client_disconnect(client);
@@ -2138,12 +2184,7 @@ START_TEST(lostFinishResponseIsRecoveredWithGetCertificates) {
  * response, so the process is restarted with a new StartNewKeyPairRequest
  * although GetCertificateStatus reports no update. */
 START_TEST(lostNewKeyPairResponseRestartsRequest) {
-    UA_Boolean createPrivateKey = true;
-    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params,
-                                               UA_QUALIFIEDNAME(0, "create-private-key"),
-                                               &createPrivateKey,
-                                               &UA_TYPES[UA_TYPES_BOOLEAN]),
-                      UA_STATUSCODE_GOOD);
+    setCreatePrivateKey(true);
     lockCm();
     cm.issuedCertificate = foreignCert;
     cm.issuedPrivateKey = foreignKey;
@@ -2192,12 +2233,7 @@ START_TEST(lostNewKeyPairResponseRestartsRequest) {
  * cannot be installed, and the process is restarted with a new
  * StartNewKeyPairRequest. */
 START_TEST(repeatedNewKeyPairResponseWithoutKeyRestartsRequest) {
-    UA_Boolean createPrivateKey = true;
-    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&pull->drv.params,
-                                               UA_QUALIFIEDNAME(0, "create-private-key"),
-                                               &createPrivateKey,
-                                               &UA_TYPES[UA_TYPES_BOOLEAN]),
-                      UA_STATUSCODE_GOOD);
+    setCreatePrivateKey(true);
     lockCm();
     cm.issuedCertificate = foreignCert;
     cm.issuedPrivateKey = foreignKey;
@@ -2288,6 +2324,67 @@ START_TEST(failedInstallationIsReRequestedInNextCycle) {
     ck_assert_uint_eq(snapshot().startSigningRequest, 2);
     ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 2);
     ck_assert_uint_eq(pull->drv.state, UA_LIFECYCLESTATE_STARTED);
+} END_TEST
+
+/* The SecurityToken of the client is renewed after 75% of its lifetime */
+#define CHANNEL_CLIENT_LIFETIME_MS 2000
+
+/* 7.6, 7.10.9: A new certificate and private key from StartNewKeyPairRequest
+ * are installed while a client is connected. The SecureChannel was opened for
+ * the old certificate. The requester closes it in an orderly way right after
+ * the installation, so that the client has to reconnect to the new
+ * certificate. It must not stay open until its next token renewal, which
+ * fails because the renewal is checked against the new certificate and
+ * key. */
+START_TEST(installedCertificateClosesExistingChannels) {
+    setCreatePrivateKey(true);
+    setIssuedKeyPair(newKeyPairCert, newKeyPairKey);
+    setFinishMode(FINISH_PENDING);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    ck_assert_uint_eq(c.startNewKeyPairRequest, 1);
+    ck_assert_uint_eq(c.startSigningRequest, 0);
+    ck_assert_uint_eq(c.requestsSize, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    assertLocalCertificateIs(&requesterCert);
+
+    /* Connect to the old certificate, then let the next cycle install the
+     * new one. The client authenticates with gdsCert, which the requester
+     * trusts. */
+    UA_Client *client = connectSecureClient(gdsCert, gdsKey, GDS_URI,
+                                            CHANNEL_CLIENT_LIFETIME_MS);
+    setFinishMode(FINISH_APPROVE);
+    ck_assert(runWithClientUntil(client, UA_GDSPULL_CERTIFICATE_INSTALLED, 1));
+    UA_DateTime installed = UA_DateTime_nowMonotonic();
+    ck_assert_uint_eq(payloadStatusCode(positionOf(UA_GDSPULL_CERTIFICATE_INSTALLED, 1)),
+                      UA_STATUSCODE_GOOD);
+    assertLocalCertificateIs(&newKeyPairCert);
+
+    /* Iterate until the SecureChannel is closed. The time covers at least one
+     * token renewal of the client. */
+    UA_DateTime end = installed +
+        (UA_DateTime)(3 * CHANNEL_CLIENT_LIFETIME_MS / 2) * UA_DATETIME_MSEC;
+    while(!clientChannelClosed && UA_DateTime_nowMonotonic() < end) {
+        UA_Client_run_iterate(client, 0);
+        UA_Server_run_iterate(server, false);
+    }
+    ck_assert_msg(clientChannelClosed, "The SecureChannel opened for the old "
+                  "certificate is still open");
+    UA_Double closedAfterMs =
+        (UA_Double)(UA_DateTime_nowMonotonic() - installed) / UA_DATETIME_MSEC;
+    ck_assert_msg(clientCloseStatus != UA_STATUSCODE_BADCERTIFICATEINVALID &&
+                  clientCloseStatus != UA_STATUSCODE_BADSECURITYCHECKSFAILED,
+                  "The SecureChannel opened for the old certificate failed with "
+                  "%s %.0f ms after the installation instead of being closed",
+                  UA_StatusCode_name(clientCloseStatus), closedAfterMs);
+    /* Closed right away, not at the next token renewal */
+    ck_assert_msg(closedAfterMs < CHANNEL_CLIENT_LIFETIME_MS / 4,
+                  "The SecureChannel was closed %.0f ms after the installation "
+                  "(%s)", closedAfterMs, UA_StatusCode_name(clientCloseStatus));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
 } END_TEST
 
 /******************************/
@@ -2429,6 +2526,8 @@ main(void) {
                       &gdsKey, &gdsCert);
     createCertificate("CN=Foreign Application", "URI:urn:open62541.test.foreign",
                       &foreignKey, &foreignCert);
+    createCertificate("CN=GDS Pull Requester", "URI:" REQUESTER_URI,
+                      &newKeyPairKey, &newKeyPairCert);
 #ifdef CAN_RENEW_CERTIFICATE
     if(renewCertificate(&requesterCert, &requesterKey, &renewedCert) !=
        UA_STATUSCODE_GOOD) {
@@ -2466,6 +2565,7 @@ main(void) {
     tcase_add_test(tc, lostNewKeyPairResponseRestartsRequest);
     tcase_add_test(tc, repeatedNewKeyPairResponseWithoutKeyRestartsRequest);
     tcase_add_test(tc, failedInstallationIsReRequestedInNextCycle);
+    tcase_add_test(tc, installedCertificateClosesExistingChannels);
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);
@@ -2480,6 +2580,8 @@ main(void) {
     UA_ByteString_clear(&gdsKey);
     UA_ByteString_clear(&foreignCert);
     UA_ByteString_clear(&foreignKey);
+    UA_ByteString_clear(&newKeyPairCert);
+    UA_ByteString_clear(&newKeyPairKey);
 #ifdef CAN_RENEW_CERTIFICATE
     UA_ByteString_clear(&renewedCert);
 #endif
