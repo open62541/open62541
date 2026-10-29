@@ -70,7 +70,11 @@ static const UA_NodeId rsaSha256CertificateType = {
 typedef enum {
     FINISH_APPROVE, /* FinishRequest returns the issued certificate */
     FINISH_PENDING, /* FinishRequest returns Bad_NothingToDo */
-    FINISH_REJECT   /* FinishRequest returns Bad_RequestNotAllowed */
+    FINISH_REJECT,  /* FinishRequest returns Bad_RequestNotAllowed */
+    FINISH_DENIED   /* FinishRequest returns Bad_UserAccessDenied and keeps the
+                     * request, as a CertificateManager does that enforces
+                     * 7.9.5 when the caller's certificate differs from the
+                     * one used to start the request */
 } FinishMode;
 
 typedef struct {
@@ -347,6 +351,8 @@ answerFinishRequest(const UA_Variant *input, UA_Variant *output,
     case FINISH_REJECT:
         removeRequest(requestId);
         return UA_STATUSCODE_BADREQUESTNOTALLOWED;
+    case FINISH_DENIED:
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
     case FINISH_APPROVE:
     default:
         break;
@@ -1285,6 +1291,52 @@ START_TEST(rejectedRequestIsReplacedInNextCycle) {
                          &c.lastRequestId, &c.lastCertificateType);
 } END_TEST
 
+/* 7.6 Table 21: FinishRequest returns a Bad result other than Bad_NothingToDo
+ * that is not a rejection, here Bad_UserAccessDenied (7.9.5). The request is
+ * dropped and a new request is sent in the next cycle. It must not be kept and
+ * asked again forever. */
+START_TEST(deniedRequestIsReplacedInNextCycle) {
+    setFinishMode(FINISH_DENIED);
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    MockCertificateManager c = snapshot();
+    UA_NodeId firstRequest = c.lastRequestId;
+
+    ck_assert_uint_eq(c.startSigningRequest, 1);
+    ck_assert_uint_eq(c.finishRequest, 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 1);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_DROPPED, 1),
+                         &firstRequest, &c.lastCertificateType);
+
+    /* Still denied: the next cycle starts another request */
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 2));
+    c = snapshot();
+    UA_NodeId secondRequest = c.lastRequestId;
+
+    ck_assert_uint_eq(c.startSigningRequest, 2);
+    ck_assert_uint_eq(c.finishRequest, 2);
+    ck_assert(!UA_NodeId_equal(&secondRequest, &firstRequest));
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 2);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_DROPPED, 2),
+                         &secondRequest, &c.lastCertificateType);
+
+    /* The new request of the third cycle is approved */
+    setFinishMode(FINISH_APPROVE);
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 3));
+    c = snapshot();
+
+    ck_assert_uint_eq(c.startSigningRequest, 3);
+    ck_assert(!UA_NodeId_equal(&c.lastRequestId, &secondRequest));
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_ADDED), 3);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_DROPPED), 2);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_REQUEST_FINISHED), 1);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CERTIFICATE_INSTALLED), 1);
+    assertRequestPayload(positionOf(UA_GDSPULL_REQUEST_FINISHED, 1),
+                         &c.lastRequestId, &c.lastCertificateType);
+} END_TEST
+
 /* 7.6: A pending request supplied at creation is finished directly with
  * FinishRequest. No new signing request is started for it. */
 START_TEST(restoredPendingRequestIsFinishedWithoutNewRequest) {
@@ -1702,6 +1754,7 @@ main(void) {
     tcase_add_test(tc, noUpdateRequiredSkipsSigningRequest);
     tcase_add_test(tc, pendingRequestIsFinishedInLaterCycle);
     tcase_add_test(tc, rejectedRequestIsReplacedInNextCycle);
+    tcase_add_test(tc, deniedRequestIsReplacedInNextCycle);
     tcase_add_test(tc, restoredPendingRequestIsFinishedWithoutNewRequest);
     tcase_add_test(tc, unreachableCertificateManager);
     tcase_add_test(tc, cycleTimeoutAbortsCycle);
