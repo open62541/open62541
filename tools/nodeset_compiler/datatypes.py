@@ -38,15 +38,15 @@ class LocalizedText():
         else:
             tmp = xmlvalue.getElementsByTagName("Locale")
             if len(tmp) > 0 and tmp[0].firstChild is not None:
-                self.locale = tmp[0].firstChild.data.strip(' \t\n\r')
+                self.locale = tmp[0].firstChild.data
 
         tmp = xmlvalue.getElementsByTagName("Text")
         if len(tmp) > 0 and tmp[0].firstChild is not None:
-            self.text = tmp[0].firstChild.data.strip(' \t\n\r')
+            self.text = tmp[0].firstChild.data
         else:
             tmp = xmlvalue.firstChild
             if tmp and tmp.nodeType == dom.Element.TEXT_NODE:
-                self.text = tmp.data.strip(' \t\n\r')
+                self.text = tmp.data
 
 
     def __str__(self):
