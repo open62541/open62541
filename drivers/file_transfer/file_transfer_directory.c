@@ -80,9 +80,9 @@ listEntries(UA_FileTransferBackend *b, const UA_String path, ScanList *list) {
     return res;
 }
 
-/* Create an empty entry with its basename and type; metadata uses backend
- * defaults. The target path may have changed during a copy or move. */
-static UA_StatusCode
+/* Metadata uses backend defaults. The target path may have changed during a
+ * copy or move. */
+UA_StatusCode
 createBackendEntry(UA_FileTransferBackend *b, const UA_String path,
                     UA_Boolean isDirectory) {
     UA_String name = pathLastSegment(path);
@@ -311,6 +311,12 @@ copyBackendFile(UA_FileTransferBackend *srcB, const UA_String fromPath,
     if(res != UA_STATUSCODE_GOOD)
         dstB->remove(dstB, toPath);
     return res;
+}
+
+UA_StatusCode
+copyStoreFile(UA_FileTransferBackend *b, const UA_String fromPath,
+              const UA_String toPath) {
+    return copyBackendFile(b, fromPath, b, toPath, NULL);
 }
 
 static UA_StatusCode

@@ -298,6 +298,292 @@ START_TEST(sessionCloseReleasesHandles) {
     UA_Client_delete(observer);
 } END_TEST
 
+/**************************************
+ * TemporaryFileTransferType over the wire
+ **************************************/
+
+static UA_Driver *tempDriver;
+static UA_Driver *shortDriver;
+static UA_NodeId tempRoot;
+static UA_NodeId shortRoot;
+static UA_ByteString committed;
+static size_t commitCalls;
+
+static UA_StatusCode
+tempGenerateRead(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
+    return UA_FileTransferTemporaryFile_setContent(transfer, UA_BYTESTRING("report"));
+}
+
+/* Refuses generateOptions 13, as a server refuses an unsupported storage */
+static UA_StatusCode
+tempGenerateWrite(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
+    const UA_Variant *options = transfer->generateOptions;
+    if(UA_Variant_hasScalarType(options, &UA_TYPES[UA_TYPES_UINT32]) &&
+       *(UA_UInt32*)options->data == 13)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Runs in the server thread before the CloseAndCommit response is sent */
+static UA_StatusCode
+tempCommit(UA_Server *s, void *context, UA_FileTransferTemporaryFile *transfer) {
+    commitCalls++;
+    UA_ByteString_clear(&committed);
+    return UA_FileTransferTemporaryFile_getContent(transfer, &committed);
+}
+
+static UA_Driver *
+addTemporaryDriver(const char *name, UA_Double timeout, UA_NodeId *outRoot) {
+    UA_FileTransferTemporaryOptions options;
+    memset(&options, 0, sizeof(options));
+    options.generateFileForRead = tempGenerateRead;
+    options.generateFileForWrite = tempGenerateWrite;
+    options.closeAndCommit = tempCommit;
+    UA_FileTransferNodeDescription description;
+    memset(&description, 0, sizeof(description));
+    description.browseName = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    UA_Driver *driver = NULL;
+    ck_assert_uint_eq(UA_FileTransferDriver_newTemporary(server, &options, &description,
+                          outRoot, &driver), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(&driver->params,
+                          UA_QUALIFIEDNAME(0, "activity-timeout"), &timeout,
+                          &UA_TYPES[UA_TYPES_DOUBLE]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addDriver(server, driver), UA_STATUSCODE_GOOD);
+    return driver;
+}
+
+static void setupTemporary(void) {
+    UA_atomic_store(&running, true);
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    commitCalls = 0;
+    tempDriver = addTemporaryDriver("Temp", 60000, &tempRoot);
+    shortDriver = addTemporaryDriver("Short", 50, &shortRoot);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void teardownTemporary(void) {
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    UA_Driver *drivers[2] = {tempDriver, shortDriver};
+    for(size_t i = 0; i < 2; i++) {
+        drivers[i]->stop(drivers[i]);
+        ck_assert_uint_eq(UA_Server_removeDriver(server, drivers[i]), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(drivers[i]->free(drivers[i]), UA_STATUSCODE_GOOD);
+    }
+    UA_NodeId_clear(&tempRoot);
+    UA_NodeId_clear(&shortRoot);
+    UA_ByteString_clear(&committed);
+    UA_Server_delete(server);
+}
+
+/* The commit callback runs in the server thread with the server lock held */
+static size_t
+lockedCommitCalls(void) {
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    el->lock(el);
+    size_t calls = commitCalls;
+    el->unlock(el);
+    return calls;
+}
+
+static UA_Boolean
+committedEquals(const char *expected) {
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    el->lock(el);
+    UA_ByteString e = UA_BYTESTRING((char*)(uintptr_t)expected);
+    UA_Boolean equal = UA_ByteString_equal(&committed, &e);
+    el->unlock(el);
+    return equal;
+}
+
+static UA_Client *
+connectClient(void) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    return client;
+}
+
+static UA_StatusCode
+clientGenerateWrite(UA_Client *client, const UA_NodeId root, UA_NodeId *file,
+                    UA_UInt32 *handle) {
+    UA_UInt32 option = 7;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &option, &UA_TYPES[UA_TYPES_UINT32]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode res = UA_Client_call(client, root,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORWRITE),
+        1, &input, &outputSize, &output);
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(outputSize, 2);
+        UA_NodeId_copy((UA_NodeId*)output[0].data, file);
+        *handle = *(UA_UInt32*)output[1].data;
+    }
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    return res;
+}
+
+static UA_StatusCode
+clientCall(UA_Client *client, const UA_NodeId object, UA_UInt32 methodId,
+           size_t inputSize, UA_Variant *input) {
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode res = UA_Client_call(client, object, UA_NODEID_NUMERIC(0, methodId),
+                                       inputSize, input, &outputSize, &output);
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    return res;
+}
+
+static UA_StatusCode
+clientWrite(UA_Client *client, const UA_NodeId file, UA_UInt32 handle,
+            const char *data) {
+    UA_ByteString content = UA_BYTESTRING((char*)(uintptr_t)data);
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &handle, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&input[1], &content, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    return clientCall(client, file, UA_NS0ID_FILETYPE_WRITE, 2, input);
+}
+
+static UA_StatusCode
+clientCommit(UA_Client *client, const UA_NodeId root, UA_UInt32 handle) {
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &handle, &UA_TYPES[UA_TYPES_UINT32]);
+    return clientCall(client, root, UA_NS0ID_TEMPORARYFILETRANSFERTYPE_CLOSEANDCOMMIT,
+                      1, &input);
+}
+
+static UA_Boolean
+clientNodeExists(UA_Client *client, const UA_NodeId nodeId) {
+    UA_NodeClass cls;
+    return UA_Client_readNodeClassAttribute(client, nodeId, &cls) == UA_STATUSCODE_GOOD;
+}
+
+START_TEST(tempWriteCommitOverWire) {
+    UA_Client *client = connectClient();
+    UA_NodeId file;
+    UA_UInt32 handle = 0;
+    ck_assert_uint_eq(clientGenerateWrite(client, tempRoot, &file, &handle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientWrite(client, file, handle, "firmware"), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientCommit(client, tempRoot, handle), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(lockedCommitCalls(), 1);
+    ck_assert(committedEquals("firmware"));
+    ck_assert(!clientNodeExists(client, file));
+    UA_NodeId_clear(&file);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* The client receives the refusal of generateFileForWrite */
+START_TEST(tempGenerateWriteRefusal) {
+    UA_Client *client = connectClient();
+    UA_UInt32 option = 13;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &option, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(clientCall(client, tempRoot,
+                          UA_NS0ID_TEMPORARYFILETRANSFERTYPE_GENERATEFILEFORWRITE,
+                          1, &input), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_NodeId file;
+    UA_UInt32 handle = 0;
+    ck_assert_uint_eq(clientGenerateWrite(client, tempRoot, &file, &handle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientCommit(client, tempRoot, handle), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* Closing the Session aborts its transfer and releases the write lock */
+START_TEST(tempSessionCloseAborts) {
+    UA_Client *client = connectClient();
+    UA_Client *observer = connectClient();
+    UA_NodeId file;
+    UA_UInt32 handle = 0;
+    ck_assert_uint_eq(clientGenerateWrite(client, tempRoot, &file, &handle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientWrite(client, file, handle, "partial"), UA_STATUSCODE_GOOD);
+    UA_NodeId other;
+    UA_UInt32 otherHandle = 0;
+    ck_assert_uint_eq(clientGenerateWrite(observer, tempRoot, &other, &otherHandle),
+                      UA_STATUSCODE_BADNOTWRITABLE);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    UA_StatusCode res = UA_STATUSCODE_BADNOTWRITABLE;
+    for(int i = 0; i < 500 && res == UA_STATUSCODE_BADNOTWRITABLE; i++) {
+        UA_fakeSleep(10);
+        shortSleep();
+        res = clientGenerateWrite(observer, tempRoot, &other, &otherHandle);
+    }
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(!clientNodeExists(observer, file));
+    ck_assert_uint_eq(lockedCommitCalls(), 0);
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &otherHandle, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(clientCall(observer, other, UA_NS0ID_FILETYPE_CLOSE, 1, &input),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&file);
+    UA_NodeId_clear(&other);
+    UA_Client_disconnect(observer);
+    UA_Client_delete(observer);
+} END_TEST
+
+/* The server cancels a transfer without Method calls for longer than the
+ * ClientProcessingTimeout. Reading the node class is not a Method call. */
+START_TEST(tempWriteTimeout) {
+    UA_Client *client = connectClient();
+    UA_NodeId file;
+    UA_UInt32 handle = 0;
+    ck_assert_uint_eq(clientGenerateWrite(client, shortRoot, &file, &handle),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean exists = true;
+    for(int i = 0; i < 500 && exists; i++) {
+        UA_fakeSleep(20);
+        shortSleep();
+        exists = clientNodeExists(client, file);
+    }
+    ck_assert(!exists);
+    ck_assert_uint_ne(clientWrite(client, file, handle, "late"), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(lockedCommitCalls(), 0);
+    UA_NodeId_clear(&file);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* Part 20, 4.4.1: only the Session that generated a file can use it */
+START_TEST(tempOtherSessionRejected) {
+    UA_Client *client = connectClient();
+    UA_Client *other = connectClient();
+    UA_NodeId file;
+    UA_UInt32 handle = 0;
+    ck_assert_uint_eq(clientGenerateWrite(client, tempRoot, &file, &handle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientWrite(other, file, handle, "foreign"),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_Byte mode = UA_OPENFILEMODE_WRITE;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &mode, &UA_TYPES[UA_TYPES_BYTE]);
+    ck_assert_uint_eq(clientCall(other, file, UA_NS0ID_FILETYPE_OPEN, 1, &input),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(clientCommit(other, tempRoot, handle), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_Variant closeInput;
+    UA_Variant_setScalar(&closeInput, &handle, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(clientCall(other, file, UA_NS0ID_FILETYPE_CLOSE, 1, &closeInput),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(clientWrite(client, file, handle, "own"), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientCommit(client, tempRoot, handle), UA_STATUSCODE_GOOD);
+    ck_assert(committedEquals("own"));
+    UA_NodeId_clear(&file);
+    UA_Client_disconnect(other);
+    UA_Client_delete(other);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("client_filetransfer");
 
@@ -305,6 +591,15 @@ int main(void) {
     tcase_add_test(tc, sessionCloseReleasesHandles);
     tcase_add_checked_fixture(tc, setup, teardown);
     suite_add_tcase(s, tc);
+
+    TCase *tc_temp = tcase_create("Temporary File Transfer");
+    tcase_add_test(tc_temp, tempWriteCommitOverWire);
+    tcase_add_test(tc_temp, tempGenerateWriteRefusal);
+    tcase_add_test(tc_temp, tempSessionCloseAborts);
+    tcase_add_test(tc_temp, tempWriteTimeout);
+    tcase_add_test(tc_temp, tempOtherSessionRejected);
+    tcase_add_checked_fixture(tc_temp, setupTemporary, teardownTemporary);
+    suite_add_tcase(s, tc_temp);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
