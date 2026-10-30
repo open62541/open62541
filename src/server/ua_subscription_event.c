@@ -1144,11 +1144,37 @@ evaluateWhereClause(UA_FilterEvalContext *ctx) {
     if(ctx->filter.whereClause.elementsSize == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Information-model filters may bypass creation-time validation. */
-    for(size_t i = 0; i < ctx->filter.whereClause.elementsSize; i++) {
-        if((UA_UInt32)ctx->filter.whereClause.elements[i].filterOperator >
-           UA_FILTEROPERATOR_BITWISEOR)
+    /* Information-model filters (e.g. a node's HistoricalEventFilter property)
+     * reach this point without the creation-time validation that
+     * CreateMonitoredItems applies. Re-check the structural limits the
+     * evaluation relies on: the element count must fit the fixed-size
+     * operatorResults stack, every operator must be known and carry a valid
+     * number of operands, and an ElementOperand must reference an
+     * already-evaluated element. Otherwise the loops below index
+     * operatorResults[] and the operands array out of bounds. */
+    const UA_ContentFilter *wc = &ctx->filter.whereClause;
+    if(wc->elementsSize > UA_EVENTFILTER_MAXELEMENTS)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+    for(size_t i = 0; i < wc->elementsSize; i++) {
+        const UA_ContentFilterElement *elm = &wc->elements[i];
+        if((UA_UInt32)elm->filterOperator > UA_FILTEROPERATOR_BITWISEOR)
             return UA_STATUSCODE_BADEVENTFILTERINVALID;
+        if(elm->filterOperandsSize <
+               operatorJumptable[elm->filterOperator].minOperatorCount ||
+           elm->filterOperandsSize >
+               operatorJumptable[elm->filterOperator].maxOperatorCount)
+            return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+        for(size_t j = 0; j < elm->filterOperandsSize; j++) {
+            const UA_ExtensionObject *op = &elm->filterOperands[j];
+            if((op->encoding != UA_EXTENSIONOBJECT_DECODED &&
+                op->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+               op->content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND])
+                continue;
+            const UA_ElementOperand *eo =
+                (const UA_ElementOperand *)op->content.decoded.data;
+            if(eo->index <= i || eo->index >= wc->elementsSize)
+                return UA_STATUSCODE_BADINDEXRANGEINVALID;
+        }
     }
 
     /* Pacify some compilers by initializing the first result */

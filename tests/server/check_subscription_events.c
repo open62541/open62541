@@ -1554,6 +1554,79 @@ START_TEST(filterValidation_attributeOperand) {
     UA_ContentFilterElementResult_clear(&elmRes);
 } END_TEST
 
+/* An information-model filter (e.g. a HistoricalEventFilter property) reaches
+ * evaluateWhereClause without creation-time validation. A WhereClause with more
+ * than UA_EVENTFILTER_MAXELEMENTS elements must be rejected, not evaluated into
+ * the fixed-size operatorResults stack. Before the fix this overflowed the
+ * stack (ASan abort); now it returns BADEVENTFILTERINVALID. */
+START_TEST(filterValidation_tooManyElements) {
+    const size_t n = UA_EVENTFILTER_MAXELEMENTS + 1;
+    UA_ContentFilterElement *cfe = (UA_ContentFilterElement *)
+        UA_calloc(n, sizeof(UA_ContentFilterElement));
+    ck_assert_ptr_ne(cfe, NULL);
+    UA_ExtensionObject *ops = (UA_ExtensionObject *)
+        UA_calloc(n, sizeof(UA_ExtensionObject));
+    ck_assert_ptr_ne(ops, NULL);
+    UA_LiteralOperand *lops = (UA_LiteralOperand *)
+        UA_calloc(n, sizeof(UA_LiteralOperand));
+    ck_assert_ptr_ne(lops, NULL);
+
+    UA_Boolean t = true;
+    for(size_t i = 0; i < n; i++) {
+        /* Each element is structurally valid on its own (ISNULL + 1 operand),
+         * so only the element-count limit rejects the clause. */
+        UA_ContentFilterElement_init(&cfe[i]);
+        cfe[i].filterOperator = UA_FILTEROPERATOR_ISNULL;
+        cfe[i].filterOperandsSize = 1;
+        cfe[i].filterOperands = &ops[i];
+        UA_LiteralOperand_init(&lops[i]);
+        UA_Variant_setScalar(&lops[i].value, &t, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        UA_ExtensionObject_init(&ops[i]);
+        ops[i].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+        ops[i].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+        ops[i].content.decoded.data = &lops[i];
+    }
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, cfe, n);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+
+    UA_free(cfe);
+    UA_free(ops);
+    UA_free(lops);
+} END_TEST
+
+/* An ElementOperand index outside the clause must be rejected, not used to
+ * index the operatorResults stack out of bounds. */
+START_TEST(filterValidation_elementOperandOutOfRange) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_NOT;
+    cfe.filterOperandsSize = 1;
+
+    UA_ExtensionObject op;
+    UA_ExtensionObject_init(&op);
+    op.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    op.content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    UA_ElementOperand eo;
+    UA_ElementOperand_init(&eo);
+    eo.index = 0x7fffffff; /* far past the single element */
+    op.content.decoded.data = &eo;
+    cfe.filterOperands = &op;
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINDEXRANGEINVALID);
+} END_TEST
+
 /* Test ContentFilterElementValidation with ElementOperand point backward (invalid) */
 START_TEST(filterValidation_elementOperandBackward) {
     UA_ContentFilterElement cfe[2];
@@ -2737,6 +2810,8 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, filterValidation_inViewRelatedTo);
     tcase_add_test(tc_server, filterValidation_likeCast);
     tcase_add_test(tc_server, filterValidation_attributeOperand);
+    tcase_add_test(tc_server, filterValidation_tooManyElements);
+    tcase_add_test(tc_server, filterValidation_elementOperandOutOfRange);
     tcase_add_test(tc_server, filterValidation_elementOperandBackward);
     tcase_add_test(tc_server, filterValidation_undecoded);
     tcase_add_test(tc_server, filterValidation_ofTypeNonNodeId);
