@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "companion_test.h"
+#include "namespace_plan.h"
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
 #include <stdio.h>
@@ -207,7 +208,7 @@ cleanup:
 }
 
 static int compareLayout(UA_Server *a, UA_Server *b, UA_NodeId ia, UA_NodeId ib, const char *path,
-                         const char *identifier) {
+                         const char *identifier, UA_Boolean separate) {
     const UA_DataType *ta = UA_Server_findDataType(a, &ia);
     const UA_DataType *tb = UA_Server_findDataType(b, &ib);
     if(!ta && !tb)
@@ -215,8 +216,8 @@ static int compareLayout(UA_Server *a, UA_Server *b, UA_NodeId ia, UA_NodeId ib,
     if(!ta || !tb || ta->typeKind != tb->typeKind || ta->memSize != tb->memSize ||
        ta->membersSize != tb->membersSize || ta->pointerFree != tb->pointerFree)
         goto failed;
-    if(ia.namespaceIndex != 0 && ta == tb)
-        goto failed; /* Custom layouts belong to distinct live servers. */
+    if(separate && ia.namespaceIndex != 0 && ta == tb)
+        goto failed; /* Copied layouts belong to distinct live servers. */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     if(!ta->typeName || !tb->typeName || strcmp(ta->typeName, tb->typeName))
         goto failed;
@@ -235,9 +236,9 @@ failed:
     return 1;
 }
 
-static int compareRegisteredTypes(UA_Server *a, UA_Server *b, const CompanionModule *module) {
+static int compareRegisteredTypes(UA_Server *a, UA_Server *b, const CompanionModule *module, UA_Boolean separate) {
     for(size_t t = 0; t < module->typesSize; t++) {
-        const UA_DataType *type = UA_Server_getGeneratedDataType(a, module->staticType(t));
+        const UA_DataType *type = module->resolve(a, module->staticType(t));
         if(!type) {
             fprintf(stderr, "Generated type %zu was not registered: %s\n", t, module->path);
             return 1;
@@ -256,7 +257,7 @@ static int compareRegisteredTypes(UA_Server *a, UA_Server *b, const CompanionMod
         name = type->typeName;
 #endif
         int failed = status != UA_STATUSCODE_GOOD ||
-                     compareLayout(a, b, type->typeId, otherId, module->path, name);
+                     compareLayout(a, b, type->typeId, otherId, module->path, name, separate);
         UA_NodeId_clear(&otherId);
         UA_String_clear(&uri);
         if(failed)
@@ -266,8 +267,8 @@ static int compareRegisteredTypes(UA_Server *a, UA_Server *b, const CompanionMod
 }
 
 static int compare(UA_Server *a, UA_Server *b, const CompanionModule *module,
-                   UA_NamespaceMapping *ma, UA_NamespaceMapping *mb) {
-    if(compareRegisteredTypes(a, b, module))
+                   UA_NamespaceMapping *ma, UA_NamespaceMapping *mb, UA_Boolean separate) {
+    if(compareRegisteredTypes(a, b, module, separate))
         return 1;
     size_t absent = 0, absentReferences = 0;
     for(size_t n = 0; n < module->nodesSize; n++) {
@@ -298,7 +299,7 @@ static int compare(UA_Server *a, UA_Server *b, const CompanionModule *module,
             goto failed;
         if(compareReferences(a, b, ia, ib, node, module->path, &absentReferences) ||
            (ca == UA_NODECLASS_DATATYPE && (node->attributes & (1u << 23)) &&
-            compareLayout(a, b, ia, ib, module->path, node->identifier)))
+            compareLayout(a, b, ia, ib, module->path, node->identifier, separate)))
             goto failed;
         for(UA_UInt32 attr = 1; attr < 32; attr++) {
             if(!(node->attributes & (1u << attr)))
@@ -367,14 +368,18 @@ int companionRun(size_t selected, UA_Boolean copyTypes) {
     UA_Boolean *referenceLoaded = (UA_Boolean *)calloc(capacity, sizeof(UA_Boolean));
     UA_Boolean *secondLoaded = (UA_Boolean *)calloc(capacity, sizeof(UA_Boolean));
     UA_Server *server = newServer(0), *reference = newServer(0),
-              *second = copyTypes ? newServer(3) : NULL;
+              *second = newServer(copyTypes ? 3 : 0);
     int failed = 1;
     UA_NamespaceMapping ma, mb;
     memset(&ma, 0, sizeof(ma));
     memset(&mb, 0, sizeof(mb));
     if(!loaded || !referenceLoaded || !secondLoaded || !server || !reference ||
-       (copyTypes && !second))
+       !second)
         goto cleanup;
+    if(!copyTypes) {
+        companionPinNamespaces(server);
+        companionPinNamespaces(second);
+    }
     for(size_t i = 0; i < companionModulesSize; i++) {
         const CompanionModule *m = companionModules[i];
         if(selected != (size_t)-1 ? m->index != selected : !m->preferred)
@@ -387,7 +392,7 @@ int companionRun(size_t selected, UA_Boolean copyTypes) {
         goto cleanup;
     for(size_t i = 0; i < companionModulesSize; i++)
         if(loaded[companionModules[i]->index] &&
-           compare(server, reference, companionModules[i], &ma, &mb))
+           compare(server, reference, companionModules[i], &ma, &mb, true))
             goto cleanup;
     for(size_t i = 0; i < ma.namespaceUrisSize; i++)
         UA_String_clear(&ma.namespaceUris[i]);
@@ -396,17 +401,17 @@ int companionRun(size_t selected, UA_Boolean copyTypes) {
     free(mb.local2remote);
     memset(&ma, 0, sizeof(ma));
     memset(&mb, 0, sizeof(mb));
-    if(copyTypes) {
+    {
         for(size_t i = companionModulesSize; i > 0; i--) {
             const CompanionModule *m = companionModules[i - 1];
-            if(loaded[m->index] && loadModule(m, second, true, true, secondLoaded))
+            if(loaded[m->index] && loadModule(m, second, true, copyTypes, secondLoaded))
                 goto cleanup;
         }
         if(mappings(server, second, &ma, &mb))
             goto cleanup;
         for(size_t i = 0; i < companionModulesSize; i++)
             if(loaded[companionModules[i]->index] &&
-               compare(server, second, companionModules[i], &ma, &mb))
+               compare(server, second, companionModules[i], &ma, &mb, copyTypes))
                 goto cleanup;
     }
     failed = 0;

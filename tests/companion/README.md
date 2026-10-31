@@ -32,12 +32,12 @@ definitions with explicit fields are compared after normalizing namespace
 indexes by URI. Their native memory layouts are compared too. Simple aliases
 retain their builtin C representation and have separate metadata descriptors.
 Empty abstract definitions have no exported C structure and are checked as
-namespace nodes. Nodes
-absent in both loaders are reported, since successful XML loading can include
-rejected nodes. Copy-mode additionally loads a second live generated server
-with unrelated namespaces inserted and the selected modules requested in reverse
-order. In-place scenarios each run in a fresh process, preserving the static
-array's one-server lifetime rule.
+namespace nodes. Nodes absent in both loaders are reported, since successful
+XML loading can include rejected nodes. Both modes additionally load a second
+live generated server with the selected modules requested in reverse order.
+Copy mode inserts unrelated namespaces;
+static registration preloads the common compile-time namespace plan in both
+servers. All descriptor arrays are const and can be shared.
 
 Legal structure field ranks that the SDK cannot represent natively generate a
 warning. Their datatype namespace nodes remain present, while their native

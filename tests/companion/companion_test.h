@@ -29,6 +29,7 @@ typedef struct {
     size_t nodesSize;
     UA_Boolean preferred;
     UA_StatusCode (*load)(UA_Server *, UA_Boolean);
+    const UA_DataType *(*resolve)(UA_Server *, const UA_DataType *);
     size_t typesSize;
     const UA_DataType *(*staticType)(size_t);
 } CompanionModule;

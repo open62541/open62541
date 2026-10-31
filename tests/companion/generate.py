@@ -39,6 +39,7 @@ def main():
     overrides = json.loads((source/"dependency_overrides.json").read_text())
     used_overrides = set()
     models = []
+    namespace_uris = set()
     profiles = []
     standard = ET.parse(args.nodesets/'Schema/Opc.Ua.NodeSet2.xml').getroot()
     standard_aliases = {e.attrib['Alias']: e.text for section in standard
@@ -58,6 +59,7 @@ def main():
         sections = {local(e): e for e in root}
         metadata = list(sections['Models'])[0]
         uris = [UA]+[e.text for e in sections.get('NamespaceUris', [])]
+        namespace_uris.update(uris[1:])
         aliases = dict(standard_aliases)
         aliases.update({e.attrib['Alias']: e.text for e in sections.get('Aliases', [])})
         def identifier(value):
@@ -134,6 +136,12 @@ def main():
             active.remove(m['index']);done.add(m['index']);ordered.append(m)
         visit(root)
         return ordered
+    namespace_map = [(i + 2, uri) for i, uri in enumerate(sorted(namespace_uris))]
+    write(output/'namespace_plan.h',
+          '/* Shared compile-time namespace plan for static registration. */\n'
+          'static void companionPinNamespaces(UA_Server *server) {\n' +
+          ''.join('    UA_Server_addNamespace(server, '+cstring(uri)+');\n'
+                  for _, uri in namespace_map) + '}\n')
     cm = ['# Generated companion test targets.',
           'set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS '+
           ' '.join(cmake_path(args.nodesets/m['path']) for m in models)+')']
@@ -167,13 +175,15 @@ def main():
                   for n,(uri,node,mask,refs) in enumerate(m['nodes'])]
         lines += ['};', 'const CompanionModule companion_'+ident+' = {',
                   str(i)+', '+cstring(m['path'])+', dependencies + 1, '+str(len(dependencies))+',',
-                  'nodes + 1, '+str(len(m['nodes']))+', '+('true' if m['preferred'] else 'false')+', namespace_'+ident+'_generated, UA_TYPES_CS_'+str(i)+'_COUNT, staticType};']
+                  'nodes + 1, '+str(len(m['nodes']))+', '+('true' if m['preferred'] else 'false')+', namespace_'+ident+'_generated, namespace_'+ident+'_generated_getDataType, UA_TYPES_CS_'+str(i)+'_COUNT, staticType};']
         write(output/(ident+'.c'), '\n'.join(lines)+'\n')
         files = [output/('namespace_'+ident+'_generated.c'), output/('namespace_'+ident+'_generated.h'),
                  output/('types_'+ident+'_generated.c'),output/('types_'+ident+'_generated.h'),output/('types_'+ident+'_generated_internal.h')]
         command = ['${Python3_EXECUTABLE}', tools/'nodeset_compiler/nodeset_compiler.py',
                    '--existing',args.nodesets/'Schema/Opc.Ua.NodeSet2.xml','--types-array','UA_TYPES',
                    '--types-schema',args.nodesets/'Schema']
+        for index, uri in namespace_map:
+            command += ['--namespaceMap='+str(index)+':'+uri]
         for dep in dependencies:
             command += ['--existing',args.nodesets/dep['path']]
             if dep['has_types']: command += ['--types-array','UA_TYPES_CS_'+str(dep['index'])]
