@@ -77,7 +77,7 @@ START_TEST(checkSelfContainingUnion) {
 
     UA_NodeId typeId = UA_NODEID_NUMERIC(testNamespaceIndex, 4002);
     const UA_DataType *type = UA_Server_findDataType(server, &typeId);
-    ck_assert_ptr_nonnull(type);
+    ck_assert_ptr_ne(type, NULL);
     UA_Variant_setScalar(&in, &data, type);
 
     UA_StatusCode result = UA_Server_writeValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 5110), in);

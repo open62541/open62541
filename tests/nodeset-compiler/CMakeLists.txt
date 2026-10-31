@@ -198,7 +198,7 @@ add_dependencies(check_nodeset_value_mapping open62541-generator-ns-tests-value-
 add_test(NAME test_nodeset_compiler_regressions
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_compiler_regressions.py")
 
-# Exercise the existing BSD frontend and one-argument namespace loader API.
+# Exercise the existing BSD frontend with the generated loader's copy mode.
 if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_XML_ENCODING AND UA_ENABLE_TYPEDESCRIPTION)
     ua_generate_datatypes(NAME "types-tests-compiler-fixes"
         TARGET_SUFFIX "types-tests-compiler-fixes"

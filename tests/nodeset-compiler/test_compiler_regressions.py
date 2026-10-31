@@ -17,8 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 from nodeset_compiler.nodeset import extractNamespaces, NodeSet
 from nodeset_compiler.datatypes import NodeId, LocalizedText
-from nodeset_compiler.backend_open62541 import makeCLiteral, makeCIdentifier, splitStringLiterals
-from nodeset_compiler.type_parser import OpaqueType
+from nodeset_compiler.backend_open62541 import splitStringLiterals
+from nodeset_compiler.backend_open62541_datatypes import CGenerator, makeCIdentifier, makeCLiteral
+from nodeset_compiler.type_parser import EnumerationType, OpaqueType
 
 
 def test_literals_and_opaque_metadata():
@@ -91,9 +92,6 @@ def test_embedded_standard_structures(tmp):
     result = run_nodeset(tmp/'legacy_generated', '--existing',
         ROOT/'tools/schema/Opc.Ua.NodeSet2.Reduced.xml', '--existing', dependency, '--xml', root)
     assert result.returncode == 0, result.stdout + result.stderr
-from nodeset_compiler.backend_open62541 import splitStringLiterals
-from nodeset_compiler.backend_open62541_datatypes import CGenerator, makeCIdentifier, makeCLiteral
-from nodeset_compiler.type_parser import EnumerationType
 
 
 def test_c_literals_and_identifiers():

@@ -12,16 +12,12 @@
 #include <stdlib.h>
 
 static UA_Server *compiled;
-static UA_DataTypeArray customTypes = {
-    NULL, UA_TYPES_TESTS_COMPILER_FIXES_COUNT, UA_TYPES_TESTS_COMPILER_FIXES, false
-};
 
 static void
 setup(void) {
     compiled = UA_Server_newForUnitTest();
     ck_assert_ptr_ne(compiled, NULL);
-    UA_Server_getConfig(compiled)->customDataTypes = &customTypes;
-    ck_assert_uint_eq(namespace_compiler_fixes_generated(compiled), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(namespace_compiler_fixes_generated(compiled, true), UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -191,7 +187,7 @@ START_TEST(preserveNativeMetadata) {
 END_TEST
 
 START_TEST(rejectNegativeUnsignedAlias) {
-    ck_assert_uint_eq(namespace_compiler_negative_generated(compiled), UA_STATUSCODE_BADTYPEMISMATCH);
+    ck_assert_uint_eq(namespace_compiler_negative_generated(compiled, true), UA_STATUSCODE_BADTYPEMISMATCH);
     UA_NodeClass nodeClass;
     ck_assert_uint_eq(UA_Server_readNodeClass(compiled, UA_NODEID_NUMERIC(2, 1999), &nodeClass),
                       UA_STATUSCODE_BADNODEIDUNKNOWN);
