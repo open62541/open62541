@@ -16,6 +16,7 @@ from .datatypes import NodeId
 from .nodes import *
 from .nodeset import *
 from .backend_open62541_datatypes import CGenerator, makeCIdentifier
+from .backend_open62541_types import SUPPORT
 
 import re
 import base64
@@ -664,6 +665,9 @@ _UA_END_DECLS
                 typeFile = typeFile[3:]
             writec('#include "' + typeFile + '_generated_internal.h"')
 
+    if any(arr != "UA_TYPES" for arr in typesArray):
+        writec(SUPPORT)
+
     if any(node.id.b is not None for node in nodeset.nodes.values()):
         writec("""static UA_NodeId
 nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {
@@ -751,10 +755,14 @@ nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {
         writec('    UA_STRING_STATIC("%s"),' % makeCLiteral(uri))
     writec("};")
     if sources:
+        for arr in sources:
+            writec("#if " + arr + "_COUNT > 0")
+            writec("static const UA_GeneratedTypeSource " + arr + "_source = " + arr + "_SOURCE;")
+            writec("#endif")
         writec("static const UA_GeneratedTypeSource *const datatypeSources[] = {NULL,")
         for arr in sources:
             writec("#if " + arr + "_COUNT > 0")
-            writec("    &" + arr + "_SOURCE,")
+            writec("    &" + arr + "_source,")
             writec("#endif")
         writec("};")
     if outfilebase != "namespace0_generated":
@@ -770,6 +778,7 @@ nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {
     writec("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
     if sources:
         writec("(void)datatypeSources;")
+        writec("(void)UA_GeneratedTypes_register;")
     if outfilebase != "namespace0_generated":
         writec("(void)copy_types;")
     writec("UA_Boolean started = false;")
@@ -817,7 +826,7 @@ nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {
         emitBegin(i)
     for arr in ownedArrays:
         writec("#if " + arr + "_COUNT > 0")
-        writec("retVal = UA_GeneratedTypes_register(server, &" + arr + "_SOURCE,")
+        writec("retVal = UA_GeneratedTypes_register(server, &" + arr + "_source,")
         writec("    sizeof(datatypeSources) / sizeof(datatypeSources[0]) - 1, datatypeSources + 1, copy_types);")
         writec("if(retVal != UA_STATUSCODE_GOOD) goto cleanup;")
         writec("#endif")

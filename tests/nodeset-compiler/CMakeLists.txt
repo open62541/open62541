@@ -40,8 +40,11 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
              "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_b.xml"
         DEPENDS_NS ${open62541_NS0_NODESETS}
         DEPENDS_TYPES "UA_TYPES")
+    # The test includes this loader C file to exercise file-local support.
+    set(runtime_a_test_sources ${UA_NODESET_RUNTIME_A_SOURCES})
+    list(REMOVE_ITEM runtime_a_test_sources "${GENERATE_OUTPUT_DIR}/namespace_runtime_a_generated.c")
     ua_add_test(check_nodeset_copy_types.c EXTRASOURCES
-        ${UA_NODESET_RUNTIME_A_SOURCES} ${UA_NODESET_RUNTIME_B_SOURCES}
+        ${runtime_a_test_sources} ${UA_NODESET_RUNTIME_B_SOURCES}
         ${UA_NODESET_RUNTIME_AB_SOURCES})
     add_dependencies(check_nodeset_copy_types open62541-generator-ns-runtime-a
                      open62541-generator-ns-runtime-b open62541-generator-ns-runtime-ab)

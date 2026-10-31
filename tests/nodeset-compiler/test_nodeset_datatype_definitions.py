@@ -73,12 +73,18 @@ def test_generated_static_types(tmpdir):
                 "generated application header exposes registration metadata")
         require("generated_internal.h" not in header and "internal/generated_types.h" not in header,
                 "generated application header includes implementation support")
-    require("UA_GeneratedTypeSource UA_TYPES_STATIC_SOURCE" in internal_header,
-            "generated implementation header is missing registration metadata")
+    require("UA_GeneratedTypeSource" not in internal_header and "UA_GeneratedTypes_" not in internal_header,
+            "private header exposes the loader's metadata type or functions")
+    require("UA_GeneratedTypeSource" not in types_source,
+            "datatype source depends on the loader's metadata type")
+    require("UA_DataType_toDescription" in namespace_source and "UA_DataType_fromDescription" in namespace_source,
+            "conversion support is missing from the namespace C file")
+    require("UA_Boolean *ready" not in namespace_source,
+            "generated loader still schedules inline dependencies at runtime")
     require('#include "types_static_generated_internal.h"' in types_source and
             '#include "types_static_generated_internal.h"' in namespace_source,
             "generated C does not include its private registration interface")
-    require("UA_GeneratedTypes_register(server, &UA_TYPES_STATIC_SOURCE" in namespace_source,
+    require("UA_GeneratedTypes_register(server, &UA_TYPES_STATIC_source" in namespace_source,
             "generated static datatype array is not registered")
     require("UA_Server_addDataTypeFromDescription" not in namespace_source,
             "static datatype generation still constructs types from descriptions")

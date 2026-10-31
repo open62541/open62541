@@ -14,7 +14,6 @@ import argparse
 import base64
 import uuid
 
-from .backend_open62541_types import SUPPORT
 from .type_parser import (BuiltinType, CSVBSDTypeParser, EnumerationType,
                           OpaqueType, StructType)
 
@@ -788,6 +787,31 @@ _UA_END_DECLS
 
 #endif /* %s_GENERATED_H_ */\n''' % self.parser.outname.upper())
 
+    def conversion_order(self):
+        """Order inline dependencies without changing exported array indexes."""
+        types = [t for group in self.filtered_types.values() for t in group.values()]
+        indexes = {self.get_type_index(t): i for i, t in enumerate(types)}
+        order, active, done = [], set(), set()
+
+        def visit(i):
+            if i in done:
+                return
+            if i in active:
+                raise RuntimeError("DataTypes involving %s have a cycle of inline members" % types[i].name)
+            active.add(i)
+            if isinstance(types[i], StructType):
+                for member in types[i].members:
+                    dependency = indexes.get(self.get_type_index(member.member_type))
+                    if dependency is not None and not member.is_array and not member.is_optional:
+                        visit(dependency)
+            active.remove(i)
+            done.add(i)
+            order.append(i)
+
+        for i in range(len(types)):
+            visit(i)
+        return order
+
     def print_internal_header(self):
         """Keep registration metadata out of the generated application API."""
         outUpper = self.parser.outname.upper()
@@ -797,13 +821,19 @@ _UA_END_DECLS
             print("#ifndef " + outUpper + "_GENERATED_INTERNAL_H_", file=header)
             print("#define " + outUpper + "_GENERATED_INTERNAL_H_", file=header)
             print('#include "' + self.parser.outname + '_generated.h"', file=header)
-            if self.parser.outname not in ("types", "transport"):
-                print(SUPPORT, file=header)
             if self.parser.outname not in ("types", "transport") and any(self.filtered_types.values()):
+                size = max(self.bakedNamespaceMap.values()) + 1
+                prefix = "UA_" + outUpper
                 print("_UA_BEGIN_DECLS", file=header)
-                print("extern " + self.export_macro + " const UA_GeneratedTypeSource UA_" +
-                      outUpper + "_SOURCE;", file=header)
+                print("extern " + self.export_macro + " const UA_String " + prefix +
+                      "_URIS[%d];" % size, file=header)
+                print("extern " + self.export_macro + " const size_t " + prefix +
+                      "_ORDER[" + prefix + "_COUNT];", file=header)
                 print("_UA_END_DECLS", file=header)
+                print("#define " + prefix + "_SOURCE {" + prefix + ", " + prefix +
+                      "_COUNT, " + prefix + "_URIS, %d, %s, " %
+                      (size, "true" if self._can_be_const() else "false") +
+                      prefix + "_ORDER}", file=header)
             print("#endif /* " + outUpper + "_GENERATED_INTERNAL_H_ */", file=header)
 
     def print_doc(self):
@@ -852,17 +882,16 @@ _UA_END_DECLS
                     self.printc(self.print_datatype(t) + ",")
             self.printc("};\n")
             if self.parser.outname not in ("types", "transport"):
-                self.printc("static const UA_String UA_" + outUpper + "_URIS[] = {")
+                self.printc("const UA_String UA_" + outUpper + "_URIS[] = {")
                 reverse = {i: uri for uri, i in self.bakedNamespaceMap.items()}
                 for index in range(max(reverse) + 1):
                     uri = reverse.get(index)
                     self.printc('    UA_STRING_STATIC("%s"),' % makeCLiteral(uri) if uri else
                                 '    UA_STRING_STATIC(""),')
                 self.printc("};")
-                self.printc("const UA_GeneratedTypeSource UA_" + outUpper + "_SOURCE = {")
-                self.printc("    UA_" + outUpper + ", UA_" + outUpper + "_COUNT, UA_" + outUpper + "_URIS,")
-                self.printc("    %d, %s" % (max(reverse) + 1, "true" if self._can_be_const() else "false"))
-                self.printc("};")
+                self.printc("const size_t UA_" + outUpper + "_ORDER[] = {" +
+                            ", ".join(map(str, self.conversion_order())) + "};")
+
 
 ###########################################
 # Execute with the command line arguments #

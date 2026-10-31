@@ -1,10 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-"""Private support emitted into generated implementation headers."""
-SUPPORT = r'''#ifndef UA_GENERATED_TYPES_SUPPORT_H_
-#define UA_GENERATED_TYPES_SUPPORT_H_
-#include <open62541/server.h>
+"""Private support emitted into generated namespace C files."""
+SUPPORT = r'''#include <open62541/server.h>
 #include <open62541/util.h>
 
 /* All descriptors are immutable. namespaceUris describes their baked indexes,
@@ -15,6 +13,7 @@ typedef struct {
     const UA_String *namespaceUris;
     size_t namespaceUrisSize;
     UA_Boolean pinned;
+    const size_t *order;
 } UA_GeneratedTypeSource;
 
 static UA_INLINE UA_Boolean
@@ -215,9 +214,8 @@ UA_GeneratedTypes_register(UA_Server *server, const UA_GeneratedTypeSource *s,
 #else
     UA_DataTypeArray *array = (UA_DataTypeArray*)UA_calloc(1, sizeof(UA_DataTypeArray));
     UA_DataType *types = (UA_DataType*)UA_calloc(s->typesSize, sizeof(UA_DataType));
-    UA_Boolean *ready = (UA_Boolean*)UA_calloc(s->typesSize, sizeof(UA_Boolean));
     r = UA_STATUSCODE_BADOUTOFMEMORY;
-    if(!array || !types || !ready) goto cleanup;
+    if(!array || !types) goto cleanup;
     array->types = types;
     array->typesSize = s->typesSize;
     array->cleanup = true;
@@ -229,34 +227,17 @@ UA_GeneratedTypes_register(UA_Server *server, const UA_GeneratedTypeSource *s,
         types[i].memSize = s->types[i].memSize;
         types[i].pointerFree = s->types[i].pointerFree;
     }
-    /* Stable slots support self references and indirect recursion. Inline
-     * members wait for their complete layout. Nothing is published on error. */
-    for(size_t remaining = s->typesSize; remaining;) {
-        size_t before = remaining;
-        for(size_t i = 0; i < s->typesSize; i++) {
-            if(ready[i]) continue;
-            UA_Boolean wait = false;
-            if(UA_GeneratedTypes_structure(&s->types[i])) {
-                for(size_t j = 0; j < s->types[i].membersSize; j++) {
-                    const UA_DataTypeMember *m = &s->types[i].members[j];
-                    size_t k;
-                    if(!m->isArray && !m->isOptional &&
-                       UA_GeneratedTypes_index(s, m->memberType, &k) && !ready[k]) wait = true;
-                }
-            }
-            if(wait) continue;
-            UA_NodeId_clear(&types[i].typeId);
-            r = UA_GeneratedTypes_copy(server, s, size, deps, i, array, &types[i]);
-            if(!r) r = UA_GeneratedTypes_match(server, s, size, deps, s, &s->types[i], &types[i]);
-            if(r) goto cleanup;
-            ready[i] = true;
-            remaining--;
-        }
-        if(remaining == before) { r = UA_STATUSCODE_BADNOTSUPPORTED; goto cleanup; }
+    /* Stable slots preserve recursive pointers. The generator orders inline
+     * dependencies, so each layout is complete when it is needed. */
+    for(size_t j = 0; j < s->typesSize; j++) {
+        size_t i = s->order[j];
+        UA_NodeId_clear(&types[i].typeId);
+        r = UA_GeneratedTypes_copy(server, s, size, deps, i, array, &types[i]);
+        if(!r) r = UA_GeneratedTypes_match(server, s, size, deps, s, &s->types[i], &types[i]);
+        if(r) goto cleanup;
     }
     array->next = config->customDataTypes;
     config->customDataTypes = array;
-    UA_free(ready);
     return UA_STATUSCODE_GOOD;
 cleanup:
     if(types) {
@@ -264,9 +245,7 @@ cleanup:
         UA_free(types);
     }
     UA_free(array);
-    UA_free(ready);
     return r;
 #endif
 }
-#endif /* UA_GENERATED_TYPES_SUPPORT_H_ */
 '''

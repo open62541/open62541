@@ -62,8 +62,10 @@ The C structure layouts and generated allocation/copy/clear helpers remain
 usable. Descriptor addresses returned for different servers need not be equal.
 The server owns copied descriptors and releases them after its values and nodes.
 The generated modules must remain loaded until server deletion. Registration
-metadata and the description-conversion helpers are private implementation
-support in ``*_generated_internal.h``. Application code only includes the public
+metadata types and description-conversion helpers are local to the generated
+namespace ``.c`` file. Private ``*_generated_internal.h`` headers contain only
+array declarations and constants. Conversion order is computed at generation
+time. Application code only includes the public
 generated headers. No generated-type registry or additional server-core API is
 required.
 Copy mode requires a build containing ``StructureDescription`` and related
