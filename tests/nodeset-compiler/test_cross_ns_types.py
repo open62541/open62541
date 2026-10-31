@@ -32,7 +32,7 @@ GENERATOR = os.path.join(TOOLS_DIR, "generate_datatypes.py")
 sys.path.insert(0, TOOLS_DIR)
 
 from nodeset_compiler.backend_open62541_datatypes import CGenerator, portable_basename
-from nodeset_compiler.type_parser import StructType, StructMember
+from nodeset_compiler.type_parser import StructType, StructMember, EnumerationType
 
 BASE_BSD = os.path.join(HERE, "cross_ns_base.bsd")
 SAME_BSD = os.path.join(HERE, "cross_ns_same.bsd")
@@ -96,18 +96,24 @@ def test_conversion_order():
     inner = StructType("types_order", "urn:b", "Inner")
     outer.members = [StructMember("inner", inner, False, False)]
     inner.members = [StructMember("leaf", leaf, False, False)]
-    leaf.members = [StructMember("children", outer, True, False)]
+    leaf.members = [StructMember("children", leaf, True, False)]
     generator = CGenerator.__new__(CGenerator)
     generator.filtered_types = {"urn:a": {"Outer": outer, "Leaf": leaf},
                                 "urn:b": {"Inner": inner}}
     assert generator.conversion_order() == [1, 2, 0], "inline dependencies need complete layouts"
-    leaf.members[0].is_array = False
+    # Enum descriptors share Int32 storage but have distinct identities.
+    choice = EnumerationType("types_order", "urn:a", "Choice")
+    other = EnumerationType("types_order", "urn:a", "Other")
+    outer.members.insert(0, StructMember("choice", choice, False, False))
+    generator.filtered_types["urn:a"].update({"Other": other, "Choice": choice})
+    assert generator.conversion_order() == [3, 1, 4, 0, 2], "enum storage is not descriptor identity"
+    leaf.members[0].member_type = outer
     try:
         generator.conversion_order()
     except RuntimeError as error:
-        assert "cycle of inline members" in str(error)
+        assert "Mutually recursive datatype dependencies" in str(error)
     else:
-        raise AssertionError("inline cycle accepted")
+        raise AssertionError("mutual recursion accepted")
 
 
 def main():

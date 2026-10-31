@@ -81,6 +81,10 @@ def test_generated_static_types(tmpdir):
             "conversion support is missing from the namespace C file")
     require("UA_GeneratedTypes_match" not in namespace_source,
             "generated loader still compares native layouts at runtime")
+    require("UA_Server_addDataType(server, UA_NODEID_NULL, &type)" in namespace_source,
+            "generated copy mode does not delegate registration to the SDK")
+    require("UA_DataTypeArray *array =" not in namespace_source,
+            "generated copy mode still manages descriptor storage")
     require("UA_Boolean *ready" not in namespace_source,
             "generated loader still schedules inline dependencies at runtime")
     require('#include "types_static_generated_internal.h"' in types_source and
@@ -280,11 +284,9 @@ def test_mutual_recursion(tmpdir):
         output, "--existing", REDUCED_NODESET,
         "--xml", nodeset, "--types-array", "UA_TYPES",
         "--types-output", types_output)
-    require(result.returncode == 0, result.stdout + result.stderr)
-    header = Path(f"{types_output}_generated.h").read_text(encoding="utf-8")
-    require("typedef struct UA_RecursiveA UA_RecursiveA;" in header and
-            "typedef struct UA_RecursiveB UA_RecursiveB;" in header,
-            "mutually recursive types need forward declarations")
+    require(result.returncode != 0 and
+            "Mutually recursive datatype dependencies" in result.stdout + result.stderr,
+            "mutual recursion must fail during generation")
     # Replacing the array edges with inline fields creates an infinite layout.
     nodeset.write_text(nodeset.read_text().replace('ValueRank="1"', ''), encoding="utf-8")
     result = run_compiler(output, "--existing", REDUCED_NODESET,

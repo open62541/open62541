@@ -801,21 +801,23 @@ _UA_END_DECLS
 #endif /* %s_GENERATED_H_ */\n''' % self.parser.outname.upper())
 
     def conversion_order(self):
-        """Order inline dependencies without changing exported array indexes."""
+        """Order references for SDK registration without changing exported indexes."""
         types = [t for group in self.filtered_types.values() for t in group.values()]
-        indexes = {self.get_type_index(t): i for i, t in enumerate(types)}
+        indexes = {self.print_datatype_ptr(t): i for i, t in enumerate(types)}
         order, active, done = [], set(), set()
 
         def visit(i):
             if i in done:
                 return
             if i in active:
-                raise RuntimeError("DataTypes involving %s have a cycle of inline members" % types[i].name)
+                raise RuntimeError("Mutually recursive datatype dependencies involving %s are not supported" % types[i].name)
             active.add(i)
             if isinstance(types[i], StructType):
                 for member in types[i].members:
-                    dependency = indexes.get(self.get_type_index(member.member_type))
-                    if dependency is not None and not member.is_array and not member.is_optional:
+                    dependency = indexes.get(self.print_datatype_ptr(member.member_type))
+                    if dependency == i and (member.is_array or member.is_optional):
+                        continue  # The SDK handles direct self references.
+                    if dependency is not None:
                         visit(dependency)
             active.remove(i)
             done.add(i)

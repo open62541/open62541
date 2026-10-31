@@ -46,10 +46,9 @@ conversion used by runtime type loading. It maps type IDs and both encoding IDs
 by namespace URI, and resolves member pointers against that server's registered
 types. Dependencies must be loaded first, each with its own loader call; neither
 namespace zero nor all companion specifications need to be loaded in one call.
-One generated array can contain types from several namespaces. Self-references
-and mutually recursive groups are supported when the recursion passes through
-an array or optional member. Cycles consisting entirely of inline fields are
-rejected at generation time.
+One generated array can contain types from several namespaces. Direct
+self-references through arrays or optional members are supported by the SDK. Other datatype dependencies are ordered at generation time; mutually
+recursive definitions and cycles of inline fields are rejected.
 
 In copy mode, the exported ``UA_TYPES_<NAME>`` addresses remain templates.
 Resolve an exported static descriptor to the server's descriptor before setting a Variant,
@@ -105,10 +104,12 @@ ExtensionObjects, embedded binary bodies, NodeIds and QualifiedNames. Loading
 several XML files together therefore does not change the meaning of their local
 namespace indexes.
 
-Type-array registration validates and allocates everything before publishing
-one array. A failed namespace load removes the nodes explicitly declared by that loader.
+Copy mode delegates layout construction and registration to
+``UA_DataType_fromDescription`` and ``UA_Server_addDataType``, as the runtime
+NodeSet loader does. The SDK owns descriptor storage and cleanup. A failed
+namespace load removes the nodes explicitly declared by that loader.
 Application callback side effects follow the existing node lifecycle contract. Namespaces and
-successfully registered arrays remain available for retry and are cleaned up
+successfully registered types remain available for retry and are cleaned up
 with the server. Repeating an already completed namespace load returns
 ``BadNodeIdExists``. Serialize model-loading calls on each server and do not
 modify the server's custom-type chain while its nodes use those descriptors.

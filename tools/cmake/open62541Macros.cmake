@@ -274,7 +274,6 @@ function(ua_generate_datatypes)
                        DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/type_parser.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
-                               ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_types.py
                                ${UA_GEN_DT_FILES_BSD}
                                ${UA_GEN_DT_FILE_XML}
                                ${UA_GEN_DT_FILE_CSV}

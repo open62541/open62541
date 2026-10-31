@@ -23,12 +23,6 @@
 <DisplayName>AValue</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference>
 <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References><Value><uax:ExtensionObject><uax:TypeId><uax:Identifier>ns=1;i=5002</uax:Identifier></uax:TypeId><uax:Body><RecordA><Number>42</Number><Target><Identifier>ns=1;i=6001</Identifier></Target>
 <Label><NamespaceIndex>1</NamespaceIndex><Name>target</Name></Label></RecordA></uax:Body></uax:ExtensionObject></Value></UAVariable>
-<UADataType NodeId="ns=1;i=3021" BrowseName="1:MutualA"><DisplayName>MutualA</DisplayName>
-<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
-<Definition Name="1:MutualA"><Field Name="Children" DataType="ns=1;i=3022" ValueRank="1"/></Definition></UADataType>
-<UADataType NodeId="ns=1;i=3022" BrowseName="1:MutualB"><DisplayName>MutualB</DisplayName>
-<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference></References>
-<Definition Name="1:MutualB"><Field Name="Parent" DataType="ns=1;i=3021"/></Definition></UADataType>
 <UADataType NodeId="ns=1;s=StringRecord" BrowseName="1:StringRecord"><DisplayName>StringRecord</DisplayName>
 <References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference><Reference ReferenceType="HasEncoding">ns=2;i=9001</Reference><Reference ReferenceType="HasEncoding">ns=2;i=9002</Reference></References>
 <Definition Name="1:StringRecord"><Field Name="Number" DataType="i=7"/></Definition></UADataType>

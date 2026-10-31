@@ -109,73 +109,57 @@ static UA_INLINE UA_StatusCode
 UA_GeneratedTypes_register(UA_Server *server, const UA_GeneratedTypeSource *s,
                            size_t size, const UA_GeneratedTypeSource *const *deps,
                            UA_Boolean copy) {
-    if(!copy && UA_GeneratedTypes_checkPins(server, s)) return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    if(copy) {
+#ifndef UA_TYPES_STRUCTUREDESCRIPTION
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+#else
+        for(size_t j = 0; j < s->typesSize; j++) {
+            size_t i = s->order[j];
+            const UA_DataType *actual = UA_GeneratedTypes_find(server, s, i);
+            if(actual) {
+                if(actual == &s->types[i]) return UA_STATUSCODE_BADINVALIDSTATE;
+                continue;
+            }
+            UA_DataType type;
+            memset(&type, 0, sizeof(type));
+            UA_StatusCode r = UA_GeneratedTypes_copy(server, s, size, deps, i,
+                                                     UA_Server_getDataTypes(server), &type);
+            if(!r) r = UA_Server_addDataType(server, UA_NODEID_NULL, &type);
+            UA_DataType_clear(&type);
+            if(r) return r;
+        }
+        return UA_STATUSCODE_GOOD;
+#endif
+    }
+    if(UA_GeneratedTypes_checkPins(server, s)) return UA_STATUSCODE_BADCONFIGURATIONERROR;
     size_t present = 0;
     for(size_t i = 0; i < s->typesSize; i++) {
         const UA_DataType *actual = UA_GeneratedTypes_find(server, s, i);
         if(!actual) continue;
-        if((actual == &s->types[i]) == copy) return UA_STATUSCODE_BADINVALIDSTATE;
+        if(actual != &s->types[i]) return UA_STATUSCODE_BADINVALIDSTATE;
         present++;
     }
     if(present) return present == s->typesSize ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNODEIDEXISTS;
     /* Static members must retain their registered dependency addresses. */
-    if(!copy) {
-        for(size_t d = 0; d < size; d++) {
-            if(deps[d]->types == s->types) continue;
-            for(size_t i = 0; i < deps[d]->typesSize; i++) {
-                const UA_DataType *actual = UA_GeneratedTypes_find(server, deps[d], i);
-                if(actual && actual != &deps[d]->types[i]) return UA_STATUSCODE_BADCONFIGURATIONERROR;
-            }
+    for(size_t d = 0; d < size; d++) {
+        if(deps[d]->types == s->types) continue;
+        for(size_t i = 0; i < deps[d]->typesSize; i++) {
+            const UA_DataType *actual = UA_GeneratedTypes_find(server, deps[d], i);
+            if(actual && actual != &deps[d]->types[i]) return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
     }
+    /* A borrowed entry is followed by an empty owning entry. The latter
+     * frees their common allocation after the borrowed entry was visited;
+     * the read-only datatype array itself is never freed. */
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    if(!copy) {
-        /* A borrowed entry is followed by an empty owning entry. The latter
-         * frees their common allocation after the borrowed entry was visited;
-         * the read-only datatype array itself is never freed. */
-        UA_DataTypeArray *entries = (UA_DataTypeArray*)UA_calloc(2, sizeof(UA_DataTypeArray));
-        if(!entries) return UA_STATUSCODE_BADOUTOFMEMORY;
-        entries[0].cleanup = true;
-        entries[0].next = config->customDataTypes;
-        entries[1].types = s->types;
-        entries[1].typesSize = s->typesSize;
-        entries[1].next = &entries[0];
-        config->customDataTypes = &entries[1];
-        return UA_STATUSCODE_GOOD;
-    }
-#ifndef UA_TYPES_STRUCTUREDESCRIPTION
-    return UA_STATUSCODE_BADNOTSUPPORTED;
-#else
-    UA_DataTypeArray *array = (UA_DataTypeArray*)UA_calloc(1, sizeof(UA_DataTypeArray));
-    UA_DataType *types = (UA_DataType*)UA_calloc(s->typesSize, sizeof(UA_DataType));
-    UA_StatusCode r = UA_STATUSCODE_BADOUTOFMEMORY;
-    if(!array || !types) goto cleanup;
-    array->types = types;
-    array->typesSize = s->typesSize;
-    array->cleanup = true;
-    array->next = (UA_DataTypeArray*)(uintptr_t)UA_Server_getDataTypes(server);
-    for(size_t i = 0; i < s->typesSize; i++) {
-        r = UA_GeneratedTypes_map(server, s, &s->types[i].typeId, &types[i].typeId);
-        if(r) goto cleanup;
-    }
-    /* Stable slots preserve recursive pointers. The generator orders inline
-     * dependencies, so each layout is complete when it is needed. */
-    for(size_t j = 0; j < s->typesSize; j++) {
-        size_t i = s->order[j];
-        UA_NodeId_clear(&types[i].typeId);
-        r = UA_GeneratedTypes_copy(server, s, size, deps, i, array, &types[i]);
-        if(r) goto cleanup;
-    }
-    array->next = config->customDataTypes;
-    config->customDataTypes = array;
+    UA_DataTypeArray *entries = (UA_DataTypeArray*)UA_calloc(2, sizeof(UA_DataTypeArray));
+    if(!entries) return UA_STATUSCODE_BADOUTOFMEMORY;
+    entries[0].cleanup = true;
+    entries[0].next = config->customDataTypes;
+    entries[1].types = s->types;
+    entries[1].typesSize = s->typesSize;
+    entries[1].next = &entries[0];
+    config->customDataTypes = &entries[1];
     return UA_STATUSCODE_GOOD;
-cleanup:
-    if(types) {
-        for(size_t i = 0; i < s->typesSize; i++) UA_DataType_clear(&types[i]);
-        UA_free(types);
-    }
-    UA_free(array);
-    return r;
-#endif
 }
 '''
