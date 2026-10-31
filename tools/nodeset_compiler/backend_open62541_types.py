@@ -37,37 +37,30 @@ UA_GeneratedTypes_checkPins(UA_Server *server, const UA_GeneratedTypeSource *s) 
     return UA_STATUSCODE_GOOD;
 }
 static UA_INLINE UA_StatusCode
-UA_GeneratedTypes_view(UA_Server *server, const UA_GeneratedTypeSource *s,
-                       const UA_NodeId *id, UA_NodeId *out) {
-    *out = *id; /* Borrow immutable identifier storage for lookup/validation. */
+UA_GeneratedTypes_namespace(UA_Server *server, const UA_GeneratedTypeSource *s,
+                            UA_NodeId *id) {
     if(UA_NodeId_isNull(id)) return UA_STATUSCODE_GOOD;
     size_t ns = 0;
     UA_StatusCode r = UA_Server_getNamespaceByName(server, s->namespaceUris[id->namespaceIndex], &ns);
-    if(!r) out->namespaceIndex = (UA_UInt16)ns;
+    if(!r) id->namespaceIndex = (UA_UInt16)ns;
     return r;
 }
 static UA_INLINE const UA_DataType *
 UA_GeneratedTypes_find(UA_Server *server, const UA_GeneratedTypeSource *s, size_t i) {
-    UA_NodeId id = UA_NODEID_NULL;
-    UA_StatusCode r = UA_GeneratedTypes_view(server, s, &s->types[i].typeId, &id);
+    UA_NodeId id = s->types[i].typeId;
+    UA_StatusCode r = UA_GeneratedTypes_namespace(server, s, &id);
     return r ? NULL : UA_Server_findDataType(server, &id);
 }
 #ifdef UA_TYPES_STRUCTUREDESCRIPTION
 static UA_INLINE const UA_GeneratedTypeSource *
 UA_GeneratedTypes_owner(const UA_GeneratedTypeSource *s, size_t size,
                         const UA_GeneratedTypeSource *const *deps,
-                        const UA_DataType *t, size_t *i) {
-    if(UA_GeneratedTypes_index(s, t, i)) return s;
+                        const UA_DataType *t) {
+    size_t i;
+    if(UA_GeneratedTypes_index(s, t, &i)) return s;
     for(size_t d = 0; d < size; d++)
-        if(UA_GeneratedTypes_index(deps[d], t, i)) return deps[d];
+        if(UA_GeneratedTypes_index(deps[d], t, &i)) return deps[d];
     return NULL;
-}
-static UA_INLINE UA_StatusCode
-UA_GeneratedTypes_map(UA_Server *server, const UA_GeneratedTypeSource *s,
-                      const UA_NodeId *id, UA_NodeId *out) {
-    UA_NodeId view;
-    UA_StatusCode r = UA_GeneratedTypes_view(server, s, id, &view);
-    return r ? r : UA_NodeId_copy(&view, out);
 }
 static UA_INLINE UA_StatusCode
 UA_GeneratedTypes_copy(UA_Server *server, const UA_GeneratedTypeSource *s,
@@ -78,29 +71,28 @@ UA_GeneratedTypes_copy(UA_Server *server, const UA_GeneratedTypeSource *s,
     UA_StatusCode r = UA_DataType_toDescription(original, &description);
     if(r) return r;
     UA_DataTypeDescription *base = (UA_DataTypeDescription*)description.content.decoded.data;
-    UA_NodeId_clear(&base->dataTypeId);
-    r = UA_GeneratedTypes_map(server, s, &original->typeId, &base->dataTypeId);
-    if(!r && UA_ExtensionObject_hasDecodedType(
-           &description, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION])) {
+    r = UA_GeneratedTypes_namespace(server, s, &base->dataTypeId);
+    UA_Boolean structure = UA_ExtensionObject_hasDecodedType(
+        &description, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    if(!r && structure) {
         UA_StructureDefinition *sd = &((UA_StructureDescription*)base)->structureDefinition;
-        UA_NodeId_clear(&sd->defaultEncodingId); /* Restored after conversion. */
+        r = UA_GeneratedTypes_namespace(server, s, &sd->defaultEncodingId);
         for(size_t m = 0; !r && m < original->membersSize; m++) {
-            size_t k;
             const UA_GeneratedTypeSource *o = UA_GeneratedTypes_owner(
-                s, size, deps, original->members[m].memberType, &k);
+                s, size, deps, original->members[m].memberType);
             if(!o) continue; /* Standard SDK members already use namespace zero. */
-            UA_NodeId_clear(&sd->fields[m].dataType);
-            r = UA_GeneratedTypes_map(server, o, &o->types[k].typeId, &sd->fields[m].dataType);
+            r = UA_GeneratedTypes_namespace(server, o, &sd->fields[m].dataType);
         }
     }
     if(!r) r = UA_DataType_fromDescription(result, &description, available);
     UA_ExtensionObject_clear(&description);
-    /* Descriptions do not carry both encoding IDs. */
-    if(!r) {
-        UA_NodeId_clear(&result->binaryEncodingId);
-        r = UA_GeneratedTypes_map(server, s, &original->binaryEncodingId, &result->binaryEncodingId);
+    /* Only structure descriptions carry the binary encoding ID; none carry XML. */
+    if(!r && !structure) {
+        r = UA_NodeId_copy(&original->binaryEncodingId, &result->binaryEncodingId);
+        if(!r) r = UA_GeneratedTypes_namespace(server, s, &result->binaryEncodingId);
     }
-    if(!r) r = UA_GeneratedTypes_map(server, s, &original->xmlEncodingId, &result->xmlEncodingId);
+    if(!r) r = UA_NodeId_copy(&original->xmlEncodingId, &result->xmlEncodingId);
+    if(!r) r = UA_GeneratedTypes_namespace(server, s, &result->xmlEncodingId);
     return r;
 }
 #endif
