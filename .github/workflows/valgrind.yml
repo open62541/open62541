@@ -102,7 +102,7 @@ jobs:
           ETHERNET_INTERFACE: eth0
 
   examples:
-    name: "Valgrind ${{ matrix.config.name }}"
+    name: "Valgrind ${{ matrix.config.name }} (shard ${{ matrix.shard }})"
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
@@ -111,6 +111,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Keep every example covered while staying within the job timeout.
+        # The runner sorts the executable names before splitting this list.
+        shard: [1, 2, 3, 4]
         config:
           - name: "Examples with MbedTLS and mDNSD (gcc)"
             mbedtls: true
@@ -120,6 +123,10 @@ jobs:
           - name: "Examples with OpenSSL and avahi-mdns (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind openssl python3-netifaces libavahi-client-dev libavahi-common-dev
             cmd_action: examples_valgrind OPENSSL AVAHI
+    env:
+      EXAMPLE_SHARDS: 4
+      EXAMPLE_SHARD: ${{ matrix.shard }}
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v7
         with:

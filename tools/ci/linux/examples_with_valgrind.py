@@ -6,7 +6,13 @@ import argparse
 parser = argparse.ArgumentParser(description="Run OPC UA examples with or without valgrind")
 parser.add_argument("--no-valgrind", action="store_true",
                     help="Run examples without valgrind (default: on)")
+parser.add_argument("--shards", type=int, default=os.environ.get("EXAMPLE_SHARDS", "1"),
+                    help="Number of parallel example jobs (default: 1)")
+parser.add_argument("--shard", type=int, default=os.environ.get("EXAMPLE_SHARD", "1"),
+                    help="One-based index of this example job (default: 1)")
 args_cli = parser.parse_args()
+if not 1 <= args_cli.shard <= args_cli.shards:
+    parser.error("require 1 <= shard <= shards")
 
 example_args = {
         "client_encryption":"opc.tcp://localhost:4840 client.cert.der client.key.der server.cert.der",
@@ -119,17 +125,19 @@ os.chdir("../build")
 current_dir = os.getcwd()
 print(f"Current directory: {current_dir}")
 example_dir = os.path.join(current_dir, "bin", "examples")
-examples = os.listdir(example_dir)
+# All jobs must use the same ordering so no example is skipped or run twice.
+examples = sorted(example for example in os.listdir(example_dir) if example not in blacklist)
+total_examples = len(examples)
+examples = examples[args_cli.shard - 1::args_cli.shards]
+if not examples:
+    parser.error("the selected shard contains no examples")
+print(f"Running {len(examples)} of {total_examples} examples "
+      f"(shard {args_cli.shard}/{args_cli.shards})", flush=True)
 
 cur_dir = os.path.dirname(os.path.realpath(__file__)) # path of current file
 tests_path = os.path.join(cur_dir, os.pardir, os.pardir, os.pardir, "tests")
 
-# skipping examples that are in the blacklist
 for example in examples:
-    if example in blacklist:
-        print(f"Skipping {example}")
-        continue
-
     # get the arguments for the example
     args = example_args.get(example)
 
