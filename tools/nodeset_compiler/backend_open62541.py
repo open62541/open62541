@@ -15,8 +15,11 @@
 from .datatypes import NodeId
 from .nodes import *
 from .nodeset import *
+from .backend_open62541_datatypes import CGenerator, makeCIdentifier
+from .backend_open62541_types import SUPPORT
 
 import re
+import base64
 from os.path import basename
 import codecs
 import os
@@ -24,25 +27,6 @@ from io import StringIO
 
 import logging
 logger = logging.getLogger(__name__)
-
-# Strip invalid characters to create valid C identifiers (variable names etc):
-def makeCIdentifier(value):
-    keywords = frozenset((
-        "auto break case char const continue default do double else enum extern float for goto if inline "
-        "int long register restrict return short signed sizeof static struct switch typedef union "
-        "unsigned void volatile while _Alignas _Alignof _Atomic _Bool _Complex _Generic _Imaginary "
-        "_Noreturn _Static_assert _Thread_local _BitInt _Decimal32 _Decimal64 _Decimal128 typeof "
-        "typeof_unqual alignas alignof and and_eq asm bitand bitor bool catch char8_t char16_t char32_t "
-        "class compl concept consteval constexpr constinit const_cast co_await co_return co_yield "
-        "decltype delete dynamic_cast explicit export false friend mutable namespace new noexcept not "
-        "not_eq nullptr operator or or_eq private protected public reinterpret_cast requires "
-        "static_assert static_cast template this thread_local throw true try typeid typename using "
-        "virtual wchar_t xor xor_eq "
-    ).split())
-    sanitized = re.sub(r'[^\w]', '', value)
-    if not sanitized or sanitized[0].isdigit() or sanitized in keywords:
-        return "_" + sanitized
-    return sanitized
 
 # Escape C strings:
 def makeCLiteral(value):
@@ -103,7 +87,12 @@ def generateNodeIdCode(value):
         return f"UA_NODEID_STRING(UA_NamespaceMapping_local2Remote(nsMapping, {value.ns}), \"{v}\")"
     if value.g is not None:
         return "UA_NODEID_GUID(UA_NamespaceMapping_local2Remote(nsMapping, {}), {})".format(value.ns, generateGuidCode(value.gAsString()))
-    raise Exception(str(value) + " NodeID generation for bytestring NodeIDs not supported")
+    if value.b is not None:
+        data = base64.b64decode(value.b, validate=True)
+        literal = "".join("\\%03o" % byte for byte in data)
+        return ('nodeIdByteString(UA_NamespaceMapping_local2Remote(nsMapping, %d), %d, "%s")' %
+                (value.ns, len(data), literal))
+    raise Exception("Invalid NodeId: " + str(value))
 
 def generateExpandedNodeIdCode(value):
     if value.i is not None:
@@ -111,7 +100,7 @@ def generateExpandedNodeIdCode(value):
     if value.s is not None:
         vs = makeCLiteral(value.s)
         return "UA_EXPANDEDNODEID_STRING(UA_NamespaceMapping_local2Remote(nsMapping, {}), \"{}\")".format(value.ns, vs)
-    raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
+    return "UA_EXPANDEDNODEID_NODEID(%s)" % generateNodeIdCode(value)
 
 #################
 # Generate Code #
@@ -499,13 +488,6 @@ def generateObjectTypeNodeCode(node):
         code.append("attr.isAbstract = true;")
     return code
 
-def generateDataTypeNodeCode(node):
-    code = []
-    code.append("UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;")
-    if node.isAbstract:
-        code.append("attr.isAbstract = true;")
-    return code
-
 def generateViewNodeCode(node):
     code = []
     code.append("UA_ViewAttributes attr = UA_ViewAttributes_default;")
@@ -539,7 +521,9 @@ def generateNodeCode_begin(node, nodeset, code_global):
     elif isinstance(node, ObjectTypeNode):
         code.extend(generateObjectTypeNodeCode(node))
     elif isinstance(node, DataTypeNode):
-        code.extend(generateDataTypeNodeCode(node))
+        code.append("UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;")
+        if node.isAbstract:
+            code.append("attr.isAbstract = true;")
     elif isinstance(node, ViewNode):
         code.extend(generateViewNodeCode(node))
     if node.displayName is not None:
@@ -570,6 +554,9 @@ def generateNodeCode_begin(node, nodeset, code_global):
             format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
     code.append("".join(addnode))
 
+    code.append('if(retVal != UA_STATUSCODE_GOOD) UA_LOG_ERROR(UA_Server_getConfig(server)->logging,')
+    code.append('    UA_LOGCATEGORY_USERLAND, "Cannot add generated node %%N (%%s)", %s, UA_StatusCode_name(retVal));' %
+                generateNodeIdCode(node.id))
     code.extend(codeCleanup)
     return "\n".join(code)
 
@@ -589,11 +576,36 @@ def generateNodeCode_finish(node):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=None):
+def generateOpen62541Code(nodeset, outfilename, internal_headers=False,
+                          typesArray=None, typesOutput=None, namespaceMap=None):
+    """Generate a namespace loader and its optional static datatype array."""
     if typesArray is None:
         typesArray = []
     outfilebase = basename(outfilename)
-    # Printing functions
+    typesOutname = basename(typesOutput) if typesOutput else outfilebase
+
+    typeParser = nodeset.normalizeDataTypes(typesOutname, bool(typesOutput), typesArray)
+
+    # Generate the public static datatype array directly from the NodeSet XML.
+    # This retains the established UA_TYPES_<SPEC> API without routing the
+    # definitions through a temporary BSD file.
+    if typesOutput:
+        fixed = {"http://opcfoundation.org/UA/": 0}
+        for entry in namespaceMap or []:
+            index, uri = entry.split(":", 1)
+            index = int(index)
+            if uri in fixed and fixed[uri] != index:
+                raise RuntimeError("Conflicting namespace index for " + uri)
+            fixed[uri] = index
+        generator = CGenerator(typeParser, "", typesOutput, internal_headers,
+                               False, fixed)
+        generator.write_definitions()
+
+        localTypesArray = "UA_" + typesOutname.upper()
+        typesArray = list(typesArray)
+        typesArray.append(localTypesArray)
+
+    # Build the namespace source and public header in memory.
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
     outfilec = StringIO()
 
@@ -624,15 +636,21 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
 #include <open62541/server.h>
 %s
 """ % (additionalHeaders))
+
+    loaderArgs = "UA_Server *server" if outfilebase == "namespace0_generated" else "UA_Server *server, UA_Boolean copy_types"
     writeh("""
 _UA_BEGIN_DECLS
 
-extern UA_StatusCode %s(UA_Server *server);
-
+/* copy_types creates server-owned descriptors; false requires pinned, read-only
+ * arrays matching the server namespace table. Dependencies must already be loaded. On failure,
+ * declared nodes are removed; registered type arrays remain for retry. */
+extern UA_StatusCode %s(%s);
+%s
 _UA_END_DECLS
 
-#endif /* %s_H_ */""" % \
-           (outfilebase, outfilebase.upper()))
+#endif /* %s_H_ */""" % (outfilebase, loaderArgs,
+    ("extern const UA_DataType *%s_getDataType(UA_Server *, const UA_DataType *);" % outfilebase)
+    if outfilebase != "namespace0_generated" else "", outfilebase.upper()))
 
     writec("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
@@ -640,14 +658,33 @@ _UA_END_DECLS
 #include "%s.h"
 """ % (outfilebase))
 
+    for arr in dict.fromkeys(typesArray):
+        if arr != "UA_TYPES":
+            typeFile = arr.lower()
+            if typeFile.startswith("ua_"):
+                typeFile = typeFile[3:]
+            writec('#include "' + typeFile + '_generated_internal.h"')
+
+    if any(arr != "UA_TYPES" for arr in typesArray):
+        writec(SUPPORT)
+
+    if any(node.id.b is not None for node in nodeset.nodes.values()):
+        writec("""static UA_NodeId
+nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {
+    UA_NodeId id = UA_NODEID_BYTESTRING(nsIndex, data);
+    id.identifier.byteString.length = length;
+    return id;
+}
+""")
+
     # Loop over the sorted nodes
-    logger.info("Reordering nodes for minimal dependencies during printing")
-    nodeset.sortNodes()
     logger.info("Writing code for nodes and references")
     functionNumber = 0
 
     printed_ids = set()
     reftypes_functionNumbers = list()
+    functionNodes = []
+    datatype_functionNumbers = []
     for node in nodeset.nodes.values():
         printed_ids.add(node.id)
 
@@ -686,7 +723,11 @@ _UA_END_DECLS
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
 
-        writec("return " + generateNodeCode_finish(node))
+        writec("UA_StatusCode retVal = " + generateNodeCode_finish(node))
+        writec('if(retVal != UA_STATUSCODE_GOOD) UA_LOG_ERROR(UA_Server_getConfig(server)->logging,')
+        writec('    UA_LOGCATEGORY_USERLAND, "Cannot finish generated node %%N (%%s)", %s, UA_StatusCode_name(retVal));' %
+               generateNodeIdCode(node.id))
+        writec("return retVal;")
         writec("}")
 
         # ReferenceTypeNodes have to be _finished immediately. The _begin phase
@@ -695,34 +736,58 @@ _UA_END_DECLS
         if isinstance(node, ReferenceTypeNode):
             reftypes_functionNumbers.append(functionNumber)
 
+        functionNodes.append(node)
+        if isinstance(node, DataTypeNode):
+            datatype_functionNumbers.append(functionNumber)
         functionNumber = functionNumber + 1
 
-    # Load generated types
-    for arr in typesArray:
-        if arr == "UA_TYPES":
-            continue
-        writec("\nstatic UA_DataTypeArray custom" + arr + " = {")
-        writec("    NULL,")
-        writec("    " + arr + "_COUNT,")
-        writec("    " + arr + ",")
-        writec("    UA_FALSE\n};")
-
-    maxns = max(nodeset.namespaceMapping.keys(), default=0) + 1
-    writec("""
-UA_StatusCode %s(UA_Server *server) {
-UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-UA_NamespaceMapping nsMapping;
-memset(&nsMapping, 0, sizeof(nsMapping));
-size_t namespaceUrisSize = 0;""" % (outfilebase))
-
-    # Generate namespaces (don't worry about duplicates)
-    writec("/* Use namespace ids generated by the server */")
-    writec("UA_UInt16 ns[" + str(len(nodeset.namespaces)+1) + "];")
-    writec(f"UA_UInt16 nsMappingTable[{maxns}] = {{0}};")
+    # Only arrays owned by this loader are registered. Dependency arrays are
+    # resolved through the receiving server, never appended a second time.
+    if typesOutput:
+        ownedArrays = [localTypesArray]
+    else:
+        ownedArrays = list(dict.fromkeys(node.typesArray for node in functionNodes
+                                       if isinstance(node, DataTypeNode) and
+                                       node.typesArray != "UA_TYPES"))
+    sources = list(dict.fromkeys(arr for arr in typesArray if arr != "UA_TYPES"))
     writec("static const UA_String namespaceUris[] = {")
     for uri in nodeset.namespaces:
         writec('    UA_STRING_STATIC("%s"),' % makeCLiteral(uri))
     writec("};")
+    if sources:
+        for arr in sources:
+            writec("#if " + arr + "_COUNT > 0")
+            writec("static const UA_GeneratedTypeSource " + arr + "_source = " + arr + "_SOURCE;")
+            writec("#endif")
+        writec("static const UA_GeneratedTypeSource *const datatypeSources[] = {NULL,")
+        for arr in sources:
+            writec("#if " + arr + "_COUNT > 0")
+            writec("    &" + arr + "_source,")
+            writec("#endif")
+        writec("};")
+    if outfilebase != "namespace0_generated":
+        writec("const UA_DataType *%s_getDataType(UA_Server *server, const UA_DataType *staticType) {" % outfilebase)
+        writec("if(!server || !staticType) return NULL;")
+        if sources:
+            writec("for(size_t d = 1; d < sizeof(datatypeSources) / sizeof(datatypeSources[0]); d++) {")
+            writec("    size_t i; if(UA_GeneratedTypes_index(datatypeSources[d], staticType, &i))")
+            writec("        return UA_GeneratedTypes_find(server, datatypeSources[d], i);")
+            writec("}")
+        writec("return NULL; }")
+    writec("UA_StatusCode %s(%s) {" % (outfilebase, loaderArgs))
+    writec("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
+    if sources:
+        writec("(void)datatypeSources;")
+        writec("(void)UA_GeneratedTypes_register;")
+    if outfilebase != "namespace0_generated":
+        writec("(void)copy_types;")
+    writec("UA_Boolean started = false;")
+    writec("UA_NamespaceMapping nsMapping;")
+    writec("memset(&nsMapping, 0, sizeof(nsMapping));")
+    writec("UA_UInt16 ns[%d];" % len(nodeset.namespaces))
+    maxns = max(nodeset.namespaceMapping.keys(), default=0) + 1
+    writec("UA_UInt16 nsMappingTable[%d];" % maxns)
+    writec("size_t namespaceUrisSize = 0;")
     for i, uri in enumerate(nodeset.namespaces):
         writec('ns[%d] = UA_Server_addNamespace(server, "%s");' % (i, makeCLiteral(uri)))
         if i > 0:
@@ -733,90 +798,54 @@ size_t namespaceUrisSize = 0;""" % (outfilebase))
     writec("nsMapping.namespaceUrisSize = namespaceUrisSize;")
     for i in range(len(nodeset.namespaces)):
         writec("nsMapping.namespaceUris[ns[%d]] = namespaceUris[%d];" % (i, i))
-
-    # Write the list of ns mappings
+    mapping = [0] * maxns
     for k, v in nodeset.namespaceMapping.items():
-        writec("nsMappingTable[%d] = ns[%d];" % (k, v))
-
-    # Create the namespace mapping
+        mapping[k] = v
+    for i, value in enumerate(mapping):
+        writec("nsMappingTable[%d] = ns[%d];" % (i, value))
     writec("nsMapping.local2remote = ns;")
-    writec(f"nsMapping.local2remoteSize = {len(nodeset.namespaces)};")
+    writec("nsMapping.local2remoteSize = %d;" % len(nodeset.namespaces))
     writec("nsMapping.remote2local = nsMappingTable;")
-    writec(f"nsMapping.remote2localSize = {maxns};")
-
-    # Validate every const array before registering any types. The datatype
-    # generator supplies the URI/index pairs, including arrays spanning multiple
-    # namespaces and arrays whose names differ from this nodeset's output name.
-    for arr in typesArray:
-        if arr == "UA_TYPES":
-            continue
-        writec("#ifdef " + arr + "_IS_CONST")
-        writec("{")
-        writec("    static const struct {")
-        writec("        UA_UInt16 index;")
-        writec("        UA_String uri;")
-        writec("    } namespaces[] = " + arr + "_NAMESPACE_MAP;")
-        writec("    for(size_t i = 0; i < sizeof(namespaces) / sizeof(namespaces[0]); i++) {")
-        writec("        size_t runtimeIndex = 0;")
-        writec("        UA_StatusCode res = UA_Server_getNamespaceByName(")
-        writec("            server, namespaces[i].uri, &runtimeIndex);")
-        writec("        if(res != UA_STATUSCODE_GOOD || runtimeIndex != namespaces[i].index) {")
-        writec("            UA_LOG_ERROR(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,")
-        writec('                 "Namespace %.*s does not have the pinned index %u required by "')
-        writec('                 "the const DataType array ' + arr + '. Load the namespaces at "')
-        writec('                 "their pinned indices or regenerate without NAMESPACE_MAP.",')
-        writec("                 (int)namespaces[i].uri.length, (char*)namespaces[i].uri.data,")
-        writec("                 (unsigned)namespaces[i].index);")
-        writec("            retVal = UA_STATUSCODE_BADINTERNALERROR; goto cleanup;")
-        writec("        }")
-        writec("    }")
-        writec("}")
-        writec("#endif /* " + arr + "_IS_CONST */")
-
-    # Preserve the existing namespace rewrite for the nodeset's mutable array.
-    if len(typesArray) > 0:
-        typeArr = typesArray[-1]
-        currentTypeArr = '_'.join(outfilebase.upper().split('_')[1:-1])
-        if typeArr != "UA_TYPES" and typeArr != "ns0" and typeArr == "UA_TYPES_"+currentTypeArr:
-            nsIdx = "ns[" + str(len(nodeset.namespaces)-1) + "]"
-            writec("#ifndef " + typeArr + "_IS_CONST")
-            writec("/* Change namespaceIndex from current namespace */")
-            writec("#if " + typeArr + "_COUNT" + " > 0")
-            writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
-            writec(typeArr + "[i]" + ".typeId.namespaceIndex = " + nsIdx + ";")
-            writec("if(!UA_NodeId_isNull(&" + typeArr + "[i]" + ".binaryEncodingId))")
-            writec("    " + typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = " + nsIdx + ";")
-            writec("if(!UA_NodeId_isNull(&" + typeArr + "[i]" + ".xmlEncodingId))")
-            writec("    " + typeArr + "[i]" + ".xmlEncodingId.namespaceIndex = " + nsIdx + ";")
-            writec("}")
-            writec("#endif")
-            writec("#endif /* " + typeArr + "_IS_CONST */")
-
-    # Add generated types to the server
-    writec("\n/* Load custom datatype definitions into the server */")
-    for arr in typesArray:
-        if arr == "UA_TYPES":
-            continue
-        writec("if(" + arr + "_COUNT > 0) {")
-        writec("custom" + arr + ".next = UA_Server_getConfig(server)->customDataTypes;")
-        writec("UA_Server_getConfig(server)->customDataTypes = &custom" + arr + ";\n")
-        writec("}")
-
-    if functionNumber > 0:
-        for i in range(0, functionNumber):
-            writec("retVal |= function_{outfilebase}_{idx}_begin(server, &nsMapping);". \
-                   format(outfilebase=outfilebase, idx=str(i)))
-            if i in reftypes_functionNumbers:
-                writec("retVal |= function_{outfilebase}_{idx}_finish(server, &nsMapping);". \
-                       format(outfilebase=outfilebase, idx=str(i)))
-
-        for i in reversed(range(0, functionNumber)):
-            if i in reftypes_functionNumbers:
-                continue
-            writec("retVal |= function_{outfilebase}_{idx}_finish(server, &nsMapping);". \
-                   format(outfilebase=outfilebase, idx=str(i)))
-
+    writec("nsMapping.remote2localSize = %d;" % maxns)
+    if outfilebase != "namespace0_generated":
+        writec("/* Reject duplicates before creating any nodes. */")
+        for node in functionNodes:
+            nodeid = generateNodeIdCode(node.id).replace("nsMapping,", "&nsMapping,")
+            writec("{ UA_NodeClass nodeClass; retVal = UA_Server_readNodeClass(server, " + nodeid +
+                   ", &nodeClass); if(retVal == UA_STATUSCODE_GOOD) { retVal = UA_STATUSCODE_BADNODEIDEXISTS; goto cleanup; } "
+                   "if(retVal != UA_STATUSCODE_BADNODEIDUNKNOWN) goto cleanup; }")
+    writec("started = true;")
+    def emitBegin(i):
+        writec("retVal = function_%s_%d_begin(server, &nsMapping);" % (outfilebase, i))
+        writec("if(retVal != UA_STATUSCODE_GOOD) goto cleanup;")
+    for i in reftypes_functionNumbers:
+        emitBegin(i)
+        writec("retVal = function_%s_%d_finish(server, &nsMapping);" % (outfilebase, i))
+        writec("if(retVal != UA_STATUSCODE_GOOD) goto cleanup;")
+    for i in datatype_functionNumbers:
+        emitBegin(i)
+    for arr in ownedArrays:
+        writec("#if " + arr + "_COUNT > 0")
+        writec("retVal = UA_GeneratedTypes_register(server, &" + arr + "_source,")
+        writec("    sizeof(datatypeSources) / sizeof(datatypeSources[0]) - 1, datatypeSources + 1, copy_types);")
+        writec("if(retVal != UA_STATUSCODE_GOOD) goto cleanup;")
+        writec("#endif")
+    for i in range(functionNumber):
+        if i not in reftypes_functionNumbers and i not in datatype_functionNumbers:
+            emitBegin(i)
+    for i in reversed(range(functionNumber)):
+        if i not in reftypes_functionNumbers:
+            writec("retVal = function_%s_%d_finish(server, &nsMapping);" % (outfilebase, i))
+            writec("if(retVal != UA_STATUSCODE_GOOD) goto cleanup;")
     writec("cleanup:")
+    if outfilebase != "namespace0_generated":
+        writec("if(started && retVal != UA_STATUSCODE_GOOD) {")
+        for node in reversed(functionNodes):
+            nodeid = generateNodeIdCode(node.id).replace("nsMapping,", "&nsMapping,")
+            writec("    UA_Server_deleteNode(server, " + nodeid + ", true);")
+        writec("}")
+    else:
+        writec("(void)started;")
     writec("UA_free(nsMapping.namespaceUris);")
     writec("return retVal;\n}")
     outfileh.flush()
@@ -830,4 +859,3 @@ size_t namespaceUrisSize = 0;""" % (outfilebase))
     outfilec.flush()
     os.fsync(outfilec)
     outfilec.close()
-

@@ -4,9 +4,50 @@ include_directories("${PROJECT_BINARY_DIR}/src_generated/tests")
 # Test Companion Specs that need the full NS0 #
 ###############################################
 
-if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
 
-    set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
+# Generate datatypes directly from NodeSet2 Definition elements
+ua_generate_nodeset_and_datatypes(
+    NAME "typedescriptions"
+    NAMESPACE_MAP "2:http://model.o6-automation.com"
+    OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+    FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/typedescriptions.xml"
+)
+
+ua_add_test(check_nodeset_typedescriptions.c EXTRASOURCES ${UA_NODESET_TYPEDESCRIPTIONS_SOURCES})
+add_dependencies(check_nodeset_typedescriptions open62541-generator-ns-typedescriptions)
+
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    set(runtime_namespace_map "2:urn:open62541:test:types-a"
+        "3:urn:open62541:test:encodings" "4:urn:open62541:test:types-b")
+    ua_generate_nodeset_and_datatypes(
+        NAME "runtime-a"
+        NAMESPACE_MAP ${runtime_namespace_map}
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE_NS "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_a.xml")
+    ua_generate_nodeset_and_datatypes(
+        NAME "runtime-b"
+        NAMESPACE_MAP ${runtime_namespace_map}
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE_NS "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_b.xml"
+        DEPENDS "runtime-a")
+    ua_generate_nodeset(
+        NAME "runtime-ab"
+        NAMESPACE_MAP ${runtime_namespace_map}
+        GENERATE_TYPES
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_a.xml"
+             "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_b.xml"
+        DEPENDS_NS ${open62541_NS0_NODESETS}
+        DEPENDS_TYPES "UA_TYPES")
+    # The test includes this loader C file to exercise file-local support.
+    set(runtime_a_test_sources ${UA_NODESET_RUNTIME_A_SOURCES})
+    list(REMOVE_ITEM runtime_a_test_sources "${GENERATE_OUTPUT_DIR}/namespace_runtime_a_generated.c")
+    ua_add_test(check_nodeset_copy_types.c EXTRASOURCES
+        ${runtime_a_test_sources} ${UA_NODESET_RUNTIME_B_SOURCES}
+        ${UA_NODESET_RUNTIME_AB_SOURCES})
+    add_dependencies(check_nodeset_copy_types open62541-generator-ns-runtime-a
+                     open62541-generator-ns-runtime-b open62541-generator-ns-runtime-ab)
 
     # One const array containing two namespaces, used by nodesets with both
     # a matching name and an independently chosen name.
@@ -58,8 +99,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Generate types and namespace for ADI
     ua_generate_nodeset_and_datatypes(
         NAME "tests-adi"
-        FILE_CSV "${UA_NODESET_DIR}/ADI/OpcUaAdiModel.csv"
-        FILE_BSD "${UA_NODESET_DIR}/ADI/Opc.Ua.Adi.Types.bsd"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${UA_NODESET_DIR}/ADI/Opc.Ua.Adi.NodeSet2.xml"
         DEPENDS "tests-di"
@@ -107,8 +146,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # generate AutoID namespace which is using DI (test e.g. for structures with optional fields)
     ua_generate_nodeset_and_datatypes(
             NAME "tests-autoid"
-            FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.NodeIds.csv"
-            FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.Types.bsd"
             OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
             FILE_NS "${UA_NODESET_DIR}/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
             DEPENDS "tests-di"
@@ -123,28 +160,12 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     add_dependencies(check_nodeset_compiler_autoid open62541-generator-ns-tests-autoid)
 endif()
 
-#[[ua_generate_datatypes(
-        NAME "optstruct-union"
-        TARGET_SUFFIX "types-optstruct-union"
-        NAMESPACE_IDX 2
-        FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
-        FILES_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
-)
-
-ua_add_test(check_nodeset_compiler_optstructs_union.c EXTRASOURCES
-            ${UA_NODESET_TESTS_DI_SOURCES}
-            ${UA_NODESET_TESTS_PLC_SOURCES}
-            ${UA_TYPES_TESTS_DI_SOURCES}
-            ${UA_TYPES_TESTS_PLC_SOURCES})]]
-
 #generate testnodeset
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Generate types and namespace for ADI
     ua_generate_nodeset_and_datatypes(
         NAME "tests-testnodeset"
-        FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
-        FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.xml"
         DEPENDS "tests-di"
@@ -186,7 +207,7 @@ add_dependencies(check_nodeset_value_mapping open62541-generator-ns-tests-value-
 add_test(NAME test_nodeset_compiler_regressions
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_compiler_regressions.py")
 
-# Exercise the existing BSD frontend and one-argument namespace loader API.
+# Exercise the existing BSD frontend with the generated loader's copy mode.
 if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_XML_ENCODING AND UA_ENABLE_TYPEDESCRIPTION)
     ua_generate_datatypes(NAME "types-tests-compiler-fixes"
         TARGET_SUFFIX "types-tests-compiler-fixes"
@@ -214,3 +235,15 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_XML_ENCODING AND UA_ENABLE_TY
     add_dependencies(check_nodeset_compiler_regressions open62541-generator-ns-compiler-fixes
                      open62541-generator-ns-compiler-negative open62541-generator-types-tests-compiler-fixes)
 endif()
+add_test(NAME test_nodeset_datatype_definitions
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_nodeset_datatype_definitions.py")
+add_test(NAME test_datatype_definition_parser
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_datatype_definition_parser.py")
+add_test(NAME test_nodeset_bsd_equivalence
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_nodeset_bsd_equivalence.py")
+
+set_tests_properties(test_nodeset_bsd_equivalence PROPERTIES
+    ENVIRONMENT "UA_NODESET_DIR=${UA_NODESET_DIR}")

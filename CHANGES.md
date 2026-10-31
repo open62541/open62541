@@ -3,6 +3,15 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Generate custom DataTypes from NodeSet2 definitions
+
+The NodeSet compiler now reads ``Definition`` elements from ``UADataType``
+nodes. It generates matching C declarations and registers the datatype layouts
+as static ``UA_TYPES_<NAME>`` arrays when the generated namespace is loaded.
+The ``DataTypeDefinition`` attribute is materialized from that layout when it
+is read. A separate BSD type dictionary is therefore no longer required when
+the NodeSet2 file contains complete datatype definitions.
+
 ### Client reconnects with backoff and gives up
 
 A lost connection is re-dialed with a delay that starts at the new

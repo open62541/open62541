@@ -27,14 +27,55 @@ static void teardown(void) {
 }
 
 START_TEST(Server_addDiNodeset) {
-    UA_StatusCode retval = namespace_tests_di_generated(server);
+    UA_StatusCode retval = namespace_tests_di_generated(server, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 START_TEST(Server_addAutoIDNodeset) {
-    UA_StatusCode retval = namespace_tests_autoid_generated(server);
+    UA_StatusCode retval = namespace_tests_autoid_generated(server, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    size_t namespaceIndex = 0;
+    retval = UA_Server_getNamespaceByName(
+        server, UA_STRING("http://opcfoundation.org/UA/AutoID/"),
+        &namespaceIndex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeId accessResultId = UA_NODEID_NUMERIC(namespaceIndex, 3017);
+    UA_NodeId rfidAccessResultId = UA_NODEID_NUMERIC(namespaceIndex, 3018);
+    UA_NodeId locationId = UA_NODEID_NUMERIC(namespaceIndex, 3008);
+    const UA_DataType *accessResult =
+        UA_Server_findDataType(server, &accessResultId);
+    const UA_DataType *rfidAccessResult =
+        UA_Server_findDataType(server, &rfidAccessResultId);
+    const UA_DataType *location = UA_Server_findDataType(server, &locationId);
+    ck_assert_ptr_ne(accessResult, NULL);
+    ck_assert_ptr_ne(rfidAccessResult, NULL);
+    ck_assert_ptr_ne(location, NULL);
+    ck_assert_uint_eq(accessResult->membersSize, 3);
+    ck_assert_uint_eq(rfidAccessResult->membersSize, 10);
+    ck_assert_uint_eq(rfidAccessResult->typeKind, UA_DATATYPEKIND_OPTSTRUCT);
+    ck_assert_uint_eq(location->typeKind, UA_DATATYPEKIND_UNION);
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = rfidAccessResultId;
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+    UA_DataValue definitionValue =
+        UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(definitionValue.status, UA_STATUSCODE_GOOD);
+    ck_assert(definitionValue.hasValue);
+    ck_assert_ptr_eq(definitionValue.value.type,
+                     &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+    UA_StructureDefinition *definition =
+        (UA_StructureDefinition*)definitionValue.value.data;
+    ck_assert(UA_NodeId_equal(&definition->baseDataType, &accessResultId));
+    /* The on-demand definition reflects the flattened static C layout. */
+    ck_assert_uint_eq(definition->fieldsSize, 10);
+    UA_DataValue_clear(&definitionValue);
+#endif
 }
 END_TEST
 

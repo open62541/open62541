@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     size_t idx = LONG_MAX;
     UA_StatusCode retval = UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/DI/"), &idx);
     if(retval != UA_STATUSCODE_GOOD) {
-        retval = namespace_di_generated(server);
+        retval = namespace_di_generated(server, false);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "Adding the DI namespace failed. Please check previous error output.");
@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     }
     retval = UA_Server_getNamespaceByName(server, UA_STRING("http://PLCopen.org/OpcUa/IEC61131-3/"), &idx);
     if(retval != UA_STATUSCODE_GOOD) {
-        retval = namespace_plc_generated(server);
+        retval = namespace_plc_generated(server, false);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "Adding the PLCopen namespace failed. Please check previous error output.");

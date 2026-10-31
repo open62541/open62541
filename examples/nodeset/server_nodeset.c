@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
 
     UA_StatusCode retval;
     /* create nodes from nodeset */
-    if(namespace_example_generated(server) != UA_STATUSCODE_GOOD) {
+    if(namespace_example_generated(server, false) != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not add the example nodeset. "
         "Check previous output for any error.");
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;

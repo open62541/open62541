@@ -5,6 +5,7 @@
 import csv
 import ast
 import base64
+import re
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 import subprocess
@@ -16,8 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 from nodeset_compiler.nodeset import extractNamespaces, NodeSet
 from nodeset_compiler.datatypes import NodeId, LocalizedText
-from nodeset_compiler.backend_open62541 import makeCLiteral, makeCIdentifier, splitStringLiterals
-from nodeset_compiler.type_parser import OpaqueType
+from nodeset_compiler.backend_open62541 import splitStringLiterals
+from nodeset_compiler.backend_open62541_datatypes import CGenerator, makeCIdentifier, makeCLiteral
+from nodeset_compiler.type_parser import EnumerationType, OpaqueType
 
 
 def test_literals_and_opaque_metadata():
@@ -30,8 +32,8 @@ def test_literals_and_opaque_metadata():
         '<LocalizedText Locale="en"> text with spaces </LocalizedText>').documentElement)
     assert text.locale == 'en' and text.text == ' text with spaces '
     xml = ET.fromstring('<OpaqueType Name="Alias"/>')
-    assert OpaqueType('types_test', xml, 'urn:test', 'UInt32').pointerfree
-    assert not OpaqueType('types_test', xml, 'urn:test', 'String').pointerfree
+    assert OpaqueType.from_bsd('types_test', 'urn:test', 'UInt32', xml).pointerfree
+    assert not OpaqueType.from_bsd('types_test', 'urn:test', 'String', xml).pointerfree
 
 
 def run_nodeset(output, *arguments):
@@ -92,9 +94,29 @@ def test_embedded_standard_structures(tmp):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_c_literals_and_identifiers():
+    # A literal boundary may land within a backslash escape or at whitespace.
+    value = ' leading whitespace ' + ('a\\b"c\n\r\\' * 140) + ' trailing whitespace '
+    for length in (1, 2, 3, 5, 500):
+        literal = splitStringLiterals(makeCLiteral(value), length)
+        assert ast.literal_eval('(' + literal + ')') == value
+    for name in ('unsigned', 'default', '3DCoordinate', 'class'):
+        identifier = makeCIdentifier(name)
+        assert identifier != name and re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', identifier)
+    enum = EnumerationType('types_test', 'urn:test', 'Labels')
+    enum.elements.update({'A+B': '0', 'A-B': '1', 'A B': '2', 'A+B_1': '3'})
+    declaration = CGenerator.print_enum_typedef(enum)
+    labels = re.findall(r'^    (UA_\w+) =', declaration, re.MULTILINE)
+    assert len(labels) == len(set(labels)) == 4
+    text = LocalizedText(minidom.parseString(
+        '<LocalizedText Locale="en"> text with spaces </LocalizedText>').documentElement)
+    assert text.text == ' text with spaces ' and text.locale == 'en'
+
+
 
 def main():
     test_literals_and_opaque_metadata()
+    test_c_literals_and_identifiers()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         test_reference_dependencies(tmp)
