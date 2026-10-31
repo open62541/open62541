@@ -234,6 +234,22 @@ def main():
             expect_fail(f"out-of-range namespace index {index} rejected", r,
                         "outside the UInt16 range")
 
+        # Duplicate identities are a generation error, not a runtime scan.
+        duplicate_bsd = os.path.join(tmpdir, "duplicate_ids.bsd")
+        with open(SAME_BSD) as f:
+            content = f.read()
+        with open(duplicate_bsd, "w") as f:
+            f.write(content.replace("</opc:TypeDictionary>",
+                '<opc:EnumeratedType LengthInBits="32" Name="OtherEnum">'
+                '<opc:EnumeratedValue Name="Other" Value="0"/>'
+                '</opc:EnumeratedType></opc:TypeDictionary>'))
+        duplicate_csv = os.path.join(tmpdir, "duplicate_ids.csv")
+        with open(duplicate_csv, "w") as f:
+            f.write("SharedEnum,2000,DataType\nOtherEnum,02000,DataType\n")
+        r = run_generator(tmpdir, "duplicate_ids", [duplicate_bsd], duplicate_csv)
+        expect_fail("duplicate datatype IDs rejected during generation", r,
+                    "Duplicate datatype NodeId")
+
         # --- Test 7: namespace 0 pinned somewhere other than index 0 ---
         r = run_generator(tmpdir, "ns_zero", [SAME_BSD], SAME_CSV,
                           extra_args=["--namespaceMap=5:http://opcfoundation.org/UA/"])

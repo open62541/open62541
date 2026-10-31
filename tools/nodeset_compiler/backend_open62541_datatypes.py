@@ -174,9 +174,9 @@ def getNodeidTypeAndId(nodeId):
     if not nodeId:
         return "UA_NODEIDTYPE_NUMERIC, {0}"
     if '=' not in nodeId:
-        return f"UA_NODEIDTYPE_NUMERIC, {{{nodeId}LU}}"
+        return f"UA_NODEIDTYPE_NUMERIC, {{{int(nodeId)}LU}}"
     if nodeId.startswith("i="):
-        return f"UA_NODEIDTYPE_NUMERIC, {{{nodeId[2:]}LU}}"
+        return f"UA_NODEIDTYPE_NUMERIC, {{{int(nodeId[2:])}LU}}"
     if nodeId.startswith("s="):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=makeCLiteral(strId))
@@ -604,6 +604,19 @@ class CGenerator:
             for uri in self._contributing_namespaces():
                 if uri not in self.bakedNamespaceMap:
                     self.bakedNamespaceMap[uri] = len(self.bakedNamespaceMap)
+
+        # The generated loaders can trust identities within their own array.
+        identities = {}
+        for group in self.filtered_types.values():
+            for datatype in group.values():
+                namespace, identifier = self._baked_nodeid(datatype, datatype.nodeId)
+                if not identifier or (namespace == "0" and identifier == "i=0"):
+                    continue  # Standalone BSD generation may omit NodeIds.
+                identity = (namespace, getNodeidTypeAndId(identifier))
+                if identity in identities:
+                    raise RuntimeError("Duplicate datatype NodeId ns=%s;%s for %s and %s" %
+                                       (namespace, identifier, identities[identity], datatype.name))
+                identities[identity] = datatype.name
 
         self.print_header()
         self.print_internal_header()
