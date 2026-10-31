@@ -69,19 +69,38 @@ def test_generated_static_types(tmpdir):
     internal_header = Path(f"{types_output}_generated_internal.h").read_text(encoding="utf-8")
     types_source = Path(f"{types_output}_generated.c").read_text(encoding="utf-8")
     for header in (types_header, namespace_header):
-        require("UA_DataTypeArraySource" not in header and "_SOURCE" not in header,
+        require("UA_GeneratedTypeSource" not in header and "_SOURCE" not in header,
                 "generated application header exposes registration metadata")
         require("generated_internal.h" not in header and "internal/generated_types.h" not in header,
                 "generated application header includes implementation support")
-    require("UA_DataTypeArraySource UA_TYPES_STATIC_SOURCE" in internal_header,
+    require("UA_GeneratedTypeSource UA_TYPES_STATIC_SOURCE" in internal_header,
             "generated implementation header is missing registration metadata")
     require('#include "types_static_generated_internal.h"' in types_source and
             '#include "types_static_generated_internal.h"' in namespace_source,
             "generated C does not include its private registration interface")
-    require("UA_Server_addGeneratedDataTypes(server, &UA_TYPES_STATIC_SOURCE" in namespace_source,
+    require("UA_GeneratedTypes_register(server, &UA_TYPES_STATIC_SOURCE" in namespace_source,
             "generated static datatype array is not registered")
     require("UA_Server_addDataTypeFromDescription" not in namespace_source,
             "static datatype generation still constructs types from descriptions")
+
+
+def test_pinned_xml_types(tmpdir):
+    output = tmpdir / "namespace_pinned_generated"
+    types = tmpdir / "types_pinned"
+    args = ("--existing", REDUCED_NODESET, "--xml", TYPE_DESCRIPTIONS,
+            "--types-array", "UA_TYPES", "--types-output", types)
+    result = run_compiler(output, *args,
+        "--namespaceMap=2:http://model.o6-automation.com",
+        "--namespaceMap=5:urn:unrelated-server-namespace")
+    require(result.returncode == 0, result.stdout + result.stderr)
+    header = Path(f"{types}_generated.h").read_text()
+    source = Path(f"{types}_generated.c").read_text()
+    require("extern UA_EXPORT const UA_DataType" in header, "pinned XML array is writable")
+    require("UA_TYPES_PINNED_NAMESPACE_MAP" in header, "XML pin map was not forwarded")
+    require("_ORIGIN" not in source, "duplicate origin array was generated")
+    result = run_compiler(output, *args, "--namespaceMap=5:urn:unrelated-server-namespace")
+    require(result.returncode != 0 and "incomplete" in result.stdout + result.stderr,
+            "incomplete XML namespace pin map was accepted")
 
 
 def test_static_types_after_definitionless_dependency(tmpdir):
@@ -441,6 +460,7 @@ def main():
         test_embedded_dictionary_does_not_override_xml(tmpdir)
         test_unsupported_layouts_keep_namespace(tmpdir)
         test_generated_static_types(tmpdir)
+        test_pinned_xml_types(tmpdir)
         test_standard_structure_members(tmpdir)
         test_static_types_after_definitionless_dependency(tmpdir)
         test_imported_type_not_redeclared(tmpdir)

@@ -83,7 +83,7 @@ START_TEST(copyPinnedWithDifferentNamespaces) {
     ck_assert_uint_eq(namespace_tests_pinned_multi_generated(server, true),
                       UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < UA_TYPES_TESTS_PINNED_MULTI_COUNT; i++) {
-        const UA_DataType *type = UA_Server_getGeneratedDataType(
+        const UA_DataType *type = namespace_tests_pinned_multi_generated_getDataType(
             server, &UA_TYPES_TESTS_PINNED_MULTI[i]);
         ck_assert_ptr_ne(type, NULL);
         ck_assert_ptr_ne(type, &UA_TYPES_TESTS_PINNED_MULTI[i]);

@@ -166,7 +166,7 @@ endfunction()
 #                   array is then const and can reside in read-only memory.
 #                   The server must assign exactly these indices at runtime.
 #                   Every namespace that contributes a type must be pinned;
-#                   purely imported namespaces need not be. An incomplete or
+#                   dependency arrays must use a consistent map. An incomplete or
 #                   inconsistent map is an error.
 #                   E.g. "2:http://opcfoundation.org/UA/DI/"
 
@@ -274,6 +274,7 @@ function(ua_generate_datatypes)
                        DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/type_parser.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
+                               ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_types.py
                                ${UA_GEN_DT_FILES_BSD}
                                ${UA_GEN_DT_FILE_XML}
                                ${UA_GEN_DT_FILE_CSV}
@@ -357,7 +358,7 @@ function(ua_generate_nodeset)
     find_package(Python3 REQUIRED)
     set(options INTERNAL AUTOLOAD GENERATE_TYPES)
     set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
-    set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
+    set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     # Argument checking
@@ -427,6 +428,11 @@ function(ua_generate_nodeset)
         set(GEN_IGNORE "--ignore=${UA_GEN_NS_IGNORE}")
     endif()
 
+    set(GEN_NAMESPACE_MAP "")
+    foreach(mapping ${UA_GEN_NS_NAMESPACE_MAP})
+        list(APPEND GEN_NAMESPACE_MAP "--namespaceMap=${mapping}")
+    endforeach()
+
     set(TYPES_ARRAY_LIST "")
     foreach(f ${UA_GEN_NS_DEPENDS_TYPES})
         # Replace dash with underscore to make valid c literal
@@ -460,6 +466,7 @@ function(ua_generate_nodeset)
                                ${GEN_BLACKLIST}
                                ${GEN_BSD}
                                ${GEN_TYPES_OUTPUT}
+                               ${GEN_NAMESPACE_MAP}
                                ${TYPES_ARRAY_LIST}
                                ${DEPENDS_FILE_LIST}
                                ${FILE_LIST}
@@ -477,6 +484,7 @@ function(ua_generate_nodeset)
                                ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541.py
                                ${UA_GEN_NS_FILE}
                                ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
+                               ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_types.py
                                ${UA_GEN_NS_DEPENDS_NS}
                                ${GEN_BLACKLIST_DEPENDS}
                                ${GEN_BSD_DEPENDS})
@@ -612,8 +620,7 @@ endfunction()
 #                   URIs at runtime; the generated init code verifies this for
 #                   all supplied const arrays before registering any of them.
 #                   Every namespace that contributes a type must be pinned;
-#                   purely imported namespaces (e.g. the types of a dependency
-#                   nodeset) need not be. An incomplete or inconsistent map is
+#                   dependency arrays must use a consistent map. An incomplete or inconsistent map is
 #                   an error.
 #                   E.g. "2:http://opcfoundation.org/UA/DI/"
 
@@ -723,6 +730,7 @@ function(ua_generate_nodeset_and_datatypes)
     ua_generate_nodeset(NAME "${UA_GEN_NAME}"
                         FILE "${UA_GEN_FILE_NS}"
                         TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
+                        NAMESPACE_MAP ${UA_GEN_NAMESPACE_MAP}
                         BLACKLIST "${UA_GEN_BLACKLIST}"
                         FILES_BSD "${UA_GEN_FILE_BSD}"
                         ${NODESET_GENERATE_TYPES}

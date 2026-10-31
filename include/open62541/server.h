@@ -1309,14 +1309,6 @@ UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
 UA_EXPORT UA_THREADSAFE const UA_DataTypeArray *
 UA_Server_getDataTypes(UA_Server *server);
 
-/* Resolve an exported generated descriptor to this server's registered type.
- * staticType must point to an element of the generated UA_TYPES_<NAME> array.
- * Returns NULL if that array has not been loaded, or the pointer is unrelated.
- * The result remains valid until the server is deleted. In copy mode, use it
- * for namespace-sensitive operations instead of the static descriptor. */
-UA_EXPORT const UA_DataType * UA_THREADSAFE
-UA_Server_getGeneratedDataType(UA_Server *server, const UA_DataType *staticType);
-
 /**
  * ViewNode
  * ~~~~~~~~ */

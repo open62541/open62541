@@ -81,6 +81,9 @@ parser.add_argument('-t', '--types-array',
                     default=[],
                     help='Types array for the given namespace. Can be used multiple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
 
+parser.add_argument('--namespaceMap', action='append', default=[], dest='namespace_map',
+                    help='Fixed server namespace mapping: <index>:<uri>. Required for static registration.')
+
 parser.add_argument('--types-schema', dest='typesSchema', default=None,
                     help='Directory containing the NodeIds.csv and Opc.Ua.Types.bsd '
                          'used to build the library. Defaults to the bundled schema.')
@@ -236,7 +239,7 @@ if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
     from .backend_open62541 import generateOpen62541Code
     generateOpen62541Code(ns, args.outputFile, args.internal_headers,
-                          args.typesArray, args.typesOutput)
+                          args.typesArray, args.typesOutput, args.namespace_map)
 elif args.backend == "graphviz":
     from .backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)

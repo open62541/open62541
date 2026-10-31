@@ -576,7 +576,7 @@ def generateNodeCode_finish(node):
 ###################
 
 def generateOpen62541Code(nodeset, outfilename, internal_headers=False,
-                          typesArray=None, typesOutput=None):
+                          typesArray=None, typesOutput=None, namespaceMap=None):
     """Generate a namespace loader and its optional static datatype array."""
     if typesArray is None:
         typesArray = []
@@ -589,10 +589,15 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False,
     # This retains the established UA_TYPES_<SPEC> API without routing the
     # definitions through a temporary BSD file.
     if typesOutput:
-        # NodeSet namespace indexes are remapped at load time; they are not
-        # fixed server indexes supplied through --namespaceMap.
+        fixed = {"http://opcfoundation.org/UA/": 0}
+        for entry in namespaceMap or []:
+            index, uri = entry.split(":", 1)
+            index = int(index)
+            if uri in fixed and fixed[uri] != index:
+                raise RuntimeError("Conflicting namespace index for " + uri)
+            fixed[uri] = index
         generator = CGenerator(typeParser, "", typesOutput, internal_headers,
-                               False, {"http://opcfoundation.org/UA/": 0})
+                               False, fixed)
         generator.write_definitions()
 
         localTypesArray = "UA_" + typesOutname.upper()
@@ -635,14 +640,16 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False,
     writeh("""
 _UA_BEGIN_DECLS
 
-/* copy_types creates server-owned descriptors; false binds mutable static
- * arrays to one server. Dependencies must already be loaded. On failure,
+/* copy_types creates server-owned descriptors; false requires pinned, read-only
+ * arrays matching the server namespace table. Dependencies must already be loaded. On failure,
  * declared nodes are removed; registered type arrays remain for retry. */
 extern UA_StatusCode %s(%s);
-
+%s
 _UA_END_DECLS
 
-#endif /* %s_H_ */""" % (outfilebase, loaderArgs, outfilebase.upper()))
+#endif /* %s_H_ */""" % (outfilebase, loaderArgs,
+    ("extern const UA_DataType *%s_getDataType(UA_Server *, const UA_DataType *);" % outfilebase)
+    if outfilebase != "namespace0_generated" else "", outfilebase.upper()))
 
     writec("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
@@ -650,7 +657,6 @@ _UA_END_DECLS
 #include "%s.h"
 """ % (outfilebase))
 
-    writec("#include <open62541/internal/generated_types.h>")
     for arr in dict.fromkeys(typesArray):
         if arr != "UA_TYPES":
             typeFile = arr.lower()
@@ -744,15 +750,26 @@ nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {
     for uri in nodeset.namespaces:
         writec('    UA_STRING_STATIC("%s"),' % makeCLiteral(uri))
     writec("};")
-    writec("static UA_DataTypeArraySource *const datatypeSources[] = {NULL,")
-    for arr in sources:
-        writec("#if " + arr + "_COUNT > 0")
-        writec("    &" + arr + "_SOURCE,")
-        writec("#endif")
-    writec("};")
+    if sources:
+        writec("static const UA_GeneratedTypeSource *const datatypeSources[] = {NULL,")
+        for arr in sources:
+            writec("#if " + arr + "_COUNT > 0")
+            writec("    &" + arr + "_SOURCE,")
+            writec("#endif")
+        writec("};")
+    if outfilebase != "namespace0_generated":
+        writec("const UA_DataType *%s_getDataType(UA_Server *server, const UA_DataType *staticType) {" % outfilebase)
+        writec("if(!server || !staticType) return NULL;")
+        if sources:
+            writec("for(size_t d = 1; d < sizeof(datatypeSources) / sizeof(datatypeSources[0]); d++) {")
+            writec("    size_t i; if(UA_GeneratedTypes_index(datatypeSources[d], staticType, &i))")
+            writec("        return UA_GeneratedTypes_find(server, datatypeSources[d], i);")
+            writec("}")
+        writec("return NULL; }")
     writec("UA_StatusCode %s(%s) {" % (outfilebase, loaderArgs))
     writec("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
-    writec("(void)datatypeSources;")
+    if sources:
+        writec("(void)datatypeSources;")
     if outfilebase != "namespace0_generated":
         writec("(void)copy_types;")
     writec("UA_Boolean started = false;")
@@ -800,7 +817,7 @@ nodeIdByteString(UA_UInt16 nsIndex, size_t length, char *data) {
         emitBegin(i)
     for arr in ownedArrays:
         writec("#if " + arr + "_COUNT > 0")
-        writec("retVal = UA_Server_addGeneratedDataTypes(server, &" + arr + "_SOURCE,")
+        writec("retVal = UA_GeneratedTypes_register(server, &" + arr + "_SOURCE,")
         writec("    sizeof(datatypeSources) / sizeof(datatypeSources[0]) - 1, datatypeSources + 1, copy_types);")
         writec("if(retVal != UA_STATUSCODE_GOOD) goto cleanup;")
         writec("#endif")

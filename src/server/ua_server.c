@@ -457,19 +457,6 @@ UA_Server_delete(UA_Server *server) {
         UA_free(server->customTypes_internal);
     }
 
-    /* Config cleanup walks the borrowed array wrappers without freeing them.
-     * Keep copied descriptors alive until all nodes and config values are gone. */
-    while(server->generatedTypes) {
-        UA_GeneratedTypeBinding *binding = server->generatedTypes;
-        server->generatedTypes = binding->next;
-        if(binding->copied) {
-            for(size_t i = 0; i < binding->array.typesSize; i++)
-                UA_DataType_clear((UA_DataType*)(uintptr_t)&binding->array.types[i]);
-            UA_free((void*)(uintptr_t)binding->array.types);
-        }
-        UA_free(binding);
-    }
-
     /* Delete the server itself and return */
     UA_free(server);
     return UA_STATUSCODE_GOOD;

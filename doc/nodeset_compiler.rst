@@ -55,29 +55,42 @@ In copy mode, the exported ``UA_TYPES_<NAME>`` addresses remain templates.
 Resolve an exported static descriptor to the server's descriptor before setting a Variant,
 encoding a value, or comparing datatype pointers::
 
-    const UA_DataType *type = UA_Server_getGeneratedDataType(
+    const UA_DataType *type = namespace_example_generated_getDataType(
         server, &UA_TYPES_EXAMPLE[UA_TYPES_EXAMPLE_MYTYPE]);
 
 The C structure layouts and generated allocation/copy/clear helpers remain
 usable. Descriptor addresses returned for different servers need not be equal.
 The server owns copied descriptors and releases them after its values and nodes.
 The generated modules must remain loaded until server deletion. Registration
-metadata is implementation support in ``*_generated_internal.h`` and
-``open62541/internal/generated_types.h``; application code only includes the
-public generated headers.
+metadata and the description-conversion helpers are private implementation
+support in ``*_generated_internal.h``. Application code only includes the public
+generated headers. No generated-type registry or additional server-core API is
+required.
 Copy mode requires a build containing ``StructureDescription`` and related
 standard types; otherwise it returns ``BadNotSupported``.
 
-Use ``copy_types = false`` to preserve the exported descriptor addresses. The
-loader adjusts the namespace indexes of mutable static arrays in place. Each
-such array binds once to one server for the process lifetime, including after
-that server is deleted. A second server is rejected with ``BadInvalidState``.
-Pinned, const arrays can be shared when all namespace indexes match; a mismatch
-returns ``BadConfigurationError``. Copy mode also works with pinned arrays and
-allows different server indexes. An in-place type referencing a dependency must
-point at the dependency's actual registered descriptor; consequently, an
-in-place consumer of a copied dependency is rejected. Use copy mode consistently
-through the dependency chain when servers need independent namespace orders.
+Use ``copy_types = false`` to register the exported descriptor addresses directly.
+This mode requires a complete compile-time URI-to-index mapping supplied through
+``NAMESPACE_MAP`` (CMake) or ``--namespaceMap`` (command line), including encoding
+namespaces and consistent mappings in dependency modules. For example::
+
+    ua_generate_nodeset_and_datatypes(
+        NAME "example"
+        FILE_NS "Example.NodeSet2.xml"
+        NAMESPACE_MAP "2:urn:example" "3:urn:example:encodings")
+
+All generated arrays are ``const``. Without a pinned map they are immutable input
+for copy mode; static registration returns ``BadConfigurationError``. With a
+pinned map, the loader verifies the server's URI/index associations before
+registration and rejects mismatches. Arrays can be shared by several servers
+whose namespace indexes match. No arrays are modified and no process-lifetime
+binding state is needed. Additional namespaces can be appended later.
+
+Static structure members must point at their dependencies' registered static
+descriptors. A static consumer of a copied dependency is therefore rejected;
+use copy mode consistently when servers need different namespace orders.
+Each server owns its registration list entries, including entries that borrow
+read-only descriptors. Existing configuration cleanup releases these wrappers.
 Regenerate the loaders and datatype files for the entire dependency chain when
 upgrading to this API.
 

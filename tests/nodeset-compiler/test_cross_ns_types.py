@@ -149,20 +149,20 @@ def main():
             else:
                 print("PASS: fully pinned type array is const")
 
-        # Without pinning the same array stays mutable
+        # Without pinning the same array is immutable input for copy mode
         r = run_generator(tmpdir, "ns_unpinned", [SAME_BSD], SAME_CSV)
         if expect_ok("unpinned generation accepted", r):
-            if is_const_array(tmpdir, "ns_unpinned"):
-                print("FAIL: unpinned type array must not be const")
+            if not is_const_array(tmpdir, "ns_unpinned"):
+                print("FAIL: unpinned type array must remain const")
                 failures += 1
             else:
-                print("PASS: unpinned type array is mutable")
+                print("PASS: unpinned type array is const")
 
         # --- Test 4: namespace uri that matches nothing ---
         r = run_generator(tmpdir, "ns_unknown", [SAME_BSD], SAME_CSV,
                           extra_args=["--namespaceMap=2:http://test.org/Nope/"])
         expect_fail("unmatched --namespaceMap namespace rejected", r,
-                    "do not appear in the generated type array")
+                    "--namespaceMap is incomplete")
 
         # --- Test 5: partially pinned array (two contributing namespaces) ---
         r = run_generator(tmpdir, "ns_partial", [BASE_BSD, DIFF_BSD], DIFF_CSV,

@@ -9,6 +9,7 @@ set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
 # Generate datatypes directly from NodeSet2 Definition elements
 ua_generate_nodeset_and_datatypes(
     NAME "typedescriptions"
+    NAMESPACE_MAP "2:http://model.o6-automation.com"
     OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
     FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/typedescriptions.xml"
 )
@@ -17,17 +18,22 @@ ua_add_test(check_nodeset_typedescriptions.c EXTRASOURCES ${UA_NODESET_TYPEDESCR
 add_dependencies(check_nodeset_typedescriptions open62541-generator-ns-typedescriptions)
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    set(runtime_namespace_map "2:urn:open62541:test:types-a"
+        "3:urn:open62541:test:encodings" "4:urn:open62541:test:types-b")
     ua_generate_nodeset_and_datatypes(
         NAME "runtime-a"
+        NAMESPACE_MAP ${runtime_namespace_map}
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_a.xml")
     ua_generate_nodeset_and_datatypes(
         NAME "runtime-b"
+        NAMESPACE_MAP ${runtime_namespace_map}
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_b.xml"
         DEPENDS "runtime-a")
     ua_generate_nodeset(
         NAME "runtime-ab"
+        NAMESPACE_MAP ${runtime_namespace_map}
         GENERATE_TYPES
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE "${CMAKE_CURRENT_SOURCE_DIR}/runtime_types_a.xml"
