@@ -639,8 +639,11 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Convert to DateTime. Add or subtract one extra second here to prevent
      * underflow/overflow. This is reverted once the fractional part has been
-     * added. */
-    sinceunix -= (sinceunix > 0) ? 1 : -1;
+     * added. Keep the shift in its own variable: reading the sign of sinceunix
+     * again at the end would look at the already-shifted value, and the shift
+     * moves 0 to 1 and 1 to 0 -- the two instants whose sign it changes. */
+    long long shift = (sinceunix > 0) ? 1 : -1;
+    sinceunix -= shift;
     UA_DateTime dt = (UA_DateTime)
         (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
 
@@ -692,7 +695,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
  finish:
     /* Remove the underflow/overflow protection (see above) */
-    if(sinceunix > 0) {
+    if(shift > 0) {
         if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
             return UA_STATUSCODE_BADDECODINGERROR;
         dt += UA_DATETIME_SEC;
