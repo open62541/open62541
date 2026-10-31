@@ -308,14 +308,15 @@ START_TEST(registrationFailureIsAtomic) {
     UA_GeneratedTypeSource source = sourceA;
     source.types = origin;
     const UA_GeneratedTypeSource *dependencies[] = {&sourceA};
-    origin[UA_TYPES_RUNTIME_A_STRINGRECORD].memSize++;
+    /* A missing member dependency must leave no partially published array. */
+    UA_DataTypeMember members[3];
+    memcpy(members, origin[UA_TYPES_RUNTIME_A_RECORDA].members, sizeof(members));
+    UA_DataType missing = UA_TYPES[UA_TYPES_UINT32];
+    missing.typeId = UA_NODEID_NUMERIC(0, 999999);
+    members[0].memberType = &missing;
+    origin[UA_TYPES_RUNTIME_A_RECORDA].members = members;
     ck_assert_uint_eq(UA_GeneratedTypes_register(server, &source, 1, dependencies, true),
-                      UA_STATUSCODE_BADTYPEMISMATCH);
-    ck_assert_ptr_eq(UA_Server_getDataTypes(server), NULL);
-    memcpy(origin, sourceA.types, sizeof(origin));
-    origin[UA_TYPES_RUNTIME_A_STRINGRECORD].typeId = origin[0].typeId;
-    ck_assert_uint_eq(UA_GeneratedTypes_register(server, &source, 1, dependencies, true),
-                      UA_STATUSCODE_BADNODEIDEXISTS);
+                      UA_STATUSCODE_BADNOTFOUND);
     ck_assert_ptr_eq(UA_Server_getDataTypes(server), NULL);
     memcpy(origin, sourceA.types, sizeof(origin));
     ck_assert_uint_eq(UA_GeneratedTypes_register(server, &source, 1, dependencies, true),
@@ -326,6 +327,22 @@ START_TEST(registrationFailureIsAtomic) {
     ck_assert_ptr_eq(head, UA_Server_getDataTypes(server));
     ck_assert_uint_eq(UA_GeneratedTypes_register(server, &source, 1, dependencies, false),
                       UA_STATUSCODE_BADINVALIDSTATE);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(partialRegistrationRejected) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    UA_Server_addNamespace(server, A_URI);
+    UA_Server_addNamespace(server, "urn:open62541:test:encodings");
+    UA_DataType existing = sourceA.types[0];
+    UA_DataTypeArray partial;
+    memset(&partial, 0, sizeof(partial));
+    partial.types = &existing;
+    partial.typesSize = 1;
+    UA_Server_getConfig(server)->customDataTypes = &partial;
+    ck_assert_uint_eq(UA_GeneratedTypes_register(server, &sourceA, 0, NULL, true),
+                      UA_STATUSCODE_BADNODEIDEXISTS);
+    ck_assert_ptr_eq(UA_Server_getConfig(server)->customDataTypes, &partial);
     UA_Server_delete(server);
 } END_TEST
 
@@ -350,30 +367,9 @@ START_TEST(conversionOrderDiffersFromArrayOrder) {
     ck_assert_ptr_ne(holder, NULL);
     ck_assert_ptr_ne(alias, NULL);
     ck_assert_ptr_eq(holder->members[1].memberType, alias);
-    UA_Server_delete(server);
-} END_TEST
-
-START_TEST(incompatibleDependencyIsRejected) {
-    UA_Server *server = UA_Server_newForUnitTest();
-    UA_UInt16 a = UA_Server_addNamespace(server, A_URI);
-    UA_Server_addNamespace(server, B_URI);
-    UA_Server_addNamespace(server, "urn:open62541:test:encodings");
-    UA_DataType wrong = sourceA.types[UA_TYPES_RUNTIME_A_RECORDA];
-    UA_DataTypeMember wrongMembers[3];
-    memcpy(wrongMembers, wrong.members, sizeof(wrongMembers));
-    wrongMembers[0].memberType = &UA_TYPES[UA_TYPES_FLOAT];
-    wrong.members = wrongMembers;
-    wrong.typeId.namespaceIndex = a;
-    wrong.binaryEncodingId.namespaceIndex = a;
-    wrong.xmlEncodingId.namespaceIndex = a;
-    ck_assert_uint_eq(UA_Server_addDataType(server, UA_NODEID_NUMERIC(0, 22), &wrong),
-                      UA_STATUSCODE_GOOD);
-    const UA_GeneratedTypeSource *dependencies[] = {&sourceA};
-    ck_assert_uint_eq(UA_GeneratedTypes_register(
-        server, &sourceB, 1, dependencies, true),
-        UA_STATUSCODE_BADTYPEMISMATCH);
-    ck_assert_ptr_eq(namespace_runtime_b_generated_getDataType(
-        server, &UA_TYPES_RUNTIME_B[0]), NULL);
+    const UA_DataType *expected = &sourceA.types[UA_TYPES_RUNTIME_A_ALIASHOLDER];
+    ck_assert_uint_eq(holder->memSize, sizeof(UA_AliasHolder));
+    ck_assert_uint_eq(holder->members[1].padding, expected->members[1].padding);
     UA_Server_delete(server);
 } END_TEST
 
@@ -503,9 +499,9 @@ int main(void) {
     tcase_add_test(tc, inPlaceRejectsCopiedDependency);
     tcase_add_test(tc, multipleFilesAndNamespaces);
     tcase_add_test(tc, registrationFailureIsAtomic);
+    tcase_add_test(tc, partialRegistrationRejected);
     tcase_add_test(tc, conversionOrderDiffersFromArrayOrder);
     tcase_add_test(tc, staticDescriptorLookup);
-    tcase_add_test(tc, incompatibleDependencyIsRejected);
     tcase_add_test(tc, retryAfterNodeCreationFailure);
 #ifdef UA_TEST_GENERATED_TYPES_ALLOCATION_FAILURES
     tcase_set_timeout(tc, 180);

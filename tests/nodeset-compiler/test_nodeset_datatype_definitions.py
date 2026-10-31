@@ -79,6 +79,8 @@ def test_generated_static_types(tmpdir):
             "datatype source depends on the loader's metadata type")
     require("UA_DataType_toDescription" in namespace_source and "UA_DataType_fromDescription" in namespace_source,
             "conversion support is missing from the namespace C file")
+    require("UA_GeneratedTypes_match" not in namespace_source,
+            "generated loader still compares native layouts at runtime")
     require("UA_Boolean *ready" not in namespace_source,
             "generated loader still schedules inline dependencies at runtime")
     require('#include "types_static_generated_internal.h"' in types_source and

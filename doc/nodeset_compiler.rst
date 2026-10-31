@@ -88,8 +88,10 @@ registration and rejects mismatches. Arrays can be shared by several servers
 whose namespace indexes match. No arrays are modified and no process-lifetime
 binding state is needed. Additional namespaces can be appended later.
 
-Static structure members must point at their dependencies' registered static
-descriptors. A static consumer of a copied dependency is therefore rejected;
+Generated modules and their dependencies must use matching model definitions
+and the same SDK configuration. The loader does not compare native layouts at
+runtime. Static structure members must point at their dependencies' registered
+static descriptors. A static consumer of a copied dependency is therefore rejected;
 use copy mode consistently when servers need different namespace orders.
 Each server owns its registration list entries, including entries that borrow
 read-only descriptors. Existing configuration cleanup releases these wrappers.
