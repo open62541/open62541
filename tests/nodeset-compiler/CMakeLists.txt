@@ -214,3 +214,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_XML_ENCODING AND UA_ENABLE_TY
     add_dependencies(check_nodeset_compiler_regressions open62541-generator-ns-compiler-fixes
                      open62541-generator-ns-compiler-negative open62541-generator-types-tests-compiler-fixes)
 endif()
+
+add_test(NAME test_datatype_definition_parser
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_datatype_definition_parser.py")
