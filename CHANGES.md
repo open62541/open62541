@@ -9,6 +9,17 @@ With `CONFIG_OPEN62541_MALLOC_EXTERN`, `UA_malloc`, `UA_calloc`, `UA_realloc`
 and `UA_free` are declared as external functions that the application
 defines, instead of being mapped to `k_malloc` and friends.
 
+### Generate custom DataTypes from NodeSet2 definitions
+
+The NodeSet compiler now reads ``Definition`` elements from ``UADataType``
+nodes. It generates matching C declarations and const ``UA_TYPES_<NAME>``
+arrays. The generated loader can register these arrays unchanged or copy and
+remap their descriptors into server-owned storage. No-copy loading trusts the
+baked-in namespace indexes; the application must ensure they match the server.
+The ``DataTypeDefinition`` attribute is materialized from that layout when it
+is read. A separate BSD type dictionary is therefore no longer required when
+the NodeSet2 file contains complete datatype definitions.
+
 ### Client reconnects with backoff and gives up
 
 A lost connection is re-dialed with a delay that starts at the new

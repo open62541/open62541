@@ -73,7 +73,7 @@ UA_StatusCode UA_Server_injectNodesets(UA_Server *server) {
 for ns in nodesets:
     printc(f'''
     /* namespace_{ns}_generated */
-    retval |= namespace_{ns}_generated(server);
+    retval |= namespace_{ns}_generated(server, true);
     if(retval != UA_STATUSCODE_GOOD) {{
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the namespace_{ns}_generated failed. Please check previous error output.");
         return retval;

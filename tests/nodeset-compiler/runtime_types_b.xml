@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+<NamespaceUris><Uri>urn:open62541:test:types-b</Uri><Uri>urn:open62541:test:types-a</Uri></NamespaceUris>
+<Aliases><Alias Alias="HasSubtype">i=45</Alias><Alias Alias="HasEncoding">i=38</Alias>
+<Alias Alias="HasTypeDefinition">i=40</Alias><Alias Alias="Organizes">i=35</Alias></Aliases>
+<UADataType NodeId="ns=1;i=3001" BrowseName="1:RecordB"><DisplayName>RecordB</DisplayName>
+<References><Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+<Reference ReferenceType="HasEncoding">ns=1;i=5001</Reference></References>
+<Definition Name="1:RecordB"><Field Name="Child" DataType="ns=2;i=3001"/></Definition></UADataType>
+<UAObject NodeId="ns=1;i=5001" BrowseName="Default Binary"><DisplayName>Default Binary</DisplayName>
+<References><Reference ReferenceType="HasTypeDefinition">i=76</Reference></References></UAObject>
+<UAObject NodeId="ns=1;i=5002" BrowseName="Default XML"><DisplayName>Default XML</DisplayName>
+<References><Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+<Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3001</Reference></References></UAObject><UAVariable NodeId="ns=1;i=6001" BrowseName="1:BValue" DataType="ns=1;i=3001" ValueRank="-1">
+<DisplayName>BValue</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+<Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References><Value><uax:ExtensionObject><uax:TypeId><uax:Identifier>ns=1;i=5002</uax:Identifier></uax:TypeId><uax:Body><RecordB><Child><Number>42</Number><Target><Identifier>ns=2;i=6001</Identifier></Target>
+<Label><NamespaceIndex>2</NamespaceIndex><Name>target</Name></Label></Child></RecordB></uax:Body></uax:ExtensionObject></Value></UAVariable><UAVariable NodeId="ns=1;i=6002" BrowseName="1:AReference" DataType="i=17" ValueRank="-1">
+<DisplayName>AReference</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+<Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References><Value><uax:NodeId><uax:Identifier>ns=2;i=6001</uax:Identifier></uax:NodeId></Value></UAVariable><UAVariable NodeId="ns=1;i=6003" BrowseName="1:AUriReference" DataType="i=18" ValueRank="-1">
+<DisplayName>AUriReference</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+<Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References><Value><uax:ExpandedNodeId><uax:Identifier>nsu=urn:open62541:test:types-a;i=6001</uax:Identifier></uax:ExpandedNodeId></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=6004" BrowseName="1:BinaryValue" DataType="ns=1;i=3001" ValueRank="-1">
+<DisplayName>BinaryValue</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+<Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References>
+<Value><uax:ExtensionObject><uax:TypeId><uax:Identifier>ns=1;i=5001</uax:Identifier></uax:TypeId>
+<uax:Body><uax:ByteString>KgAAAAECcRcCAAYAAAB0YXJnZXQ=</uax:ByteString></uax:Body></uax:ExtensionObject></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=6005" BrowseName="1:Whitespace" DataType="i=12" ValueRank="-1">
+<DisplayName>Whitespace</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference><Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References>
+<Value><uax:String>first
+  Grüße
+ last</uax:String></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=6006" BrowseName="1:LegacyDimensions" DataType="i=7" ValueRank="1" ArrayDimensions="1"><DisplayName>LegacyDimensions</DisplayName><References><Reference ReferenceType="HasTypeDefinition">i=63</Reference><Reference ReferenceType="Organizes" IsForward="false">i=85</Reference></References><Value><uax:ListOfUInt32><uax:UInt32>1</uax:UInt32><uax:UInt32>2</uax:UInt32></uax:ListOfUInt32></Value></UAVariable>
+</UANodeSet>

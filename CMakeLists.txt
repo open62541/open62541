@@ -1541,6 +1541,12 @@ else()
                                                         open62541-generator-statuscode)
 endif()
 
+if(UA_ENABLE_AMALGAMATION)
+    # Serialize shared generators before their outputs are concatenated. File
+    # dependencies alone can launch duplicate generators in parallel Make builds.
+    add_dependencies(open62541-amalgamation open62541-code-generation)
+endif()
+
 # Generate Nodeset injector source files
 if(UA_ENABLE_NODESET_INJECTOR)
     message(STATUS "Nodesetinjector feature enabled")
