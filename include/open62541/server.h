@@ -1293,6 +1293,38 @@ UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addDataTypeFromDescription(UA_Server *server,
                                      const UA_ExtensionObject *description);
 
+/* Zero-initialize the options. Additional fields may be added in the future.
+ * All pointers are borrowed for the duration of the call. */
+typedef struct {
+    /* Map source namespace indexes to server indexes using local2Remote.
+     * Applies to the description AND both encoding-ID overrides below.
+     * NULL: all supplied indexes already refer to server namespaces. */
+    const UA_NamespaceMapping *namespaceMapping;
+
+    /* Optional overrides, expressed in the SAME source namespace context as
+     * the description. Both binaryEncodingId and xmlEncodingId are mapped
+     * through namespaceMapping when it is present.
+     * NULL: retain the description's encoding ID, if available.
+     * A pointer to a null NodeId explicitly clears the encoding ID. */
+    const UA_NodeId *binaryEncodingId;
+    const UA_NodeId *xmlEncodingId;
+} UA_AddDataTypeFromDescriptionOptions;
+
+/* Extended description loading. The description must contain a decoded
+ * SimpleTypeDescription, EnumDescription or StructureDescription. All its
+ * namespace indexes, including member references and the QualifiedName, use
+ * the source context specified by the options. Mapping precedes server-side
+ * member resolution and native layout construction.
+ *
+ * The options can be NULL. Inputs remain unchanged. The server owns the
+ * resulting datatype, including copies of both encoding IDs. Registration
+ * happens only after all conversion and encoding-ID allocation succeeds.
+ * An already registered datatype returns BADNODEIDEXISTS. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_addDataTypeFromDescriptionEx(
+    UA_Server *server, const UA_ExtensionObject *description,
+    const UA_AddDataTypeFromDescriptionOptions *options);
+
 /* The same as UA_Server_addDataTypeFromDescription, but with the description
  * already converted into a UA_DataType. Makes a copy of the UA_DataType
  * internally. */
