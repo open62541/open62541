@@ -141,6 +141,19 @@ Property. Semantic changes also set the `SemanticsChanged` StatusCode bit on
 the next DataChange notification for Value MonitoredItems on the affected
 Variable.
 
+### Borrowed datatype arrays
+
+`UA_DataTypeArray` has a new trailing `borrowed` flag. With `cleanup = true`,
+configuration cleanup frees the list entry but leaves the datatypes and their
+referenced data untouched when `borrowed = true`. This supports per-client or
+per-server heap entries referring to shared static datatype arrays. With
+`cleanup = false`, neither the entry nor its contents are freed, regardless of
+`borrowed`.
+
+Zero-initialized entries and existing aggregate initializers retain their old
+cleanup behavior. Code that initializes entries field by field must initialize
+`borrowed` too. Rebuild consumers after this public structure change.
+
 ### UA_DataTypeArray.types is const
 
 The `types` field in `UA_DataTypeArray` changed from `UA_DataType *` to

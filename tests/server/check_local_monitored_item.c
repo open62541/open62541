@@ -387,7 +387,7 @@ static UA_DataType PointType = {
     members
 };
 
-UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE};
+UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE, false};
 
 START_TEST(Server_LocalMonitoredItem_CustomType) {
     callbackCount = 0;

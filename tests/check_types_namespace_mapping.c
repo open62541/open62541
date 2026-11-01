@@ -49,7 +49,7 @@ START_TEST(xmlBinaryBody) {
     }
     types[0].memSize = sizeof(Child); types[0].membersSize = 1; types[0].members = &childMember;
     types[1].memSize = sizeof(Parent); types[1].membersSize = 3; types[1].members = parentMembers;
-    UA_DataTypeArray custom = {NULL, 2, types, false};
+    UA_DataTypeArray custom = {NULL, 2, types, false, false};
     Child child = {UA_NODEID_NUMERIC(2, 42)};
     Parent parent;
     memset(&parent, 0, sizeof(parent));

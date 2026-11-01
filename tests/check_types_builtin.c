@@ -2126,7 +2126,7 @@ START_TEST(UA_ExtensionObject_decodeNullEncodingId) {
     UA_DataType custom = UA_TYPES[UA_TYPES_BOOLEAN];
     custom.typeId = UA_NODEID_NUMERIC(1, 123);
     custom.binaryEncodingId = UA_NODEID_NUMERIC(1, 0);
-    UA_DataTypeArray customTypes = {NULL, 1, &custom, false};
+    UA_DataTypeArray customTypes = {NULL, 1, &custom, false, false};
     UA_DecodeBinaryOptions options = {0};
     options.customTypes = &customTypes;
     UA_Byte namespaced[] = {1, 1, 0, 0, 1, 1, 0, 0, 0, 5};

@@ -825,8 +825,8 @@ START_TEST(binary_variant_customArrayTypeLookup) {
     UA_DataType otherType = customType;
     otherType.typeId = UA_NODEID_NUMERIC(2, 7002);
     otherType.binaryEncodingId = UA_NODEID_STRING(2, "other-encoding");
-    UA_DataTypeArray tail = {NULL, 1, &customType, false};
-    UA_DataTypeArray head = {&tail, 1, &otherType, false};
+    UA_DataTypeArray tail = {NULL, 1, &customType, false, false};
+    UA_DataTypeArray head = {&tail, 1, &otherType, false, false};
     UA_DecodeBinaryOptions options;
     memset(&options, 0, sizeof(options));
     options.customTypes = (_i == 0) ? &head : NULL;
@@ -865,7 +865,7 @@ START_TEST(binary_variant_preserveXmlExtensionObjectArray) {
     UA_DataType customType;
     UA_DataTypeMember member;
     binaryCustomType(&customType, &member);
-    UA_DataTypeArray customTypes = {NULL, 1, &customType, false};
+    UA_DataTypeArray customTypes = {NULL, 1, &customType, false, false};
     UA_DecodeBinaryOptions options;
     memset(&options, 0, sizeof(options));
     options.customTypes = &customTypes;
@@ -945,7 +945,7 @@ START_TEST(binary_extensionObject_declaredLengthMismatch) {
     UA_DataType customType;
     UA_DataTypeMember member;
     binaryCustomType(&customType, &member);
-    UA_DataTypeArray customTypes = {NULL, 1, &customType, false};
+    UA_DataTypeArray customTypes = {NULL, 1, &customType, false, false};
     UA_DecodeBinaryOptions options;
     memset(&options, 0, sizeof(options));
     options.customTypes = &customTypes;

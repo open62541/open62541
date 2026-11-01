@@ -1066,9 +1066,12 @@ typedef struct UA_DataTypeArray {
     struct UA_DataTypeArray *next;
     size_t typesSize;
     const UA_DataType *types;
-    UA_Boolean cleanup; /* Free the array structure and its content when the
-                         * client or server configuration containing it is
-                         * cleaned up */
+    UA_Boolean cleanup;  /* Free this entry when its client/server configuration
+                          * is cleaned up. Also clear and free the datatypes
+                          * unless borrowed is true. */
+    UA_Boolean borrowed; /* The datatypes and their referenced data are borrowed:
+                          * leave them untouched during cleanup. They must remain
+                          * valid for the lifetime of the configuration. */
 } UA_DataTypeArray;
 
 /* Returns the offset and type of a structure member. The return value is false

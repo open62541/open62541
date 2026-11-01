@@ -1120,7 +1120,7 @@ checkCustomDataTypeBrowseName(const char *typeName) {
         .membersSize = 1,
         .members     = &customStructMember
     };
-    UA_DataTypeArray customTypes = {NULL, 1, &type, false};
+    UA_DataTypeArray customTypes = {NULL, 1, &type, false, false};
 
     UA_ServerConfig sc;
     memset(&sc, 0, sizeof(UA_ServerConfig));
