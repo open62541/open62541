@@ -705,7 +705,7 @@ _UA_END_DECLS
         writec("    NULL,")
         writec("    " + arr + "_COUNT,")
         writec("    " + arr + ",")
-        writec("    UA_FALSE\n};")
+        writec("    UA_FALSE, UA_FALSE\n};")
 
     maxns = max(nodeset.namespaceMapping.keys(), default=0) + 1
     writec("""
