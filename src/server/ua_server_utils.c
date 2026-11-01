@@ -251,18 +251,62 @@ normalizeDataTypeId(UA_Server *server, UA_NodeId *typeId) {
 
 #endif
 
-UA_StatusCode
-UA_Server_addDataTypeFromDescription(UA_Server *server,
-                                     const UA_ExtensionObject *description) {
+static UA_StatusCode
+copyDataTypeEncodingId(UA_NodeId *dst, const UA_NodeId *src,
+                       const UA_NamespaceMapping *mapping) {
+    if(!src)
+        return UA_STATUSCODE_GOOD;
+    UA_NodeId_clear(dst);
+    UA_StatusCode res = UA_NodeId_copy(src, dst);
+    if(res == UA_STATUSCODE_GOOD && mapping && !UA_NodeId_isNull(src))
+        dst->namespaceIndex =
+            UA_NamespaceMapping_local2Remote(mapping, src->namespaceIndex);
+    return res;
+}
+
+static UA_StatusCode
+addDataTypeFromDescription(UA_Server *server,
+                           const UA_ExtensionObject *description,
+                           const UA_AddDataTypeFromDescriptionOptions *options) {
 #ifdef UA_TYPES_STRUCTUREDESCRIPTION
-    /* Normalize simple aliases in a temporary copy for memory-layout
-     * construction. */
+    UA_Boolean isStructure = UA_ExtensionObject_hasDecodedType(
+        description, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    UA_Boolean isSimple = UA_ExtensionObject_hasDecodedType(
+        description, &UA_TYPES[UA_TYPES_SIMPLETYPEDESCRIPTION]);
+    if(!isStructure && !isSimple && !UA_ExtensionObject_hasDecodedType(
+           description, &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Map namespaces and normalize aliases in an owned description. */
     UA_ExtensionObject layoutDescription;
     UA_StatusCode res = UA_ExtensionObject_copy(description, &layoutDescription);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    if(UA_ExtensionObject_hasDecodedType(
-           &layoutDescription, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION])) {
+    if(options && options->namespaceMapping) {
+        const UA_NamespaceMapping *mapping = options->namespaceMapping;
+        UA_DataTypeDescription *base =
+            (UA_DataTypeDescription*)layoutDescription.content.decoded.data;
+        base->dataTypeId.namespaceIndex =
+            UA_NamespaceMapping_local2Remote(mapping, base->dataTypeId.namespaceIndex);
+        base->name.namespaceIndex =
+            UA_NamespaceMapping_local2Remote(mapping, base->name.namespaceIndex);
+        if(isStructure) {
+            UA_StructureDefinition *def =
+                &((UA_StructureDescription*)base)->structureDefinition;
+            def->baseDataType.namespaceIndex =
+                UA_NamespaceMapping_local2Remote(mapping, def->baseDataType.namespaceIndex);
+            def->defaultEncodingId.namespaceIndex =
+                UA_NamespaceMapping_local2Remote(mapping, def->defaultEncodingId.namespaceIndex);
+            for(size_t i = 0; i < def->fieldsSize; i++)
+                def->fields[i].dataType.namespaceIndex = UA_NamespaceMapping_local2Remote(
+                    mapping, def->fields[i].dataType.namespaceIndex);
+        } else if(isSimple) {
+            UA_SimpleTypeDescription *simple = (UA_SimpleTypeDescription*)base;
+            simple->baseDataType.namespaceIndex = UA_NamespaceMapping_local2Remote(
+                mapping, simple->baseDataType.namespaceIndex);
+        }
+    }
+    if(isStructure) {
         UA_StructureDescription *structureDescription =
             (UA_StructureDescription*)layoutDescription.content.decoded.data;
         UA_StructureDefinition *definition =
@@ -304,11 +348,40 @@ UA_Server_addDataTypeFromDescription(UA_Server *server,
         return UA_STATUSCODE_BADNODEIDEXISTS;
     }
 
+    /* Complete both encodings before publishing the datatype to the server. */
+    if(options) {
+        res = copyDataTypeEncodingId(&dt.binaryEncodingId,
+                                    options->binaryEncodingId, options->namespaceMapping);
+        if(res == UA_STATUSCODE_GOOD)
+            res = copyDataTypeEncodingId(&dt.xmlEncodingId,
+                                        options->xmlEncodingId, options->namespaceMapping);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_DataType_clear(&dt);
+            return res;
+        }
+    }
+
     /* Add the UA_DataType to the server */
     res = addDataType(server, &dt);
     if(res != UA_STATUSCODE_GOOD)
         UA_DataType_clear(&dt);
     return res;
+}
+
+UA_StatusCode
+UA_Server_addDataTypeFromDescriptionEx(
+    UA_Server *server, const UA_ExtensionObject *description,
+    const UA_AddDataTypeFromDescriptionOptions *options) {
+    lockServer(server);
+    UA_StatusCode res = addDataTypeFromDescription(server, description, options);
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_addDataTypeFromDescription(UA_Server *server,
+                                     const UA_ExtensionObject *description) {
+    return UA_Server_addDataTypeFromDescriptionEx(server, description, NULL);
 }
 
 /********************************/
