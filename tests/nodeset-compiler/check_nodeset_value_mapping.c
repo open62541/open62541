@@ -36,7 +36,7 @@ START_TEST(loadValues) {
     ck_assert_uint_eq(UA_Server_addDataType(server, UA_NODEID_NUMERIC(0, 22), &type), UA_STATUSCODE_GOOD);
     /* This descriptor lives in the internal registry, not config.customDataTypes. */
     ck_assert_ptr_eq(UA_Server_getConfig(server)->customDataTypes, NULL);
-    ck_assert_uint_eq(namespace_tests_value_mapping_generated(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(namespace_tests_value_mapping_generated(server, true), UA_STATUSCODE_GOOD);
     size_t bIndex = 0;
     ck_assert_uint_eq(UA_Server_getNamespaceByName(server,
         UA_STRING("urn:open62541:test:map-b"), &bIndex), UA_STATUSCODE_GOOD);

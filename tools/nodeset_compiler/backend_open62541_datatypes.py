@@ -11,6 +11,9 @@ import ntpath
 import copy
 from collections import OrderedDict
 import argparse
+import base64
+import uuid
+from .namespace_plan import namespace_plan_checks
 
 from .type_parser import (BuiltinType, CSVBSDTypeParser, EnumerationType,
                           OpaqueType, StructType)
@@ -50,7 +53,7 @@ def build_argument_parser():
                         default=["0:http://opcfoundation.org/UA/"],
                         help='Mapping of namespace uri to the resulting namespace index in the server. Default only contains Namespace 0: "0:http://opcfoundation.org/UA/". '
                              'Parameter can be used multiple times to define multiple mappings. '
-                             'Pinning the index of every namespace that contributes a type makes the generated type array const. '
+                             'All generated arrays are const. Without copying, the caller must arrange matching server indexes. '
                              'Purely imported namespaces need not be pinned. An incomplete or inconsistent mapping is an error.')
 
     parser.add_argument('-s', '--selected-types',
@@ -172,16 +175,31 @@ def getNodeidTypeAndId(nodeId):
     if not nodeId:
         return "UA_NODEIDTYPE_NUMERIC, {0}"
     if '=' not in nodeId:
-        return f"UA_NODEIDTYPE_NUMERIC, {{{nodeId}LU}}"
+        return f"UA_NODEIDTYPE_NUMERIC, {{{int(nodeId)}LU}}"
     if nodeId.startswith("i="):
-        return f"UA_NODEIDTYPE_NUMERIC, {{{nodeId[2:]}LU}}"
+        return f"UA_NODEIDTYPE_NUMERIC, {{{int(nodeId[2:])}LU}}"
     if nodeId.startswith("s="):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=makeCLiteral(strId))
 
+    if nodeId.startswith("g="):
+        guid = uuid.UUID(nodeId[2:])
+        fields = guid.fields
+        tail = ", ".join("0x%02x" % byte for byte in guid.bytes[8:])
+        return ("UA_NODEIDTYPE_GUID, { .guid = {0x%08x, 0x%04x, 0x%04x, {%s}} }" %
+                (fields[0], fields[1], fields[2], tail))
+    if nodeId.startswith("b="):
+        data = base64.b64decode(nodeId[2:], validate=True)
+        literal = "".join("\\%03o" % byte for byte in data)
+        return ('UA_NODEIDTYPE_BYTESTRING, { .byteString = {%d, (UA_Byte*)"%s"} }' %
+                (len(data), literal))
+    raise RuntimeError("Unsupported NodeId: " + nodeId)
+
 def splitNodeidNs(nodeId):
     """Split an optional 'ns=X;' prefix from a nodeId string.
     Returns (namespaceindex_str, bare_nodeId)."""
+    if nodeId is not None and not isinstance(nodeId, str):
+        nodeId = str(nodeId)
     if nodeId and nodeId.startswith("ns="):
         parts = nodeId.split(";", 1)
         return parts[0][3:], parts[1] if len(parts) > 1 else ""
@@ -232,16 +250,26 @@ class CGenerator:
         keeps the (then empty) namespace entry, so filtered_types can list
         namespaces that own no type in this array. Those do not constrain the
         baked namespace indices."""
-        return [ns for ns, types in self.filtered_types.items() if len(types) > 0]
+        namespaces = [ns for ns, types in self.filtered_types.items() if types]
+        uris = getattr(self.parser, "namespaceUris", None)
+        if uris is not None:
+            for types in self.filtered_types.values():
+                for datatype in types.values():
+                    for nodeid in (datatype.binaryEncodingId, datatype.xmlEncodingId):
+                        ns, bare = splitNodeidNs(nodeid)
+                        if not bare or (ns == "0" and bare == "i=0"):
+                            continue
+                        uri = uris[int(ns)]
+                        if uri not in namespaces:
+                            namespaces.append(uri)
+        return namespaces
 
     def _validate_namespace_map(self):
-        """Sanity-check a user-provided --namespaceMap.
+        """A fixed map must cover every namespace used by this array.
 
-        Pinning is all-or-nothing: with an unpinned namespace the array cannot
-        be const, and the nodeset compiler then rewrites the namespace index of
-        every entry when the nodeset is loaded -- silently discarding the
-        pinned indices. Rather than generate such a half-honored array, fail
-        here so the mistake surfaces at build time."""
+        Extra entries allow one application-wide plan to be shared by all
+        generated modules. An absent map uses compiler-local indexes.
+        """
         if self.namespaceMap == {OPC_UA_NAMESPACE: 0}:
             return  # Nothing pinned, only the implicit namespace 0 entry
 
@@ -258,36 +286,18 @@ class CGenerator:
                     "  {}\n  {}".format(idx, byIndex[idx], ns))
             byIndex[idx] = ns
 
-        unknown = [ns for ns in self.namespaceMap
-                   if ns != OPC_UA_NAMESPACE and ns not in self.filtered_types]
-        if unknown:
-            raise RuntimeError(
-                "--namespaceMap contains namespaces that do not appear in the "
-                "generated type array:\n" +
-                "".join("  {}\n".format(ns) for ns in sorted(unknown)) +
-                "Namespaces of this type array:\n" +
-                "".join("  {}\n".format(ns) for ns in sorted(self.filtered_types)))
-
         missing = [ns for ns in self._contributing_namespaces()
                    if ns not in self.namespaceMap]
         if missing:
             raise RuntimeError(
-                "--namespaceMap is incomplete. Pinning is all-or-nothing: as "
-                "long as one namespace is unpinned the type array cannot be "
-                "const, and loading the nodeset overwrites the namespace index "
-                "of every entry -- including the pinned ones. Either pin all "
-                "namespaces that contribute types or drop --namespaceMap.\n"
+                "--namespaceMap is incomplete. Supply an index for every "
+                "contributing namespace or omit --namespaceMap to use "
+                "compiler-local indexes.\n"
                 "Not pinned:\n" +
                 "".join("  {}\n".format(ns) for ns in sorted(missing)))
 
-    def _can_be_const(self):
-        """The type array can be declared const (and reside in read-only
-        memory) when the namespace index of every contained type is fixed at
-        generation time: either the type belongs to namespace 0 or its
-        namespace index was pinned via --namespaceMap. Only namespaces that
-        contribute a type are relevant. Without pinning, the namespace indices
-        get rewritten in-place when the nodeset is loaded into a server, so the
-        array must remain mutable."""
+    def _namespaces_pinned(self):
+        """Whether every identity has a supplied namespace index."""
         return all(ns in self.namespaceMap for ns in self._contributing_namespaces())
 
     @staticmethod
@@ -345,34 +355,30 @@ class CGenerator:
         raise RuntimeError("Unknown datatype")
 
     def _baked_nodeid(self, datatype, nodeIdStr):
-        """Split a NodeId string of a type definition into the namespace index
-        baked into the generated array and the bare id. Pinned namespaces
-        (--namespaceMap) get the pinned index, which is what allows the array
-        to be const. Otherwise the index of an explicit ns= prefix is kept and
-        defaults to 0; the nodeset compiler rewrites it when the nodeset is
-        loaded. Null NodeIds (e.g. a missing encoding id) stay in namespace
-        0."""
-        nsPrefix, bareId = splitNodeidNs(nodeIdStr)
-        if not bareId:
-            return "0", bareId
-        pinned = self.namespaceMap.get(datatype.namespaceUri)
-        if pinned is not None:
-            return str(pinned), bareId
-        return nsPrefix, bareId
+        ns, bare = splitNodeidNs(nodeIdStr)
+        if not bare or (ns == "0" and bare == "i=0"):
+            return "0", bare
+        uris = getattr(self.parser, "namespaceUris", None)
+        uri = uris[int(ns)] if uris is not None else datatype.namespaceUri
+        if uris is None and int(ns):
+            uri = next((u for u, i in self.namespaceMap.items() if i == int(ns)), uri)
+        return str(self.bakedNamespaceMap[uri]), bare
 
     def print_datatype(self, datatype):
-        nsIdx, bareNodeId = self._baked_nodeid(datatype, datatype.nodeId)
+        nodeid = self._baked_nodeid
+        nsIdx, bareNodeId = nodeid(datatype, datatype.nodeId)
         typeid = "{{{}, {}}}".format(nsIdx, getNodeidTypeAndId(bareNodeId))
-        binNs, bareBinId = self._baked_nodeid(datatype, datatype.binaryEncodingId)
+        binNs, bareBinId = nodeid(datatype, datatype.binaryEncodingId)
         binaryEncodingId = "{{{}, {}}}".format(binNs, getNodeidTypeAndId(bareBinId))
-        xmlNs, bareXmlId = self._baked_nodeid(datatype, datatype.xmlEncodingId)
+        xmlNs, bareXmlId = nodeid(datatype, datatype.xmlEncodingId)
         xmlEncodingId = "{{{}, {}}}".format(xmlNs, getNodeidTypeAndId(bareXmlId))
+
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
         isEnum = isinstance(datatype, EnumerationType)  and not datatype.isOptionSet
         return "{\n" + \
-               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % makeCLiteral(datatype.name) + \
+               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % makeCLiteral(getattr(datatype, "wire_name", getattr(datatype, "original_name", datatype.name))) + \
                "    " + typeid + ", /* .typeId */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    " + xmlEncodingId + ", /* .xmlEncodingId */\n" + \
@@ -381,18 +387,23 @@ class CGenerator:
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
                "    " + str(len(datatype.elements) if isEnum else len(datatype.members)) + ", /* .membersSize */\n" + \
-               "    %s_members" % idName + "  /* .members */\n" + \
+               "    %s" % self.get_members_name(datatype) + "  /* .members */\n" + \
                "}"
+
+    @staticmethod
+    def get_members_name(datatype):
+        return makeCIdentifier("UA_" + datatype.outname.upper() + "_" + datatype.name + "_members")
 
     @staticmethod
     def print_members(datatype):
         idName = makeCIdentifier(datatype.name)
+        memberName = CGenerator.get_members_name(datatype)
         # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
         isEnum = isinstance(datatype, EnumerationType) and not datatype.isOptionSet
         if (not isEnum and len(datatype.members) == 0) or (isEnum and len(datatype.elements) == 0):
-            return "#define %s_members NULL" % (idName)
+            return "#define %s NULL" % memberName
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static const UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
+        members = "static const UA_DataTypeMember {}[{}] = {{".format(memberName, len(datatype.elements) if isEnum else len(datatype.members))
         before = None
         size = len(datatype.elements) if isEnum else len(datatype.members)
         if isEnum:
@@ -535,7 +546,9 @@ class CGenerator:
             returnstr += "\n\n"
         if len(struct.members) == 0:
             raise Exception("Structs with no members are filtered out. Why not here?")
-        if struct.is_recursive:
+        if getattr(struct, "forward_declared", False):
+            returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
+        elif struct.is_recursive:
             returnstr += "typedef struct UA_{} UA_{};\n".format(makeCIdentifier(struct.name), makeCIdentifier(struct.name))
             returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
         else:
@@ -570,7 +583,7 @@ class CGenerator:
                     makeCIdentifier(type_name), makeCIdentifier(member.name))
         if struct.is_union:
             returnstr += "    } fields;\n"
-        if struct.is_recursive:
+        if struct.is_recursive or getattr(struct, "forward_declared", False):
             return returnstr + "};"
         return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
@@ -590,8 +603,32 @@ class CGenerator:
 
         self.filtered_types = self.iter_types(self.parser.types)
         self._validate_namespace_map()
+        self.bakedNamespaceMap = dict(self.namespaceMap)
+        if not self._namespaces_pinned():
+            uris = getattr(self.parser, "namespaceUris", None)
+            if uris is not None:
+                self.bakedNamespaceMap = {uri: i for i, uri in enumerate(uris) if uri}
+            else:
+                self.bakedNamespaceMap = {OPC_UA_NAMESPACE: 0}
+                for uri in self._contributing_namespaces():
+                    if uri not in self.bakedNamespaceMap:
+                        self.bakedNamespaceMap[uri] = len(self.bakedNamespaceMap)
+
+        # The generated loaders can trust identities within their own array.
+        identities = {}
+        for group in self.filtered_types.values():
+            for datatype in group.values():
+                namespace, identifier = self._baked_nodeid(datatype, datatype.nodeId)
+                if not identifier or (namespace == "0" and identifier == "i=0"):
+                    continue  # Standalone BSD generation may omit NodeIds.
+                identity = (namespace, getNodeidTypeAndId(identifier))
+                if identity in identities:
+                    raise RuntimeError("Duplicate datatype NodeId ns=%s;%s for %s and %s" %
+                                       (namespace, identifier, identities[identity], datatype.name))
+                identities[identity] = datatype.name
 
         self.print_header()
+        self.print_internal_header()
         self.print_description_array()
 
         self.fh.close()
@@ -712,17 +749,14 @@ _UA_BEGIN_DECLS
 
         if totalCount > 0:
             outUpper = self.parser.outname.upper()
-            const_q = "const " if self._can_be_const() else ""
-            if self._can_be_const():
+            self.printh("#define UA_" + outUpper + "_IS_CONST 1")
+            if self._namespaces_pinned():
                 self.printh("""
 /* All namespace indices in the type array are fixed at generation time
  * (--namespaceMap). The array is const and can reside in read-only memory.
- * The server must assign exactly the baked indices to these namespace URIs
- * at runtime. The nodeset initializer verifies the URI/index pairs below. */""")
-                self.printh("#define UA_" + outUpper + "_IS_CONST 1")
-                # Preserve the URI/index association for nodeset initialization.
-                # Array order and the nodeset output filename do not identify
-                # which namespace a type belongs to.
+ * For no-copy loading, the caller must arrange matching server indices.
+ * The nodeset initializer does not validate or remap these indices. */""")
+                # Expose the baked URI/index pairs for server configuration.
                 entries = [
                     '{{{}, UA_STRING_STATIC("{}")}}'.format(
                         self.namespaceMap[ns], makeCLiteral(ns))
@@ -730,7 +764,17 @@ _UA_BEGIN_DECLS
                 self.printh("#define UA_" + outUpper + "_NAMESPACE_MAP {" +
                             ", ".join(entries) + "}")
             self.printh(
-                "extern " + self.export_macro + " " + const_q + "UA_DataType UA_" + outUpper + "[UA_" + outUpper + "_COUNT];")
+                "extern " + self.export_macro + " const UA_DataType UA_" + outUpper + "[UA_" + outUpper + "_COUNT];")
+
+            # Pointer fields may refer to a later structure declaration.
+            if hasattr(self.parser, "namespaceUris"):
+                for ns_types in self.filtered_types.values():
+                    for t in ns_types.values():
+                        if (getattr(t, "needs_forward_declaration", False) and
+                                t.name not in self.cross_ns_duplicate_types):
+                            t.forward_declared = True
+                            name = makeCIdentifier(t.name)
+                            self.printh("typedef struct UA_%s UA_%s;" % (name, name))
 
             typeIndex = 0
             for ns in self.filtered_types:
@@ -761,6 +805,54 @@ _UA_END_DECLS
 
 #endif /* %s_GENERATED_H_ */\n''' % self.parser.outname.upper())
 
+    def conversion_order(self):
+        """Order references for SDK registration without changing exported indexes."""
+        types = [t for group in self.filtered_types.values() for t in group.values()]
+        indexes = {self.print_datatype_ptr(t): i for i, t in enumerate(types)}
+        order, active, done = [], set(), set()
+
+        def visit(i):
+            if i in done:
+                return
+            if i in active:
+                raise RuntimeError("Mutually recursive datatype dependencies involving %s are not supported" % types[i].name)
+            active.add(i)
+            if isinstance(types[i], StructType):
+                for member in types[i].members:
+                    dependency = indexes.get(self.print_datatype_ptr(member.member_type))
+                    if dependency == i and (member.is_array or member.is_optional):
+                        continue  # The SDK handles direct self references.
+                    if dependency is not None:
+                        visit(dependency)
+            active.remove(i)
+            done.add(i)
+            order.append(i)
+
+        for i in range(len(types)):
+            visit(i)
+        return order
+
+    def print_internal_header(self):
+        """Keep registration metadata out of the generated application API."""
+        outUpper = self.parser.outname.upper()
+        with open(self.outfile + "_generated_internal.h", "w", encoding="utf-8") as header:
+            print("/* Generated implementation support. Do not include from applications. */",
+                  file=header)
+            print("#ifndef " + outUpper + "_GENERATED_INTERNAL_H_", file=header)
+            print("#define " + outUpper + "_GENERATED_INTERNAL_H_", file=header)
+            print('#include "' + self.parser.outname + '_generated.h"', file=header)
+            if self.parser.outname not in ("types", "transport"):
+                print(namespace_plan_checks({uri: self.bakedNamespaceMap[uri]
+                                             for uri in self._contributing_namespaces()}),
+                      file=header)
+            if self.parser.outname not in ("types", "transport") and any(self.filtered_types.values()):
+                prefix = "UA_" + outUpper
+                print("_UA_BEGIN_DECLS", file=header)
+                print("extern " + self.export_macro + " const size_t " + prefix +
+                      "_ORDER[" + prefix + "_COUNT];", file=header)
+                print("_UA_END_DECLS", file=header)
+            print("#endif /* " + outUpper + "_GENERATED_INTERNAL_H_ */", file=header)
+
     def print_doc(self):
         for ns in self.filtered_types:
             for _, t_name in enumerate(self.filtered_types[ns]):
@@ -782,6 +874,8 @@ _UA_END_DECLS
  **********************************/
 
 #include "''' + self.parser.outname + '''_generated.h"''')
+        if self.parser.outname not in ("types", "transport") and any(self.filtered_types.values()):
+            self.printc('#include "' + self.parser.outname + '_generated_internal.h"')
 
         totalCount = 0
         for ns in self.filtered_types:
@@ -794,9 +888,8 @@ _UA_END_DECLS
 
         if totalCount > 0:
             outUpper = self.parser.outname.upper()
-            const_q = "const " if self._can_be_const() else ""
             self.printc(
-                "{}UA_DataType UA_{}[UA_{}_COUNT] = {{".format(const_q, outUpper, outUpper))
+                "const UA_DataType UA_{}[UA_{}_COUNT] = {{".format(outUpper, outUpper))
 
             for ns in self.filtered_types:
                 for _, t_name in enumerate(self.filtered_types[ns]):
@@ -804,6 +897,10 @@ _UA_END_DECLS
                     self.printc("/* " + t.name + " */")
                     self.printc(self.print_datatype(t) + ",")
             self.printc("};\n")
+            if self.parser.outname not in ("types", "transport"):
+                self.printc("const size_t UA_" + outUpper + "_ORDER[] = {" +
+                            ", ".join(map(str, self.conversion_order())) + "};")
+
 
 ###########################################
 # Execute with the command line arguments #

@@ -9,7 +9,7 @@
 #include <check.h>
 
 #ifndef UA_TYPES_TESTS_PINNED_MULTI_IS_CONST
-#error "The namespace validation tests require a const datatype array"
+#error "The namespace registration tests require a const datatype array"
 #endif
 
 #define NS_A "urn:open62541:test:pinned-a"
@@ -20,7 +20,7 @@ static UA_Server *server;
 static void
 setup(void) {
     server = UA_Server_newForUnitTest();
-    ck_assert_ptr_nonnull(server);
+    ck_assert_ptr_ne(server, NULL);
 }
 
 static void
@@ -32,8 +32,8 @@ teardown(void) {
  * independently named nodeset using the explicit TYPES_ARRAY argument. */
 static UA_StatusCode
 loadNodeset(int renamed) {
-    return renamed ? namespace_tests_pinned_renamed_generated(server) :
-        namespace_tests_pinned_multi_generated(server);
+    return renamed ? namespace_tests_pinned_renamed_generated(server, false) :
+        namespace_tests_pinned_multi_generated(server, false);
 }
 
 START_TEST(matchingNamespaces) {
@@ -53,39 +53,43 @@ START_TEST(matchingNamespaces) {
 }
 END_TEST
 
-START_TEST(swappedNamespaces) {
-    ck_assert_uint_eq(UA_Server_addNamespace(server, NS_B), 2);
-    ck_assert_uint_eq(UA_Server_addNamespace(server, NS_A), 3);
-    ck_assert_uint_eq(loadNodeset(_i), UA_STATUSCODE_BADINTERNALERROR);
-    ck_assert_ptr_null(UA_Server_getConfig(server)->customDataTypes);
-}
-END_TEST
-
-START_TEST(secondNamespaceMismatch) {
+START_TEST(additionalNamespaces) {
     ck_assert_uint_eq(UA_Server_addNamespace(server, NS_A), 2);
-    ck_assert_uint_eq(UA_Server_addNamespace(server, "urn:unrelated"), 3);
-    ck_assert_uint_eq(loadNodeset(_i), UA_STATUSCODE_BADINTERNALERROR);
-    ck_assert_ptr_null(UA_Server_getConfig(server)->customDataTypes);
-}
-END_TEST
-
-START_TEST(firstNamespaceMismatch) {
-    ck_assert_uint_eq(UA_Server_addNamespace(server, "urn:unrelated"), 2);
     ck_assert_uint_eq(UA_Server_addNamespace(server, NS_B), 3);
-    ck_assert_uint_eq(loadNodeset(_i), UA_STATUSCODE_BADINTERNALERROR);
-    ck_assert_ptr_null(UA_Server_getConfig(server)->customDataTypes);
-}
-END_TEST
+    UA_Server_addNamespace(server, "urn:unrelated");
+    ck_assert_uint_eq(loadNodeset(_i), UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < UA_TYPES_TESTS_PINNED_MULTI_COUNT; i++) {
+        const UA_DataType *type = &UA_TYPES_TESTS_PINNED_MULTI[i];
+        ck_assert_ptr_eq(UA_Server_findDataType(server, &type->typeId), type);
+    }
+} END_TEST
+
+START_TEST(copyPinnedWithDifferentNamespaces) {
+    UA_Server_addNamespace(server, NS_B);
+    UA_Server_addNamespace(server, "urn:unrelated");
+    ck_assert_uint_eq(namespace_tests_pinned_multi_generated(server, true),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < UA_TYPES_TESTS_PINNED_MULTI_COUNT; i++) {
+        UA_NodeId id = UA_TYPES_TESTS_PINNED_MULTI[i].typeId;
+        id.namespaceIndex = i == UA_TYPES_TESTS_PINNED_MULTI_PINNEDA ? 4 : 2;
+        const UA_DataType *type = UA_Server_findDataType(server, &id);
+        ck_assert_ptr_ne(type, NULL);
+        ck_assert_ptr_ne(type, &UA_TYPES_TESTS_PINNED_MULTI[i]);
+        ck_assert_uint_eq(type->typeId.namespaceIndex,
+            i == UA_TYPES_TESTS_PINNED_MULTI_PINNEDA ? 4 : 2);
+        ck_assert_uint_eq(UA_TYPES_TESTS_PINNED_MULTI[i].typeId.namespaceIndex,
+            i == UA_TYPES_TESTS_PINNED_MULTI_PINNEDA ? 2 : 3);
+    }
+} END_TEST
 
 int
 main(void) {
-    Suite *suite = suite_create("Nodeset compiler namespace validation");
+    Suite *suite = suite_create("Nodeset compiler namespace registration");
     TCase *tc = tcase_create("Pinned namespaces and explicit array names");
     tcase_add_checked_fixture(tc, setup, teardown);
+    tcase_add_test(tc, copyPinnedWithDifferentNamespaces);
     tcase_add_loop_test(tc, matchingNamespaces, 0, 2);
-    tcase_add_loop_test(tc, swappedNamespaces, 0, 2);
-    tcase_add_loop_test(tc, secondNamespaceMismatch, 0, 2);
-    tcase_add_loop_test(tc, firstNamespaceMismatch, 0, 2);
+    tcase_add_loop_test(tc, additionalNamespaces, 0, 2);
     suite_add_tcase(suite, tc);
     SRunner *runner = srunner_create(suite);
     srunner_set_fork_status(runner, CK_NOFORK);

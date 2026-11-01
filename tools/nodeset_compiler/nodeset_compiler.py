@@ -18,9 +18,11 @@ import logging
 import argparse
 import sys
 import xml.etree.ElementTree as etree
+from pathlib import Path
 
 from .datatypes import NodeId
 from .nodeset import *
+from .namespace_plan import parse_namespace_plan
 
 # Parse the arguments
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -81,6 +83,28 @@ parser.add_argument('-t', '--types-array',
                     default=[],
                     help='Types array for the given namespace. Can be used multiple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
 
+parser.add_argument('--namespaceMap', action='append', default=[], dest='namespace_map',
+                    help='Shared node and datatype namespace plan: <index>:<uri>. No-copy loading assumes matching server indexes.')
+
+parser.add_argument('--batch', metavar='<manifest.json>',
+                    help='Generate separate modules from a JSON manifest with one shared namespace plan. outputFile is the output directory.')
+parser.add_argument('--types-array-for', nargs=2, action='append', default=[],
+                    metavar=('XML', 'ARRAY'),
+                    help='Assign an imported XML file to a datatype array explicitly.')
+
+parser.add_argument('--types-schema', dest='typesSchema', default=None,
+                    help='Directory containing the NodeIds.csv and Opc.Ua.Types.bsd '
+                         'used to build the library. Defaults to the bundled schema.')
+
+parser.add_argument('--types-output',
+                    metavar='<outputFile>',
+                    type=str,
+                    dest='typesOutput',
+                    default=None,
+                    help='Generate a static datatype array from inline NodeSet '
+                         'Definitions. The value is the output file basename '
+                         'without the _generated suffix.')
+
 parser.add_argument('-v', '--verbose', action='count',
                     default=1,
                     help='Make the script more verbose. Can be applied up to 4 times')
@@ -93,6 +117,11 @@ parser.add_argument('--backend',
                     help='Backend for the output files (default: %(default)s)')
 
 args = parser.parse_args()
+
+if args.batch:
+    from .nodeset_batch import generate_batch
+    generate_batch(args)
+    sys.exit(0)
 
 # Set up logging
 # By default logging outputs to stderr. We want to redirect it to stdout, otherwise build output from cmake
@@ -116,9 +145,11 @@ else:
 
 # Create a new nodeset. The nodeset name is not significant.
 # Parse the XML files
-ns = NodeSet()
+ns = NodeSet(parse_namespace_plan(args.namespace_map) if args.namespace_map else None)
+ns.standardTypesSchema = args.typesSchema
 nsCount = 0
 loadedFiles = list()
+fileArrays = {Path(path).resolve(): array for path, array in args.types_array_for}
 
 # Remove duplicate entries in typesArray, which occur when a nodeset has more than one depend.
 tmp_list = []
@@ -132,17 +163,14 @@ def getTypesArray(nsIdx):
         return args.typesArray[nsIdx]
     return "UA_TYPES"
 
-def hasCustomDataType(xmlfile):
-    tree = etree.parse(xmlfile)
-    root = tree.getroot()
-
-    for elem in root.iter():
-        if elem.tag.endswith('UADataType'):
-            xmlfile.seek(0)
-            return True
-    # No custom data types found
+def consumesTypesArray(xmlfile):
+    """Whether this NodeSet consumes the next positional datatype array."""
+    from .type_parser import has_native_types
+    root = etree.parse(xmlfile).getroot()
     xmlfile.seek(0)
-    return False
+    if not args.typesOutput:
+        return any(elem.tag.rsplit("}", 1)[-1] == "UADataType" for elem in root)
+    return has_native_types(root)
 
 for xmlfile in args.existing:
     if xmlfile.name in loadedFiles:
@@ -150,7 +178,10 @@ for xmlfile in args.existing:
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing (existing) %s", xmlfile.name)
-    if hasCustomDataType(xmlfile):
+    if Path(xmlfile.name).resolve() in fileArrays:
+        ns.addNodeSet(xmlfile, True, typesArray=fileArrays[Path(xmlfile.name).resolve()])
+        continue
+    if consumesTypesArray(xmlfile):
         ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
         nsCount += 1
         continue
@@ -162,11 +193,15 @@ for xmlfile in args.infiles:
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing %s", xmlfile.name)
-    if hasCustomDataType(xmlfile):
+    if consumesTypesArray(xmlfile):
         ns.addNodeSet(xmlfile, typesArray=getTypesArray(nsCount))
         nsCount += 1
         continue
     ns.addNodeSet(xmlfile, typesArray="UA_TYPES")
+
+for array in fileArrays.values():
+    if array not in args.typesArray:
+        args.typesArray.append(array)
 
 # # We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
 # namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
@@ -224,7 +259,8 @@ logger.info("Generating Code for Backend: %s (%i Nodes)", args.backend, len(ns.n
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
     from .backend_open62541 import generateOpen62541Code
-    generateOpen62541Code(ns, args.outputFile, args.internal_headers, args.typesArray)
+    generateOpen62541Code(ns, args.outputFile, args.internal_headers,
+                          args.typesArray, args.typesOutput, args.namespace_map)
 elif args.backend == "graphviz":
     from .backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)
