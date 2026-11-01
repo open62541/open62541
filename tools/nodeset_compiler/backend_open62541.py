@@ -27,9 +27,20 @@ logger = logging.getLogger(__name__)
 
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
-    keywords = frozenset(["double", "int", "float", "char"])
+    keywords = frozenset((
+        "auto break case char const continue default do double else enum extern float for goto if inline "
+        "int long register restrict return short signed sizeof static struct switch typedef union "
+        "unsigned void volatile while _Alignas _Alignof _Atomic _Bool _Complex _Generic _Imaginary "
+        "_Noreturn _Static_assert _Thread_local _BitInt _Decimal32 _Decimal64 _Decimal128 typeof "
+        "typeof_unqual alignas alignof and and_eq asm bitand bitor bool catch char8_t char16_t char32_t "
+        "class compl concept consteval constexpr constinit const_cast co_await co_return co_yield "
+        "decltype delete dynamic_cast explicit export false friend mutable namespace new noexcept not "
+        "not_eq nullptr operator or or_eq private protected public reinterpret_cast requires "
+        "static_assert static_cast template this thread_local throw true try typeid typename using "
+        "virtual wchar_t xor xor_eq "
+    ).split())
     sanitized = re.sub(r'[^\w]', '', value)
-    if sanitized in keywords:
+    if not sanitized or sanitized[0].isdigit() or sanitized in keywords:
         return "_" + sanitized
     return sanitized
 
@@ -45,22 +56,29 @@ def splitStringLiterals(value, splitLength=500):
     E.g. "Some very long text" will be split into "Some ver" "y long te" "xt"
     On VS2008 there is a maximum allowed length of a single string literal.
     """
-    value = value.strip()
-    if len(value) < splitLength or splitLength == 0:
-        return "\"" + re.sub(r'(?<!\\)"', r'\\"', value) + "\""
-    ret = ""
-    tmp = value
-    while len(tmp) > splitLength:
-        ret += "\"" + tmp[:splitLength].replace('"', r'\"') + "\" "
-        tmp = tmp[splitLength:]
-    ret += "\"" + re.sub(r'(?<!\\)"', r'\\"', tmp) + "\" "
-    return ret
+    # Input is already C-escaped. Split only between complete escape tokens.
+    if splitLength <= 0:
+        return '"' + value + '"'
+    pieces = []
+    start = 0
+    while len(value) - start > splitLength:
+        end = start + splitLength
+        backslashes = 0
+        while end - backslashes > start and value[end - backslashes - 1] == "\\":
+            backslashes += 1
+        if backslashes % 2:
+            end -= 1
+        if end == start:
+            end += 2  # Keep even a single escaped character intact.
+        pieces.append(value[start:end])
+        start = end
+    pieces.append(value[start:])
+    return " ".join('"' + piece + '"' for piece in pieces)
 
 def generateLocalizedTextCode(value, alloc=False):
-    if value.text is None:
-        value.text = ""
-    vt = makeCLiteral(value.text)
-    return "UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale, splitStringLiterals(vt))
+    locale = "NULL" if value.locale is None else splitStringLiterals(makeCLiteral(value.locale))
+    text = "NULL" if value.text is None else splitStringLiterals(makeCLiteral(value.text))
+    return "UA_LOCALIZEDTEXT{}({}, {})".format("_ALLOC" if alloc else "", locale, text)
 
 def generateQualifiedNameCode(value, alloc=False,):
     if value.name is None:
@@ -123,8 +141,7 @@ def generateReferenceTypeNodeCode(node):
     if node.symmetric:
         code.append("attr.symmetric  = true;")
     if node.inverseName != "":
-        code.append("attr.inverseName  = UA_LOCALIZEDTEXT(\"\", \"%s\");" % \
-                    node.inverseName)
+        code.append("attr.inverseName = %s;" % generateLocalizedTextCode(node.inverseName))
     return code
 
 def generateObjectNodeCode(node):
@@ -242,10 +259,19 @@ def generateCommonVariableCode(node, nodeset):
     codeCleanup = []
     codeGlobal = []
 
-    if node.valueRank is None:
-        # Set the constrained value rank from the type/parent node
-        setNodeValueRankRecursive(node, nodeset)
-        code.append("/* Value rank inherited */")
+    rank_omitted = node.valueRank is None
+    if rank_omitted:
+        if isinstance(node, VariableTypeNode):
+            setNodeValueRankRecursive(node, nodeset)
+        else:
+            # NodeSet XML defaults instances to scalar. Only a decoded array
+            # without an explicit rank uses the VariableType's legacy rank.
+            node.valueRank = -1
+            type_definition = nodeset.getNodeTypeDefinition(node)
+            if type_definition is not None:
+                setNodeValueRankRecursive(type_definition, nodeset)
+                if type_definition.valueRank >= 0:
+                    node.valueRank = type_definition.valueRank
 
     code.append("attr.valueRank = %d;" % node.valueRank)
     if node.valueRank > 0:
@@ -259,6 +285,8 @@ def generateCommonVariableCode(node, nodeset):
                 code.append(f"arrayDimensions[{dim}] = 0;")
         code.append("attr.arrayDimensions = &arrayDimensions[0];")
 
+    if isinstance(node.dataType, str) and nodeset.getDataTypeNode(node.dataType) is None:
+        node.dataType = None
     if node.dataType is None:
         # Inherit the datatype from the HasTypeDefinition reference, as stated in the OPC UA Spec:
         # 6.4.2
@@ -275,14 +303,16 @@ def generateCommonVariableCode(node, nodeset):
                            str(node.dataType) + " of node " + \
                            node.browseName.name + " " + str(node.id))
 
+    node.dataType = nodeset.getDataTypeNode(node.dataType).id
     code.append("attr.dataType = %s;" % generateNodeIdCode(node.dataType))
 
     if node.value:
         code.append("#ifdef UA_ENABLE_XML_ENCODING")
-        xmlenc = [makeCLiteral(line) for line in node.value.toxml().splitlines()]
-        line_lengths = [len(line.lstrip()) for line in node.value.toxml().splitlines()] # length without the C escaping
+        text = node.value.toxml()
+        chunks = [text[i:i+1024] for i in range(0, len(text), 1024)]
+        xmlenc = ['"' + makeCLiteral(chunk) + '"' for chunk in chunks]
+        line_lengths = [len(chunk.encode("utf-8")) for chunk in chunks]
         xmlLength = sum(line_lengths)
-        xmlenc = [(" " * (len(line) - len(line.lstrip()))) + "\"" + line.lstrip() + "\"" for line in xmlenc]
         if xmlLength < 30000:
             outxml = "\n".join(xmlenc)
             code.append(f"UA_String xmlValue = UA_STRING({outxml});")
@@ -316,11 +346,19 @@ def generateCommonVariableCode(node, nodeset):
             codeCleanup.append("UA_String_clear(&xmlValue);")
             codeCleanup.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
+        # XML values retain the namespace numbering of their source file.
+        mapping = node.namespaceMapping or {0: 0}
+        indices = [mapping[i] for i in range(max(mapping) + 1)]
+        code.append("UA_UInt16 valueNamespaces[] = {" + ", ".join(
+            "UA_NamespaceMapping_local2Remote(nsMapping, %d)" % i for i in indices) + "};")
+        code.append("UA_NamespaceMapping valueMapping = *nsMapping;")
+        code.append("valueMapping.remote2local = valueNamespaces;")
+        code.append("valueMapping.remote2localSize = %d;" % len(indices))
         code.append("""UA_DecodeXmlOptions opts;
 memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
 opts.unwrapped = true;
-opts.namespaceMapping = nsMapping;
-opts.customTypes = UA_Server_getConfig(server)->customDataTypes;
+opts.namespaceMapping = &valueMapping;
+opts.customTypes = UA_Server_getDataTypes(server);
 retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opts);""")
         # Some companion specs (e.g. IOLink, PNENC, PNRIO) declare ValueRank=1
         # (one-dimensional array) but provide a scalar default value in the XML
@@ -350,6 +388,62 @@ retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opt
                                "but the XML value is scalar. "
                                "Auto-wrapping into a one-element array.",
                                str(node.id), node.valueRank)
+        code.append("if(retVal == UA_STATUSCODE_GOOD && attr.value.type &&")
+        code.append("   !UA_NodeId_equal(&attr.dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {")
+        code.append("    const UA_DataType *target = UA_Server_findDataType(server, &attr.dataType);")
+        code.append("    if(!target) {")
+        code.append("        UA_NodeId representation = %s;" % generateNodeIdCode(dataTypeNode.id))
+        code.append("        target = UA_Server_findDataType(server, &representation);")
+        code.append("    }")
+        # A null data pointer has no elements, even when its type is known.
+        # Keep empty arrays eligible for the datatype-only conversion below.
+        code.append("    size_t valuesSize = 0;")
+        code.append("    if(attr.value.data)")
+        code.append("        valuesSize = UA_Variant_isScalar(&attr.value) ? 1 : attr.value.arrayLength;")
+        code.append("    if(target && target->typeKind == UA_DATATYPEKIND_UINT32 && attr.value.type == &UA_TYPES[UA_TYPES_INT32]) {")
+        code.append("        UA_Boolean nonnegative = true;")
+        code.append("        for(size_t k = 0; k < valuesSize; k++)")
+        code.append("            if(((UA_Int32*)attr.value.data)[k] < 0) nonnegative = false;")
+        code.append("        if(nonnegative) {")
+        code.append("            for(size_t k = 0; k < valuesSize; k++) {")
+        code.append("                UA_UInt32 converted = (UA_UInt32)((UA_Int32*)attr.value.data)[k];")
+        code.append("                memcpy((UA_Byte*)attr.value.data + k * sizeof(UA_UInt32), &converted, sizeof(converted));")
+        code.append("            }")
+        code.append("            attr.value.type = target;")
+        code.append("        }")
+        code.append("    }")
+        code.append("    const UA_DataType *actual = attr.value.type;")
+        code.append("    if(actual == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT] && valuesSize > 0) {")
+        code.append("        UA_ExtensionObject *objects = (UA_ExtensionObject*)attr.value.data;")
+        code.append("        for(size_t k = 0; k < valuesSize; k++) {")
+        code.append("            if((objects[k].encoding != UA_EXTENSIONOBJECT_DECODED && objects[k].encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||")
+        code.append("               (k > 0 && objects[k].content.decoded.type != actual)) { actual = attr.value.type; break; }")
+        code.append("            actual = objects[k].content.decoded.type;")
+        code.append("        }")
+        code.append("    }")
+        code.append("    if(target && actual == &UA_TYPES[UA_TYPES_ARGUMENT] &&")
+        code.append("       target->typeKind != UA_DATATYPEKIND_STRUCTURE && target->typeKind != UA_DATATYPEKIND_OPTSTRUCT &&")
+        code.append("       target->typeKind != UA_DATATYPEKIND_UNION) UA_Variant_clear(&attr.value);")
+        code.append("}")
+        if node.valueRank > 1 and (node.arrayDimensions or isinstance(node, VariableTypeNode)):
+            code.append("if(retVal == UA_STATUSCODE_GOOD && attr.value.arrayLength > 0 && attr.arrayDimensionsSize > 0) {")
+            code.append("    UA_Array_delete(attr.value.arrayDimensions, attr.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);")
+            code.append("    attr.value.arrayDimensions = NULL; attr.value.arrayDimensionsSize = 0;")
+            code.append("    retVal = UA_Array_copy(attr.arrayDimensions, attr.arrayDimensionsSize, (void**)&attr.value.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);")
+            code.append("    if(retVal == UA_STATUSCODE_GOOD) attr.value.arrayDimensionsSize = attr.arrayDimensionsSize;")
+            code.append("}")
+        if node.valueRank == 1:
+            # Match the established loader repair for legacy array defaults.
+            code.append("if(retVal == UA_STATUSCODE_GOOD && attr.arrayDimensionsSize == 1 &&")
+            code.append("   attr.arrayDimensions[0] > 0 && attr.value.arrayLength > attr.arrayDimensions[0])")
+            code.append("    attr.arrayDimensions[0] = attr.value.arrayLength <= UA_UINT32_MAX ?")
+            code.append("        (UA_UInt32)attr.value.arrayLength : 0;")
+        if rank_omitted and not isinstance(node, VariableTypeNode):
+            type_definition = nodeset.getNodeTypeDefinition(node)
+            if type_definition is not None:
+                code.append("if(attr.value.type && !UA_Variant_isScalar(&attr.value))")
+                code.append("    (void)UA_Server_readValueRank(server, %s, &attr.valueRank);" %
+                            generateNodeIdCode(type_definition.id))
         code.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
         codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
@@ -613,33 +707,42 @@ _UA_END_DECLS
         writec("    " + arr + ",")
         writec("    UA_FALSE\n};")
 
+    maxns = max(nodeset.namespaceMapping.keys(), default=0) + 1
     writec("""
 UA_StatusCode %s(UA_Server *server) {
-UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
+UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+UA_NamespaceMapping nsMapping;
+memset(&nsMapping, 0, sizeof(nsMapping));
+size_t namespaceUrisSize = 0;""" % (outfilebase))
 
     # Generate namespaces (don't worry about duplicates)
     writec("/* Use namespace ids generated by the server */")
     writec("UA_UInt16 ns[" + str(len(nodeset.namespaces)+1) + "];")
-    for i, nsid in enumerate(nodeset.namespaces):
-        nsid = nsid.replace("\"", "\\\"")
-        writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
+    writec(f"UA_UInt16 nsMappingTable[{maxns}] = {{0}};")
+    writec("static const UA_String namespaceUris[] = {")
+    for uri in nodeset.namespaces:
+        writec('    UA_STRING_STATIC("%s"),' % makeCLiteral(uri))
+    writec("};")
+    for i, uri in enumerate(nodeset.namespaces):
+        writec('ns[%d] = UA_Server_addNamespace(server, "%s");' % (i, makeCLiteral(uri)))
+        if i > 0:
+            writec("if(ns[%d] == 0) { retVal = UA_STATUSCODE_BADOUTOFMEMORY; goto cleanup; }" % i)
+        writec("if((size_t)ns[%d] + 1 > namespaceUrisSize) namespaceUrisSize = (size_t)ns[%d] + 1;" % (i, i))
+    writec("nsMapping.namespaceUris = (UA_String*)UA_calloc(namespaceUrisSize, sizeof(UA_String));")
+    writec("if(!nsMapping.namespaceUris) { retVal = UA_STATUSCODE_BADOUTOFMEMORY; goto cleanup; }")
+    writec("nsMapping.namespaceUrisSize = namespaceUrisSize;")
+    for i in range(len(nodeset.namespaces)):
+        writec("nsMapping.namespaceUris[ns[%d]] = namespaceUris[%d];" % (i, i))
 
     # Write the list of ns mappings
-    maxns = max(nodeset.namespaceMapping.keys()) + 1
-    maxns = max(maxns, 2)
-    mapping = [0] * maxns
-    mapping[1] = 1 # default
     for k, v in nodeset.namespaceMapping.items():
-        mapping[k] = v
-    writec(f"UA_UInt16 nsMappingTable[{len(mapping)}]" + " = {" + ", ".join(map(lambda x: f"ns[{x}]", mapping)) + "};")
+        writec("nsMappingTable[%d] = ns[%d];" % (k, v))
 
     # Create the namespace mapping
-    writec("UA_NamespaceMapping nsMapping;")
-    writec("memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));")
     writec("nsMapping.local2remote = ns;")
     writec(f"nsMapping.local2remoteSize = {len(nodeset.namespaces)};")
     writec("nsMapping.remote2local = nsMappingTable;")
-    writec(f"nsMapping.remote2localSize = {len(mapping)};")
+    writec(f"nsMapping.remote2localSize = {maxns};")
 
     # Validate every const array before registering any types. The datatype
     # generator supplies the URI/index pairs, including arrays spanning multiple
@@ -664,7 +767,7 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         writec('                 "their pinned indices or regenerate without NAMESPACE_MAP.",')
         writec("                 (int)namespaces[i].uri.length, (char*)namespaces[i].uri.data,")
         writec("                 (unsigned)namespaces[i].index);")
-        writec("            return UA_STATUSCODE_BADINTERNALERROR;")
+        writec("            retVal = UA_STATUSCODE_BADINTERNALERROR; goto cleanup;")
         writec("        }")
         writec("    }")
         writec("}")
@@ -713,6 +816,8 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
             writec("retVal |= function_{outfilebase}_{idx}_finish(server, &nsMapping);". \
                    format(outfilebase=outfilebase, idx=str(i)))
 
+    writec("cleanup:")
+    writec("UA_free(nsMapping.namespaceUris);")
     writec("return retVal;\n}")
     outfileh.flush()
     os.fsync(outfileh)

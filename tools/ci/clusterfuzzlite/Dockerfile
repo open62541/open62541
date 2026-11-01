@@ -3,4 +3,4 @@ RUN apt-get update && apt-get install -y make cmake python3-six libssl-dev zip
 COPY . $SRC/open62541
 WORKDIR $SRC/open62541
 RUN git submodule update --init --recursive deps/mdnsd
-COPY .clusterfuzzlite/build.sh $SRC/
+COPY tools/ci/clusterfuzzlite/build.sh $SRC/

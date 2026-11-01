@@ -27,6 +27,7 @@
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 
+#include <stdlib.h>
 #include <signal.h>
 
 #define ENDPOINT_URL       "opc.tcp://localhost:4840"

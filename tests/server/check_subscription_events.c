@@ -326,6 +326,24 @@ START_TEST(generateEvents) {
     UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
+START_TEST(generateEventWithoutCallback) {
+    UA_MonitoredItemCreateResult result = addMonitoredItem(NULL, true, true);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_StatusCode retval =
+        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100,
+                              message, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    joinServer();
+    for(size_t i = 0; i < 4; i++) {
+        UA_fakeSleep((UA_UInt32)publishingInterval + 100);
+        UA_Server_run_iterate(server, false);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    forkServer();
+    UA_MonitoredItemCreateResult_clear(&result);
+} END_TEST
+
 static bool hasBaseModelChangeEventType(void) {
 
     UA_QualifiedName readBrowsename;
@@ -2687,6 +2705,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, generateEventEmptyFilter);
     tcase_add_test(tc_server, generateEvents);
+    tcase_add_test(tc_server, generateEventWithoutCallback);
     tcase_add_test(tc_server, uppropagation);
     tcase_add_test(tc_server, eventOverflow);
     tcase_add_test(tc_server, multipleMonitoredItemsOneNode);

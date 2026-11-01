@@ -24,3 +24,16 @@ Expected output of uaread:
 WARNING: Requested secure channel timeout to be 3600000ms, got 600000ms instead
 42
 ```
+## Encryption
+Encryption uses the mbedTLS of the Zephyr build. Enable it in `prj.conf`:
+```
+CONFIG_MBEDTLS=y
+CONFIG_OPEN62541_ENABLE_ENCRYPTION_MBEDTLS=y
+```
+`CONFIG_OPEN62541_MBEDTLS_REQUIREMENTS` (on by default) then enables the mbedTLS
+options for the security policies and the certificate handling, as the mbedTLS
+of the Zephyr tree names them: mbedTLS 3.6 up to Zephyr 4.3, mbedTLS 4 with
+TF-PSA-Crypto from Zephyr 4.4 (`arch/zephyr/Kconfig.mbedtls`). Each of them can
+still be disabled in `prj.conf`; disable `CONFIG_OPEN62541_MBEDTLS_REQUIREMENTS`
+to configure mbedTLS by hand. PSA's random generator needs an entropy driver
+(`CONFIG_ENTROPY_GENERATOR`).

@@ -106,7 +106,10 @@ typedef struct ServerOnNetworkRecord {
     UA_ServerOnNetwork serverOnNetwork;
     UA_Boolean txtSet;
     UA_Boolean srvSet;
-    char *pathTmp;
+    /* Parts of the DiscoveryUrl from the latest received SRV and TXT records */
+    UA_String srvHostname;
+    UA_UInt16 srvPort;
+    UA_String path;
     ServerOnNetworkRecordOrigin origin;
     UA_DateTime nextAction; /* Remote: Remove after TTL
                              * Local: Announce again */
@@ -149,8 +152,8 @@ stopRecordDetailsQueryForEntry(MdnsdDriver *md,
 static void
 ServerOnNetworkRecord_delete(ServerOnNetworkRecord *son) {
     UA_ServerOnNetwork_clear(&son->serverOnNetwork);
-    if(son->pathTmp)
-        UA_free(son->pathTmp);
+    UA_String_clear(&son->srvHostname);
+    UA_String_clear(&son->path);
     UA_free(son);
 }
 
@@ -241,6 +244,28 @@ isLocalOwnedSON(const ServerOnNetworkRecord *entry) {
 /* Process Received Records */
 /****************************/
 
+/* Assemble the DiscoveryUrl as opc.tcp://[hostname]:[port][path]. The records
+ * are received again to refresh the caches and can change. So the DiscoveryUrl
+ * is assembled again for every SRV and TXT record. Format into an empty string.
+ * UA_String_format reuses the buffer of a non-empty string and fails if the new
+ * DiscoveryUrl does not fit. */
+static UA_StatusCode
+updateDiscoveryUrl(ServerOnNetworkRecord *entry) {
+    if(!entry->srvSet)
+        return UA_STATUSCODE_GOOD;
+
+    UA_String url = UA_STRING_NULL;
+    UA_StatusCode res =
+        UA_String_format(&url, "opc.tcp://%S:%d%S", entry->srvHostname,
+                         entry->srvPort, entry->path);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_String_clear(&entry->serverOnNetwork.discoveryUrl);
+    entry->serverOnNetwork.discoveryUrl = url;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
     /* Parse the record */
@@ -248,26 +273,24 @@ processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
     if(!x)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Process the path */
+    /* Process the path. The latest TXT record replaces the previous path. */
     char *path = (char *) xht_get(x, "path");
     size_t pathLen = path ? strlen(path) : 0;
+    UA_String newPath = UA_STRING_NULL;
     if(pathLen > 1) {
-        if(!entry->srvSet) {
-            /* TXT arrived before SRV. Cache path entry for assembly of the full
-             * DiscoveryUrl */
-            if(!entry->pathTmp) {
-                entry->pathTmp = (char*)UA_malloc(pathLen+1);
-                if(!entry->pathTmp) {
-                    xht_free(x);
-                    return UA_STATUSCODE_BADOUTOFMEMORY;;
-                }
-                memcpy(entry->pathTmp, path, pathLen);
-                entry->pathTmp[pathLen] = '\0';
-            }
-        } else {
-            /* SRV already there and discovery URL set. Add path to discovery URL */
-            UA_String_append(&entry->serverOnNetwork.discoveryUrl, UA_STRING(path));
+        newPath = UA_STRING_ALLOC(path);
+        if(newPath.length == 0) {
+            xht_free(x);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         }
+    }
+    UA_String_clear(&entry->path);
+    entry->path = newPath;
+
+    UA_StatusCode res = updateDiscoveryUrl(entry);
+    if(res != UA_STATUSCODE_GOOD) {
+        xht_free(x);
+        return res;
     }
 
     /* Process the capabilities */
@@ -300,8 +323,17 @@ processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
             char *nextStr = strchr(caps, ',');
             if(nextStr)
                 *nextStr = '\0';
-            entry->serverOnNetwork.serverCapabilities[i] =
-                UA_STRING_ALLOC(caps);
+            UA_String capability = UA_STRING(caps);
+            res = UA_String_copy(&capability,
+                                  &entry->serverOnNetwork.serverCapabilities[i]);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_Array_delete(entry->serverOnNetwork.serverCapabilities,
+                                capsCount, &UA_TYPES[UA_TYPES_STRING]);
+                entry->serverOnNetwork.serverCapabilities = NULL;
+                entry->serverOnNetwork.serverCapabilitiesSize = 0;
+                xht_free(x);
+                return res;
+            }
             if(nextStr)
                 caps = nextStr + 1;
         }
@@ -313,7 +345,7 @@ processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
 }
 
 /* Example: _opcua-tcp._tcp.[servername]. 86400 IN SRV 0 5 4840 [hostname]. */
-static void
+static UA_StatusCode
 processSrv(ServerOnNetworkRecord *entry, const struct resource *r) {
     /* The specification Part 12 says: The hostname maps onto the SRV record
      * target field. If the hostname is an IP-address then it must be converted
@@ -325,17 +357,17 @@ processSrv(ServerOnNetworkRecord *entry, const struct resource *r) {
     if(hostname.length > 0 && hostname.data[hostname.length - 1] == '.')
         hostname.length--;
 
-    /* Prepare the DiscoveryUrl as opc.tcp://[servername]:[port][path] */
-    UA_String_format(&entry->serverOnNetwork.discoveryUrl,
-                     "opc.tcp://%S:%d", hostname, r->known.srv.port);
-    if(entry->pathTmp) {
-        UA_String_append(&entry->serverOnNetwork.discoveryUrl,
-                         UA_STRING(entry->pathTmp));
-        UA_free(entry->pathTmp);
-        entry->pathTmp = NULL;
-    }
-
+    UA_String newHostname;
+    UA_StatusCode res = UA_String_copy(&hostname, &newHostname);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_String_clear(&entry->srvHostname);
+    entry->srvHostname = newHostname;
+    entry->srvPort = r->known.srv.port;
     entry->srvSet = true;
+
+    /* Assemble with the path from the latest TXT record */
+    return updateDiscoveryUrl(entry);
 }
 
 static int
@@ -1217,32 +1249,50 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Boolean removed = (_removed) ? *_removed : false;
 
+    const UA_Boolean *_announce = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "announce"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Boolean announce = (_announce) ? *_announce : false;
+
     /* Find existing entry for the ServerName */
     ServerOnNetworkRecord *entry = findSON(md, son->serverName);
 
     /* Add or update record */
     if(added || updated) {
+        /* The entry is not announced. For example because it was received over
+         * mDNS. Retract the entry if it was announced before. */
+        if(!announce) {
+            if(entry && isLocalOwnedSON(entry)) {
+                retractRecord(md, &entry->serverOnNetwork);
+                flushMulticastMessages(md);
+                removeLocalSON(md, entry);
+            }
+            return;
+        }
+
         if(!entry) {
             /* Create a new entry if none exists */
             res = addSON(md, son, &entry);
             if(res != UA_STATUSCODE_GOOD)
                 return;
         } else {
-            /* Abort if the mDNS-relevant fields are identical. The recordId is
-             * bumped server-side (e.g. by resetDiscoveryResetIds) and must
-             * not be part of the equality check. Use a shallow copy on the
-             * stack so the string pointers of `son` stay valid. */
+            /* Abort if the entry is announced already and the mDNS-relevant
+             * fields are identical. The recordId is bumped server-side (e.g.
+             * by resetDiscoveryResetIds) and must not be part of the equality
+             * check. Use a shallow copy on the stack so the string pointers of
+             * `son` stay valid. */
             UA_ServerOnNetwork sonForCmp = *son;
             sonForCmp.recordId = entry->serverOnNetwork.recordId;
             UA_Order same =
                 UA_order(&sonForCmp, &entry->serverOnNetwork,
                          &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-            if(same == UA_ORDER_EQ) {
-                /* If this is an entry received from mDNS, this notification is
-                 * just the server table echo of our cache update. Keep the
-                 * remote origin and do not announce it back out. */
+            if(isLocalOwnedSON(entry) && same == UA_ORDER_EQ)
                 return;
-            }
+
+            /* Take over a received entry. No more queries for its details. */
+            if(isRemoteReceivedSON(entry))
+                stopRecordDetailsQueryForEntry(md, entry);
+
             UA_ServerOnNetwork tmp;
             res = UA_ServerOnNetwork_copy(son, &tmp);
             if(res != UA_STATUSCODE_GOOD)

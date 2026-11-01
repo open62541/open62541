@@ -22,7 +22,6 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "../ua_types_encoding_binary.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 /* store the authentication token and session ID so we can help fuzzing by

@@ -19,6 +19,119 @@
 
 #include "ua_server_internal.h"
 
+/**********************/
+/* ServerCapabilities */
+/**********************/
+
+#define SERVERCAPABILITY(ID) {UA_SERVERCAPABILITY_##ID, UA_STRING_STATIC(#ID)}
+
+static const struct {
+    UA_UInt64 capability;
+    UA_String identifier;
+} serverCapabilityIdentifiers[] = {
+    SERVERCAPABILITY(NA), SERVERCAPABILITY(DA), SERVERCAPABILITY(HD),
+    SERVERCAPABILITY(AC), SERVERCAPABILITY(HE), SERVERCAPABILITY(GDS),
+    SERVERCAPABILITY(LDS), SERVERCAPABILITY(DI), SERVERCAPABILITY(ADI),
+    SERVERCAPABILITY(FDI), SERVERCAPABILITY(FDIC), SERVERCAPABILITY(PLC),
+    SERVERCAPABILITY(S95), SERVERCAPABILITY(RCP), SERVERCAPABILITY(PUB),
+    SERVERCAPABILITY(NTRS), SERVERCAPABILITY(AUTOID), SERVERCAPABILITY(MDIS),
+    SERVERCAPABILITY(CNC), SERVERCAPABILITY(PLK), SERVERCAPABILITY(FDT),
+    SERVERCAPABILITY(TMC), SERVERCAPABILITY(CSPP), SERVERCAPABILITY(61850),
+    SERVERCAPABILITY(PACKML), SERVERCAPABILITY(MTC), SERVERCAPABILITY(AUTOML),
+    SERVERCAPABILITY(SERCOS), SERVERCAPABILITY(MIMOSA), SERVERCAPABILITY(WITSML),
+    SERVERCAPABILITY(DEXPI), SERVERCAPABILITY(IOLINK), SERVERCAPABILITY(VROBOT),
+    SERVERCAPABILITY(PNO), SERVERCAPABILITY(PADIM), SERVERCAPABILITY(ALIAS),
+    SERVERCAPABILITY(SKS), SERVERCAPABILITY(FXAC), SERVERCAPABILITY(FXCM)
+};
+
+#define SERVERCAPABILITYIDENTIFIERSSIZE \
+    (sizeof(serverCapabilityIdentifiers) / sizeof(serverCapabilityIdentifiers[0]))
+
+UA_UInt64
+getServerCapability(const UA_String *identifier) {
+    for(size_t i = 0; i < SERVERCAPABILITYIDENTIFIERSSIZE; i++) {
+        if(UA_String_equal_ignorecase(identifier,
+                                      &serverCapabilityIdentifiers[i].identifier))
+            return serverCapabilityIdentifiers[i].capability;
+    }
+    return 0;
+}
+
+size_t
+getServerCapabilityIdentifiers(UA_UInt64 capabilities,
+                               UA_String out[UA_SERVERCAPABILITIES_MAX]) {
+    size_t outSize = 0;
+    for(size_t i = 0; i < SERVERCAPABILITYIDENTIFIERSSIZE; i++) {
+        if(capabilities & serverCapabilityIdentifiers[i].capability)
+            out[outSize++] = serverCapabilityIdentifiers[i].identifier;
+    }
+    return outSize;
+}
+
+void
+setupServerCapabilities(UA_Server *server) {
+    UA_ServerConfig *sc = &server->config;
+    UA_UInt64 caps = sc->serverCapabilities;
+
+    /* Remove bits without an identifier */
+    UA_UInt64 known = 0;
+    for(size_t i = 0; i < SERVERCAPABILITYIDENTIFIERSSIZE; i++)
+        known |= serverCapabilityIdentifiers[i].capability;
+    if(caps & ~known) {
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "ServerCapabilities: The bits 0x%" PRIx64 " have no "
+                       "identifier and are removed", caps & ~known);
+        caps &= known;
+    }
+
+    /* Capabilities allowed for the ApplicationType (Part 12, 7.10.14) */
+    UA_UInt64 allowed;
+    UA_UInt64 fallback = UA_SERVERCAPABILITY_NA;
+    const char *appType;
+    switch(sc->applicationDescription.applicationType) {
+    case UA_APPLICATIONTYPE_DISCOVERYSERVER:
+        allowed = UA_SERVERCAPABILITY_LDS;
+        fallback = UA_SERVERCAPABILITY_LDS;
+        appType = "DiscoveryServer";
+        break;
+    case UA_APPLICATIONTYPE_CLIENT:
+        allowed = UA_SERVERCAPABILITY_NA | UA_SERVERCAPABILITY_RCP;
+        appType = "Client";
+        break;
+    default:
+        allowed = known & ~UA_SERVERCAPABILITY_LDS;
+        appType = "Server";
+        break;
+    }
+
+    /* Remove the capabilities that are not allowed. */
+    UA_UInt64 removed = caps & ~allowed & ~UA_SERVERCAPABILITY_NA;
+    for(size_t i = 0; i < SERVERCAPABILITYIDENTIFIERSSIZE; i++) {
+        if(!(removed & serverCapabilityIdentifiers[i].capability))
+            continue;
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "ServerCapabilities: %S is not allowed for the "
+                       "ApplicationType %s and is removed",
+                       serverCapabilityIdentifiers[i].identifier, appType);
+    }
+    caps &= allowed;
+
+    /* NA cannot be combined with other capabilities */
+    if((caps & UA_SERVERCAPABILITY_NA) && (caps & ~UA_SERVERCAPABILITY_NA)) {
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "ServerCapabilities: NA cannot be combined with other "
+                       "capabilities and is removed");
+        caps &= ~UA_SERVERCAPABILITY_NA;
+    }
+
+    if(caps == 0)
+        caps = fallback;
+    server->serverCapabilities = caps;
+}
+
+/*********************/
+/* Discovery Manager */
+/*********************/
 
 typedef struct UA_DiscoveryManager UA_DiscoveryManager;
 
@@ -224,7 +337,7 @@ discoveryClientStateCallback(UA_Client *client,
                 asyncRegisterRequest_clearAsync(ar); /* Clean up */
             } else {
                 ar->connectSuccess = false;
-                UA_Client_connectAsync(client, NULL);   /* Reconnect */
+                UA_Client_connectSecureChannelAsync(client, NULL); /* Reconnect */
             }
         }
         return;
@@ -254,12 +367,28 @@ discoveryClientStateCallback(UA_Client *client,
     const UA_DataType *respType;
     UA_RegisterServerRequest reg1;
     UA_RegisterServer2Request reg2;
+    UA_MdnsDiscoveryConfiguration mdnsConfig;
+    UA_ExtensionObject discoveryConfig;
+    UA_String caps[UA_SERVERCAPABILITIES_MAX];
     void *request;
 
     /* Prepare the request. This does not allocate memory */
     if(ar->register2) {
         UA_RegisterServer2Request_init(&reg2);
         setupRegisterRequest(ar, &reg2.requestHeader, &reg2.server);
+
+        /* Report the ServerCapabilities. */
+        UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
+        mdnsConfig.serverCapabilitiesSize =
+            getServerCapabilityIdentifiers(ar->dm->drv.server->serverCapabilities,
+                                           caps);
+        mdnsConfig.serverCapabilities = caps;
+        UA_ExtensionObject_setValueNoDelete(
+            &discoveryConfig, &mdnsConfig,
+            &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
+        reg2.discoveryConfiguration = &discoveryConfig;
+        reg2.discoveryConfigurationSize = 1;
+
         reqType = &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST];
         respType = &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE];
         request = &reg2;
@@ -340,9 +469,6 @@ registerDiscovery(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister,
 #endif
     }
 
-    /* Open only a SecureChannel */
-    cc->noSession = true;
-
     /* Move the endpoint url */
     UA_String_clear(&cc->endpointUrl);
     UA_String_copy(&discoveryServerUrl, &cc->endpointUrl);
@@ -364,10 +490,9 @@ registerDiscovery(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister,
     ar->register2 = true; /* Try register2 first */
     UA_String_copy(&semaphoreFilePath, &ar->semaphoreFilePath);
 
-    /* Connect asynchronously. The register service is called once the
-     * connection is open. */
+    /* Connect asynchronously and without a session. */
     ar->connectSuccess = false;
-    return UA_Client_connectAsync(ar->client, NULL);
+    return UA_Client_connectSecureChannelAsync(ar->client, NULL);
 }
 
 UA_StatusCode

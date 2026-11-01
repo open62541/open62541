@@ -4,6 +4,7 @@
 
 #include <open62541/types.h>
 #include <check.h>
+#include <stdlib.h>
 #include "mp_printf.h"
 
 START_TEST(printHex) {

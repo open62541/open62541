@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+           xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+  <NamespaceUris><Uri>urn:open62541:test:variable-rank-defaults</Uri></NamespaceUris>
+  <UAVariable NodeId="ns=1;i=1" BrowseName="1:ConstrainedEmpty" DataType="i=10" >
+    <DisplayName>ConstrainedEmpty</DisplayName>
+    <References><Reference ReferenceType="i=40">i=12029</Reference>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=2" BrowseName="1:ConstrainedScalar" DataType="i=10" >
+    <DisplayName>ConstrainedScalar</DisplayName>
+    <References><Reference ReferenceType="i=40">i=12029</Reference>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References>
+    <Value><uax:Float>1.5</uax:Float></Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=3" BrowseName="1:PermissiveArray" DataType="i=7" >
+    <DisplayName>PermissiveArray</DisplayName>
+    <References><Reference ReferenceType="i=40">i=63</Reference>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References>
+    <Value><uax:ListOfUInt32><uax:UInt32>1</uax:UInt32><uax:UInt32>2</uax:UInt32></uax:ListOfUInt32></Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=4" BrowseName="1:PermissiveScalar" DataType="i=7" >
+    <DisplayName>PermissiveScalar</DisplayName>
+    <References><Reference ReferenceType="i=40">i=63</Reference>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References>
+    <Value><uax:UInt32>1</uax:UInt32></Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=5" BrowseName="1:ExplicitAny" DataType="i=7" ValueRank="-2">
+    <DisplayName>ExplicitAny</DisplayName>
+    <References><Reference ReferenceType="i=40">i=63</Reference>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References>
+    <Value><uax:UInt32>1</uax:UInt32></Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6" BrowseName="1:ExplicitInvalidScalar" DataType="i=10" ValueRank="-1">
+    <DisplayName>ExplicitInvalidScalar</DisplayName>
+    <References><Reference ReferenceType="i=40">i=12029</Reference>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References>
+    <Value><uax:Float>1.5</uax:Float></Value>
+  </UAVariable>
+</UANodeSet>

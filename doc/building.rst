@@ -331,6 +331,16 @@ require an attached mDNS driver.
    - ``REDUCED``: Small namespace zero that passes the CTT.
    - ``FULL``: Full namespace zero generated from the official XML definitions.
 
+**UA_ENABLE_DATATYPES_ALL**
+   Generate C definitions, handling functions and ``UA_TYPES`` entries for all
+   supported datatypes in the namespace zero schema. Enabled by default.
+   Disabling this option selects the core datatypes and the additional types
+   required by the enabled features, using the ``tools/schema/datatypes_*.txt``
+   lists. This reduces the binary size and the available generated datatype API;
+   it does not disable services or select the namespace zero information model.
+   With ``UA_NAMESPACE_ZERO=FULL``, all datatypes are generated regardless of this
+   option because the full namespace zero does not use the reduced type lists.
+
 **UA_ENABLE_DIAGNOSTICS**
    Enable diagnostics information exposed by the server. Enabled by default.
 

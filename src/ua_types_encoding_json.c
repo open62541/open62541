@@ -17,7 +17,8 @@
 
 #if defined(UA_ENABLE_JSON_ENCODING)
 
-#include "ua_types_encoding_json.h"
+#include "ua_types_encoding.h"
+#include "util/ua_util_internal.h"
 
 #include <float.h>
 #include <limits.h>

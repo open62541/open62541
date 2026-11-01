@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+           xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+  <NamespaceUris><Uri>urn:open62541:test:compiler-regressions</Uri><Uri>urn:external-dictionary</Uri></NamespaceUris>
+  <Models><Model ModelUri="urn:open62541:test:compiler-regressions"/></Models>
+  <Aliases>
+    <Alias Alias="HasSubtype">i=45</Alias><Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="Organizes">i=35</Alias><Alias Alias="HasDictionaryEntry">i=17597</Alias>
+  </Aliases>
+  <UAVariable NodeId="ns=1;i=1999" BrowseName="1:NegativeAlias" DataType="ns=1;i=7003" >
+    <DisplayName>NegativeAlias</DisplayName><References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=1000</Reference></References>
+    <Value><uax:Int32>-1</uax:Int32></Value>
+  </UAVariable>
+</UANodeSet>

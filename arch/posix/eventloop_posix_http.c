@@ -20,6 +20,7 @@ static const UA_KeyValueRestriction httpConnectionParams[] = {
     {{0, UA_STRING_STATIC("path")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
     {{0, UA_STRING_STATIC("timeout")}, &UA_TYPES[UA_TYPES_UINT16], false, true, false},
+    {{0, UA_STRING_STATIC("max-connections")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("useSSL")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
@@ -51,6 +52,7 @@ typedef struct {
     const UA_ByteString *caCertificate;
     UA_UInt16 port;
     UA_UInt16 timeout;
+    UA_UInt32 maxConnections;
     UA_UInt32 recvMaxMessageSize;
     UA_UInt32 recvMaxDecompressedMessageSize;
     UA_UInt32 sendMaxMessageSize;
@@ -508,6 +510,8 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
         params, "port", UA_TYPES_UINT16);
     const UA_UInt16 *timeout = (const UA_UInt16*)GET_PARAM(
         params, "timeout", UA_TYPES_UINT16);
+    const UA_UInt32 *maxConnections = (const UA_UInt32*)GET_PARAM(
+        params, "max-connections", UA_TYPES_UINT32);
     const UA_UInt32 *recvMax = (const UA_UInt32*)GET_PARAM(
         params, "recv-max-message-size", UA_TYPES_UINT32);
     const UA_UInt32 *recvMaxDecompressed = (const UA_UInt32*)GET_PARAM(
@@ -520,6 +524,8 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
         params, "useSSL", UA_TYPES_BOOLEAN);
     config->port = port ? *port : 0;
     config->timeout = (timeout && *timeout) ? *timeout : 30;
+    config->maxConnections = (maxConnections && *maxConnections) ?
+        *maxConnections : 100;
     config->recvMaxMessageSize = recvMax ? *recvMax : 0;
     config->recvMaxDecompressedMessageSize = recvMaxDecompressed ?
         *recvMaxDecompressed : config->recvMaxMessageSize;
@@ -661,6 +667,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     connection->listener = config.listener;
     connection->useSSL = config.useSSL;
     connection->timeout = config.timeout;
+    connection->maxConnections = config.maxConnections;
     connection->recvMaxMessageSize = config.recvMaxMessageSize;
     connection->recvMaxDecompressedMessageSize =
         config.recvMaxDecompressedMessageSize;

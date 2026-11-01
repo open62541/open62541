@@ -78,6 +78,43 @@ START_TEST(importEmptyStructures) {
 }
 END_TEST
 
+START_TEST(importFlattenedInheritance) {
+    struct GrandchildRecord {
+        UA_UInt32 identifier;
+        UA_Double measurement;
+        UA_String label;
+    };
+    const UA_DataType *base = findType(6011);
+    const UA_DataType *child = findType(6012);
+    const UA_DataType *grandchild = findType(6013);
+    ck_assert_ptr_nonnull(base);
+    ck_assert_ptr_nonnull(child);
+    ck_assert_ptr_nonnull(grandchild);
+    ck_assert_uint_eq(base->membersSize, 1);
+    ck_assert_uint_eq(child->membersSize, 2);
+    ck_assert_uint_eq(grandchild->membersSize, 3);
+    ck_assert_uint_eq(grandchild->memSize, sizeof(struct GrandchildRecord));
+    ck_assert_ptr_eq(grandchild->members[0].memberType, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_ptr_eq(grandchild->members[1].memberType, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(grandchild->members[2].memberType, &UA_TYPES[UA_TYPES_STRING]);
+
+    /* The standard description includes the complete flattened field list. */
+    UA_ExtensionObject description;
+    UA_StatusCode res = UA_DataType_toDescription(grandchild, &description);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_StructureDescription *sd =
+        (UA_StructureDescription*)description.content.decoded.data;
+    sd->structureDefinition.baseDataType = child->typeId;
+    UA_DataType reconstructed;
+    res = UA_DataType_fromDescription(&reconstructed, &description,
+                                      UA_Server_getDataTypes(server));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reconstructed.membersSize, 3);
+    ck_assert_uint_eq(reconstructed.memSize, grandchild->memSize);
+    UA_DataType_clear(&reconstructed);
+    UA_ExtensionObject_clear(&description);
+} END_TEST
+
 START_TEST(resolveOpaqueSubtypeAncestors) {
     const UA_DataType *picture = findType(3001);
     ck_assert_ptr_nonnull(picture);
@@ -166,6 +203,7 @@ testSuite(void) {
     tcase_add_unchecked_fixture(testCase, setup, teardown);
     tcase_add_test(testCase, resolveEncodingDirections);
     tcase_add_test(testCase, importEmptyStructures);
+    tcase_add_test(testCase, importFlattenedInheritance);
     tcase_add_test(testCase, resolveOpaqueSubtypeAncestors);
     tcase_add_test(testCase, importPolymorphicAndRecursiveFields);
     tcase_add_test(testCase, rejectMatrixFields);

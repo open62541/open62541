@@ -157,6 +157,56 @@ UA_AttributeId_name(UA_AttributeId attrId);
 #define UA_EVENTNOTIFIER_HISTORY_WRITE      (0x01u << 3u)
 
 /**
+ * .. _server-capabilities:
+ *
+ * Server Capabilities
+ * -------------------
+ * The ServerCapabilities announce the features of a server during discovery.
+ * The identifiers are defined in Part 12, Annex D. The normative list is
+ * maintained by the OPC Foundation in
+ * http://www.opcfoundation.org/UA/schemas/ServerCapabilities.csv. */
+
+#define UA_SERVERCAPABILITY_NA     (0x01ULL << 0u)  /* Not available */
+#define UA_SERVERCAPABILITY_DA     (0x01ULL << 1u)  /* Current data */
+#define UA_SERVERCAPABILITY_HD     (0x01ULL << 2u)  /* Historical data */
+#define UA_SERVERCAPABILITY_AC     (0x01ULL << 3u)  /* Alarms and Conditions */
+#define UA_SERVERCAPABILITY_HE     (0x01ULL << 4u)  /* Historical events */
+#define UA_SERVERCAPABILITY_GDS    (0x01ULL << 5u)  /* Global Discovery */
+#define UA_SERVERCAPABILITY_LDS    (0x01ULL << 6u)  /* Discovery only */
+#define UA_SERVERCAPABILITY_DI     (0x01ULL << 7u)  /* Device Integration */
+#define UA_SERVERCAPABILITY_ADI    (0x01ULL << 8u)  /* Analyser Devices */
+#define UA_SERVERCAPABILITY_FDI    (0x01ULL << 9u)  /* Field Devices */
+#define UA_SERVERCAPABILITY_FDIC   (0x01ULL << 10u) /* FDI Communication */
+#define UA_SERVERCAPABILITY_PLC    (0x01ULL << 11u) /* PLCopen */
+#define UA_SERVERCAPABILITY_S95    (0x01ULL << 12u) /* ISA-95 */
+#define UA_SERVERCAPABILITY_RCP    (0x01ULL << 13u) /* Reverse Connect */
+#define UA_SERVERCAPABILITY_PUB    (0x01ULL << 14u) /* PubSub Publisher */
+#define UA_SERVERCAPABILITY_NTRS   (0x01ULL << 15u) /* Redundant Server Set */
+#define UA_SERVERCAPABILITY_AUTOID (0x01ULL << 16u) /* AutoID */
+#define UA_SERVERCAPABILITY_MDIS   (0x01ULL << 17u) /* MDIS */
+#define UA_SERVERCAPABILITY_CNC    (0x01ULL << 18u) /* CNC Systems */
+#define UA_SERVERCAPABILITY_PLK    (0x01ULL << 19u) /* POWERLINK */
+#define UA_SERVERCAPABILITY_FDT    (0x01ULL << 20u) /* FDT */
+#define UA_SERVERCAPABILITY_TMC    (0x01ULL << 21u) /* Tobacco Machines */
+#define UA_SERVERCAPABILITY_CSPP   (0x01ULL << 22u) /* CSP+ for Machine */
+#define UA_SERVERCAPABILITY_61850  (0x01ULL << 23u) /* IEC 61850 */
+#define UA_SERVERCAPABILITY_PACKML (0x01ULL << 24u) /* PackML */
+#define UA_SERVERCAPABILITY_MTC    (0x01ULL << 25u) /* MTConnect */
+#define UA_SERVERCAPABILITY_AUTOML (0x01ULL << 26u) /* AutomationML */
+#define UA_SERVERCAPABILITY_SERCOS (0x01ULL << 27u) /* Sercos */
+#define UA_SERVERCAPABILITY_MIMOSA (0x01ULL << 28u) /* MIMOSA */
+#define UA_SERVERCAPABILITY_WITSML (0x01ULL << 29u) /* WITSML */
+#define UA_SERVERCAPABILITY_DEXPI  (0x01ULL << 30u) /* DEXPI */
+#define UA_SERVERCAPABILITY_IOLINK (0x01ULL << 31u) /* IO-Link */
+#define UA_SERVERCAPABILITY_VROBOT (0x01ULL << 32u) /* VDMA Robotics */
+#define UA_SERVERCAPABILITY_PNO    (0x01ULL << 33u) /* PROFINET */
+#define UA_SERVERCAPABILITY_PADIM  (0x01ULL << 34u) /* Process Automation */
+#define UA_SERVERCAPABILITY_ALIAS  (0x01ULL << 35u) /* AliasNames */
+#define UA_SERVERCAPABILITY_SKS    (0x01ULL << 36u) /* Security Key Server */
+#define UA_SERVERCAPABILITY_FXAC   (0x01ULL << 37u) /* FX AutomationComponent */
+#define UA_SERVERCAPABILITY_FXCM   (0x01ULL << 38u) /* FX ConnectionManager */
+
+/**
  * .. _rule-handling:
  *
  * Rule Handling
@@ -564,6 +614,9 @@ typedef uint64_t UA_ApplicationNotificationType;
  * 0:ttl [UInt32]
  *    Time-to-live of DNS information. Zero means infinite
  *    (if the server is not currently getting removed).
+ * 0:announce [Boolean]
+ *    Announce the entry on the network (for example over mDNS). False for
+ *    removed entries.
  * 0:server-added [Boolean]
  *    They entry was added.
  * 0:server-updated [Boolean]

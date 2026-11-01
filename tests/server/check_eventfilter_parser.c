@@ -4,6 +4,7 @@
 
 #include "open62541/util.h"
 #include "open62541/plugin/log_stdout.h"
+#include <stdlib.h>
 #include "ua_eventfilter_parser.h"
 #include "check.h"
 

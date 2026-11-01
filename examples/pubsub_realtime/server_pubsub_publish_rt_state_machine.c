@@ -7,6 +7,7 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/types.h>
 
+#include <stdlib.h>
 #include <signal.h>
 #include <stdio.h>
 #include <time.h>

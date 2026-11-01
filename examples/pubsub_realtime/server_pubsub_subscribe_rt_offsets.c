@@ -5,6 +5,7 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
+#include <stdlib.h>
 #include <stdio.h>
 
 #define PUBSUB_CONFIG_FIELD_COUNT 10

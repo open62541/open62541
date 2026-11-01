@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
+#include <stdlib.h>
 
 #include <check.h>
 #include "test_helpers.h"

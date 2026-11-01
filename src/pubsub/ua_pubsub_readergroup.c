@@ -270,6 +270,12 @@ finalize:
 
         UA_LOG_INFO_PUBSUB(psm->logging, rg, "ReaderGroup deleted");
 
+        for(size_t i = 0; i < UA_PUBSUB_REPLAY_HISTORY_SIZE; i++) {
+            UA_PubSubReplayHistoryEntry *entry = &rg->replayHistory[i];
+            if(entry->inUse && entry->publisherIdEnabled &&
+               entry->publisherId.idType == UA_PUBLISHERIDTYPE_STRING)
+                UA_String_clear(&entry->publisherId.id.string);
+        }
         UA_ReaderGroupConfig_clear(&rg->config);
         UA_PubSubComponentHead_clear(&rg->head);
         UA_free(rg);
@@ -661,6 +667,116 @@ UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
 /* Decrypt the NetworkMessage */
 /******************************/
 
+static UA_Boolean
+publisherIdEqual(const UA_PubSubReplayHistoryEntry *entry,
+                 const UA_NetworkMessage *nm) {
+    if(entry->publisherIdEnabled != nm->publisherIdEnabled)
+        return false;
+    if(!nm->publisherIdEnabled)
+        return true;
+    if(entry->publisherId.idType != nm->publisherId.idType)
+        return false;
+
+    switch(nm->publisherId.idType) {
+    case UA_PUBLISHERIDTYPE_BYTE:
+        return entry->publisherId.id.byte == nm->publisherId.id.byte;
+    case UA_PUBLISHERIDTYPE_UINT16:
+        return entry->publisherId.id.uint16 == nm->publisherId.id.uint16;
+    case UA_PUBLISHERIDTYPE_UINT32:
+        return entry->publisherId.id.uint32 == nm->publisherId.id.uint32;
+    case UA_PUBLISHERIDTYPE_UINT64:
+        return entry->publisherId.id.uint64 == nm->publisherId.id.uint64;
+    case UA_PUBLISHERIDTYPE_STRING:
+        return UA_String_equal(&entry->publisherId.id.string,
+                               &nm->publisherId.id.string);
+    default:
+        return false;
+    }
+}
+
+static void
+clearReplayHistoryEntry(UA_PubSubReplayHistoryEntry *entry) {
+    if(entry->inUse && entry->publisherIdEnabled &&
+       entry->publisherId.idType == UA_PUBLISHERIDTYPE_STRING)
+        UA_String_clear(&entry->publisherId.id.string);
+    memset(entry, 0, sizeof(*entry));
+}
+
+/* Keep a bounded sequence history per token and PublisherId in each
+ * ReaderGroup. */
+static UA_StatusCode
+checkReplay(UA_ReaderGroup *readerGroup,
+                           const UA_NetworkMessage *nm) {
+    if(!nm->securityEnabled)
+        return UA_STATUSCODE_GOOD;
+    if(nm->securityHeader.messageNonceSize < 8)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    /* The final four nonce bytes contain the little-endian sequence number. */
+    const UA_Byte *nonce = &nm->securityHeader.messageNonce[4];
+    UA_UInt32 sequenceNumber =
+        (UA_UInt32)nonce[0] | ((UA_UInt32)nonce[1] << 8) |
+        ((UA_UInt32)nonce[2] << 16) | ((UA_UInt32)nonce[3] << 24);
+
+    UA_PubSubReplayHistoryEntry *entry = NULL;
+    UA_PubSubReplayHistoryEntry *replacement = NULL;
+    /* Find this publisher, or an empty/least-recently-used slot for it. */
+    for(size_t i = 0; i < UA_PUBSUB_REPLAY_HISTORY_SIZE; i++) {
+        UA_PubSubReplayHistoryEntry *candidate = &readerGroup->replayHistory[i];
+        if(!candidate->inUse) {
+            if(!replacement || replacement->inUse)
+                replacement = candidate;
+            continue;
+        }
+        if(candidate->securityTokenId == nm->securityHeader.securityTokenId &&
+           publisherIdEqual(candidate, nm)) {
+            entry = candidate;
+            break;
+        }
+        if(!replacement || (replacement->inUse &&
+                            candidate->useCounter < replacement->useCounter))
+            replacement = candidate;
+    }
+
+    if(entry) {
+        /* Serial arithmetic permits rollover while rejecting duplicates and
+         * sequence numbers in the older half of the counter range. */
+        UA_UInt32 distance = sequenceNumber - entry->sequenceNumber;
+        if(distance == 0 || distance >= ((UA_UInt32)1 << 31))
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    } else {
+        entry = replacement;
+        clearReplayHistoryEntry(entry);
+        entry->publisherIdEnabled = nm->publisherIdEnabled;
+        entry->publisherId.idType = nm->publisherId.idType;
+        if(nm->publisherIdEnabled) {
+            if(nm->publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
+                UA_StatusCode res = UA_String_copy(&nm->publisherId.id.string,
+                                                   &entry->publisherId.id.string);
+                if(res != UA_STATUSCODE_GOOD)
+                    return res;
+            } else {
+                entry->publisherId = nm->publisherId;
+            }
+        }
+        entry->securityTokenId = nm->securityHeader.securityTokenId;
+        entry->inUse = true;
+    }
+
+    entry->sequenceNumber = sequenceNumber;
+    entry->useCounter = ++readerGroup->replayUseCounter;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ReaderGroup_checkReplay(UA_ReaderGroup *readerGroup,
+                           const UA_NetworkMessage *nm) {
+    if(nm->securityEnabled &&
+       nm->securityHeader.securityTokenId != readerGroup->securityTokenId)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    return checkReplay(readerGroup, nm);
+}
+
 static UA_StatusCode
 needsDecryption(const UA_Logger *logger,
                 const UA_NetworkMessage *networkMessage,
@@ -825,6 +941,10 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
         UA_CHECK_STATUS_WARN(rv, goto cleanup, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Decryption");
     }
+
+    /* An authenticated replay must not roll the active key back either. */
+    rv = checkReplay(rg, nm);
+    UA_CHECK_STATUS(rv, goto cleanup);
 
     /* Commit the rollover only after authentication and decryption succeeded. */
     if(rolloverContext) {

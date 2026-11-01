@@ -183,6 +183,8 @@ PARSE_JSON(LocalizedTextField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field = (char*)UA_malloc(tok.size + 1);
+            if(!field)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field, &str_len);
 
@@ -263,6 +265,8 @@ PARSE_JSON(DurationRangeField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "min") == 0)
@@ -293,6 +297,8 @@ PARSE_JSON(UInt32RangeField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "min") == 0)
@@ -324,6 +330,8 @@ PARSE_JSON(StringArrayField) {
     }
     cj5_token tok = nextToken(ctx);
     UA_String *stringArray = (UA_String*)UA_malloc(sizeof(UA_String) * tok.size);
+    if(!stringArray && tok.size > 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     size_t stringArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
         UA_String out = {.length = 0, .data = NULL};
@@ -374,6 +382,8 @@ PARSE_JSON(BuildInfo) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "productUri") == 0)
@@ -550,6 +560,8 @@ PARSE_JSON(SubscriptionConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "maxSubscriptions") == 0)
@@ -608,6 +620,8 @@ PARSE_JSON(TcpConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "tcpBufSize") == 0)
@@ -642,6 +656,8 @@ PARSE_JSON(PubsubConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "enableDeltaFrames") == 0)
@@ -677,6 +693,8 @@ PARSE_JSON(HistorizingConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "accessHistoryDataCapability") == 0)
@@ -1175,6 +1193,8 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = UInt32Field_parseJson(&ctx, &config->registeredServerCleanupTimeout, NULL);
                 else if(strcmp(field, "serversOnNetworkEnabled") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->serversOnNetworkEnabled, NULL);
+                else if(strcmp(field, "announceRegisteredServers") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->announceRegisteredServers, NULL);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
                 else if(strcmp(field, "subscriptionsEnabled") == 0)
@@ -1675,6 +1695,10 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                     retval = BooleanField_parseJson(&ctx, &config->noReconnect, NULL);
                 else if(strcmp(field, "noNewSession") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->noNewSession, NULL);
+                else if(strcmp(field, "reconnectInterval") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->reconnectInterval, NULL);
+                else if(strcmp(field, "reconnectIntervalMax") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->reconnectIntervalMax, NULL);
                 else if(strcmp(field, "secureChannelLifeTime") == 0)
                     retval = UInt32Field_parseJson(&ctx, &config->secureChannelLifeTime, NULL);
                 else if(strcmp(field, "requestedSessionTimeout") == 0)

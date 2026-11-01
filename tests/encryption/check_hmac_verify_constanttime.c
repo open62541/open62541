@@ -15,6 +15,7 @@
  */
 
 #include <open62541/types.h>
+#include <stdlib.h>
 
 #include <string.h>
 

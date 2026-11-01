@@ -3,6 +3,23 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Client reconnects with backoff and gives up
+
+A lost connection is re-dialed with a delay that starts at the new
+`UA_ClientConfig.reconnectInterval` (default 250 ms) and doubles up to
+`reconnectIntervalMax` (default 10 s). If the re-dial after the maximum delay
+fails, the client gives up with `BadConnectionRejected` or `BadConnectionClosed`.
+Before, a connection that closed before the SecureChannel opened was re-dialed
+without delay, and a refused re-dial ended the connection at once. The comment
+above these fields in `UA_ClientConfig` describes the full connect behavior.
+
+### Asynchronous client requests need an activated Session
+
+Asynchronous requests bound to a Session return `BadSessionNotActivated` while
+the Session is not activated, e.g. during its re-activation after a reconnect.
+Before, they were sent without an AuthenticationToken, and the rejection by the
+server discarded the Session.
+
 ### Method support is always available
 
 `UA_ENABLE_METHODCALLS` is removed. The Method service set and method APIs are

@@ -945,6 +945,42 @@ addModellingRules(UA_Server *server) {
            UA_NS0ID(HASCOMPONENT), UA_NS0ID(MODELLINGRULE_OPTIONALPLACEHOLDER), true);
 }
 
+/* Add optional nodes that the Nodeset2.xml does not instantiate although the
+ * NodeIds are reserved. Workaround for missing nodes like `ApplicationNames`
+ * that we still want present unconditionally. */
+static UA_StatusCode
+addMissingOptionalNodes(UA_Server *server) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    /* ServerConfiguration - ApplicationNames [optional] */
+    UA_NodeId applicationNamesId = UA_NS0ID(SERVERCONFIGURATION_APPLICATIONNAMES);
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &applicationNamesId,
+                                   UA_NODEATTRIBUTESMASK_NONE,
+                                   UA_REFERENCETYPESET_NONE,
+                                   UA_BROWSEDIRECTION_INVALID);
+    if(node) {
+        UA_NODESTORE_RELEASE(server, node);
+    } else {
+        UA_UInt32 arrayDimensions = 0;
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.displayName = UA_LOCALIZEDTEXT("", "ApplicationNames");
+        attr.dataType = UA_NS0ID(LOCALIZEDTEXT);
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+        attr.arrayDimensionsSize = 1;
+        attr.arrayDimensions = &arrayDimensions;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+        attr.userAccessLevel = UA_ACCESSLEVELMASK_READ;
+        retVal |= addNode(server, UA_NODECLASS_VARIABLE, applicationNamesId,
+                          UA_NS0ID(SERVERCONFIGURATION), UA_NS0ID(HASPROPERTY),
+                          UA_QUALIFIEDNAME(0, "ApplicationNames"),
+                          UA_NS0ID(PROPERTYTYPE), &attr,
+                          &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], NULL, NULL);
+    }
+#endif
+    return retVal;
+}
+
 #endif
 
 static UA_StatusCode connectNS0_dataSources(UA_Server *server);
@@ -965,6 +1001,7 @@ initNS0(UA_Server *server) {
 #ifdef UA_GENERATED_NAMESPACE_ZERO
     /* Load nodes and references generated from the XML ns0 definition */
     retVal |= namespace0_generated(server);
+    retVal |= addMissingOptionalNodes(server);
 #else
     /* Create a minimal server object */
     retVal |= minimalServerObject(server);
@@ -1160,16 +1197,17 @@ configureNS0(UA_Server *server) {
 #endif
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
-    /* ServerConfiguration - HasSecureElement */
+    /* ServerConfiguration - HasSecureElement [optional] */
     {
         UA_Boolean hasSecureElement = false;
         retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_HASSECUREELEMENT,
                                    &hasSecureElement, &UA_TYPES[UA_TYPES_BOOLEAN]);
     }
-    /* ServerConfiguration - ApplicationType */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_APPLICATIONTYPE,
-                               &server->config.applicationDescription.applicationType,
-                               &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+
+    /* ServerConfiguration - ApplicationUri, ProductUri and ApplicationType are
+     * written at startup by writeNs0ApplicationDescription. ServerCapabilities
+     * is written at startup by writeNs0ServerCapabilities. */
+
     /* OPCUANamespaceMetadata - DefaultAccessRestrictions */
     {
         UA_AccessRestrictionType defaultAccessRestrictions = UA_ACCESSRESTRICTIONTYPE_NONE;
@@ -1434,4 +1472,45 @@ initNS0_dataSources(UA_Server *server) {
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+writeNs0ApplicationDescription(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    UA_ApplicationDescription *ad = &server->config.applicationDescription;
+
+    /* ServerConfiguration - ApplicationUri [optional] */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_APPLICATIONURI,
+                               &ad->applicationUri, &UA_TYPES[UA_TYPES_STRING]);
+
+    /* ServerConfiguration - ProductUri [optional] */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_PRODUCTURI,
+                               &ad->productUri, &UA_TYPES[UA_TYPES_STRING]);
+
+    /* ServerConfiguration - ApplicationType [optional] */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_APPLICATIONTYPE,
+                               &ad->applicationType, &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+
+    /* ServerConfiguration - ApplicationNames [optional] */
+    retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVERCONFIGURATION_APPLICATIONNAMES,
+                                    &ad->applicationName, 1,
+                                    &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+#endif
+    return retVal;
+}
+
+UA_StatusCode
+writeNs0ServerCapabilities(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    /* ServerConfiguration - ServerCapabilities [mandatory] */
+    UA_String caps[UA_SERVERCAPABILITIES_MAX];
+    size_t capsSize = getServerCapabilityIdentifiers(server->serverCapabilities, caps);
+    retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVERCONFIGURATION_SERVERCAPABILITIES,
+                                    caps, capsSize, &UA_TYPES[UA_TYPES_STRING]);
+#endif
+    return retVal;
 }

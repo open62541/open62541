@@ -19,7 +19,6 @@
 #include <open62541/transport_generated.h>
 
 #include "ua_securechannel.h"
-#include "ua_types_encoding_binary.h"
 
 #define UA_BITMASK_MESSAGETYPE 0x00ffffffu
 #define UA_BITMASK_CHUNKTYPE 0xff000000u

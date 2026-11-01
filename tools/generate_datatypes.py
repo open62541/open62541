@@ -7,6 +7,8 @@
 # Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
 
 import re
+import ntpath
+import sys
 import copy
 from collections import OrderedDict
 import argparse
@@ -127,7 +129,6 @@ builtin_overlayable = {"SByte": "true",
                        "UInt64": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "Float": "UA_BINARY_OVERLAYABLE_FLOAT",
                        "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
-                       "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " +
                                "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " +
@@ -139,13 +140,24 @@ whitelistFuncAttrWarnUnusedResult = []  # for instances [ "String", "ByteString"
 
 # Escape C strings:
 def makeCLiteral(value):
-    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
+    return value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\n').replace('\r', r'\r')
 
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
-    keywords = frozenset(["double", "int", "float", "char"])
+    keywords = frozenset((
+        "auto break case char const continue default do double else enum extern float for goto if inline "
+        "int long register restrict return short signed sizeof static struct switch typedef union "
+        "unsigned void volatile while _Alignas _Alignof _Atomic _Bool _Complex _Generic _Imaginary "
+        "_Noreturn _Static_assert _Thread_local _BitInt _Decimal32 _Decimal64 _Decimal128 typeof "
+        "typeof_unqual alignas alignof and and_eq asm bitand bitor bool catch char8_t char16_t char32_t "
+        "class compl concept consteval constexpr constinit const_cast co_await co_return co_yield "
+        "decltype delete dynamic_cast explicit export false friend mutable namespace new noexcept not "
+        "not_eq nullptr operator or or_eq private protected public reinterpret_cast requires "
+        "static_assert static_cast template this thread_local throw true try typeid typename using "
+        "virtual wchar_t xor xor_eq "
+    ).split())
     sanitized = re.sub(r'[^\w]', '', value)
-    if sanitized in keywords:
+    if not sanitized or sanitized[0].isdigit() or sanitized in keywords:
         return "_" + sanitized
     return sanitized
 
@@ -158,7 +170,7 @@ def getNodeidTypeAndId(nodeId):
         return f"UA_NODEIDTYPE_NUMERIC, {{{nodeId[2:]}LU}}"
     if nodeId.startswith("s="):
         strId = nodeId[2:]
-        return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
+        return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=makeCLiteral(strId))
 
 def splitNodeidNs(nodeId):
     """Split an optional 'ns=X;' prefix from a nodeId string.
@@ -353,7 +365,7 @@ class CGenerator:
         # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
         isEnum = isinstance(datatype, EnumerationType)  and not datatype.isOptionSet
         return "{\n" + \
-               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
+               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % makeCLiteral(datatype.name) + \
                "    " + typeid + ", /* .typeId */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    " + xmlEncodingId + ", /* .xmlEncodingId */\n" + \
@@ -412,10 +424,10 @@ class CGenerator:
                 if len(member_name) > 0:
                     member_name_capital = member_name[0].upper() + member_name[1:]
                 m = "\n{\n"
-                m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
+                m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % makeCLiteral(getattr(member, "original_name", member_name_capital))
                 m += "    &UA_{}[UA_{}_{}], /* .memberType */\n".format(
                     member.member_type.outname.upper(), member.member_type.outname.upper(),
-                    makeCIdentifier(type_name.upper()))
+                    re.sub(r"[^\w]", "", type_name.upper()))
                 m += "    "
                 # Print code to calculate type specific padding for the member
                 if not before and not isUnion:
@@ -469,12 +481,24 @@ class CGenerator:
 
     @staticmethod
     def print_enum_typedef(enum, gen_doc=False):
-        values = enum.elements.items()
+        values = list(enum.elements.items())
+        names = []
+        used = set()
+        for index, (label, _) in enumerate(values):
+            name = makeCIdentifier("UA_" + enum.name.upper() + "_" + label.upper())
+            candidate = name
+            suffix = index
+            while candidate in used:
+                candidate = name + "_" + str(suffix)
+                suffix += 1
+            used.add(candidate)
+            names.append(candidate)
         if enum.isOptionSet:
-            elements = map(lambda kv: "#define " + makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) + " " + kv[1], values)
+            elements = ["#define " + name + " " + value
+                        for name, (_, value) in zip(names, values)]
             return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.name) + ";\n\n" + "\n".join(elements)
         else:
-            elements = [makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) + " = " + kv[1] for kv in values]
+            elements = [name + " = " + value for name, (_, value) in zip(names, values)]
             if not gen_doc:
                 elements.append(f"__UA_{makeCIdentifier(enum.name.upper())}_FORCE32BIT = 0x7fffffff")
             out = []
@@ -494,7 +518,7 @@ class CGenerator:
         returnstr = ""
         if struct.is_union:
             #test = type("MyEnumOptionSet", (EnumOptionSet, object), {"foo": lambda self: "foo"})
-            obj = type('MyEnumOptionSet', (object,), {'isOptionSet': False, 'elements': OrderedDict(), 'name': struct.name+"Switch"})
+            obj = type('MyEnumOptionSet', (object,), {'isOptionSet': False, 'elements': OrderedDict(), 'name': makeCIdentifier(struct.name)+"Switch"})
             obj.elements['None'] = str(0)
             count = 1
             for member in struct.members:
@@ -510,7 +534,7 @@ class CGenerator:
         else:
             returnstr += "typedef struct {\n"
         if struct.is_union:
-            returnstr += "    UA_%sSwitch switchField;\n" % struct.name
+            returnstr += "    UA_%sSwitch switchField;\n" % makeCIdentifier(struct.name)
             returnstr += "    union {\n"
         for member in struct.members:
             if not member.member_type.members and isinstance(member.member_type, StructType):
@@ -548,7 +572,7 @@ class CGenerator:
         if isinstance(datatype, EnumerationType):
             return CGenerator.print_enum_typedef(datatype, gen_doc)
         if isinstance(datatype, OpaqueType):
-            return "typedef UA_" + datatype.base_type + " UA_%s;" % datatype.name
+            return "typedef UA_" + datatype.base_type + " UA_%s;" % makeCIdentifier(datatype.name)
         if isinstance(datatype, StructType):
             return CGenerator.print_struct_typedef(datatype)
         raise RuntimeError("Type does not have an associated typedef")
@@ -780,8 +804,8 @@ _UA_END_DECLS
 
 args = parser.parse_args()
 
-outname = args.outfile.split("/")[-1]
-inname = ', '.join(list(map(lambda x: x.name.split("/")[-1], args.type_bsd)))
+outname = ntpath.basename(args.outfile)
+inname = ', '.join(list(map(lambda x: ntpath.basename(x.name), args.type_bsd)))
 
 namespaceMap = {OPC_UA_NAMESPACE: 0}
 for m in args.namespace_map:

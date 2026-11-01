@@ -12,6 +12,7 @@
 
 #ifdef UA_ENABLE_TPM2_SECURITY
 #include <pkcs11.h>
+#include <stdlib.h>
 
 #if UA_MULTITHREADING >= 100
 #include <pthread.h>
@@ -63,12 +64,24 @@ pkcs11_find_object_by_label(UA_PubSubSecurityPolicy *policy,
 
             /* Obtains the value of one or more attributes of an object*/
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
-            if(attrTemplate[0].ulValueLen > 0)
+            if(attrTemplate[0].ulValueLen > 0) {
                 attrTemplate[0].pValue = (char *)UA_malloc(attrTemplate[0].ulValueLen);
+                if (!attrTemplate[0].pValue) {
+                    UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                                 "Unable to allocate memory");
+                    returnValue = UA_FALSE;
+                    break;
+                }
+            }
             /* Obtains the value of one or more attributes of an object*/
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
             if(attrTemplate[0].ulValueLen > 0) {
                 char * val = (char *)UA_malloc(attrTemplate[0].ulValueLen + 1);
+                if(!val) {
+                    UA_free(attrTemplate[0].pValue);
+                    returnValue = UA_FALSE;
+                    break;
+                }
                 strncpy(val, (const char *)attrTemplate[0].pValue,
                         attrTemplate[0].ulValueLen);
                 val[attrTemplate[0].ulValueLen] = '\0';

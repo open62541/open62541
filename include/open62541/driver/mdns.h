@@ -34,9 +34,11 @@ _UA_BEGIN_DECLS
  *    to store the server information locally.
  *
  * 0:announce [bool]
- *    Announce registered servers over mDNS. This receives register/deregister
- *    notifications from UA_Server_registerServerOnNetwork and forwards the
- *    information.
+ *    Announce ServerOnNetwork entries over mDNS. This receives the
+ *    add/update/remove notifications of the entries and announces those with
+ *    the 0:announce flag (see UA_Server_registerServerOnNetwork and the
+ *    announceRegisteredServers config). Received entries do not have the flag
+ *    and are not announced again.
  *
  * 0:announce-ttl [uint32]
  *    Default TTL in seconds for announced mDNS records.

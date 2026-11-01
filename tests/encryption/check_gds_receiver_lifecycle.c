@@ -105,7 +105,7 @@ callUpdateCertificate(UA_NodeId *certificateGroupId,
                       UA_NodeId *certificateTypeId) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
-    UA_String privateKeyFormat = UA_STRING_STATIC("DER");
+    UA_String privateKeyFormat = UA_STRING_STATIC("PKCS8");
 
     UA_Variant input[6];
     memset(input, 0, sizeof(input));

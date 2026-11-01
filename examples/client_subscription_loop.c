@@ -14,6 +14,8 @@
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 
+#include <stdlib.h>
+
 static void
 handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
                            UA_UInt32 monId, void *monContext, UA_DataValue *value) {

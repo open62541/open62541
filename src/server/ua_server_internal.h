@@ -91,6 +91,13 @@ UA_StatusCode initNS0RBAC(UA_Server *server);
 typedef struct RegisteredServerRecord {
     LIST_ENTRY(RegisteredServerRecord) pointers;
     UA_RegisteredServer registeredServer;
+    /* Name of the ServerOnNetwork entry of the registration. That is the
+     * mdnsServerName from RegisterServer2 or else the first ServerName. Stored
+     * to remove the entry without the original request. */
+    UA_String mdnsServerName;
+    /* The announce flag of the ServerOnNetwork entry when it was last added
+     * or updated */
+    UA_Boolean announce;
     UA_DateTime lastSeen;
 } RegisteredServerRecord;
 
@@ -133,6 +140,9 @@ struct UA_Server {
 
     UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
+
+    /* ServerCapabilities derived from the config during startup */
+    UA_UInt64 serverCapabilities;
 
     /* List of registered drivers. The internally created drivers furthermore
      * have direct pointers for fast access below. */
@@ -246,6 +256,7 @@ struct UA_Server {
     /* Registered Servers */
     LIST_HEAD(, RegisteredServerRecord) registeredServers;
     size_t registeredServersSize;
+    size_t maxRegisteredServers;
 
     /* Servers On Network
      * TODO: Use a TAILQ for easier updates */
@@ -260,6 +271,11 @@ struct UA_Server {
 const UA_DataTypeArray *
 serverCustomTypes(UA_Server *server);
 
+/* Exact lookup followed by simple-alias resolution. Takes the service lock
+ * internally. Unregistered structured types and cyclic hierarchies fail. */
+const UA_DataType *
+resolveDataTypeRepresentation(UA_Server *server, const UA_NodeId *typeId);
+
 /* Add a DiscoveryUrl if it is not already configured. Returns true only if
  * this call added the URL, so temporary transports can remove what they own. */
 UA_Boolean
@@ -267,6 +283,22 @@ addServerDiscoveryUrl(UA_Server *server, const UA_String *url);
 
 void
 removeServerDiscoveryUrl(UA_Server *server, const UA_String *url);
+
+/* Re-derive server->serverCapabilities from the configured bitmask and the
+ * ApplicationType. This validates and normalizes the configuration. */
+void
+setupServerCapabilities(UA_Server *server);
+
+/* Returns the bit of the capability identifier. Zero if it is unknown. */
+UA_UInt64
+getServerCapability(const UA_String *identifier);
+
+/* Writes the identifiers of the capabilities in the bitmask to out and returns
+ * their number. The strings point to static memory. */
+#define UA_SERVERCAPABILITIES_MAX 64
+size_t
+getServerCapabilityIdentifiers(UA_UInt64 capabilities,
+                               UA_String out[UA_SERVERCAPABILITIES_MAX]);
 
 /* Whether the URL uses opc.http or opc.https. */
 UA_Boolean
@@ -1161,6 +1193,13 @@ UA_StatusCode initNS0(UA_Server *server);
 
 /* Connect data sources to existing NS0 nodes */
 UA_StatusCode initNS0_dataSources(UA_Server *server);
+
+/* Write the ServerConfiguration variables that mirror the
+ * ApplicationDescription of the server config */
+UA_StatusCode writeNs0ApplicationDescription(UA_Server *server);
+
+/* Write the ServerCapabilities derived during startup */
+UA_StatusCode writeNs0ServerCapabilities(UA_Server *server);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);

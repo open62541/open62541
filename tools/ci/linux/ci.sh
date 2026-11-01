@@ -170,7 +170,7 @@ EOF
 
     x86_64-w64-mingw32-gcc -D_WIN32_WINNT=0x0600 \
         -Wall -Werror amalgamation_none_smoke.c open62541.c \
-        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi
+        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi -lbcrypt
 }
 
 function build_amalgamation_mt {
@@ -568,6 +568,7 @@ function unit_tests_alarms {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_MALLOC_SINGLETON=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_FORCE_WERROR=ON \
@@ -937,6 +938,20 @@ function build_option_coverage {
     build_option_cfg "UA_ENABLE_QUERY"             -DUA_ENABLE_QUERY=ON
     build_option_cfg "UA_ENABLE_DETERMINISTIC_RNG" -DUA_ENABLE_DETERMINISTIC_RNG=ON
     build_option_cfg "UA_ENABLE_RBAC"              -DUA_ENABLE_RBAC=ON -DUA_NAMESPACE_ZERO=FULL
+
+    # Reduced datatype lists, including configurations without server
+    # subscriptions or type/member names. PubSub otherwise supplies many types.
+    build_option_cfg "no UA_ENABLE_DATATYPES_ALL" -DUA_ENABLE_DATATYPES_ALL=OFF
+    build_option_cfg "reduced datatypes without Subscriptions or PubSub" \
+                     -DUA_ENABLE_DATATYPES_ALL=OFF -DUA_ENABLE_SUBSCRIPTIONS=OFF \
+                     -DUA_ENABLE_HISTORIZING=OFF -DUA_ENABLE_PUBSUB=OFF
+    build_option_cfg "reduced datatypes without type names or PubSub" \
+                     -DUA_ENABLE_DATATYPES_ALL=OFF -DUA_ENABLE_TYPEDESCRIPTION=OFF \
+                     -DUA_ENABLE_DIAGNOSTICS=OFF -DUA_ENABLE_JSON_ENCODING=OFF \
+                     -DUA_ENABLE_XML_ENCODING=OFF -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF \
+                     -DUA_ENABLE_PUBSUB=OFF
+
+    build_option_cfg "UA_MULTITHREADING=0" -DUA_MULTITHREADING=0
 
     # On by default, so only ever compiled in the enabled state
     build_option_cfg "no UA_ENABLE_NODEMANAGEMENT" -DUA_ENABLE_NODEMANAGEMENT=OFF

@@ -1013,6 +1013,74 @@ START_TEST(UA_ExpandedNodeId_encodeShallWorkOnExample) {
 }
 END_TEST
 
+/* Part 6, 5.2.2.10: with a NamespaceUri, the NamespaceIndex is encoded as 0,
+ * whatever the NodeId holds. */
+START_TEST(UA_ExpandedNodeId_encodeWithUriWritesIndexZero) {
+    UA_ExpandedNodeId src = UA_EXPANDEDNODEID_NUMERIC(3, 1000);
+    src.namespaceUri = UA_STRING("urn:x");
+
+    UA_ByteString dst = UA_BYTESTRING_NULL;
+    UA_StatusCode retval =
+        UA_encodeBinary(&src, &UA_TYPES[UA_TYPES_EXPANDEDNODEID], &dst, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    /* Four-byte form: mask, namespace (1 byte), identifier (2 bytes) */
+    ck_assert_uint_eq(dst.data[0], 0x80 | 0x01);
+    ck_assert_uint_eq(dst.data[1], 0);
+    ck_assert_uint_eq(dst.length,
+                      UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_EXPANDEDNODEID], NULL));
+
+    UA_ExpandedNodeId back;
+    retval = UA_decodeBinary(&dst, &back, &UA_TYPES[UA_TYPES_EXPANDEDNODEID], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(back.nodeId.namespaceIndex, 0);
+    ck_assert_uint_eq(back.nodeId.identifier.numeric, 1000);
+    ck_assert(UA_String_equal(&back.namespaceUri, &src.namespaceUri));
+    UA_ExpandedNodeId_clear(&back);
+    UA_ByteString_clear(&dst);
+}
+END_TEST
+
+/* Part 6, 5.2.2.5: a DateTime at or before 1601-01-01 is encoded as 0, one at
+ * or after 9999-12-31 23:59:59 as the maximum Int64. Arrays included. */
+START_TEST(UA_DateTime_encodeClampsToTheValidRange) {
+    const UA_DateTime last = 265046774399LL * UA_DATETIME_SEC;
+    UA_DateTime in[5] = {-1, 0, 5, last - 1, last};
+    UA_DateTime out[5] = {0, 0, 5, last - 1, UA_INT64_MAX};
+
+    /* Arrays must not be memcpy'd, or they would skip the clamping */
+    ck_assert(!UA_TYPES[UA_TYPES_DATETIME].overlayable);
+
+    for(size_t i = 0; i < 5; i++) {
+        UA_ByteString dst = UA_BYTESTRING_NULL;
+        UA_StatusCode retval =
+            UA_encodeBinary(&in[i], &UA_TYPES[UA_TYPES_DATETIME], &dst, NULL);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        UA_DateTime back;
+        retval = UA_decodeBinary(&dst, &back, &UA_TYPES[UA_TYPES_DATETIME], NULL);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(back, out[i]);
+        UA_ByteString_clear(&dst);
+    }
+
+    UA_Variant v;
+    UA_Variant_setArray(&v, in, 5, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_ByteString dst = UA_BYTESTRING_NULL;
+    UA_StatusCode retval =
+        UA_encodeBinary(&v, &UA_TYPES[UA_TYPES_VARIANT], &dst, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dst.length,
+                      UA_calcSizeBinary(&v, &UA_TYPES[UA_TYPES_VARIANT], NULL));
+    UA_Variant back;
+    retval = UA_decodeBinary(&dst, &back, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(back.arrayLength, 5);
+    for(size_t i = 0; i < 5; i++)
+        ck_assert_int_eq(((UA_DateTime*)back.data)[i], out[i]);
+    UA_Variant_clear(&back);
+    UA_ByteString_clear(&dst);
+}
+END_TEST
+
 START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
     // given
     UA_DataValue src;
@@ -1593,6 +1661,15 @@ START_TEST(UA_Variant_setRangeRejectsUnclampedSourceSize) {
     res = UA_Variant_setRangeCopy(&value, source, 13, range);
     ck_assert_uint_eq(res, UA_STATUSCODE_BADINDEXRANGEINVALID);
 
+    /* A source matching the reduced range is written */
+    UA_UInt32 fitting[7] = {1, 2, 3, 4, 5, 6, 7};
+    res = UA_Variant_setRangeCopy(&value, fitting, 7, range);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_UInt32 *data = (UA_UInt32*)value.data;
+    ck_assert_uint_eq(data[2], 0);
+    ck_assert_uint_eq(data[3], 1);
+    ck_assert_uint_eq(data[9], 7);
+
     UA_Variant_clear(&value);
 }
 END_TEST
@@ -1907,6 +1984,7 @@ START_TEST(UA_StatusCode_isGoodUncertain) {
     ck_assert(UA_StatusCode_isUncertain(UA_STATUSCODE_BADINTERNALERROR) == false);
 } END_TEST
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
 START_TEST(UA_findDataTypeByName_test) {
     UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "Boolean");
     const UA_DataType *type = UA_findDataTypeByName(&qn);
@@ -1932,6 +2010,8 @@ START_TEST(UA_findDataTypeByName_test) {
     type = UA_findDataTypeByName(&qn);
     ck_assert_ptr_eq(type, NULL);
 } END_TEST
+
+#endif
 
 START_TEST(UA_Variant_isArray_test) {
     UA_Variant v;
@@ -2255,6 +2335,8 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_encode, UA_String_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_String_encodeShallWorkOnEmpty);
     tcase_add_test(tc_encode, UA_ExpandedNodeId_encodeShallWorkOnExample);
+    tcase_add_test(tc_encode, UA_ExpandedNodeId_encodeWithUriWritesIndexZero);
+    tcase_add_test(tc_encode, UA_DateTime_encodeClampsToTheValidRange);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithoutVariant);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithVariant);
     tcase_add_test(tc_encode, UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject);
@@ -2304,7 +2386,9 @@ static Suite *testSuite_builtin(void) {
     TCase *tc_utils = tcase_create("utils");
     tcase_add_test(tc_utils, UA_StatusCode_utils);
     tcase_add_test(tc_utils, UA_StatusCode_isGoodUncertain);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     tcase_add_test(tc_utils, UA_findDataTypeByName_test);
+#endif
     tcase_add_test(tc_utils, UA_Variant_isArray_test);
     tcase_add_test(tc_utils, UA_DateTime_toUnixTime_test);
     tcase_add_test(tc_utils, UA_DataType_isNumeric_test);

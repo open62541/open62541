@@ -17,7 +17,6 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "test_helpers.h"
-#include "ua_types_encoding_binary.h"
 #include "testing_networklayers.h"
 
 #include <stdio.h>
@@ -1101,6 +1100,55 @@ START_TEST(checkServerAddDataTypeNode) {
     ck_assert_int_eq(nc, UA_NODECLASS_DATATYPE);
 } END_TEST
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+/* Structure types in config->customDataTypes without a DataTypeNode get one
+ * added during UA_Server_newWithConfig. Its BrowseName must be the full
+ * typeName, independent of the name length. */
+static UA_DataTypeMember customStructMember = {
+    .memberName = "value",
+    .memberType = &UA_TYPES[UA_TYPES_INT32]
+};
+
+static void
+checkCustomDataTypeBrowseName(const char *typeName) {
+    UA_DataType type = {
+        .typeName    = typeName,
+        .typeId      = {1, UA_NODEIDTYPE_NUMERIC, {4242}},
+        .memSize     = sizeof(UA_Int32),
+        .typeKind    = UA_DATATYPEKIND_STRUCTURE,
+        .pointerFree = true,
+        .membersSize = 1,
+        .members     = &customStructMember
+    };
+    UA_DataTypeArray customTypes = {NULL, 1, &type, false};
+
+    UA_ServerConfig sc;
+    memset(&sc, 0, sizeof(UA_ServerConfig));
+    UA_ServerConfig_setMinimal(&sc, 4840, NULL);
+    sc.customDataTypes = &customTypes;
+    UA_Server *s = UA_Server_newWithConfig(&sc);
+    ck_assert_ptr_ne(s, NULL);
+
+    UA_QualifiedName browseName;
+    UA_StatusCode res = UA_Server_readBrowseName(s, type.typeId, &browseName);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(browseName.namespaceIndex, 1);
+    ck_assert_uint_eq(browseName.name.length, strlen(typeName));
+    ck_assert(memcmp(browseName.name.data, typeName, strlen(typeName)) == 0);
+    UA_QualifiedName_clear(&browseName);
+
+    UA_Server_delete(s);
+}
+
+START_TEST(checkCustomDataTypeBrowseNameLong) {
+    checkCustomDataTypeBrowseName("CustomStructureWithLongName");
+} END_TEST
+
+START_TEST(checkCustomDataTypeBrowseNameShort) {
+    checkCustomDataTypeBrowseName("Pt");
+} END_TEST
+#endif
+
 START_TEST(checkServerAddReferenceTypeNode) {
     UA_ReferenceTypeAttributes rtAttr = UA_ReferenceTypeAttributes_default;
     rtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestRefType");
@@ -1470,6 +1518,13 @@ int main(void) {
     tcase_add_test(tc_ext, checkServerAddObjectTypeNode);
     tcase_add_test(tc_ext, checkServerConfig_returnsLivePointer);
     suite_add_tcase(s, tc_ext);
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    TCase *tc_customtypes = tcase_create("server - custom datatypes");
+    tcase_add_test(tc_customtypes, checkCustomDataTypeBrowseNameLong);
+    tcase_add_test(tc_customtypes, checkCustomDataTypeBrowseNameShort);
+    suite_add_tcase(s, tc_customtypes);
+#endif
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

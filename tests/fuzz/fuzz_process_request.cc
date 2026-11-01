@@ -41,7 +41,6 @@
 #include "ua_securechannel.h"
 #include "ua_services.h"
 #include "ua_session.h"
-#include "ua_types_encoding_binary.h"
 #include "testing_networklayers.h"
 
 /* File-local global in ua_services.c used by the fuzzing-only token replay

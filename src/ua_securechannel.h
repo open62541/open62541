@@ -24,6 +24,7 @@ typedef struct UA_SecureChannel UA_SecureChannel;
 #include <open62541/transport_generated.h>
 
 #include "open62541_queue.h"
+#include "ua_types_encoding.h"
 #include "util/ua_util_internal.h"
 
 _UA_BEGIN_DECLS

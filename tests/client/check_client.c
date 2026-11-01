@@ -448,6 +448,255 @@ START_TEST(Client_reconnect) {
 }
 END_TEST
 
+static void
+ignoreReadResponse(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                   UA_ReadResponse *rr) {
+    (void)client; (void)userdata; (void)requestId; (void)rr;
+}
+
+static UA_StatusCode
+sendRead(UA_Client *client) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "my.variable");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_ReadRequest req;
+    UA_ReadRequest_init(&req);
+    req.nodesToRead = &rvi;
+    req.nodesToReadSize = 1;
+    return UA_Client_sendAsyncReadRequest(client, &req, ignoreReadResponse,
+                                          NULL, NULL);
+}
+
+/* A Session-bound request is refused while the Session is not activated. It
+ * is not sent: it would carry no AuthenticationToken. */
+START_TEST(Client_requestRefusedBeforeActivation) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    lockClient(client);
+    client->sessionState = UA_SESSIONSTATE_CREATED;
+    unlockClient(client);
+    ck_assert_uint_eq(sendRead(client), UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+    ck_assert(LIST_EMPTY(&client->asyncServiceCalls));
+
+    lockClient(client);
+    client->sessionState = UA_SESSIONSTATE_ACTIVATED;
+    unlockClient(client);
+    ck_assert_uint_eq(sendRead(client), UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* The server drops the SecureChannel, and the client re-activates its Session
+ * on a new one. Requests issued meanwhile are refused instead of being sent
+ * without the token, whose rejection discarded the Session. The Session
+ * survives the reconnect. */
+START_TEST(Client_sessionSurvivesRequestsDuringReactivation) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId sessionId;
+    UA_NodeId_copy(&client->sessionId, &sessionId);
+
+    /* Manually control the server thread */
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+
+    retval = UA_Server_closeSecureChannel(server,
+                                          client->channel.securityToken.channelId,
+                                          UA_SHUTDOWNREASON_CLOSE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    size_t refused = 0;
+    UA_SecureChannelState cs = UA_SECURECHANNELSTATE_CLOSED;
+    UA_SessionState ss = UA_SESSIONSTATE_ACTIVATED;
+    for(size_t i = 0; i < 2000; i++) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+        UA_Client_getState(client, &cs, &ss, NULL);
+        if(cs == UA_SECURECHANNELSTATE_OPEN && ss != UA_SESSIONSTATE_ACTIVATED) {
+            ck_assert_uint_eq(sendRead(client), UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+            refused++;
+        }
+        if(refused > 0 && ss == UA_SESSIONSTATE_ACTIVATED)
+            break;
+    }
+    ck_assert_uint_gt(refused, 0);
+    ck_assert_int_eq(ss, UA_SESSIONSTATE_ACTIVATED);
+    ck_assert(UA_NodeId_equal(&client->sessionId, &sessionId));
+
+    /* Run the server in an independent thread again */
+    UA_atomic_store(&running, true);
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1, "my.variable"), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_NodeId_clear(&sessionId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+static size_t dialAttempts;
+static UA_SecureChannelState lastChannelState;
+
+static void
+countDials(UA_Client *client, UA_SecureChannelState channelState,
+           UA_SessionState sessionState, UA_StatusCode connectStatus) {
+    (void)client; (void)sessionState; (void)connectStatus;
+    if(channelState == UA_SECURECHANNELSTATE_CONNECTING &&
+       lastChannelState != UA_SECURECHANNELSTATE_CONNECTING)
+        dialAttempts++;
+    lastChannelState = channelState;
+}
+
+/* A server at its SecureChannel limit accepts the TCP connection and closes
+ * it before the handshake. The client keeps trying, but with a delay that
+ * doubles, instead of in a hot loop. */
+START_TEST(Client_reconnectBacksOff) {
+    UA_Client *holder = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(holder, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Manually control the server thread */
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    UA_Server_getConfig(server)->maxSecureChannels = 1;
+
+    dialAttempts = 0;
+    lastChannelState = UA_SECURECHANNELSTATE_CLOSED;
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->stateCallback = countDials;
+    cc->timeout = 60 * 1000; /* No timeout within the test */
+    cc->reconnectInterval = 0; /* Means 250ms, not no delay */
+    retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Five seconds. With 250ms doubling up to 10s, the dials are at 0, 0 (the
+     * first re-dial), 0.25, 0.75, 1.75 and 3.75 seconds. */
+    for(size_t i = 0; i < 500; i++) {
+        UA_fakeSleep(10);
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+    }
+    ck_assert_uint_ge(dialAttempts, 3);
+    ck_assert_uint_le(dialAttempts, 8);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    UA_Server_getConfig(server)->maxSecureChannels = 0;
+    UA_atomic_store(&running, true);
+    THREAD_CREATE(server_thread, serverloop);
+    UA_Client_disconnect(holder);
+    UA_Client_delete(holder);
+}
+END_TEST
+
+/* The SecureChannel of a connected client is closed by the server, which then
+ * refuses new connections. Run the client until it gives up. Then the server
+ * accepts connections again. */
+static UA_Client *
+connectionLostAndAborted(UA_Client **holder, UA_NodeId *sessionId) {
+    *holder = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(*holder, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->reconnectInterval = 10;
+    cc->reconnectIntervalMax = 40;
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId_copy(&client->sessionId, sessionId);
+
+    /* Manually control the server thread */
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    UA_Server_getConfig(server)->maxSecureChannels = 1;
+    retval = UA_Server_closeSecureChannel(server,
+                                          client->channel.securityToken.channelId,
+                                          UA_SHUTDOWNREASON_CLOSE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The re-dials are at 0, 10, 20 and 40ms. The last one fails -> abort. */
+    UA_StatusCode status = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < 500 && status == UA_STATUSCODE_GOOD; i++) {
+        UA_fakeSleep(10);
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+        UA_Client_getState(client, NULL, NULL, &status);
+    }
+    ck_assert_uint_eq(status, UA_STATUSCODE_BADCONNECTIONCLOSED);
+
+    /* Nothing is retried any more */
+    for(size_t i = 0; i < 100; i++) {
+        UA_fakeSleep(10);
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+    }
+    UA_SecureChannelState cs;
+    UA_Client_getState(client, &cs, NULL, &status);
+    ck_assert_int_eq(cs, UA_SECURECHANNELSTATE_CLOSED);
+    ck_assert_uint_eq(status, UA_STATUSCODE_BADCONNECTIONCLOSED);
+
+    /* Let the client reconnect */
+    UA_Server_getConfig(server)->maxSecureChannels = 0;
+    UA_atomic_store(&running, true);
+    THREAD_CREATE(server_thread, serverloop);
+    return client;
+}
+
+/* After the abort, a manual connect re-activates the old Session */
+START_TEST(Client_reconnectAbortKeepsSession) {
+    UA_Client *holder;
+    UA_NodeId sessionId;
+    UA_Client *client = connectionLostAndAborted(&holder, &sessionId);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&client->sessionId, &sessionId));
+
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1, "my.variable"), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_NodeId_clear(&sessionId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    UA_Client_disconnect(holder);
+    UA_Client_delete(holder);
+}
+END_TEST
+
+/* After the abort, disconnect and connect start a fresh Session */
+START_TEST(Client_reconnectAbortFreshSession) {
+    UA_Client *holder;
+    UA_NodeId sessionId;
+    UA_Client *client = connectionLostAndAborted(&holder, &sessionId);
+
+    UA_Client_disconnect(client);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(!UA_NodeId_equal(&client->sessionId, &sessionId));
+
+    UA_NodeId_clear(&sessionId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    UA_Client_disconnect(holder);
+    UA_Client_delete(holder);
+}
+END_TEST
+
 START_TEST(Client_delete_without_connect) {
     UA_Client *client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
@@ -1112,6 +1361,92 @@ START_TEST(Client_connectTimeoutRecovery) {
 }
 END_TEST
 
+START_TEST(Client_activateSessionSameUserAllowed) {
+    ck_assert_uint_eq(server->sessionCount, 0);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* Re-activate the same Session on a new SecureChannel with the same user */
+    UA_Client_disconnectSecureChannel(client);
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_delete(client);
+    ck_assert_uint_eq(server->sessionCount, 0);
+}
+END_TEST
+
+START_TEST(Client_activateSessionUserChangeRejected) {
+    ck_assert_uint_eq(server->sessionCount, 0);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* Try to re-activate the Session on a new SecureChannel for another user */
+    UA_Client_disconnectSecureChannel(client);
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                       "user2", "password1");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* Rejection preserves the identity of the server's original Session.
+     * The client discards a rejected Session, so inspect it directly. */
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = &LIST_FIRST(&server->sessions)->session;
+    UA_String expectedUser = UA_STRING("user1");
+    ck_assert(UA_String_equal(&session->clientUserIdOfSession, &expectedUser));
+    ck_assert_uint_eq(session->state, UA_SESSIONSTATE_ACTIVATED);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_activateSessionAnonymousUserChangeRejected) {
+    ck_assert_uint_eq(server->sessionCount, 0);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* Try to re-activate the anonymous Session for a named user. The client
+     * does not select a new UserTokenPolicy for the existing Session. */
+    UA_UserTokenPolicy_clear(&config->userTokenPolicy);
+    for(size_t i = 0; i < client->endpoint.userIdentityTokensSize; i++) {
+        UA_UserTokenPolicy *policy = &client->endpoint.userIdentityTokens[i];
+        if(policy->tokenType == UA_USERTOKENTYPE_USERNAME) {
+            ck_assert_uint_eq(UA_UserTokenPolicy_copy(policy, &config->userTokenPolicy),
+                              UA_STATUSCODE_GOOD);
+            break;
+        }
+    }
+    UA_Client_disconnectSecureChannel(client);
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                       "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    /* The client has no activated Session that it could close */
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -1139,10 +1474,19 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannelWithActiveSubscription);
 #endif
     tcase_add_test(tc_client_reconnect, Client_reconnect);
+    tcase_add_test(tc_client_reconnect, Client_requestRefusedBeforeActivation);
+    tcase_add_test(tc_client_reconnect, Client_sessionSurvivesRequestsDuringReactivation);
+    tcase_add_test(tc_client_reconnect, Client_reconnectBacksOff);
+    tcase_add_test(tc_client_reconnect, Client_reconnectAbortKeepsSession);
+    tcase_add_test(tc_client_reconnect, Client_reconnectAbortFreshSession);
     tcase_add_test(tc_client_reconnect, Client_activateSessionClose);
     tcase_add_test(tc_client_reconnect, Client_activateSessionTimeout);
     tcase_add_test(tc_client_reconnect, Client_connectTimeoutRecovery);
     tcase_add_test(tc_client_reconnect, Client_activateSessionLocaleIds);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionSameUserAllowed);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionUserChangeRejected);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionAnonymousUserChangeRejected);
+
     suite_add_tcase(s,tc_client_reconnect);
 
     TCase *tc_ext = tcase_create("Client Extended");

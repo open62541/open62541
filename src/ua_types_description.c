@@ -121,7 +121,8 @@ type_alignment(const UA_DataType *type) {
        type->typeKind == UA_DATATYPEKIND_OPTSTRUCT ||
        type->typeKind == UA_DATATYPEKIND_UNION) {
         /* Maximum alignment of any member */
-        UA_Byte align = 1;
+        UA_Byte align = (type->typeKind == UA_DATATYPEKIND_UNION) ?
+            ALIGNMENT(UA_UInt32) : 1;
         for(size_t i = 0; i < type->membersSize; i++) {
             const UA_DataTypeMember *dtm = &type->members[i];
             if(dtm->isArray) {
@@ -169,8 +170,11 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         type->typeKind = UA_DATATYPEKIND_UNION; break;
     case UA_STRUCTURETYPE_STRUCTUREWITHSUBTYPEDVALUES:
     case UA_STRUCTURETYPE_UNIONWITHSUBTYPEDVALUES:
+        UA_DataType_clear(type);
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    default: return UA_STATUSCODE_BADINTERNALERROR;
+    default:
+        UA_DataType_clear(type);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Copy NodeIds */
@@ -324,6 +328,23 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         /* TODO: MaxStringLength */
     }
 
+    /* A C union has one shared offset, aligned for its strongest member.
+     * The enclosing switch also contributes to the structure alignment. */
+    if(type->typeKind == UA_DATATYPEKIND_UNION && type->membersSize > 0) {
+        UA_Byte align = type_alignment(type);
+        size_t offset = sizeof(UA_UInt32) + PADDING(sizeof(UA_UInt32), align);
+        size_t payloadSize = 0;
+        for(size_t i = 0; i < type->membersSize; i++) {
+            UA_DataTypeMember *member = &newMembers[i];
+            member->padding = (UA_Byte)offset;
+            size_t size = member->isArray ? sizeof(size_t) + sizeof(void*) :
+                member->memberType->memSize;
+            if(size > payloadSize)
+                payloadSize = size;
+        }
+        accSize = offset + payloadSize;
+    }
+
     /* Add final padding according to the member alignment requirements */
     UA_Byte self_alignment = type_alignment(type);
     UA_Byte end_padding = (UA_Byte)(PADDING(accSize, self_alignment));
@@ -386,9 +407,18 @@ UA_DataType_toStructureDescription(const UA_DataType *type,
         UA_StructureField *sf = &sd->fields[i];
         const UA_DataTypeMember *dtm = &type->members[i];
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        sf->name = UA_String_fromChars(dtm->memberName);
+        UA_String name = UA_STRING((char*)(uintptr_t)dtm->memberName);
+        res = UA_String_copy(&name, &sf->name);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_StructureDescription_clear(descr);
+            return res;
+        }
 #endif
-        res |= UA_NodeId_copy(&dtm->memberType->typeId, &sf->dataType);
+        res = UA_NodeId_copy(&dtm->memberType->typeId, &sf->dataType);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_StructureDescription_clear(descr);
+            return res;
+        }
         sf->valueRank = (dtm->isArray) ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
         sf->isOptional = dtm->isOptional;
         if(dtm->isArray && (type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
@@ -491,8 +521,15 @@ UA_DataType_toEnumDescription(const UA_DataType *type,
         UA_EnumField *ef = &descr->enumDefinition.fields[i];
         ef->value = (UA_Int64)(intptr_t)dtm->memberType;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        ef->name = UA_STRING_ALLOC(dtm->memberName);
-        ef->displayName = UA_LOCALIZEDTEXT_ALLOC("", dtm->memberName);
+        UA_String name = UA_STRING((char*)(uintptr_t)dtm->memberName);
+        ef->displayName.locale = UA_STRING_ALLOC("");
+        res = UA_String_copy(&name, &ef->name);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_String_copy(&name, &ef->displayName.text);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_EnumDescription_clear(descr);
+            return res;
+        }
 #endif
     }
 

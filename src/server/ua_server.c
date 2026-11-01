@@ -427,6 +427,7 @@ UA_Server_delete(UA_Server *server) {
     LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
         UA_RegisteredServer_clear(&rs->registeredServer);
+        UA_String_clear(&rs->mdnsServerName);
         UA_free(rs);
     }
     server->registeredServersSize = 0;
@@ -627,7 +628,7 @@ UA_Server_init(UA_Server *server) {
             }
 
             UA_QualifiedName dataTypeBrowseName =
-                {type->typeId.namespaceIndex, UA_STRING_STATIC((char*)(uintptr_t)type->typeName)};
+                {type->typeId.namespaceIndex, UA_STRING((char*)(uintptr_t)type->typeName)};
             UA_DataTypeAttributes dta = UA_DataTypeAttributes_default;
             dta.displayName.text = UA_STRING((char*)(uintptr_t)type->typeName);
             res = UA_Server_addDataTypeNode(server, type->typeId, UA_NS0ID(STRUCTURE),
@@ -662,6 +663,7 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     UA_CHECK_MEM(server, UA_ServerConfig_clear(config); return NULL);
 
     server->config = *config;
+    server->maxRegisteredServers = 1000;
 
     /* If not defined, set logging to what the server has */
     if(!server->config.secureChannelPKI.logging)
@@ -1227,6 +1229,23 @@ UA_Server_run_startup(UA_Server *server) {
                         1, &UA_TYPES[UA_TYPES_STRING]);
     UA_NodeId serverArray = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY);
     writeValueAttribute(server, serverArray, &var);
+
+    /* Right before startup so a changed application description reflects here */
+    UA_StatusCode adRes = writeNs0ApplicationDescription(server);
+    if(adRes != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                       "Could not write the ApplicationDescription to the "
+                       "ServerConfiguration object (%s)",
+                       UA_StatusCode_name(adRes));
+
+    /* Derive the ServerCapabilities from the config */
+    setupServerCapabilities(server);
+    UA_StatusCode capRes = writeNs0ServerCapabilities(server);
+    if(capRes != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                       "Could not write the ServerCapabilities to the "
+                       "ServerConfiguration object (%s)",
+                       UA_StatusCode_name(capRes));
 
     /* Sample the start time and set it to the Server object */
     server->startTime = el->dateTime_now(el);
