@@ -165,7 +165,7 @@ option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
 set(UA_FILE_MDNSD "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c")
 set(MDNS_MDNSD_DEFAULT OFF)
-if(UA_ARCHITECTURE_POSIX AND
+if(UA_ARCHITECTURE_POSIX AND NOT UA_ARCHITECTURE_LWIP AND
    NOT UA_ENABLE_DRIVER_MDNS_AVAHI AND EXISTS "${UA_FILE_MDNSD}")
     set(MDNS_MDNSD_DEFAULT ON)
 endif()
@@ -1371,7 +1371,9 @@ set(UA_NS0_NODESETS)
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
-    set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
+    if(NOT UA_SCHEMA_DIR)
+        set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE PATH "Schema directory")
+    endif()
 
     # Set the full ns0 nodeset
     list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.xml)
@@ -1386,7 +1388,9 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     endif()
 else()
     # Directory with the schema files for installation
-    set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema CACHE INTERNAL "")
+    if(NOT UA_SCHEMA_DIR)
+        set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema CACHE PATH "Schema directory")
+    endif()
 
     # Set the reduced Nodeset for NS0
     list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.Reduced.xml)
@@ -1835,7 +1839,7 @@ endforeach()
 # Create the CMake package files (open62541Config.cmake, ConfigVersion,
 # Targets). open62541Config.cmake includes open62541Targets.cmake, so they
 # must be installed together or not at all.
-if(NOT UA_ARCHITECTURE_FREERTOS AND NOT ZEPHYR_BASE)
+if(NOT UA_ARCHITECTURE_FREERTOS AND NOT ZEPHYR_BASE AND NOT CMAKE_SKIP_INSTALL_RULES)
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
 set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)

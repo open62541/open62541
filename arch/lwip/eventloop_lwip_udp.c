@@ -395,6 +395,11 @@ setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
 static UA_StatusCode
 setSocketPriority(UA_SOCKET sockfd, UA_UInt32 socketPriority,
                   const UA_Logger *logger) {
+#ifndef SO_PRIORITY
+    (void)sockfd;
+    (void)logger;
+    return socketPriority == 0 ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTSUPPORTED;
+#else
     int prio = (int)socketPriority;
     if(UA_setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &prio, sizeof(int)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -405,6 +410,7 @@ setSocketPriority(UA_SOCKET sockfd, UA_UInt32 socketPriority,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
+#endif
 }
 #endif
 
