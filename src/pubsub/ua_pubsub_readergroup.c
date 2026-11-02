@@ -466,7 +466,8 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     LIST_FOREACH_SAFE(reader, &rg->readers, listEntry, reader_tmp) {
         /* Check if the reader is enabled */
         if(reader->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           reader->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
+           reader->head.state != UA_PUBSUBSTATE_PREOPERATIONAL &&
+           !UA_DataSetReader_canRecover(reader))
             continue;
 
         /* Apply the reader's header filters before checking sequence history.

@@ -601,7 +601,21 @@ START_TEST(Test_wrong_timeout) {
     ServerDoProcess("1", PublishingInterval_Conn1_WG1, 5);
 
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
+
+    ck_assert_uint_eq(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1),
+                      UA_STATUSCODE_GOOD);
+    ServerDoProcess("timeout", 201, 1);
+    ck_assert_uint_eq(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1,
+                                                       &state), UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
+
+    ck_assert_uint_eq(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1),
+                      UA_STATUSCODE_GOOD);
+    ServerDoProcess("recover", PublishingInterval_Conn1_WG1, 1);
+    ck_assert_uint_eq(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1,
+                                                       &state), UA_STATUSCODE_GOOD);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_wrong_timeout\n\n");
 } END_TEST
@@ -662,23 +676,35 @@ START_TEST(Test_update_config) {
 
     ServerDoProcess("2", SleepTime, NoOfRunIterateCycles);
 
-    /* The Reader is disabled now, since the timer has run out */
+    /* The reader timed out, but retains the last sample with BadTimeout. */
     UA_PubSubState state;
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
 
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = VarId_Conn1_RG1_DSR1;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue received = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(received.hasValue);
+    ck_assert(received.hasStatus);
+    ck_assert_uint_eq(received.status, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_int_eq(*(UA_Int32*)received.value.data, 33);
+    UA_DataValue_clear(&received);
+
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "enable writer group");
     ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
-    /* re-enable the readergroup */
-    ck_assert(UA_Server_enableDataSetReader(server, DSRId_Conn1_RG1_DSR1) == UA_STATUSCODE_GOOD);
-
+    ServerDoProcess("4", SleepTime, NoOfRunIterateCycles);
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
 
-    ServerDoProcess("4", SleepTime, NoOfRunIterateCycles);
-
     ValidatePublishSubscribe(VarId_Conn1_WG1, VarId_Conn1_RG1_DSR1, 50, SleepTime, NoOfRunIterateCycles);
+    received = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(received.hasValue);
+    ck_assert(!received.hasStatus || received.status == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32*)received.value.data, 50);
+    UA_DataValue_clear(&received);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable writer group");
 
@@ -687,6 +713,138 @@ START_TEST(Test_update_config) {
     ServerDoProcess("5", SleepTime, NoOfRunIterateCycles);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_update_config\n\n");
+} END_TEST
+
+static UA_StatusCode
+customReaderStateMachine(UA_Server *s, UA_NodeId id, void *context,
+                          UA_PubSubState *state, UA_PubSubState targetState) {
+    *state = targetState;
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(Test_timeout_recovery_validation) {
+    UA_NodeId connection, group, readerId, target;
+    AddConnection("Recovery", 1, &connection);
+    AddReaderGroup(&connection, "Recovery", &group);
+    AddDataSetReader(&group, "Recovery", 1, 1, 1, 200, &target, &readerId);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *reader = UA_DataSetReader_find(psm, readerId);
+    ck_assert_ptr_ne(reader, NULL);
+    UA_ReaderGroup *rg = reader->linkedReaderGroup;
+    rg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    rg->hasReceived = true;
+    reader->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+
+    UA_Int32 value = 42;
+    UA_DataValue field;
+    UA_DataValue_init(&field);
+    field.hasValue = true;
+    UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    UA_DataSetMessage msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.header.dataSetMessageValid = true;
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    msg.header.dataSetMessageSequenceNrEnabled = true;
+    msg.header.dataSetMessageSequenceNr = 100;
+    msg.fieldCount = 1;
+    msg.data.keyFrameFields = &field;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.groupHeaderEnabled = true;
+    nm.groupHeader.writerGroupIdEnabled = true;
+    nm.groupHeader.writerGroupId = 1;
+    nm.groupHeader.sequenceNumberEnabled = true;
+    nm.groupHeader.sequenceNumber = 100;
+    nm.payloadHeaderEnabled = true;
+    nm.dataSetWriterIds[0] = 1;
+    nm.messageCount = 1;
+    nm.payload.dataSetMessages = &msg;
+
+    lockServer(server);
+    ck_assert(UA_ReaderGroup_process(psm, rg, &nm));
+    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADTIMEOUT), UA_STATUSCODE_GOOD);
+    ck_assert(UA_DataSetReader_canRecover(reader));
+    ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
+    UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+    ck_assert(UA_DataSetReader_canRecover(reader));
+
+    /* A publisher restart resets counters; history expires after two timeouts. */
+    UA_fakeSleep(401);
+    nm.groupHeader.sequenceNumber = 1;
+    msg.header.dataSetMessageSequenceNr = 1;
+    msg.header.dataSetMessageValid = false;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    msg.header.dataSetMessageValid = true;
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_KEEPALIVE;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    msg.fieldCount = 2;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    msg.fieldCount = 0;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    msg.fieldCount = 1;
+    field.hasValue = false;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    field.hasValue = true;
+    UA_Variant_init(&field.value);
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    field.hasStatus = true;
+    field.status = UA_STATUSCODE_BADNODATAAVAILABLE;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    field.hasStatus = false;
+    reader->config.dataSetMetaData.configurationVersion.majorVersion = 2;
+    msg.header.configVersionMajorVersionEnabled = true;
+    msg.header.configVersionMajorVersion = 1;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    msg.header.configVersionMajorVersion = 2;
+
+    UA_FieldTargetDataType *tv =
+        &reader->config.subscribedDataSet.target.targetVariables[0];
+    UA_NodeId savedTarget = tv->targetNodeId;
+    tv->targetNodeId = UA_NODEID_NUMERIC(1, 999999);
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    tv->targetNodeId = savedTarget;
+    ck_assert(UA_DataSetReader_canRecover(reader));
+    ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
+
+    value = 77;
+    ck_assert(UA_ReaderGroup_process(psm, rg, &nm));
+    ck_assert_int_eq(reader->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+    ck_assert(!reader->msgRcvTimedOut);
+    ck_assert(reader->msgRcvTimeoutTimerId != 0);
+    ck_assert(reader->receivedKeyFrame);
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm)); /* Duplicate */
+
+    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADTIMEOUT), UA_STATUSCODE_GOOD);
+    ck_assert(UA_DataSetReader_canRecover(reader));
+    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADINTERNALERROR), UA_STATUSCODE_GOOD);
+    msg.header.dataSetMessageSequenceNr = 2;
+    nm.groupHeader.sequenceNumber = 2;
+    ck_assert(!UA_DataSetReader_canRecover(reader));
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    ck_assert(!UA_DataSetReader_process(psm, reader, &msg));
+
+    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD), UA_STATUSCODE_GOOD);
+    ck_assert(!UA_DataSetReader_canRecover(reader));
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    ck_assert(!UA_DataSetReader_process(psm, reader, &msg));
+
+    reader->config.customStateMachine = customReaderStateMachine;
+    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADTIMEOUT), UA_STATUSCODE_GOOD);
+    ck_assert(!UA_DataSetReader_canRecover(reader));
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
+    ck_assert(!UA_DataSetReader_process(psm, reader, &msg));
+    reader->config.customStateMachine = NULL;
+    unlockServer(server);
 } END_TEST
 
 START_TEST(Test_add_remove) {
@@ -746,6 +904,7 @@ int main(void) {
         - try different updated configurations for the DataSetReader (different MessageReceiveTimeouts)
     */
     tcase_add_test(tc_basic, Test_update_config);
+    tcase_add_test(tc_basic, Test_timeout_recovery_validation);
 
     /* test case description:
         - add and remove a reader without any operation -> check for memory leaks
