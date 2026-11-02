@@ -473,18 +473,31 @@ removePendingCsr(UA_GDSReceiverContext *ctx, const UA_NodeId *certificateTypeId)
 static UA_StatusCode
 setPendingCsr(UA_GDSReceiverContext *ctx, const UA_NodeId *certificateTypeId,
               const UA_ByteString *csr) {
-    removePendingCsr(ctx, certificateTypeId);
-    UA_GDSPendingCsr *pc = (UA_GDSPendingCsr*)UA_calloc(1, sizeof(UA_GDSPendingCsr));
-    if(!pc)
+    UA_ByteString csrCopy;
+    UA_StatusCode res = UA_ByteString_copy(csr, &csrCopy);
+    if(res != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode res = UA_NodeId_copy(certificateTypeId, &pc->certificateTypeId);
-    res |= UA_ByteString_copy(csr, &pc->csr);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_NodeId_clear(&pc->certificateTypeId);
+
+    /* Replace the CSR of an existing entry in place */
+    UA_GDSPendingCsr *pc = findPendingCsr(ctx, certificateTypeId);
+    if(pc) {
         UA_ByteString_clear(&pc->csr);
+        pc->csr = csrCopy;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    pc = (UA_GDSPendingCsr*)UA_calloc(1, sizeof(UA_GDSPendingCsr));
+    if(!pc) {
+        UA_ByteString_clear(&csrCopy);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    res = UA_NodeId_copy(certificateTypeId, &pc->certificateTypeId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&csrCopy);
         UA_free(pc);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    pc->csr = csrCopy;
     LIST_INSERT_HEAD(&ctx->pendingCsrs, pc, pointers);
     return UA_STATUSCODE_GOOD;
 }
