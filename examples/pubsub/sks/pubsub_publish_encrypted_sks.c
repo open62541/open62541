@@ -132,6 +132,8 @@ run(UA_UInt16 port, UA_String *transportProfile,
     UA_NetworkAddressUrlDataType *networkAddressUrl, UA_ClientConfig *sksClientConfig) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
+    /* The SKS uses port 4840; honor this participant's configured port. */
+    UA_ServerConfig_setMinimal(config, port, NULL);
 
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies =

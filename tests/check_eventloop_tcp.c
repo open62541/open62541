@@ -26,6 +26,7 @@ static unsigned connCount;
 static char *testMsg = "open62541";
 static uintptr_t clientId;
 static UA_Boolean received;
+static UA_UInt16 listenPort;
 
 static void setupEL(void) {
 #if defined(UA_ARCHITECTURE_LWIP)
@@ -64,6 +65,11 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         }
     }
 
+    const UA_UInt16 *boundPort = (const UA_UInt16*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "listen-port"), &UA_TYPES[UA_TYPES_UINT16]);
+    if(boundPort)
+        listenPort = *boundPort;
+
     if(*connectionContext != NULL)
         clientId = connectionId;
     if(msg.length == 0 && status == UA_CONNECTIONSTATE_ESTABLISHED)
@@ -83,7 +89,7 @@ START_TEST(listenTCP) {
     setupEL();
     el->start(el);
 
-    UA_UInt16 port = 4840;
+    UA_UInt16 port = 0;
     UA_Boolean listen = true;
 
     UA_KeyValuePair params[2];
@@ -104,13 +110,13 @@ START_TEST(listenTCP) {
     ck_assert(connCount > 0);
 
 #if !defined(UA_ARCHITECTURE_LWIP)
-    port = 4841;
+    port = 0;
     /* Depending on IPv4/IPv6 availability, the first open may consume one or two
      * socket slots. Keep opening on new ports until the configured limit is hit. */
     retval = cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        port = 4842;
+        port = 0;
         retval = cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
     }
 
@@ -180,9 +186,9 @@ START_TEST(connectTCP) {
     setupEL();
     el->start(el);
 
-    UA_UInt16 port = 4840;
+    UA_UInt16 port = 0;
     UA_Boolean listen = true;
-    UA_String host = UA_STRING("localhost");
+    UA_String host = UA_STRING("127.0.0.1");
     UA_Boolean reuseaddr = true;
 
     UA_KeyValuePair params[4];
@@ -204,6 +210,8 @@ START_TEST(connectTCP) {
     cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
 
     size_t listenSockets = connCount;
+    port = listenPort;
+    ck_assert_uint_ne(port, 0);
 
 #if !defined(UA_ARCHITECTURE_LWIP)
     /* Set up the TCP EventLoop parameters */
@@ -353,9 +361,68 @@ START_TEST(staticSendBuffer) {
     el = NULL;
 } END_TEST
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+typedef struct {
+    UA_UInt16 port;
+    uintptr_t id;
+    UA_Boolean closed;
+} ReuseListener;
+
+static void
+reuseListenerCallback(UA_ConnectionManager *manager, uintptr_t id, void *application,
+                      void **context, UA_ConnectionState state,
+                      const UA_KeyValueMap *params, UA_ByteString msg) {
+    (void)manager; (void)context; (void)msg;
+    ReuseListener *listener = (ReuseListener*)application;
+    if(state == UA_CONNECTIONSTATE_CLOSING) {
+        listener->closed = true;
+        return;
+    }
+    const UA_UInt16 *port = (const UA_UInt16*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "listen-port"), &UA_TYPES[UA_TYPES_UINT16]);
+    if(port) {
+        listener->port = *port;
+        listener->id = id;
+    }
+}
+
+START_TEST(listenTCPReuseRejectsDuplicateAndAllowsRestart) {
+    setupEL();
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+    UA_KeyValueMap params = UA_KEYVALUEMAP_NULL;
+    UA_UInt16 port = 0;
+    UA_Boolean enabled = true;
+    UA_String address = UA_STRING("127.0.0.1");
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "port"), &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "address"), &address, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "listen"), &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "reuse"), &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ReuseListener first = {0}, second = {0};
+    ck_assert_uint_eq(cm->openConnection(cm, &params, &first, NULL, reuseListenerCallback), UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(first.port, 0);
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "port"), &first.port, &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_ne(cm->openConnection(cm, &params, &second, NULL, reuseListenerCallback), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cm->closeConnection(cm, first.id), UA_STATUSCODE_GOOD);
+    for(unsigned i = 0; i < 100 && !first.closed; ++i)
+        el->run(el, 1);
+    ck_assert(first.closed);
+    ck_assert_uint_eq(cm->openConnection(cm, &params, &second, NULL, reuseListenerCallback), UA_STATUSCODE_GOOD);
+    UA_KeyValueMap_clear(&params);
+    el->stop(el);
+    for(unsigned i = 0; i < 100 && el->state != UA_EVENTLOOPSTATE_STOPPED; ++i)
+        el->run(el, 1);
+    ck_assert_uint_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+    ck_assert_uint_eq(el->free(el), UA_STATUSCODE_GOOD);
+    el = NULL;
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s  = suite_create("Test TCP EventLoop");
     TCase *tc = tcase_create("test cases");
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+    tcase_add_test(tc, listenTCPReuseRejectsDuplicateAndAllowsRestart);
+#endif
     tcase_add_test(tc, listenTCP);
     tcase_add_test(tc, listenTCPAddressArrayUsesPerElementLength);
     tcase_add_test(tc, connectTCP);

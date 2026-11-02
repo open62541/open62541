@@ -561,9 +561,13 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 #endif
 
-    /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
+    /* Allow a restart while accepted connections remain in TIME_WAIT. Unlike
+     * setReusable(), do not also enable SO_REUSEPORT: a TCP listener must not
+     * silently share an occupied port with another server. */
+    int reuseAddress = 1;
     if(reuseaddr &&
-       UA_EventLoopPOSIX_setReusable(listenSocket) != UA_STATUSCODE_GOOD) {
+       UA_setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR,
+                     (const char*)&reuseAddress, sizeof(reuseAddress)) != 0) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not make the socket addr reusable",
                        (unsigned)listenSocket);
