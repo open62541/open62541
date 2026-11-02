@@ -1181,6 +1181,10 @@ static const UA_ClientTransport clientTransports[] = {
      4840, UA_SECURECHANNEL_TRANSPORT_UACP,
      UA_SECURECHANNEL_ENCODING_BINARY, false},
 #ifdef UA_ENABLE_LWS
+    {UA_STRING_STATIC("opc.ws:"), UA_STRING_STATIC("websocket"),
+     UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/ws-uasc-uabinary"),
+     80, UA_SECURECHANNEL_TRANSPORT_UACP,
+     UA_SECURECHANNEL_ENCODING_BINARY, false},
     {UA_STRING_STATIC("opc.wss:"), UA_STRING_STATIC("websocket"),
      UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary"),
      443, UA_SECURECHANNEL_TRANSPORT_UACP,
