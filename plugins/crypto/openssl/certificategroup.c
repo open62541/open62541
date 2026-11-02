@@ -1191,7 +1191,7 @@ openSSLCheckTrustListCertificate(const UA_ByteString *certificate) {
     EVP_PKEY *key = X509_get0_pubkey(cert);
     if(key && EVP_PKEY_base_id(key) == EVP_PKEY_RSA)
         required |= KU_NON_REPUDIATION | KU_KEY_ENCIPHERMENT | KU_DATA_ENCIPHERMENT;
-    X509_EXTENSION *ext = X509_get_ext(cert, X509_get_ext_by_NID(cert, NID_key_usage, -1));
+    const X509_EXTENSION *ext = X509_get_ext(cert, X509_get_ext_by_NID(cert, NID_key_usage, -1));
     if((X509_get_key_usage(cert) & required) != required &&
        ext && X509_EXTENSION_get_critical(ext))
         retval = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
