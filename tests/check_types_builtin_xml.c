@@ -4298,6 +4298,78 @@ START_TEST(UA_Variant_String_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_Variant_Matrix_xml_roundtrip) {
+    UA_Int32 values[] = {11, 21, 31, 12, 22, 32};
+    UA_UInt32 dimensions[] = {3, 2};
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_Variant_setArray(&value, values, 6, &UA_TYPES[UA_TYPES_INT32]);
+    value.arrayDimensions = dimensions;
+    value.arrayDimensionsSize = 2;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_encodeXml(&value, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(encoded.length, UA_calcSizeXml(&value, &UA_TYPES[UA_TYPES_VARIANT], NULL));
+    UA_Variant decoded;
+    UA_Variant_init(&decoded);
+    ck_assert_uint_eq(UA_decodeXml(&encoded, &decoded, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&value, &decoded, &UA_TYPES[UA_TYPES_VARIANT]));
+    UA_Variant_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(UA_Variant_Matrix_structures_xml_roundtrip) {
+    UA_String optional = UA_STRING("matrix element");
+    XmlOptionalStructure elements[2] = {{1, &optional}, {2, NULL}};
+    UA_UInt32 dimensions[] = {1, 2};
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_Variant_setArray(&value, elements, 2, &xmlOptionalStructureType);
+    value.arrayDimensions = dimensions;
+    value.arrayDimensionsSize = 2;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_encodeXml(&value, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_DecodeXmlOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = &xmlOptionalStructureTypes;
+    UA_Variant decoded;
+    UA_Variant_init(&decoded);
+    ck_assert_uint_eq(UA_decodeXml(&encoded, &decoded, &UA_TYPES[UA_TYPES_VARIANT], &options),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&value, &decoded, &UA_TYPES[UA_TYPES_VARIANT]));
+    UA_Variant_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(UA_Variant_Matrix_xml_invalid_dimensions) {
+    UA_Int32 values[] = {1, 2};
+    UA_UInt32 dimensions[] = {2, 2};
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_Variant_setArray(&value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
+    value.arrayDimensions = dimensions;
+    value.arrayDimensionsSize = 2;
+    /* A supplied buffer preserves the encoder's precise failure code. */
+    UA_Byte storage[512];
+    UA_ByteString encoded = {sizeof(storage), storage};
+    ck_assert_uint_eq(UA_encodeXml(&value, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL),
+                      UA_STATUSCODE_BADENCODINGERROR);
+    dimensions[1] = 0;
+    encoded.length = sizeof(storage);
+    ck_assert_uint_eq(UA_encodeXml(&value, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL),
+                      UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+    dimensions[1] = UA_UINT32_MAX;
+    encoded.length = sizeof(storage);
+    ck_assert_uint_eq(UA_encodeXml(&value, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL),
+                      UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+    value.arrayDimensions = NULL;
+    encoded.length = sizeof(storage);
+    ck_assert_uint_eq(UA_encodeXml(&value, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+} END_TEST
+
 START_TEST(UA_Variant_Matrix_xml_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -4857,6 +4929,9 @@ static Suite *testSuite_builtin_xml(void) {
 
     tcase_add_test(tc_xml_decode, UA_Array_Variant_String_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_String_xml_decode);
+    tcase_add_test(tc_xml_encode, UA_Variant_Matrix_xml_roundtrip);
+    tcase_add_test(tc_xml_encode, UA_Variant_Matrix_structures_xml_roundtrip);
+    tcase_add_test(tc_xml_encode, UA_Variant_Matrix_xml_invalid_dimensions);
     tcase_add_test(tc_xml_decode, UA_Variant_Matrix_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_Matrix_EmptyElements_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_unwrapped_byte_xml_decode);
