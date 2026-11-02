@@ -17,6 +17,7 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
 #include <stdio.h>
@@ -215,6 +216,9 @@ fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
 static int
 run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
     UA_Server *server = UA_Server_new();
+
+    /* Use a different TCP port from the publisher running on the same host. */
+    UA_ServerConfig_setMinimal(UA_Server_getConfig(server), 4841, NULL);
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addReaderGroup(server);

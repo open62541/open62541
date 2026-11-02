@@ -727,9 +727,22 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     /* Are we going to prepare a socket for multicast? */
     MultiCastType mc = multiCastType(info);
 
+    /* A validation-only socket must not reserve or compete for the live
+     * destination port (a publisher may target an existing local receiver). */
+    struct sockaddr_storage validationAddress;
+    struct sockaddr *bindAddress = info->ai_addr;
+    if(validate) {
+        memset(&validationAddress, 0, sizeof(validationAddress));
+        memcpy(&validationAddress, info->ai_addr, info->ai_addrlen);
+        bindAddress = (struct sockaddr *)&validationAddress;
+        if(info->ai_family == AF_INET)
+            ((struct sockaddr_in *)bindAddress)->sin_port = 0;
+        else if(info->ai_family == AF_INET6)
+            ((struct sockaddr_in6 *)bindAddress)->sin6_port = 0;
+    }
     /* Bind socket to the address */
     UA_RESET_ERRNO;
-    int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    int ret = UA_bind(listenSocket, bindAddress, (socklen_t)info->ai_addrlen);
 
     /* Get the port being used if dynamic porting was used */
     if(port == 0) {

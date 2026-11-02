@@ -697,9 +697,51 @@ START_TEST(udpTalkerAndListenerDifferentDestination) {
     ck_assert_uint_eq(testContext.connCount, 0);
 } END_TEST
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
+START_TEST(validationDoesNotBindOccupiedDestination) {
+    int listener = socket(AF_INET, SOCK_DGRAM, 0);
+    ck_assert_int_ge(listener, 0);
+    struct sockaddr_in address;
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ck_assert_int_eq(bind(listener, (struct sockaddr*)&address, sizeof(address)), 0);
+    socklen_t size = sizeof(address);
+    ck_assert_int_eq(getsockname(listener, (struct sockaddr*)&address, &size), 0);
+    UA_UInt16 port = ntohs(address.sin_port);
+    UA_String host = UA_STRING("127.0.0.1");
+    UA_Boolean enabled = true;
+    setupEL();
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+    UA_KeyValueMap params = UA_KEYVALUEMAP_NULL;
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "port"), &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "address"), &host, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "listen"), &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "validate"), &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    TestContext context = {0};
+    ck_assert_uint_eq(cm->openConnection(cm, &params, NULL, &context, connectionCallback), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(context.connCount, 0);
+    UA_KeyValueMap_clear(&params);
+    el->stop(el);
+    for(unsigned i = 0; i < 100 && el->state != UA_EVENTLOOPSTATE_STOPPED; ++i)
+        el->run(el, 1);
+    ck_assert_uint_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+    ck_assert_uint_eq(el->free(el), UA_STATUSCODE_GOOD);
+    el = NULL;
+    ck_assert_int_eq(close(listener), 0);
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s  = suite_create("Test UDP EventLoop");
     TCase *tc = tcase_create("test cases");
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+    tcase_add_test(tc, validationDoesNotBindOccupiedDestination);
+#endif
     tcase_add_test(tc, listenUDP);
     tcase_add_test(tc, listenUDPAddressArrayUsesPerElementLength);
     tcase_add_test(tc, connectUDP);
