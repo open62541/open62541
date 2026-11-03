@@ -2222,7 +2222,7 @@ errout:
     return ret;
 }
 
-static UA_StatusCode
+UA_StatusCode
 UA_OpenSSL_ECC_GenerateKey(const int curveId,
                            EVP_PKEY ** keyPairOut,
                            UA_ByteString * keyPublicEncOut) {
@@ -2884,9 +2884,6 @@ errout:
     return ret;
 }
 
-#define UA_OPENSSL_AEAD_IV_LENGTH 12
-#define UA_OPENSSL_AEAD_TAG_LENGTH 16
-
 /* A context with the key set up. A message only sets the IV. */
 static EVP_CIPHER_CTX *
 newAeadCtx(const EVP_CIPHER *cipher, const UA_ByteString *key, int seal) {
@@ -2967,6 +2964,27 @@ aeadOneShot(const EVP_CIPHER *cipher, int seal, const UA_ByteString *iv,
     if(res == UA_STATUSCODE_GOOD && !seal)
         data->length = length;
     return res;
+}
+
+/* Generic entry points share the prepared-context implementation. */
+UA_StatusCode
+UA_OpenSSL_AEAD_Encrypt(const EVP_CIPHER *cipher,
+                        const UA_ByteString *iv, const UA_ByteString *key,
+                        const UA_ByteString *aad, UA_ByteString *data,
+                        UA_Boolean encryptData) {
+    if(!cipher)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return aeadOneShot(cipher, 1, iv, key, aad, data, encryptData);
+}
+
+UA_StatusCode
+UA_OpenSSL_AEAD_Decrypt(const EVP_CIPHER *cipher,
+                        const UA_ByteString *iv, const UA_ByteString *key,
+                        const UA_ByteString *aad, UA_ByteString *data,
+                        UA_Boolean decryptData) {
+    if(!cipher)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return aeadOneShot(cipher, 0, iv, key, aad, data, decryptData);
 }
 
 UA_StatusCode
