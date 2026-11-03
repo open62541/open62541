@@ -12,9 +12,9 @@
  * SecureChannelEnhancements), the certificate management of the policy, and the
  * AEAD itself against tampering.
  *
- * The policies are not part of the default policy set, so the server offers
- * only the policy of the row (plus None for GetEndpoints), and the client adds
- * it to the policies of its default configuration. */
+ * The server offers only the policy of the row (plus None for GetEndpoints).
+ * The client adds it to its default configuration with
+ * UA_ClientConfig_addSecurityPolicyEcc*. */
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
@@ -50,9 +50,13 @@ typedef UA_StatusCode (*EccAeadCtor)(UA_SecurityPolicy *, const UA_ApplicationTy
                                      const UA_ByteString, const UA_ByteString,
                                      const UA_Logger *);
 
+typedef UA_StatusCode (*AddClientPolicy)(UA_ClientConfig *, const UA_ByteString *,
+                                         const UA_ByteString *);
+
 typedef struct {
     const char *policyUri;
     EccAeadCtor ctor;
+    AddClientPolicy addClient;
     UA_Byte *certDer; size_t certDerLen;
     UA_Byte *keyDer;  size_t keyDerLen;
     UA_Byte *certPem; size_t certPemLen;
@@ -63,6 +67,7 @@ typedef struct {
 #define ROW(FRAG, CTOR, C, CURVE)                                       \
     {"http://opcfoundation.org/UA/SecurityPolicy#" FRAG,                \
      UA_SecurityPolicy_##CTOR,                                          \
+     UA_ClientConfig_addSecurityPolicy##CTOR,                           \
      CERT_##C##_DER_DATA, CERT_##C##_DER_LENGTH,                        \
      KEY_##C##_DER_DATA, KEY_##C##_DER_LENGTH,                          \
      CERT_##C##_PEM_DATA, CERT_##C##_PEM_LENGTH,                        \
@@ -109,7 +114,7 @@ THREAD_CALLBACK(serverloop) {
 static UA_ByteString certDer(const AeadPolicyRow *r) { return (UA_ByteString){r->certDerLen, r->certDer}; }
 static UA_ByteString keyDer(const AeadPolicyRow *r) { return (UA_ByteString){r->keyDerLen, r->keyDer}; }
 
-/* Append a policy built by the constructor of a row to an array of policies */
+/* Append a server policy built by the constructor of a row */
 static UA_StatusCode
 appendPolicy(UA_SecurityPolicy **policies, size_t *policiesSize,
              const AeadPolicyRow *r, UA_ApplicationType applicationType,
@@ -237,8 +242,7 @@ createClient(UA_MessageSecurityMode mode, UA_Boolean pem) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, cert, key, NULL, 0, NULL, 0);
-    UA_StatusCode res = appendPolicy(&cc->securityPolicies, &cc->securityPoliciesSize, r,
-                                     UA_APPLICATIONTYPE_CLIENT, cert, key, cc->logging);
+    UA_StatusCode res = r->addClient(cc, &cert, &key);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
@@ -358,17 +362,37 @@ START_TEST(connect_x509) {
         return; /* EC certificate generation needs OpenSSL 3 */
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
+    /* setAuthenticationCert adds an instance of the policy with the user
+     * certificate, since the client has the policy configured */
     UA_Client *client = createClient(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, false);
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     res = UA_ClientConfig_setAuthenticationCert(cc, userCert, userKey);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    /* The default policy set has no instance of this policy for the user key */
-    res = appendPolicy(&cc->authSecurityPolicies, &cc->authSecurityPoliciesSize, r,
-                       UA_APPLICATIONTYPE_CLIENT, userCert, userKey, cc->logging);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&userCert);
     UA_ByteString_clear(&userKey);
     connectReadClose(client);
+} END_TEST
+
+/* Adding a policy moves the existing ones to a new array. The SecureChannel
+ * opened before keeps working on the old one: messages, a renewal, messages. */
+START_TEST(add_policy_while_connected) {
+    const AeadPolicyRow *r = &rows[activeRow];
+    UA_Client *client = createClient(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, false);
+    UA_StatusCode res = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    const UA_SecurityPolicy *before = client->channel.securityPolicy;
+    UA_ByteString cert = certDer(r), key = keyDer(r);
+    res = r->addClient(cc, &cert, &key);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(client->channel.securityPolicy, before);
+    readState(client);
+    pauseServer();
+    renew(client, false);
+    runServer();
+    readState(client);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
 } END_TEST
 
 START_TEST(reconnect) {
@@ -649,6 +673,7 @@ testSuite_eccAead(void) {
         if(i == 0 || i == ROWS - 1) {
             tcase_add_test(tc, connect_username_wrong_password);
             tcase_add_test(tc, reconnect);
+            tcase_add_test(tc, add_policy_while_connected);
             tcase_add_test(tc, renew_token_overlap);
         }
         suite_add_tcase(s, tc);
