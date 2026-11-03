@@ -277,6 +277,7 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     /* Clean up the v1.05.07 SecureChannel elements */
     UA_ByteString_clear(&channel->firstRequestSignature);
     UA_ByteString_clear(&channel->currentIKM);
+    UA_ByteString_clear(&channel->nextIKM);
     UA_ByteString_clear(&channel->channelThumbprint);
 
     /* Clean up endpointUrl and remoteAddress */
