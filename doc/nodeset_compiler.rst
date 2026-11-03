@@ -6,6 +6,161 @@ using GUI tools. Most tools can export data according the OPC UA Nodeset XML
 schema. open62541 contains a Python based nodeset compiler that transforms
 Nodeset XML files into code for the open62541 SDK.
 
+Custom DataTypes
+^^^^^^^^^^^^^^^^
+
+When a ``UADataType`` contains a NodeSet2 ``Definition`` element, the compiler
+generates the matching C enum, structure, optional structure, or union in a
+static ``UA_TYPES_<NAME>`` array. The generated loader takes a
+``UA_Boolean copy_types`` argument, for example
+``namespace_example_generated(server, true)``. The ``DataTypeDefinition``
+attribute is reconstructed from the registered layout when it is read.
+Definitions can refer to custom
+datatypes declared later in the same NodeSet2 file; the compiler resolves those
+dependencies before code generation. Inheritance is expanded once by the
+NodeSet input adapter; the existing C datatype backend is shared with BSD input.
+Structure members must be scalar or one-dimensional arrays. Matrix and
+variable-rank fields produce a warning: their native descriptors, and native
+layouts that depend on them, are omitted because the current datatype layout
+cannot represent their encoding. The namespace nodes are still generated. ``AllowSubTypes`` fields use ExtensionObjects for
+structures and Variants for other types, as in the runtime loader. OptionSets
+retain their integer base width or, for subtypes of the standard OptionSet,
+the two ByteStrings ``Value`` and ``ValidBits``. Simple aliases retain the
+builtin C representation and receive their own descriptors, preserving field
+datatype IDs across model boundaries.
+
+For static XML generation, inline definitions also determine the layouts of
+XML dependencies. Embedded legacy BSD dictionaries provide fallbacks for types
+without inline definitions. An explicitly supplied BSD remains authoritative
+for its imported layouts. A companion type that conflicts with an SDK type name
+receives a deterministic namespace suffix in its C name. Uppercase companion
+type names are qualified the same way to avoid SDK macro and factory names.
+Datatype metadata retains the original XML BrowseName and field spellings.
+
+CMake imports standard types from the schema used to build the library. Direct
+compiler calls can select that schema directory with ``--types-schema``.
+
+Use ``copy_types = true`` to reuse generated code in several servers. The loader
+reconstructs server-owned descriptors through the same DataTypeDescription
+loading used by runtime type loading. ``UA_DataType_toDescription`` describes each
+exported static datatype. Nodes, types, member references and encoding IDs share
+one compile-time namespace plan. ``UA_Server_addDataTypeFromDescriptionEx`` applies the same
+namespace mapping as node loading, resolves members, constructs the C layout,
+and allocates the server-owned descriptor. Both encoding IDs are supplied as
+borrowed overrides in the same source context; the server copies and maps them
+before registering the complete datatype.
+All linked generated dependencies must use compatible source namespace indexes.
+Conflicts between imported datatype arrays and a loader's plan are rejected at
+C compilation. Use batch generation or supply the same complete ``NAMESPACE_MAP`` /
+``--namespaceMap`` to each generation call. Dependencies must be
+loaded first, each with its own loader call; neither
+namespace zero nor all companion specifications need to be loaded in one call.
+One generated array can contain types from several namespaces. Direct
+self-references through arrays or optional members are supported by the SDK. Other datatype dependencies are ordered at generation time; mutually
+recursive definitions and cycles of inline fields are rejected.
+
+Generate several companion modules together with a manifest::
+
+    {
+      "modules": [
+        {"name": "devices", "xml": ["Devices.NodeSet2.xml"]},
+        {"name": "machines", "xml": ["Machines.NodeSet2.xml"],
+         "depends": ["devices"]}
+      ]
+    }
+
+XML paths are relative to the manifest. Module names use lowercase letters,
+digits and underscores, starting with a letter. Each module can contain several
+XML files. Run::
+
+    python tools/nodeset_compiler/nodeset_compiler.py \
+        --existing path/to/Opc.Ua.NodeSet2.xml --types-array UA_TYPES \
+        --batch models.json output-directory
+
+The driver reads all namespace URI tables before generating code, freezes one
+plan, and emits separate ``namespace_<name>_generated.c/.h`` and
+``types_<name>_generated.c/.h`` files, plus private datatype headers. The chosen
+plan is saved as ``namespace_plan.json``. Optional ``--namespaceMap`` entries
+reserve indexes; remaining URIs receive unused indexes in dependency/input order.
+All modules must be regenerated when that plan changes. Generation together does
+not require loading together: each loader registers only namespaces used by its
+own inputs and dependencies, and copy mode still supports arbitrary server indexes.
+
+In copy mode, the exported ``UA_TYPES_<NAME>`` addresses remain templates.
+Resolve an exported static descriptor to the server's descriptor before setting a Variant,
+encoding a value, or comparing datatype pointers::
+
+    size_t ns;
+    UA_Server_getNamespaceByName(server, UA_STRING("urn:example"), &ns);
+    UA_NodeId id = UA_TYPES_EXAMPLE[UA_TYPES_EXAMPLE_MYTYPE].typeId;
+    id.namespaceIndex = (UA_UInt16)ns;
+    const UA_DataType *type = UA_Server_findDataType(server, &id);
+
+The C structure layouts and generated allocation/copy/clear helpers remain
+usable. Descriptor addresses returned for different servers need not be equal.
+The server owns copied descriptors and releases them after its values and nodes.
+The generated modules must remain loaded until server deletion. Array-specific
+loading functions and description-conversion helpers are local to the generated
+namespace ``.c`` file and refer directly to the generated arrays. Private
+``*_generated_internal.h`` headers contain only array declarations and constants. Conversion order is computed at generation
+time. Application code only includes the public
+generated headers. Registration uses the generic server datatype APIs.
+Private symbols include the generated module or datatype-array name so multiple
+sources can be compiled together, including in an SDK amalgamation. Imported
+public C types retain their existing names and are reused from dependency headers.
+
+Use ``copy_types = false`` to register the exported descriptor addresses directly.
+The caller must ensure that the baked indexes of datatype IDs, encoding IDs and
+referenced datatypes already match the server. This path neither validates nor
+remaps namespace indexes. Use ``NAMESPACE_MAP`` (CMake) or ``--namespaceMap``
+(command line) to choose the baked indexes when needed. For example::
+
+    ua_generate_nodeset_and_datatypes(
+        NAME "example"
+        FILE_NS "Example.NodeSet2.xml"
+        NAMESPACE_MAP "2:urn:example" "3:urn:example:encodings")
+
+All generated arrays are ``const``. Without an explicit map, their baked
+namespace indexes are compiler-local; no-copy loading is valid when the caller
+arranges matching server indexes. Arrays can be shared by several servers with
+matching namespace indexes. No arrays are modified and no process-lifetime
+binding state is needed. Additional namespaces can be appended later.
+
+Generated modules and their dependencies must use matching model definitions
+and the same SDK configuration. The loader does not compare native layouts at
+runtime. Static structure members must point at their dependencies' registered
+static descriptors. A static consumer of a copied dependency is therefore rejected;
+use copy mode consistently when servers need different namespace orders.
+The generated loader links one heap-allocated ``UA_DataTypeArray`` entry into
+``config->customDataTypes``, with both ``cleanup`` and ``borrowed`` set to true.
+Configuration cleanup frees the entry without clearing or freeing the static
+descriptors.
+Regenerate the loaders and datatype files for the entire dependency chain when
+upgrading to this API.
+
+The loader creates ReferenceTypes and raw DataType nodes before registering the
+types, then creates typed values and finishes the remaining nodes. XML values
+use the namespace table of their originating XML file, including nested
+ExtensionObjects, embedded binary bodies, NodeIds and QualifiedNames. Loading
+several XML files together therefore does not change the meaning of their local
+namespace indexes.
+
+Copy mode delegates mapping, layout construction and registration to
+``UA_Server_addDataTypeFromDescriptionEx``. The SDK owns descriptor storage and
+cleanup. A failed
+namespace load removes the nodes explicitly declared by that loader.
+Application callback side effects follow the existing node lifecycle contract. Namespaces and
+successfully registered types remain owned by the server and are cleaned up
+with it. Load each generated namespace once per server. Existing datatype IDs
+are rejected with ``BadNodeIdExists`` in both modes, even when their descriptors
+match. Loading is not atomic: after a failure that registered types, recreate
+the server before loading the namespace again. Serialize model-loading calls on
+each server and do not modify the server's custom-type chain while its nodes use those descriptors.
+
+A separate BSD type dictionary is still supported. It is only required when
+the NodeSet2 file does not contain complete ``Definition`` elements for its
+custom datatypes.
+
 We take the following information model snippet as the starting point of the
 following tutorial. A more detailed tutorial on how to create your own
 information model and NodeSet2.xml can be found in this blog post:
@@ -226,9 +381,10 @@ adding a custom nodeset may fail.
 
 If you also want to generate custom DataTypes for the nodeset, use the CMake
 function ``ua_generate_nodeset_and_datatypes``. It uses some best practice
-settings and you only need to pass a name and the nodeset files. Passing the
-.csv and .bsd files with the datatype information is optional. If not given,
-generating datatypes for that nodeset will be skipped. You can also define
+settings and you only need to pass a name and the NodeSet2 file. Inline
+``Definition`` elements generate datatypes automatically. ``FILE_CSV``
+optionally generates symbolic NodeId constants. ``FILE_BSD`` selects the legacy
+dictionary path when the XML definitions are incomplete. You can also define
 dependencies between nodesets using the ``DEPENDS`` argument. Here are some
 examples for the ``DI`` and ``PLCOpen`` nodesets::
 
@@ -236,7 +392,6 @@ examples for the ``DI`` and ``PLCOpen`` nodesets::
     ua_generate_nodeset_and_datatypes(
         NAME "di"
         FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeIds.csv"
-        FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
         FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
     )
 
@@ -257,7 +412,10 @@ be called directly. The call looks like this:
 
 .. code-block:: bash
 
-    $ python ./nodeset_compiler.py --types-array=UA_TYPES --existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml --xml myNS.xml myNS
+    $ python ./nodeset_compiler.py --types-array=UA_TYPES \
+        --types-output=types_myNS \
+        --existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml \
+        --xml myNS.xml myNS
 
 The output of the command is:
 
@@ -283,7 +441,10 @@ submodule to get the ``deps/ua-nodeset`` folder (``git submodule update
 myNS.xml`` points to the user-defined information model, whose nodes will be
 added to the abstract syntax tree. The script will then create the files
 ``myNS.c`` and ``myNS.h`` (indicated by the last argument ``myNS``) containing
-the C code necessary to instantiate those namespaces.
+the C code necessary to instantiate those namespaces. ``--types-output`` also
+creates ``types_myNS_generated.c`` and ``types_myNS_generated.h`` for inline
+datatype definitions. Omit that option when only namespace nodes are required
+or when the datatype array is generated separately from a BSD dictionary.
 
 The help command show which additional options are available:
 
@@ -329,7 +490,7 @@ defined objectType from myNS.xml:
         UA_Server *server = UA_Server_new();
         UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-        UA_StatusCode retval = myNS(server);
+        UA_StatusCode retval = myNS(server, true);
         /* Create nodes from nodeset */
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not add the example nodeset. "
@@ -394,13 +555,11 @@ nodeset. The PLCopen nodeset ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml`` depends on
 the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This
 example is also shown in ``examples/nodeset/CMakeLists.txt``.
 
-This DI nodeset makes use of some additional data types in
-``deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd``. Since we also need these types
-within the generated code, we first need to compile the types into C code. The
-generated code is mainly a definition of the binary representation of the types
-required for encoding and decoding. The generation can be done using the
-``ua_generate_datatypes`` CMake function, which uses the
-``tools/generate_datatypes.py`` script::
+For legacy NodeSets whose XML does not contain complete definitions, a BSD
+dictionary can still be compiled separately. The generated code describes the
+binary representation required for encoding and decoding. Use the
+``ua_generate_datatypes`` CMake function, which calls
+``tools/generate_datatypes.py``::
 
     ua_generate_datatypes(
         NAME "ua_types_di"

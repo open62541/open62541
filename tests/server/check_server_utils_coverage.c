@@ -288,6 +288,125 @@ START_TEST(Utils_typeHierarchy_entriesAreIntact) {
 } END_TEST
 
 #ifdef UA_TYPES_STRUCTUREDESCRIPTION
+START_TEST(Utils_addDataTypeFromDescriptionEx_mapping) {
+    UA_UInt16 encNs = UA_Server_addNamespace(server, "urn:encodings");
+    UA_UInt16 typeNs = UA_Server_addNamespace(server, "urn:types");
+    UA_UInt16 depNs = UA_Server_addNamespace(server, "urn:dependency");
+    UA_UInt16 indexes[] = {0, typeNs, depNs, encNs};
+    UA_NamespaceMapping mapping = {0};
+    mapping.local2remote = indexes;
+    mapping.local2remoteSize = 4;
+    UA_AddDataTypeFromDescriptionOptions options = {0};
+    options.namespaceMapping = _i == 3 ? NULL : &mapping;
+
+    UA_DataType dependency = UA_TYPES[UA_TYPES_INT32];
+    dependency.typeId = UA_NODEID_NUMERIC(_i == 3 ? 2 : depNs, 99600);
+    ck_assert_uint_eq(UA_Server_addDataType(server, UA_NODEID_NULL, &dependency),
+                      UA_STATUSCODE_GOOD);
+
+    UA_StructureField fields[2];
+    memset(fields, 0, sizeof(fields));
+    fields[0].name = UA_STRING("Value");
+    fields[0].dataType = UA_NODEID_NUMERIC(2, 99600);
+    fields[0].valueRank = UA_VALUERANK_SCALAR;
+    fields[1].name = UA_STRING("Children");
+    fields[1].dataType = UA_NODEID_NUMERIC(1, 99601);
+    fields[1].valueRank = UA_VALUERANK_ONE_DIMENSION;
+
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = fields[1].dataType;
+    description.name = UA_QUALIFIEDNAME(1, "Record");
+    description.structureDefinition.baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    description.structureDefinition.defaultEncodingId = UA_NODEID_STRING(3, "default");
+    description.structureDefinition.structureType = UA_STRUCTURETYPE_STRUCTURE;
+    description.structureDefinition.fields = fields;
+    description.structureDefinition.fieldsSize = 2;
+    UA_ExtensionObject eo, original;
+    UA_ExtensionObject_setValueNoDelete(&eo, &description,
+                                       &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    ck_assert_uint_eq(UA_ExtensionObject_copy(&eo, &original), UA_STATUSCODE_GOOD);
+
+    UA_NodeId binary = UA_NODEID_STRING_ALLOC(2, "binary");
+    UA_NodeId xml = UA_NODEID_BYTESTRING_ALLOC(3, "xml");
+    UA_NodeId empty = UA_NODEID_NULL;
+    if(_i == 1 || _i == 3) {
+        options.binaryEncodingId = &binary;
+        options.xmlEncodingId = &xml;
+    } else if(_i == 2) {
+        options.binaryEncodingId = &empty;
+        options.xmlEncodingId = &empty;
+    }
+    ck_assert_uint_eq(UA_Server_addDataTypeFromDescriptionEx(server, &eo, &options),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(binary.namespaceIndex, 2);
+    ck_assert_uint_eq(xml.namespaceIndex, 3);
+    UA_NodeId_clear(&binary);
+    UA_NodeId_clear(&xml);
+    ck_assert(UA_order(&eo, &original, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) == UA_ORDER_EQ);
+    UA_ExtensionObject_clear(&original);
+
+    UA_NodeId id = UA_NODEID_NUMERIC(_i == 3 ? 1 : typeNs, 99601);
+    const UA_DataType *loaded = UA_Server_findDataType(server, &id);
+    ck_assert_ptr_nonnull(loaded);
+    ck_assert_ptr_eq(loaded->members[0].memberType,
+                     UA_Server_findDataType(server, &dependency.typeId));
+    ck_assert_ptr_eq(loaded->members[1].memberType, loaded);
+    UA_NodeId expectedBinary = UA_NODEID_NULL, expectedXml = UA_NODEID_NULL;
+    if(_i == 0)
+        expectedBinary = UA_NODEID_STRING(encNs, "default");
+    else if(_i == 1 || _i == 3) {
+        expectedBinary = UA_NODEID_STRING(_i == 3 ? 2 : depNs, "binary");
+        expectedXml = UA_NODEID_BYTESTRING(_i == 3 ? 3 : encNs, "xml");
+    }
+    ck_assert(UA_NodeId_equal(&loaded->binaryEncodingId, &expectedBinary));
+    ck_assert(UA_NodeId_equal(&loaded->xmlEncodingId, &expectedXml));
+    options.binaryEncodingId = NULL;
+    options.xmlEncodingId = NULL;
+    ck_assert_uint_eq(UA_Server_addDataTypeFromDescriptionEx(server, &eo, &options),
+                      UA_STATUSCODE_BADNODEIDEXISTS);
+} END_TEST
+
+START_TEST(Utils_addDataTypeFromDescriptionEx_simpleAndEnum) {
+    UA_UInt16 ns = UA_Server_addNamespace(server, "urn:descriptions");
+    UA_UInt16 indexes[] = {0, ns};
+    UA_NamespaceMapping mapping = {0};
+    mapping.local2remote = indexes;
+    mapping.local2remoteSize = 2;
+    UA_SimpleTypeDescription simple;
+    UA_SimpleTypeDescription_init(&simple);
+    simple.dataTypeId = UA_NODEID_NUMERIC(1, 99700);
+    simple.baseDataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    simple.builtInType = UA_NS0ID_INT32;
+    UA_EnumDescription enumeration;
+    UA_EnumDescription_init(&enumeration);
+    enumeration.dataTypeId = simple.dataTypeId;
+    enumeration.builtInType = UA_NS0ID_INT32;
+    UA_ExtensionObject eo;
+    if(_i == 0)
+        UA_ExtensionObject_setValueNoDelete(&eo, &simple,
+                                           &UA_TYPES[UA_TYPES_SIMPLETYPEDESCRIPTION]);
+    else
+        UA_ExtensionObject_setValueNoDelete(&eo, &enumeration,
+                                           &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]);
+    UA_NodeId binary = UA_NODEID_NUMERIC(1, 99701);
+    UA_NodeId xml = UA_NODEID_NUMERIC(1, 99702);
+    UA_AddDataTypeFromDescriptionOptions options = {0};
+    options.namespaceMapping = &mapping;
+    options.binaryEncodingId = &binary;
+    options.xmlEncodingId = &xml;
+    ck_assert_uint_eq(UA_Server_addDataTypeFromDescriptionEx(server, &eo, &options),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId id = UA_NODEID_NUMERIC(ns, 99700);
+    const UA_DataType *loaded = UA_Server_findDataType(server, &id);
+    ck_assert_ptr_nonnull(loaded);
+    ck_assert_uint_eq(loaded->typeKind, _i == 0 ? UA_DATATYPEKIND_INT32 : UA_DATATYPEKIND_ENUM);
+    binary.namespaceIndex = ns;
+    xml.namespaceIndex = ns;
+    ck_assert(UA_NodeId_equal(&loaded->binaryEncodingId, &binary));
+    ck_assert(UA_NodeId_equal(&loaded->xmlEncodingId, &xml));
+} END_TEST
+
 START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
     /* Add a simple DataType alias without its own binary representation. */
     UA_NodeId aliasId = UA_NODEID_NUMERIC(1, 99400);
@@ -430,6 +549,8 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc, Utils_addDataType_fillsFirstList);
     tcase_add_test(tc, Utils_addDataTypeFromDescription_empty_rejected);
 #ifdef UA_TYPES_STRUCTUREDESCRIPTION
+    tcase_add_loop_test(tc, Utils_addDataTypeFromDescriptionEx_mapping, 0, 4);
+    tcase_add_loop_test(tc, Utils_addDataTypeFromDescriptionEx_simpleAndEnum, 0, 2);
     tcase_add_loop_test(tc, Utils_addDataTypeFromDescription_resolvesAlias, 0, 4);
 #endif
     tcase_add_loop_test(tc, Utils_resolveDataTypeRepresentation, 0, 4);

@@ -330,7 +330,7 @@ START_TEST(definition_structureSizeLimit) {
     UA_StatusCode res = fromStructureDescription(&blockType, &blockDescription, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(blockType.memSize, 1024);
-    UA_DataTypeArray customTypes = {NULL, 1, &blockType, false};
+    UA_DataTypeArray customTypes = {NULL, 1, &blockType, false, false};
 
     /* 65528 bytes fit; 65536 bytes overflow during member accumulation;
      * 65535 bytes overflow only when the final alignment padding is added. */

@@ -38,7 +38,7 @@ static UA_DataType xmlOptionalStructureType = {
 };
 
 static UA_DataTypeArray xmlOptionalStructureTypes = {
-    NULL, 1, &xmlOptionalStructureType, false
+    NULL, 1, &xmlOptionalStructureType, false, false
 };
 
 #if defined(_MSC_VER)

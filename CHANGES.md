@@ -9,6 +9,17 @@ With `CONFIG_OPEN62541_MALLOC_EXTERN`, `UA_malloc`, `UA_calloc`, `UA_realloc`
 and `UA_free` are declared as external functions that the application
 defines, instead of being mapped to `k_malloc` and friends.
 
+### Generate custom DataTypes from NodeSet2 definitions
+
+The NodeSet compiler now reads ``Definition`` elements from ``UADataType``
+nodes. It generates matching C declarations and const ``UA_TYPES_<NAME>``
+arrays. The generated loader can register these arrays unchanged or copy and
+remap their descriptors into server-owned storage. No-copy loading trusts the
+baked-in namespace indexes; the application must ensure they match the server.
+The ``DataTypeDefinition`` attribute is materialized from that layout when it
+is read. A separate BSD type dictionary is therefore no longer required when
+the NodeSet2 file contains complete datatype definitions.
+
 ### Client reconnects with backoff and gives up
 
 A lost connection is re-dialed with a delay that starts at the new
@@ -140,6 +151,19 @@ APIs. Model changes update the affected Node's scalar String `NodeVersion`
 Property. Semantic changes also set the `SemanticsChanged` StatusCode bit on
 the next DataChange notification for Value MonitoredItems on the affected
 Variable.
+
+### Borrowed datatype arrays
+
+`UA_DataTypeArray` has a new trailing `borrowed` flag. With `cleanup = true`,
+configuration cleanup frees the list entry but leaves the datatypes and their
+referenced data untouched when `borrowed = true`. This supports per-client or
+per-server heap entries referring to shared static datatype arrays. With
+`cleanup = false`, neither the entry nor its contents are freed, regardless of
+`borrowed`.
+
+Zero-initialized entries and existing aggregate initializers retain their old
+cleanup behavior. Code that initializes entries field by field must initialize
+`borrowed` too. Rebuild consumers after this public structure change.
 
 ### UA_DataTypeArray.types is const
 

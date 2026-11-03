@@ -27,7 +27,12 @@ import subprocess
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-GENERATOR = os.path.join(HERE, "..", "..", "tools", "generate_datatypes.py")
+TOOLS_DIR = os.path.join(HERE, "..", "..", "tools")
+GENERATOR = os.path.join(TOOLS_DIR, "generate_datatypes.py")
+sys.path.insert(0, TOOLS_DIR)
+
+from nodeset_compiler.backend_open62541_datatypes import CGenerator, portable_basename
+from nodeset_compiler.type_parser import StructType, StructMember, EnumerationType
 
 BASE_BSD = os.path.join(HERE, "cross_ns_base.bsd")
 SAME_BSD = os.path.join(HERE, "cross_ns_same.bsd")
@@ -61,8 +66,65 @@ def is_const_array(outdir, outname):
         return "_IS_CONST 1" in f.read()
 
 
+def require_generated_legacy_output(outdir, outname):
+    """Check the public declarations that must survive backend refactoring."""
+    header_path = os.path.join(outdir, f"{outname}_generated.h")
+    source_path = os.path.join(outdir, f"{outname}_generated.c")
+    if not os.path.exists(header_path) or not os.path.exists(source_path):
+        return "legacy generator did not create both output files"
+    with open(header_path, encoding="utf-8") as f:
+        header = f.read()
+    with open(source_path, encoding="utf-8") as f:
+        source = f.read()
+    expected = [
+        ("UA_CROSS_NS_SAME_SHAREDENUM", header),
+        ("UA_DataType UA_CROSS_NS_SAME", source),
+        ('UA_TYPENAME("Val0")', source),
+        ('UA_TYPENAME("Val1")', source),
+        ("UA_DATATYPEKIND_ENUM", source),
+    ]
+    missing = [text for text, contents in expected if text not in contents]
+    if missing:
+        return "legacy BSD output changed; missing: " + ", ".join(missing)
+    return None
+
+
+def test_conversion_order():
+    # Exported arrays group namespaces; inline dependencies can cross groups.
+    outer = StructType("types_order", "urn:a", "Outer")
+    leaf = StructType("types_order", "urn:a", "Leaf")
+    inner = StructType("types_order", "urn:b", "Inner")
+    outer.members = [StructMember("inner", inner, False, False)]
+    inner.members = [StructMember("leaf", leaf, False, False)]
+    leaf.members = [StructMember("children", leaf, True, False)]
+    generator = CGenerator.__new__(CGenerator)
+    generator.filtered_types = {"urn:a": {"Outer": outer, "Leaf": leaf},
+                                "urn:b": {"Inner": inner}}
+    assert generator.conversion_order() == [1, 2, 0], "inline dependencies need complete layouts"
+    # Enum descriptors share Int32 storage but have distinct identities.
+    choice = EnumerationType("types_order", "urn:a", "Choice")
+    other = EnumerationType("types_order", "urn:a", "Other")
+    outer.members.insert(0, StructMember("choice", choice, False, False))
+    generator.filtered_types["urn:a"].update({"Other": other, "Choice": choice})
+    assert generator.conversion_order() == [3, 1, 4, 0, 2], "enum storage is not descriptor identity"
+    leaf.members[0].member_type = outer
+    try:
+        generator.conversion_order()
+    except RuntimeError as error:
+        assert "Mutually recursive datatype dependencies" in str(error)
+    else:
+        raise AssertionError("mutual recursion accepted")
+
+
 def main():
+    test_conversion_order()
     failures = 0
+
+    # Output names must not inherit a Windows drive or parent directories.
+    windows_output = r"C:\Temp\generated\cross_ns_same"
+    if portable_basename(windows_output) != "cross_ns_same":
+        print("FAIL: generated output basename is not portable")
+        failures += 1
 
     def expect_ok(label, r):
         nonlocal failures
@@ -91,7 +153,13 @@ def main():
 
         # --- Test 1: same definition -> must succeed ---
         r = run_generator(tmpdir, "cross_ns_same", [SAME_BSD], SAME_CSV)
-        expect_ok("same-definition cross-namespace type accepted", r)
+        if expect_ok("same-definition cross-namespace type accepted", r):
+            error = require_generated_legacy_output(tmpdir, "cross_ns_same")
+            if error:
+                print(f"FAIL: {error}")
+                failures += 1
+            else:
+                print("PASS: complete legacy BSD output is compatible")
 
         # --- Test 2: different definition -> must fail ---
         r = run_generator(tmpdir, "cross_ns_diff", [DIFF_BSD], DIFF_CSV)
@@ -110,20 +178,20 @@ def main():
             else:
                 print("PASS: fully pinned type array is const")
 
-        # Without pinning the same array stays mutable
+        # Without pinning the same array is immutable input for copy mode
         r = run_generator(tmpdir, "ns_unpinned", [SAME_BSD], SAME_CSV)
         if expect_ok("unpinned generation accepted", r):
-            if is_const_array(tmpdir, "ns_unpinned"):
-                print("FAIL: unpinned type array must not be const")
+            if not is_const_array(tmpdir, "ns_unpinned"):
+                print("FAIL: unpinned type array must remain const")
                 failures += 1
             else:
-                print("PASS: unpinned type array is mutable")
+                print("PASS: unpinned type array is const")
 
         # --- Test 4: namespace uri that matches nothing ---
         r = run_generator(tmpdir, "ns_unknown", [SAME_BSD], SAME_CSV,
                           extra_args=["--namespaceMap=2:http://test.org/Nope/"])
         expect_fail("unmatched --namespaceMap namespace rejected", r,
-                    "do not appear in the generated type array")
+                    "--namespaceMap is incomplete")
 
         # --- Test 5: partially pinned array (two contributing namespaces) ---
         r = run_generator(tmpdir, "ns_partial", [BASE_BSD, DIFF_BSD], DIFF_CSV,
@@ -171,6 +239,22 @@ def main():
                               extra_args=[f"--namespaceMap={index}:{SAME_NS}"])
             expect_fail(f"out-of-range namespace index {index} rejected", r,
                         "outside the UInt16 range")
+
+        # Duplicate identities are a generation error, not a runtime scan.
+        duplicate_bsd = os.path.join(tmpdir, "duplicate_ids.bsd")
+        with open(SAME_BSD) as f:
+            content = f.read()
+        with open(duplicate_bsd, "w") as f:
+            f.write(content.replace("</opc:TypeDictionary>",
+                '<opc:EnumeratedType LengthInBits="32" Name="OtherEnum">'
+                '<opc:EnumeratedValue Name="Other" Value="0"/>'
+                '</opc:EnumeratedType></opc:TypeDictionary>'))
+        duplicate_csv = os.path.join(tmpdir, "duplicate_ids.csv")
+        with open(duplicate_csv, "w") as f:
+            f.write("SharedEnum,2000,DataType\nOtherEnum,02000,DataType\n")
+        r = run_generator(tmpdir, "duplicate_ids", [duplicate_bsd], duplicate_csv)
+        expect_fail("duplicate datatype IDs rejected during generation", r,
+                    "Duplicate datatype NodeId")
 
         # --- Test 7: namespace 0 pinned somewhere other than index 0 ---
         r = run_generator(tmpdir, "ns_zero", [SAME_BSD], SAME_CSV,

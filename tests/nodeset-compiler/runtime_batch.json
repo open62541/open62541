@@ -1,0 +1,7 @@
+{
+  "modules": [
+    {"name": "runtime_unpinned", "xml": ["runtime_types_a.xml"]},
+    {"name": "runtime_unpinned_b", "xml": ["runtime_types_b.xml"],
+     "depends": ["runtime_unpinned"]}
+  ]
+}

@@ -73,7 +73,7 @@ static UA_DataType dynEnumTypes[7] = {
 };
 
 static UA_DataTypeArray dynEnumTypesArray = {
-    NULL, 7, dynEnumTypes, false
+    NULL, 7, dynEnumTypes, false, false
 };
 
 static void setup(void) {

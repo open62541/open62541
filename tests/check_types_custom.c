@@ -3,6 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/types.h>
+#include <open62541/client.h>
+#include <open62541/server.h>
 #include <open62541/util.h>
 
 #include "util/ua_util_internal.h"
@@ -81,7 +83,7 @@ static UA_DataType PointType = {
     members
 };
 
-static UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE};
+static UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE, false};
 
 typedef struct {
     UA_Int16 a;
@@ -141,7 +143,7 @@ static UA_DataType OptType = {
         Opt_members
 };
 
-static UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType, UA_FALSE};
+static UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType, UA_FALSE, false};
 
 typedef struct {
     UA_String description;
@@ -200,7 +202,7 @@ static UA_DataType ArrayOptType = {
     ArrayOptStruct_members
 };
 
-static UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType, UA_FALSE};
+static UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType, UA_FALSE, false};
 
 typedef enum {UA_UNISWITCH_NONE = 0, UA_UNISWITCH_OPTIONA = 1, UA_UNISWITCH_OPTIONB = 2} UA_UniSwitch;
 
@@ -242,7 +244,7 @@ static UA_DataType UniType = {
         Uni_members
 };
 
-static UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptArrayStruct, 2, &UniType, UA_FALSE};
+static UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptArrayStruct, 2, &UniType, UA_FALSE, false};
 
 typedef enum {
     UA_SELFCONTAININGUNIONSWITCH_NONE = 0,
@@ -294,7 +296,7 @@ UA_DataType selfContainingUnionType = {
     SelfContainingUnion_members  /* .members */
 };
 
-static UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType, UA_FALSE};
+static UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType, UA_FALSE, false};
 
 static void
 checkEqualTypes(const UA_DataType *t1, const UA_DataType *t2) {
@@ -831,9 +833,50 @@ START_TEST(ns0TypeStructureDefinitionPadding) {
     }
 } END_TEST
 
+/* Exercise all ownership combinations in one chain, including traversal past
+ * entries whose lifetime is managed by the caller. Use the common cleanup
+ * directly and through both configuration cleanup paths. */
+START_TEST(customTypeArrayOwnership) {
+    UA_DataType *ownedType = (UA_DataType*)UA_calloc(1, sizeof(UA_DataType));
+    ck_assert_ptr_nonnull(ownedType);
+    ck_assert_uint_eq(UA_DataType_copy(&PointType, ownedType), UA_STATUSCODE_GOOD);
+    UA_DataTypeArray *owned = (UA_DataTypeArray*)UA_calloc(1, sizeof(UA_DataTypeArray));
+    UA_DataTypeArray *borrowed = (UA_DataTypeArray*)UA_calloc(1, sizeof(UA_DataTypeArray));
+    ck_assert_ptr_nonnull(owned);
+    ck_assert_ptr_nonnull(borrowed);
+    /* Zero-initialized borrowed retains the existing owned-content behavior. */
+    owned->types = ownedType;
+    owned->typesSize = 1;
+    owned->cleanup = true;
+    UA_DataTypeArray unmanagedBorrowed = {owned, 1, &PointType, false, true};
+    *borrowed = (UA_DataTypeArray){&unmanagedBorrowed, 1, &PointType, true, true};
+    UA_DataTypeArray unmanaged = {borrowed, 1, &PointType, false, false};
+
+    if(_i == 0) {
+        UA_cleanupDataTypeWithCustom(&unmanaged);
+    } else if(_i == 1) {
+        UA_ServerConfig config;
+        memset(&config, 0, sizeof(config));
+        config.customDataTypes = &unmanaged;
+        UA_ServerConfig_clear(&config);
+        ck_assert_ptr_null(config.customDataTypes);
+    } else {
+        UA_ClientConfig config;
+        memset(&config, 0, sizeof(config));
+        config.customDataTypes = &unmanaged;
+        UA_ClientConfig_clear(&config);
+    }
+    ck_assert_ptr_eq(unmanaged.types, &PointType);
+    ck_assert_ptr_eq(unmanagedBorrowed.types, &PointType);
+    ck_assert_ptr_eq(PointType.members, members);
+    ck_assert_uint_eq(PointType.membersSize, 3);
+    ck_assert_ptr_eq(PointType.members[0].memberType, &UA_TYPES[UA_TYPES_FLOAT]);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Custom DataType Encoding");
     TCase *tc = tcase_create("test cases");
+    tcase_add_loop_test(tc, customTypeArrayOwnership, 0, 3);
     tcase_add_test(tc, parseCustomScalar);
     tcase_add_test(tc, customScalarStructureDefinition);
     tcase_add_test(tc, parseCustomScalarExtensionObject);

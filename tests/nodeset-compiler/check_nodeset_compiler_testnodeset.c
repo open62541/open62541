@@ -13,16 +13,14 @@
 #include "namespace_tests_di_generated.h"
 #include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 
 UA_Server *server = NULL;
-UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA_TYPES_TESTS_TESTNODESET, UA_FALSE};
 UA_UInt16 testNamespaceIndex = (UA_UInt16) -1;
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    config->customDataTypes = &customTypesArray;
     UA_Server_run_startup(server);
 }
 
@@ -32,7 +30,7 @@ static void teardown(void) {
 }
 
 START_TEST(Server_addTestNodeset) {
-    UA_StatusCode retval = namespace_tests_testnodeset_generated(server);
+    UA_StatusCode retval = namespace_tests_testnodeset_generated(server, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     size_t nsIndex = LONG_MAX;
     retval = UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
@@ -68,7 +66,7 @@ START_TEST(checkSelfContainingUnion) {
     UA_Variant_init(&in);
 
     UA_SelfContainingUnion data;
-    UA_SelfContainingUnion_init(&data);
+    memset(&data, 0, sizeof(data));
 
     data.fields._double = 23.0;
 
@@ -77,7 +75,10 @@ START_TEST(checkSelfContainingUnion) {
     data.fields.array.arraySize = 0;
     data.fields.array.array = NULL;
 
-    UA_Variant_setScalar(&in, &data, &UA_TYPES_TESTS_TESTNODESET[UA_TYPES_TESTS_TESTNODESET_SELFCONTAININGUNION]);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(testNamespaceIndex, 4002);
+    const UA_DataType *type = UA_Server_findDataType(server, &typeId);
+    ck_assert_ptr_ne(type, NULL);
+    UA_Variant_setScalar(&in, &data, type);
 
     UA_StatusCode result = UA_Server_writeValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 5110), in);
 
