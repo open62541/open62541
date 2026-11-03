@@ -3,6 +3,20 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### All twelve ECC AEAD SecurityPolicies of OPC UA Part 7
+
+The OpenSSL backend now implements the ten ECC AEAD SecurityPolicies that were
+missing besides `ECC_nistP256_AesGcm` and `ECC_nistP256_ChaChaPoly`:
+`ECC_nistP384`, `ECC_brainpoolP256r1`, `ECC_brainpoolP384r1`, `ECC_curve25519`
+and `ECC_curve448`, each with `_AesGcm` and `_ChaChaPoly`. They have
+constructors `UA_SecurityPolicy_Ecc<Curve><Aead>` and server config helpers
+`UA_ServerConfig_addSecurityPolicyEcc<Curve><Aead>`. They are not part of the
+default policy set, since a server certificate is valid for one curve only.
+The certificate must be on the curve of the policy (Ed25519/Ed448 for the
+curve25519/curve448 policies); otherwise the constructor returns
+`BadCertificateInvalid`. The deprecated `ECC_curve25519` and `ECC_curve448`
+policies are now marked as such.
+
 ### SecurityPolicies declare their key-agreement properties
 
 `UA_SecurityPolicy` has three new members: `secretLength` (the key-agreement
