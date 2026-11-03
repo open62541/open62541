@@ -138,6 +138,10 @@ UA_StatusCode
 UA_OpenSSL_ECC_NISTP256_GenerateKey (EVP_PKEY ** keyPairOut,
                                      UA_ByteString * keyPublicEncOut);
 
+/* ECDH key agreement and HKDF key derivation. `key1` and `key2` are the
+ * nonces (ephemeral public keys). `ikmInOut` is the v1.05.07 IKM accumulator of
+ * an enhanced policy: IKM_n-1 on entry, IKM_n on return. NULL for policies
+ * without IKM chaining and for derivations outside a SecureChannel. */
 UA_StatusCode
 UA_OpenSSL_ECC_DeriveKeys (const int curveID,
                            char * hashAlgorithm,
@@ -145,7 +149,17 @@ UA_OpenSSL_ECC_DeriveKeys (const int curveID,
                            EVP_PKEY * localEphemeralKeyPair,
                            const UA_ByteString * key1,
                            const UA_ByteString * key2,
+                           UA_ByteString * ikmInOut,
                            UA_ByteString * out);
+
+/* Split the `secret` argument of UA_SecurityPolicy.generateKey into the IKM
+ * accumulator the SecureChannel prepends for an enhanced policy and the nonce.
+ * Without a prepend, `ikmInOut` is empty and `nonce` is the whole `secret`.
+ * `ikmInOut` aliases `secret`: the updated accumulator is written back into
+ * the SecureChannel's buffer. */
+void
+UA_OpenSSL_splitIKM(const UA_SecurityPolicy *policy, const UA_ByteString *secret,
+                    UA_ByteString *ikmInOut, UA_ByteString *nonce);
 
 UA_StatusCode
 UA_Openssl_ECDSA_SHA256_Sign (const UA_ByteString * message,
@@ -380,6 +394,7 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
                             EVP_PKEY *localEphemeralKeyPair,
                             const UA_ByteString *key1,
                             const UA_ByteString *key2,
+                            UA_ByteString *ikmInOut,
                             UA_ByteString *out);
 
 /* ChaCha20-Poly1305 AEAD encrypt/decrypt.

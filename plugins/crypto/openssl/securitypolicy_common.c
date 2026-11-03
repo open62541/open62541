@@ -1960,12 +1960,80 @@ errout:
 }
 #endif
 
+/* Wipe a secret before releasing it */
+static void
+clearSecret(UA_ByteString *s) {
+    if(s->data)
+        OPENSSL_cleanse(s->data, s->length);
+    UA_ByteString_clear(s);
+}
+
+/* IKM chaining, OPC UA Part 6 v1.05.07 6.8.1 step 2 "Extract":
+ * IKM_n = IKM_n-1 XOR ss_n.
+ *
+ * `ikmInOut` is the caller's accumulator slot: it holds IKM_n-1 on entry and
+ * receives IKM_n, which is what the SecureChannel reads back. NULL or empty
+ * means the policy does not chain (no SecureChannelEnhancements), and the raw
+ * shared secret is the IKM. `*secretOut` points at whichever of the two the
+ * HKDF should consume. */
+static UA_StatusCode
+deriveChainedIkm(UA_ByteString *ikmInOut, const UA_ByteString *sharedSecret,
+                 UA_ByteString *ikm, const UA_ByteString **secretOut) {
+    if(!ikmInOut || ikmInOut->length == 0) {
+        *secretOut = sharedSecret;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* The accumulator is the width of the shared secret by construction
+     * (UA_SecurityPolicy.secretLength). A mismatch means the policy and the
+     * SecureChannel disagree - fail rather than derive a key nobody can
+     * reproduce. */
+    if(ikmInOut->length != sharedSecret->length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode res = UA_ByteString_allocBuffer(ikm, sharedSecret->length);
+    if(res != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    for(size_t i = 0; i < sharedSecret->length; i++)
+        ikm->data[i] = (UA_Byte)(ikmInOut->data[i] ^ sharedSecret->data[i]);
+
+    memcpy(ikmInOut->data, ikm->data, ikm->length);
+    *secretOut = ikm;
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_OpenSSL_splitIKM(const UA_SecurityPolicy *policy, const UA_ByteString *secret,
+                    UA_ByteString *ikmInOut, UA_ByteString *nonce) {
+    size_t prefix = (policy && policy->secureChannelEnhancements) ?
+        policy->secretLength : 0;
+
+    /* Only the SecureChannel prepends, and when it does the buffer is exactly
+     * [accumulator | nonce]. Anything of another length comes from a caller
+     * that derives outside a SecureChannel - the EccEncryptedSecret key of a
+     * UserIdentityToken - and carries no accumulator. Testing for the exact
+     * length keeps those two apart without probing the ephemeral key. */
+    if(prefix == 0 || secret->length != prefix + policy->nonceLength) {
+        *ikmInOut = UA_BYTESTRING_NULL;
+        *nonce = *secret;
+        return;
+    }
+
+    /* The SecureChannel allocated this buffer (prepareKeyInput) and reads the
+     * updated accumulator back out of it, so writing through it is the
+     * contract, not an accident. This cast is the single place it happens. */
+    ikmInOut->data = (UA_Byte *)(uintptr_t)secret->data;
+    ikmInOut->length = prefix;
+    nonce->data = secret->data + prefix;
+    nonce->length = secret->length - prefix;
+}
+
 UA_StatusCode
 UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
                           const UA_ApplicationType applicationType,
                           EVP_PKEY *localEphemeralKeyPair,
                           const UA_ByteString *key1, const UA_ByteString *key2,
-                          UA_ByteString *out) {
+                          UA_ByteString *ikmInOut, UA_ByteString *out) {
 #if defined(LIBRESSL_VERSION_NUMBER)
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
@@ -1973,8 +2041,7 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
     UA_ByteString ikm = UA_BYTESTRING_NULL;
-    UA_ByteString ikmPrev = UA_BYTESTRING_NULL;
-    UA_ByteString *secret = NULL; /* points to either &sharedSecret or &ikm */
+    const UA_ByteString *secret = NULL; /* &sharedSecret or &ikm */
 
     /* Get the local ephemeral public key to use in comparison. The
      * encoded form begins with a single 0x04 byte (for uncompressed
@@ -1991,23 +2058,10 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
 #endif
     if(keyPubEncSize <= 0)
         return UA_STATUSCODE_BADINTERNALERROR;
-    size_t expectedKey1Len = keyPubEncSize - 1;
 
-    /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" (IKM chaining
-     * on renewal): the SecureChannel may prepend the previous IKM
-     * accumulator to `key1`. Detect this by checking if `key1` is
-     * longer than expected. The prepend length is `key1->length -
-     * expectedKey1Len` and the IKM is a chain of XORs with the
-     * shared secret. */
+    /* `key1` is the nonce and nothing else: the IKM accumulator arrives in its
+     * own argument (see UA_OpenSSL_splitIKM). */
     UA_ByteString key1Effective = *key1;
-    size_t ikmPrependLength = 0;
-    if(key1->length > expectedKey1Len) {
-        ikmPrependLength = key1->length - expectedKey1Len;
-        ikmPrev.data = (UA_Byte*)(uintptr_t)key1->data;
-        ikmPrev.length = ikmPrependLength;
-        key1Effective.data += ikmPrependLength;
-        key1Effective.length -= ikmPrependLength;
-    }
 
     /* The order of ephemeral public keys (key1 and key2) tells us whether we
      * need to generate the local keys or the remote keys. To figure that out,
@@ -2064,30 +2118,11 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
         goto errout;
     }
 
-    /* IKM chaining: when the SecureChannel provided a previous
-     * accumulator, XOR it with the raw shared secret to form the new
-     * IKM. The new IKM is then written back into the prefix slot of
-     * `key1` so the SecureChannel can pick it up after this call. */
-    if(ikmPrependLength > 0) {
-        if(ikmPrev.length != sharedSecret.length) {
-            ret = UA_STATUSCODE_BADINTERNALERROR;
-            goto errout;
-        }
-        UA_StatusCode alloc = UA_ByteString_allocBuffer(&ikm, sharedSecret.length);
-        if(alloc != UA_STATUSCODE_GOOD) {
-            ret = UA_STATUSCODE_BADINTERNALERROR;
-            goto errout;
-        }
-        for(size_t i = 0; i < sharedSecret.length; i++)
-            ikm.data[i] = (UA_Byte)(ikmPrev.data[i] ^ sharedSecret.data[i]);
-        /* Write the new accumulator back into the prefix slot. The
-         * SecureChannel reads it from there to update its own
-         * channel->currentIKM. */
-        memcpy(ikmPrev.data, ikm.data, ikm.length);
-        secret = &ikm;
-    } else {
-        secret = &sharedSecret;
-    }
+    /* IKM chaining (enhanced policies). The new accumulator is written back
+     * to ikmInOut for the SecureChannel to pick up. */
+    ret = deriveChainedIkm(ikmInOut, &sharedSecret, &ikm, &secret);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
 
     /* Calculate salt. The order of the (ephemeral public) keys (key1, key2) is
      * reversed because the caller sends [remote, local] for local key
@@ -2113,9 +2148,9 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
 
 errout:
     OPENSSL_free(keyPubEnc);
-    UA_ByteString_clear(&sharedSecret);
+    clearSecret(&sharedSecret);
     UA_ByteString_clear(&salt);
-    UA_ByteString_clear(&ikm);
+    clearSecret(&ikm);
 
     return ret;
 }
@@ -2701,12 +2736,12 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
                             EVP_PKEY *localEphemeralKeyPair,
                             const UA_ByteString *key1,
                             const UA_ByteString *key2,
+                            UA_ByteString *ikmInOut,
                             UA_ByteString *out) {
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
     UA_ByteString ikm = UA_BYTESTRING_NULL;
-    UA_ByteString ikmPrev = UA_BYTESTRING_NULL;
-    UA_ByteString *secret = NULL;
+    const UA_ByteString *secret = NULL; /* &sharedSecret or &ikm */
 
     /* Get the local ephemeral public key for comparison */
     size_t pubKeyLen = 0;
@@ -2719,19 +2754,8 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
     if(EVP_PKEY_get_raw_public_key(localEphemeralKeyPair, keyPubEnc, &pubKeyLen) != 1)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 IKM chaining. See the
-     * matching comment in UA_OpenSSL_ECC_DeriveKeys. The prepend is
-     * detected by `key1` being longer than the expected ephemeral
-     * public key length. */
+    /* `key1` is the nonce and nothing else, see UA_OpenSSL_ECC_DeriveKeys */
     UA_ByteString key1Effective = *key1;
-    size_t ikmPrependLength = 0;
-    if(key1->length > pubKeyLen) {
-        ikmPrependLength = key1->length - pubKeyLen;
-        ikmPrev.data = (UA_Byte*)(uintptr_t)key1->data;
-        ikmPrev.length = ikmPrependLength;
-        key1Effective.data += ikmPrependLength;
-        key1Effective.length -= ikmPrependLength;
-    }
 
     /* Determine label and remote ephemeral public key */
     UA_ByteString *label = NULL;
@@ -2773,24 +2797,10 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
     if(ret != UA_STATUSCODE_GOOD)
         goto errout;
 
-    /* IKM chaining */
-    if(ikmPrependLength > 0) {
-        if(ikmPrev.length != sharedSecret.length) {
-            ret = UA_STATUSCODE_BADINTERNALERROR;
-            goto errout;
-        }
-        UA_StatusCode alloc = UA_ByteString_allocBuffer(&ikm, sharedSecret.length);
-        if(alloc != UA_STATUSCODE_GOOD) {
-            ret = UA_STATUSCODE_BADINTERNALERROR;
-            goto errout;
-        }
-        for(size_t i = 0; i < sharedSecret.length; i++)
-            ikm.data[i] = (UA_Byte)(ikmPrev.data[i] ^ sharedSecret.data[i]);
-        memcpy(ikmPrev.data, ikm.data, ikm.length);
-        secret = &ikm;
-    } else {
-        secret = &sharedSecret;
-    }
+    /* IKM chaining (enhanced policies) */
+    ret = deriveChainedIkm(ikmInOut, &sharedSecret, &ikm, &secret);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
 
     /* Generate salt */
     ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, &key1Effective, &salt);
@@ -2801,9 +2811,9 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
     ret = UA_OpenSSL_HKDF((char*)(uintptr_t)hashAlgorithm, secret, &salt, &salt, out);
 
 errout:
-    UA_ByteString_clear(&sharedSecret);
+    clearSecret(&sharedSecret);
     UA_ByteString_clear(&salt);
-    UA_ByteString_clear(&ikm);
+    clearSecret(&ikm);
     return ret;
 }
 

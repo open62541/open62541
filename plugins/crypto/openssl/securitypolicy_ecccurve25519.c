@@ -613,7 +613,7 @@ UA_Sym_EccCurve25519_generateKey(const UA_SecurityPolicy *policy,
     return UA_OpenSSL_XDHE_DeriveKeys(EVP_PKEY_X25519, "SHA256",
                                        pctx->applicationType,
                                        cc->localEphemeralKeyPair,
-                                       secret, seed, out);
+                                       secret, seed, NULL /* no IKM chaining */, out);
 }
 
 /* --- Thumbprint --- */

@@ -292,7 +292,7 @@ UA_Sym_EccBrainpoolP384r1_generateKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     return UA_OpenSSL_ECC_DeriveKeys(OBJ_txt2nid("brainpoolP384r1"), "SHA384",
                                      pctx->applicationType, cc->localEphemeralKeyPair,
-                                     secret, seed, out);
+                                     secret, seed, NULL /* no IKM chaining */, out);
 }
 
 static UA_StatusCode

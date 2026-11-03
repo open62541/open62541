@@ -379,9 +379,11 @@ UA_Sym_EccNistP256ChaChaPoly_generateKey(const UA_SecurityPolicy *policy,
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
     if(!pctx || !cc)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    UA_ByteString ikm, nonce;
+    UA_OpenSSL_splitIKM(policy, secret, &ikm, &nonce);
     return UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
                                      pctx->applicationType, cc->localEphemeralKeyPair,
-                                     secret, seed, out);
+                                     &nonce, seed, &ikm, out);
 }
 
 static UA_StatusCode
