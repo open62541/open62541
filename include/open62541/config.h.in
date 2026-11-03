@@ -67,6 +67,7 @@
 #cmakedefine UA_ENABLE_DRIVER_MDNS_MDNSD
 #cmakedefine UA_ENABLE_DRIVER_MDNS_AVAHI
 #cmakedefine UA_ENABLE_DRIVER_GDS_RECEIVER
+#cmakedefine UA_ENABLE_DRIVER_GDS_PULL
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS

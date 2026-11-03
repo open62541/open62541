@@ -1093,7 +1093,7 @@ UA_OpenSSL_X509_AddSubjectAttributes(const UA_String* subject, X509_NAME* name) 
             }
         }
         if(delim == 0 || delim == strlen(token)-1) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
+            retval = UA_STATUSCODE_BADINVALIDARGUMENT;
             goto cleanup;
         }
 
@@ -1101,9 +1101,10 @@ UA_OpenSSL_X509_AddSubjectAttributes(const UA_String* subject, X509_NAME* name) 
         const unsigned char *para = (const unsigned char*)&token[delim+1];
 
         /* add attribute to X509_NAME */
+        /* Fails for an unknown attribute name */
         int result = X509_NAME_add_entry_by_txt(name, token, MBSTRING_UTF8, para, -1, -1, 0);
         if(!result) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
+            retval = UA_STATUSCODE_BADINVALIDARGUMENT;
             goto cleanup;
         }
 
@@ -1148,8 +1149,11 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    /* A new CSR discards the private key of the previous CSR. The
+     * SecurityPolicy must not keep a pointer to the freed key. */
     EVP_PKEY_free(*csrLocalPrivateKey);
     *csrLocalPrivateKey = NULL;
+
     /* CSR has already been generated and private key only needs to be set
      * if a new one has been generated. */
     if(newPrivateKey && newPrivateKey->length > 0) {
@@ -1165,6 +1169,9 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* The new key becomes the CSR key of the SecurityPolicy only if the CSR is
+     * created. It is freed in all error paths. */
+    EVP_PKEY *csrKey = NULL;
 
     /* Get X509 certificate */
     X509 *x509Certificate =
@@ -1233,9 +1240,10 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             retval = UA_STATUSCODE_BADOUTOFMEMORY;
             goto cleanup;
         }
-        /* add subject attributes to name */
-        if(UA_OpenSSL_X509_AddSubjectAttributes(subjectName, name) != UA_STATUSCODE_GOOD) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
+        /* add subject attributes to name. An invalid SubjectName returns
+         * Bad_InvalidArgument (Part 12, 7.10.10). */
+        retval = UA_OpenSSL_X509_AddSubjectAttributes(subjectName, name);
+        if(retval != UA_STATUSCODE_GOOD) {
             X509_NAME_free(name);
             goto cleanup;
         }
@@ -1269,7 +1277,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
             }
-            *csrLocalPrivateKey = EVP_PKEY_Q_keygen(NULL, NULL, "EC", curveName);
+            csrKey = EVP_PKEY_Q_keygen(NULL, NULL, "EC", curveName);
 #else
             int nid = EC_GROUP_get_curve_name(
                 EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(localPrivateKey)));
@@ -1279,11 +1287,9 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
             }
-            *csrLocalPrivateKey = EVP_PKEY_new();
-            if(!*csrLocalPrivateKey ||
-               !EVP_PKEY_assign_EC_KEY(*csrLocalPrivateKey, ecKey)) {
-                if(*csrLocalPrivateKey) EVP_PKEY_free(*csrLocalPrivateKey);
-                else EC_KEY_free(ecKey);
+            csrKey = EVP_PKEY_new();
+            if(!csrKey || !EVP_PKEY_assign_EC_KEY(csrKey, ecKey)) {
+                EC_KEY_free(ecKey);
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
             }
@@ -1293,14 +1299,12 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             size_t keySize = 0;
             UA_CertificateUtils_getKeySize(&securityPolicy->localCertificate, &keySize);
 #if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
-            *csrLocalPrivateKey = EVP_RSA_gen(keySize);
+            csrKey = EVP_RSA_gen(keySize);
 #else
             BIGNUM *exponent = BN_new();
-            *csrLocalPrivateKey = EVP_PKEY_new();
+            csrKey = EVP_PKEY_new();
             RSA *rsa = RSA_new();
-            if(!*csrLocalPrivateKey || !exponent || !rsa) {
-                if(*csrLocalPrivateKey)
-                    EVP_PKEY_free(*csrLocalPrivateKey);
+            if(!csrKey || !exponent || !rsa) {
                 if(exponent)
                     BN_free(exponent);
                 if(rsa)
@@ -1311,7 +1315,6 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
 
             if(BN_set_word(exponent, RSA_F4) != 1) {
                 retval = UA_STATUSCODE_BADINTERNALERROR;
-                EVP_PKEY_free(*csrLocalPrivateKey);
                 BN_free(exponent);
                 RSA_free(rsa);
                 goto cleanup;
@@ -1319,15 +1322,13 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
 
             if(RSA_generate_key_ex(rsa, (int) keySize, exponent, NULL) != 1) {
                 retval = UA_STATUSCODE_BADINTERNALERROR;
-                EVP_PKEY_free(*csrLocalPrivateKey);
                 BN_free(exponent);
                 RSA_free(rsa);
                 goto cleanup;
             }
 
-            if(EVP_PKEY_assign_RSA(*csrLocalPrivateKey, rsa) != 1) {
+            if(EVP_PKEY_assign_RSA(csrKey, rsa) != 1) {
                 retval = UA_STATUSCODE_BADINTERNALERROR;
-                EVP_PKEY_free(*csrLocalPrivateKey);
                 BN_free(exponent);
                 RSA_free(rsa);
                 goto cleanup;
@@ -1337,25 +1338,22 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             rsa = NULL;
 #endif  /* end of OPENSSL_VERSION_NUMBER >= 0x30000000L */
         }
-        if(!*csrLocalPrivateKey) {
+        if(!csrKey) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
-        if(UA_OpenSSL_writePrivateKeyDer(*csrLocalPrivateKey, newPrivateKey) != UA_STATUSCODE_GOOD) {
+        if(UA_OpenSSL_writePrivateKeyDer(csrKey, newPrivateKey) != UA_STATUSCODE_GOOD) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
-            EVP_PKEY_free(*csrLocalPrivateKey);
-            goto cleanup;
-        }
-
-        if(!X509_REQ_set_pubkey(request, *csrLocalPrivateKey)) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            EVP_PKEY_free(*csrLocalPrivateKey);
             goto cleanup;
         }
 
-        if(!X509_REQ_sign(request, *csrLocalPrivateKey, EVP_sha256())) {
+        if(!X509_REQ_set_pubkey(request, csrKey)) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
-            EVP_PKEY_free(*csrLocalPrivateKey);
+            goto cleanup;
+        }
+
+        if(!X509_REQ_sign(request, csrKey, EVP_sha256())) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
     } else {
@@ -1387,13 +1385,20 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
 
     /* create CSR buffer */
     UA_ByteString_init(csr);
-    UA_ByteString_allocBuffer(csr, csrBufferLength);
+    retval = UA_ByteString_allocBuffer(csr, (size_t)csrBufferLength);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Create CSR buffer (DER format) */
     char *ptr = (char*)csr->data;
     i2d_X509_REQ(request, (unsigned char**)&ptr);
 
+    /* The SecurityPolicy keeps the key of the CSR for UpdateCertificate */
+    *csrLocalPrivateKey = csrKey;
+    csrKey = NULL;
+
 cleanup:
+    EVP_PKEY_free(csrKey);
     X509_free(x509Certificate);
     X509_REQ_free(request);
 
@@ -1696,6 +1701,19 @@ UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityP
 
     if(!privateKey) {
         retval = UA_STATUSCODE_BADNOTSUPPORTED;
+        goto error;
+    }
+
+    /* The certificate must be issued for the private key. Otherwise every
+     * handshake fails after the update. For example, a certificate for the key
+     * of an earlier CSR does not match the key of the last CSR. */
+    const unsigned char *certData = certificate.data;
+    X509 *x509 = d2i_X509(NULL, &certData, (long)certificate.length);
+    int keyMatches = x509 ? X509_check_private_key(x509, privateKey) : 0;
+    X509_free(x509);
+    if(keyMatches != 1) {
+        ERR_clear_error();
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
 

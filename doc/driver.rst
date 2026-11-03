@@ -16,3 +16,4 @@ generic ``UA_Driver`` interface and lifecycle hooks.
    driver_alarms_conditions
    driver_gds_receiver
    driver_file_transfer
+   driver_gds_pull
