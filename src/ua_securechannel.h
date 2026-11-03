@@ -199,8 +199,21 @@ struct UA_SecureChannel {
      * wrapper XORs the new shared secret with this value and writes the
      * result back. The SecureChannel passes this value as a prefix of
      * the `secret` ByteString to the policy's generateKey, where the
-     * policy strips and updates it. Zero-length on the first OPN. */
+     * policy strips and updates it. Zero-length on the first OPN.
+     *
+     * Two slots, because the two derivations of one OPN generation are not
+     * adjacent in time. Both the local- and the remote-keys pass must derive
+     * against the same previous accumulator, so `currentIKM` (IKM_n-1) stays
+     * put for the whole generation while the local-keys pass parks the new
+     * value in `nextIKM` (IKM_n). The promotion happens at the start of the
+     * next generation's local-keys pass.
+     *
+     * Advancing in the remote-keys pass instead would lose a generation on the
+     * client: it runs generateRemoteKeys only once the peer sends under the new
+     * token (Part 4 5.5.2), which may not happen before the next renewal. The
+     * client would then chain from a stale IKM while the server had moved on. */
     UA_ByteString currentIKM;
+    UA_ByteString nextIKM;
 
     /* OPC UA Part 6 v1.05.07 ChannelThumbprint: the (verified) signature
      * of the first OpenSecureChannel *response*. Captured once on the
@@ -342,6 +355,15 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel);
 
 UA_StatusCode
 UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel);
+
+/* Advance the IKM accumulator (SecureChannelEnhancements) over an OPN
+ * generation whose keys are never installed. The server calls this when the
+ * client renews again before it sent anything under the pending token: the
+ * client already chained that generation in its local-keys pass, so the server
+ * must chain it too. Must run before the nonces of the generation are replaced.
+ * A no-op for policies without IKM chaining. */
+UA_StatusCode
+UA_SecureChannel_advanceIKM(UA_SecureChannel *channel);
 
 UA_StatusCode
 generateRemoteKeys(UA_SecureChannel *channel);
