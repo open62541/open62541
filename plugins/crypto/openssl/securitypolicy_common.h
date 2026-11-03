@@ -81,6 +81,38 @@ typedef struct {
     const void *rsaParams;
 } openssl_PolicyContext;
 
+/* The contexts of the ECC AEAD policies (securitypolicy_generic_ecc_aead.c) */
+typedef struct {
+    EVP_PKEY *localPrivateKey;
+    EVP_PKEY *csrLocalPrivateKey;
+    UA_ByteString localCertThumbprint;
+    UA_ApplicationType applicationType;
+
+    /* The UA_EccAeadParams row of the policy and the key-agreement identifier
+     * resolved from it: a curve NID for ECDH, or EVP_PKEY_X25519/EVP_PKEY_X448
+     * for the Edwards curves */
+    const void *aeadParams;
+    int keyId;
+} openssl_EccPolicyContext;
+
+typedef struct {
+    EVP_PKEY *localEphemeralKeyPair;
+    UA_ByteString localSymSigningKey;
+    UA_ByteString localSymEncryptingKey;
+    UA_ByteString localSymIv;
+    UA_ByteString remoteSymSigningKey;
+    UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString remoteSymIv;
+
+    UA_ByteString remoteCertificate;
+    X509 *remoteCertificateX509;
+
+    /* AEAD message context, set by setMessageSecurityParameters */
+    UA_UInt32 tokenId;
+    UA_UInt32 previousSequenceNumber;
+    UA_ByteString additionalAuthData;
+} openssl_EccAeadChannelContext;
+
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
 void UA_Openssl_Init(void);
 
