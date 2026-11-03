@@ -10,8 +10,11 @@ missing besides `ECC_nistP256_AesGcm` and `ECC_nistP256_ChaChaPoly`:
 `ECC_nistP384`, `ECC_brainpoolP256r1`, `ECC_brainpoolP384r1`, `ECC_curve25519`
 and `ECC_curve448`, each with `_AesGcm` and `_ChaChaPoly`. They have
 constructors `UA_SecurityPolicy_Ecc<Curve><Aead>` and server config helpers
-`UA_ServerConfig_addSecurityPolicyEcc<Curve><Aead>`. They are not part of the
-default policy set, since a server certificate is valid for one curve only.
+`UA_ServerConfig_addSecurityPolicyEcc<Curve><Aead>`, and for all twelve the
+client helpers `UA_ClientConfig_addSecurityPolicyEcc<Curve><Aead>`. They are
+not part of the default policy set, since a certificate is valid for one curve
+only. `UA_ClientConfig_setAuthenticationCert` also creates an instance with the
+user certificate for every ECC AEAD policy the client has configured.
 The certificate must be on the curve of the policy (Ed25519/Ed448 for the
 curve25519/curve448 policies); otherwise the constructor returns
 `BadCertificateInvalid`. The deprecated `ECC_curve25519` and `ECC_curve448`
