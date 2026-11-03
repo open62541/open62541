@@ -134,6 +134,15 @@ UA_Openssl_RSA_PSS_SHA256_Sign (const UA_ByteString * message,
                                 EVP_PKEY * privateKey,
                                 UA_ByteString *       outSignature);
 
+/* Generate an ephemeral ECDH key pair on the given curve and write its
+ * encoded public key (without the leading 0x04 point-format byte) to
+ * `keyPublicEncOut`. The named wrappers are the common curves; the generic ECC
+ * AEAD module passes the curve NID it resolved from its policy parameters. */
+UA_StatusCode
+UA_OpenSSL_ECC_GenerateKey(const int curveId,
+                           EVP_PKEY **keyPairOut,
+                           UA_ByteString *keyPublicEncOut);
+
 UA_StatusCode
 UA_OpenSSL_ECC_NISTP256_GenerateKey (EVP_PKEY ** keyPairOut,
                                      UA_ByteString * keyPublicEncOut);
@@ -397,9 +406,40 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
                             UA_ByteString *ikmInOut,
                             UA_ByteString *out);
 
-/* ChaCha20-Poly1305 AEAD encrypt/decrypt.
+/* Every ECC AEAD SecurityPolicy uses a 12-byte IV and a 16-byte tag
+ * (OPC UA Part 6: InitializationVectorLength 96 bits, SignatureLength 128 bits). */
+#define UA_OPENSSL_AEAD_IV_LENGTH 12
+#define UA_OPENSSL_AEAD_TAG_LENGTH 16
+
+/* Generic AEAD encrypt/decrypt for the ECC AEAD SecurityPolicies.
+ *
+ * The cipher selects the algorithm and, through EVP_CIPHER_key_length(), the
+ * expected key length: AES-128-GCM (16), AES-256-GCM (32) and
+ * ChaCha20-Poly1305 (32) all share this code path. The IV is always 12 bytes
+ * and the authentication tag is the last 16 bytes of `data`.
+ *
  * If encryptData/decryptData is true, the data part is encrypted or decrypted.
- * Otherwise, only the authentication tag is computed/verified. */
+ * Otherwise all of it is treated as additional authenticated data, so only the
+ * tag is computed/verified (the sign-only message security mode). On decrypt
+ * the tag is stripped from data->length. */
+UA_StatusCode
+UA_OpenSSL_AEAD_Encrypt(const EVP_CIPHER *cipher,
+                        const UA_ByteString *iv,
+                        const UA_ByteString *key,
+                        const UA_ByteString *aad,
+                        UA_ByteString *data,
+                        UA_Boolean encryptData);
+
+UA_StatusCode
+UA_OpenSSL_AEAD_Decrypt(const EVP_CIPHER *cipher,
+                        const UA_ByteString *iv,
+                        const UA_ByteString *key,
+                        const UA_ByteString *aad,
+                        UA_ByteString *data,
+                        UA_Boolean decryptData);
+
+/* ChaCha20-Poly1305 AEAD encrypt/decrypt. Thin wrappers over
+ * UA_OpenSSL_AEAD_Encrypt/Decrypt. */
 UA_StatusCode
 UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
                                     const UA_ByteString *key,
@@ -414,9 +454,8 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
                                     UA_ByteString *data,
                                     UA_Boolean decryptData);
 
-/* AES-128-GCM AEAD encrypt/decrypt.
- * If encryptData/decryptData is true, the data part is encrypted or decrypted.
- * Otherwise, only the authentication tag is computed/verified. */
+/* AES-128-GCM AEAD encrypt/decrypt. Thin wrappers over
+ * UA_OpenSSL_AEAD_Encrypt/Decrypt. */
 UA_StatusCode
 UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
                                const UA_ByteString *key,
