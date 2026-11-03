@@ -85,6 +85,20 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *policy,
                               const UA_ByteString localPrivateKey,
                               const UA_Logger *logger);
 
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP384AesGcm(UA_SecurityPolicy *policy,
+                                    const UA_ApplicationType applicationType,
+                                    const UA_ByteString localCertificate,
+                                    const UA_ByteString localPrivateKey,
+                                    const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP384ChaChaPoly(UA_SecurityPolicy *policy,
+                                        const UA_ApplicationType applicationType,
+                                        const UA_ByteString localCertificate,
+                                        const UA_ByteString localPrivateKey,
+                                        const UA_Logger *logger);
+
 /* Deprecated (OPC UA Part 7): superseded by the AEAD policies
  * UA_SecurityPolicy_EccBrainpoolP256r1AesGcm / EccBrainpoolP256r1ChaChaPoly. */
 UA_EXPORT UA_StatusCode
@@ -93,6 +107,20 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *policy,
                                      const UA_ByteString localCertificate,
                                      const UA_ByteString localPrivateKey,
                                      const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP256r1AesGcm(UA_SecurityPolicy *policy,
+                                           const UA_ApplicationType applicationType,
+                                           const UA_ByteString localCertificate,
+                                           const UA_ByteString localPrivateKey,
+                                           const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP256r1ChaChaPoly(UA_SecurityPolicy *policy,
+                                               const UA_ApplicationType applicationType,
+                                               const UA_ByteString localCertificate,
+                                               const UA_ByteString localPrivateKey,
+                                               const UA_Logger *logger);
 
 /* Deprecated (OPC UA Part 7): superseded by the AEAD policies
  * UA_SecurityPolicy_EccBrainpoolP384r1AesGcm / EccBrainpoolP384r1ChaChaPoly. */
@@ -104,6 +132,23 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *policy,
                                      const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP384r1AesGcm(UA_SecurityPolicy *policy,
+                                           const UA_ApplicationType applicationType,
+                                           const UA_ByteString localCertificate,
+                                           const UA_ByteString localPrivateKey,
+                                           const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP384r1ChaChaPoly(UA_SecurityPolicy *policy,
+                                               const UA_ApplicationType applicationType,
+                                               const UA_ByteString localCertificate,
+                                               const UA_ByteString localPrivateKey,
+                                               const UA_Logger *logger);
+
+/* Deprecated (OPC UA Part 7): a standalone Poly1305 signing key "shall not be
+ * supported by any application". Superseded by the AEAD policies
+ * UA_SecurityPolicy_EccCurve25519AesGcm / EccCurve25519ChaChaPoly. */
+UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *policy,
                                 const UA_ApplicationType applicationType,
                                 const UA_ByteString localCertificate,
@@ -111,11 +156,42 @@ UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *policy,
                                 const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccCurve25519AesGcm(UA_SecurityPolicy *policy,
+                                      const UA_ApplicationType applicationType,
+                                      const UA_ByteString localCertificate,
+                                      const UA_ByteString localPrivateKey,
+                                      const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccCurve25519ChaChaPoly(UA_SecurityPolicy *policy,
+                                          const UA_ApplicationType applicationType,
+                                          const UA_ByteString localCertificate,
+                                          const UA_ByteString localPrivateKey,
+                                          const UA_Logger *logger);
+
+/* Deprecated (OPC UA Part 7): a standalone Poly1305 signing key "shall not be
+ * supported by any application". Superseded by the AEAD policies
+ * UA_SecurityPolicy_EccCurve448AesGcm / EccCurve448ChaChaPoly. */
+UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *policy,
                               const UA_ApplicationType applicationType,
                               const UA_ByteString localCertificate,
                               const UA_ByteString localPrivateKey,
                               const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccCurve448AesGcm(UA_SecurityPolicy *policy,
+                                    const UA_ApplicationType applicationType,
+                                    const UA_ByteString localCertificate,
+                                    const UA_ByteString localPrivateKey,
+                                    const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccCurve448ChaChaPoly(UA_SecurityPolicy *policy,
+                                        const UA_ApplicationType applicationType,
+                                        const UA_ByteString localCertificate,
+                                        const UA_ByteString localPrivateKey,
+                                        const UA_Logger *logger);
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 UA_EXPORT UA_StatusCode

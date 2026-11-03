@@ -103,6 +103,152 @@ static const UA_EccAeadParams eccNistP256ChaChaPolyParams = {
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
 };
 
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1_AesGcm */
+static const UA_EccAeadParams eccBrainpoolP256r1AesGcmParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1_AesGcm"),
+    UA_NS0ID_ECCBRAINPOOLP256R1APPLICATIONCERTIFICATETYPE,
+    10,                                        /* securityLevel */
+    ECC_AEAD_KEX_ECDH_OBJ, "brainpoolP256r1", 0,
+    "SHA256", 64, 32,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_EC, 32, 64,                       /* certificate, thumbprint, signature */
+    UA_Openssl_ECDSA_SHA256_Sign, UA_Openssl_ECDSA_SHA256_Verify,
+    EVP_aes_128_gcm,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes128-gcm"), 16
+};
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1_ChaChaPoly */
+static const UA_EccAeadParams eccBrainpoolP256r1ChaChaPolyParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1_ChaChaPoly"),
+    UA_NS0ID_ECCBRAINPOOLP256R1APPLICATIONCERTIFICATETYPE,
+    10,                                        /* securityLevel */
+    ECC_AEAD_KEX_ECDH_OBJ, "brainpoolP256r1", 0,
+    "SHA256", 64, 32,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_EC, 32, 64,                       /* certificate, thumbprint, signature */
+    UA_Openssl_ECDSA_SHA256_Sign, UA_Openssl_ECDSA_SHA256_Verify,
+    EVP_chacha20_poly1305,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
+};
+
+/* The 384-bit tier. OPC UA Part 7 rates these as the equivalent of
+ * Aes256-Sha256-RsaPss, so they take its security level of 30 - above the 15 of
+ * the deprecated ECC_nistP384/ECC_brainpoolP384r1 they supersede, which predate
+ * that equivalence.
+ *
+ * The AES-256-GCM algorithm URI follows the scheme of the other AEAD rows,
+ * http://opcfoundation.org/UA/security/<algorithm> (aes128-gcm and
+ * chacha20-poly1305, as upstream ships them). The profile pages name the
+ * algorithm (SymmetricEncryptionAlgorithm_AES256-GCM) but not its URI. The URI
+ * is metadata only: the policy is selected by its policyUri. */
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384_AesGcm */
+static const UA_EccAeadParams eccNistP384AesGcmParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384_AesGcm"),
+    UA_NS0ID_ECCNISTP384APPLICATIONCERTIFICATETYPE,
+    30,                                        /* securityLevel */
+    ECC_AEAD_KEX_ECDH_NIST, "P-384", 0,        /* ECDH on P-384 */
+    "SHA384", 96, 48,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_EC, 48, 96,                       /* certificate, thumbprint, signature */
+    UA_Openssl_ECDSA_SHA384_Sign, UA_Openssl_ECDSA_SHA384_Verify,
+    EVP_aes_256_gcm,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes256-gcm"), 32
+};
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384_ChaChaPoly */
+static const UA_EccAeadParams eccNistP384ChaChaPolyParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384_ChaChaPoly"),
+    UA_NS0ID_ECCNISTP384APPLICATIONCERTIFICATETYPE,
+    30,                                        /* securityLevel */
+    ECC_AEAD_KEX_ECDH_NIST, "P-384", 0,        /* ECDH on P-384 */
+    "SHA384", 96, 48,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_EC, 48, 96,                       /* certificate, thumbprint, signature */
+    UA_Openssl_ECDSA_SHA384_Sign, UA_Openssl_ECDSA_SHA384_Verify,
+    EVP_chacha20_poly1305,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
+};
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1_AesGcm */
+static const UA_EccAeadParams eccBrainpoolP384r1AesGcmParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1_AesGcm"),
+    UA_NS0ID_ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE,
+    30,                                        /* securityLevel */
+    ECC_AEAD_KEX_ECDH_OBJ, "brainpoolP384r1", 0,
+    "SHA384", 96, 48,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_EC, 48, 96,                       /* certificate, thumbprint, signature */
+    UA_Openssl_ECDSA_SHA384_Sign, UA_Openssl_ECDSA_SHA384_Verify,
+    EVP_aes_256_gcm,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes256-gcm"), 32
+};
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1_ChaChaPoly */
+static const UA_EccAeadParams eccBrainpoolP384r1ChaChaPolyParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1_ChaChaPoly"),
+    UA_NS0ID_ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE,
+    30,                                        /* securityLevel */
+    ECC_AEAD_KEX_ECDH_OBJ, "brainpoolP384r1", 0,
+    "SHA384", 96, 48,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_EC, 48, 96,                       /* certificate, thumbprint, signature */
+    UA_Openssl_ECDSA_SHA384_Sign, UA_Openssl_ECDSA_SHA384_Verify,
+    EVP_chacha20_poly1305,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
+};
+
+/* The Edwards curves. Their certificate carries an Ed25519/Ed448 signing key
+ * while the ephemeral key agreement is X25519/X448, so certKeyType and
+ * xdhKeyType name different algorithms - unlike the Weierstrass rows above,
+ * where one curve serves both. */
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519_AesGcm */
+static const UA_EccAeadParams eccCurve25519AesGcmParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519_AesGcm"),
+    UA_NS0ID_ECCCURVE25519APPLICATIONCERTIFICATETYPE,
+    10,                                        /* securityLevel */
+    ECC_AEAD_KEX_XDH, NULL, EVP_PKEY_X25519,   /* X25519 key agreement */
+    "SHA256", 32, 32,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_ED25519, 32, 64,                  /* certificate, thumbprint, signature */
+    UA_OpenSSL_EdDSA_Ed25519_Sign, UA_OpenSSL_EdDSA_Ed25519_Verify,
+    EVP_aes_128_gcm,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes128-gcm"), 16
+};
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519_ChaChaPoly */
+static const UA_EccAeadParams eccCurve25519ChaChaPolyParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519_ChaChaPoly"),
+    UA_NS0ID_ECCCURVE25519APPLICATIONCERTIFICATETYPE,
+    10,                                        /* securityLevel */
+    ECC_AEAD_KEX_XDH, NULL, EVP_PKEY_X25519,   /* X25519 key agreement */
+    "SHA256", 32, 32,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_ED25519, 32, 64,                  /* certificate, thumbprint, signature */
+    UA_OpenSSL_EdDSA_Ed25519_Sign, UA_OpenSSL_EdDSA_Ed25519_Verify,
+    EVP_chacha20_poly1305,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
+};
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448_AesGcm */
+static const UA_EccAeadParams eccCurve448AesGcmParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448_AesGcm"),
+    UA_NS0ID_ECCCURVE448APPLICATIONCERTIFICATETYPE,
+    30,                                        /* securityLevel */
+    ECC_AEAD_KEX_XDH, NULL, EVP_PKEY_X448,     /* X448 key agreement */
+    "SHA384", 56, 56,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_ED448, 48, 114,                   /* certificate, thumbprint, signature */
+    UA_OpenSSL_EdDSA_Ed448_Sign, UA_OpenSSL_EdDSA_Ed448_Verify,
+    EVP_aes_256_gcm,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes256-gcm"), 32
+};
+
+/* http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448_ChaChaPoly */
+static const UA_EccAeadParams eccCurve448ChaChaPolyParams = {
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448_ChaChaPoly"),
+    UA_NS0ID_ECCCURVE448APPLICATIONCERTIFICATETYPE,
+    30,                                        /* securityLevel */
+    ECC_AEAD_KEX_XDH, NULL, EVP_PKEY_X448,     /* X448 key agreement */
+    "SHA384", 56, 56,                          /* HKDF, nonce, shared secret */
+    EVP_PKEY_ED448, 48, 114,                   /* certificate, thumbprint, signature */
+    UA_OpenSSL_EdDSA_Ed448_Sign, UA_OpenSSL_EdDSA_Ed448_Verify,
+    EVP_chacha20_poly1305,
+    UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
+};
+
 /************/
 /* Contexts */
 /************/
@@ -1017,6 +1163,106 @@ UA_SecurityPolicy_EccNistP256ChaChaPoly(UA_SecurityPolicy *sp,
                                         const UA_ByteString localPrivateKey,
                                         const UA_Logger *logger) {
     return eccAead_policy(sp, &eccNistP256ChaChaPolyParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP256r1AesGcm(UA_SecurityPolicy *sp,
+                                           const UA_ApplicationType applicationType,
+                                           const UA_ByteString localCertificate,
+                                           const UA_ByteString localPrivateKey,
+                                           const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccBrainpoolP256r1AesGcmParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP256r1ChaChaPoly(UA_SecurityPolicy *sp,
+                                               const UA_ApplicationType applicationType,
+                                               const UA_ByteString localCertificate,
+                                               const UA_ByteString localPrivateKey,
+                                               const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccBrainpoolP256r1ChaChaPolyParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccNistP384AesGcm(UA_SecurityPolicy *sp,
+                                    const UA_ApplicationType applicationType,
+                                    const UA_ByteString localCertificate,
+                                    const UA_ByteString localPrivateKey,
+                                    const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccNistP384AesGcmParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccNistP384ChaChaPoly(UA_SecurityPolicy *sp,
+                                        const UA_ApplicationType applicationType,
+                                        const UA_ByteString localCertificate,
+                                        const UA_ByteString localPrivateKey,
+                                        const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccNistP384ChaChaPolyParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP384r1AesGcm(UA_SecurityPolicy *sp,
+                                           const UA_ApplicationType applicationType,
+                                           const UA_ByteString localCertificate,
+                                           const UA_ByteString localPrivateKey,
+                                           const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccBrainpoolP384r1AesGcmParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP384r1ChaChaPoly(UA_SecurityPolicy *sp,
+                                               const UA_ApplicationType applicationType,
+                                               const UA_ByteString localCertificate,
+                                               const UA_ByteString localPrivateKey,
+                                               const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccBrainpoolP384r1ChaChaPolyParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccCurve25519AesGcm(UA_SecurityPolicy *sp,
+                                      const UA_ApplicationType applicationType,
+                                      const UA_ByteString localCertificate,
+                                      const UA_ByteString localPrivateKey,
+                                      const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccCurve25519AesGcmParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccCurve25519ChaChaPoly(UA_SecurityPolicy *sp,
+                                          const UA_ApplicationType applicationType,
+                                          const UA_ByteString localCertificate,
+                                          const UA_ByteString localPrivateKey,
+                                          const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccCurve25519ChaChaPolyParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccCurve448AesGcm(UA_SecurityPolicy *sp,
+                                    const UA_ApplicationType applicationType,
+                                    const UA_ByteString localCertificate,
+                                    const UA_ByteString localPrivateKey,
+                                    const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccCurve448AesGcmParams, applicationType,
+                          localCertificate, localPrivateKey, logger);
+}
+
+UA_StatusCode
+UA_SecurityPolicy_EccCurve448ChaChaPoly(UA_SecurityPolicy *sp,
+                                        const UA_ApplicationType applicationType,
+                                        const UA_ByteString localCertificate,
+                                        const UA_ByteString localPrivateKey,
+                                        const UA_Logger *logger) {
+    return eccAead_policy(sp, &eccCurve448ChaChaPolyParams, applicationType,
                           localCertificate, localPrivateKey, logger);
 }
 

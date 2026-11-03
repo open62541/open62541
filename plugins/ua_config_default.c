@@ -1197,6 +1197,131 @@ UA_ServerConfig_addSecurityPolicyEccCurve448(UA_ServerConfig *config,
     config->securityPoliciesSize++;
     return UA_STATUSCODE_GOOD;
 }
+
+typedef UA_StatusCode
+(*AppTypePolicyConstructor)(UA_SecurityPolicy *policy, UA_ApplicationType applicationType,
+                            const UA_ByteString localCertificate,
+                            const UA_ByteString localPrivateKey, const UA_Logger *logger);
+
+/* Adds a policy whose constructor takes the ApplicationType, which the ECC
+ * policies need to pick the HKDF label */
+static UA_StatusCode
+addSecurityPolicyAppType(UA_ServerConfig *config, AppTypePolicyConstructor constructor,
+                         const UA_ByteString *certificate, const UA_ByteString *privateKey) {
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        constructor(&config->securityPolicies[config->securityPoliciesSize],
+                    UA_APPLICATIONTYPE_SERVER, localCertificate, localPrivateKey,
+                    config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The ECC AEAD SecurityPolicies of OPC UA Part 7 that are not in the default
+ * policy set. One server certificate cannot satisfy six curve families, and
+ * twelve extra policies would bloat every GetEndpoints response, so an
+ * application opts in to the curve it actually holds a certificate for. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384AesGcm(UA_ServerConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccNistP384AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccNistP384ChaChaPoly,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1AesGcm(UA_ServerConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccBrainpoolP256r1AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1ChaChaPoly(UA_ServerConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccBrainpoolP256r1ChaChaPoly,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1AesGcm(UA_ServerConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccBrainpoolP384r1AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1ChaChaPoly(UA_ServerConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccBrainpoolP384r1ChaChaPoly,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve25519AesGcm(UA_ServerConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccCurve25519AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve25519ChaChaPoly(UA_ServerConfig *config,
+                                                         const UA_ByteString *certificate,
+                                                         const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccCurve25519ChaChaPoly,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve448AesGcm(UA_ServerConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccCurve448AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve448ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccCurve448ChaChaPoly,
+                                    certificate, privateKey);
+}
 #endif
 
 
