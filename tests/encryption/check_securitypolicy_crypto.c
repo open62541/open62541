@@ -291,6 +291,88 @@ START_TEST(securitypolicy_aes256sha256rsapss) {
     exercisePolicy(UA_SecurityPolicy_Aes256Sha256RsaPss);
 } END_TEST
 
+/* The parameters of the current RSA policies, as the hand-written policies
+ * declared them before the generic module. A loopback connection uses the same
+ * row on both ends, so these values are invisible to the roundtrip tests. */
+typedef struct {
+    PolicyInit init;
+    const char *policyUri;
+    UA_Byte securityLevel;
+    const char *asymSigUri;
+    const char *certSigUri;
+    const char *asymEncUri;
+    const char *symEncUri;
+    size_t rsaPaddingLength;
+    size_t symEncryptionKeyLength;
+} RsaPolicyRow;
+
+static const RsaPolicyRow rsaPolicyRows[] = {
+    {UA_SecurityPolicy_Basic256Sha256,
+     "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256", 20,
+     "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+     "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+     "http://www.w3.org/2001/04/xmlenc#rsa-oaep",
+     "http://www.w3.org/2001/04/xmlenc#aes256-cbc", 42, 32},
+    {UA_SecurityPolicy_Aes128Sha256RsaOaep,
+     "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep", 10,
+     "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+     "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+     "http://www.w3.org/2001/04/xmlenc#rsa-oaep",
+     "http://www.w3.org/2001/04/xmlenc#aes128-cbc", 42, 16},
+    {UA_SecurityPolicy_Aes256Sha256RsaPss,
+     "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss", 30,
+     "http://opcfoundation.org/UA/security/rsa-pss-sha2-256",
+     "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", /* not PSS */
+     "http://opcfoundation.org/UA/security/rsa-oaep-sha2-256",
+     "http://www.w3.org/2001/04/xmlenc#aes256-cbc", 66, 32}
+};
+
+static void
+assertUri(const UA_String *actual, const char *expected) {
+    UA_String e = UA_STRING((char *)(uintptr_t)expected);
+    ck_assert_msg(UA_String_equal(actual, &e), "unexpected URI %.*s, expected %s",
+                  (int)actual->length, (const char *)actual->data, expected);
+}
+
+START_TEST(rsa_policies_declare_their_parameters) {
+    const RsaPolicyRow *row = &rsaPolicyRows[_i];
+    UA_ByteString cert = makeCert();
+    UA_SecurityPolicy policy;
+    ck_assert_uint_eq(row->init(&policy, cert, makeKey(), UA_Log_Stdout),
+                      UA_STATUSCODE_GOOD);
+
+    assertUri(&policy.policyUri, row->policyUri);
+    ck_assert_uint_eq(policy.securityLevel, row->securityLevel);
+    ck_assert_uint_eq(policy.policyType, UA_SECURITYPOLICYTYPE_RSA);
+    ck_assert_uint_eq(policy.nonceLength, 32);
+    ck_assert_uint_eq(policy.secretLength, 0);
+    ck_assert(!policy.secureChannelEnhancements);
+    assertUri(&policy.asymSignatureAlgorithm.uri, row->asymSigUri);
+    assertUri(&policy.certSignatureAlgorithm.uri, row->certSigUri);
+    assertUri(&policy.asymEncryptionAlgorithm.uri, row->asymEncUri);
+    assertUri(&policy.symSignatureAlgorithm.uri,
+              "http://www.w3.org/2000/09/xmldsig#hmac-sha2-256");
+    assertUri(&policy.symEncryptionAlgorithm.uri, row->symEncUri);
+
+    /* The sizes, against the 2048-bit test certificate as the remote one */
+    void *cc = NULL;
+    ck_assert_uint_eq(policy.newChannelContext(&policy, &cert, &cc),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(policy.asymSignatureAlgorithm.getRemoteSignatureSize(&policy, cc),
+                      256);
+    ck_assert_uint_eq(policy.asymEncryptionAlgorithm.getRemoteKeyLength(&policy, cc),
+                      2048);
+    ck_assert_uint_eq(policy.asymEncryptionAlgorithm.getRemotePlainTextBlockSize(&policy, cc),
+                      256 - row->rsaPaddingLength);
+    ck_assert_uint_eq(policy.symSignatureAlgorithm.getLocalSignatureSize(&policy, cc), 32);
+    ck_assert_uint_eq(policy.symSignatureAlgorithm.getLocalKeyLength(&policy, cc), 32);
+    ck_assert_uint_eq(policy.symEncryptionAlgorithm.getLocalKeyLength(&policy, cc),
+                      row->symEncryptionKeyLength);
+    ck_assert_uint_eq(policy.symEncryptionAlgorithm.getRemoteBlockSize(&policy, cc), 16);
+    policy.deleteChannelContext(&policy, cc);
+    policy.clear(&policy);
+} END_TEST
+
 START_TEST(basic128rsa15_reports_distinct_local_and_remote_key_sizes) {
     UA_SecurityPolicy policy;
     UA_StatusCode rv = UA_SecurityPolicy_Basic128Rsa15(
@@ -351,6 +433,8 @@ testSuite_SecurityPolicyCrypto(void) {
     tcase_add_test(tc, securitypolicy_aes256sha256rsapss);
     tcase_add_test(tc,
                    basic128rsa15_reports_distinct_local_and_remote_key_sizes);
+    tcase_add_loop_test(tc, rsa_policies_declare_their_parameters, 0,
+                        sizeof(rsaPolicyRows) / sizeof(rsaPolicyRows[0]));
     suite_add_tcase(s, tc);
     return s;
 }

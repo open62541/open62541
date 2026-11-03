@@ -1616,7 +1616,7 @@ UA_OpenSSL_Policy_newContext_generic(UA_SecurityPolicy *securityPolicy,
                                      int keyType,
                                      const UA_Logger *logger) {
     openssl_PolicyContext *context = (openssl_PolicyContext *)
-        UA_malloc(sizeof(openssl_PolicyContext));
+        UA_calloc(1, sizeof(openssl_PolicyContext));
     if(context == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     context->keyType = keyType;

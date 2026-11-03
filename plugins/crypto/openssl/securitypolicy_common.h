@@ -75,6 +75,10 @@ typedef struct {
     /* EVP_PKEY_ED25519 */
     /* EVP_PKEY_ED448 */
     int keyType;
+
+    /* Set by the generic RSA module: its UA_RsaParams row. NULL for the
+     * hand-written policies that do not use that module. */
+    const void *rsaParams;
 } openssl_PolicyContext;
 
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
