@@ -96,6 +96,10 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+    retval = UA_String_copy(&src->auditEntryId, &dst->auditEntryId);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
     retval = UA_String_copy(&src->sessionName, &dst->sessionName);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -283,6 +287,7 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->logging->clear(config->logging);
     config->logging = NULL;
 
+    UA_String_clear(&config->auditEntryId);
     UA_String_clear(&config->sessionName);
     if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
         UA_Array_delete(config->sessionLocaleIds,
@@ -493,12 +498,17 @@ sendRequest(UA_Client *client, const void *request,
      * only once the session is active (or to activate / close it). */
     UA_RequestHeader *rr = (UA_RequestHeader*)(uintptr_t)request;
     UA_NodeId oldToken = rr->authenticationToken; /* Put back in place later */
+    UA_String oldAuditEntryId = rr->auditEntryId; /* Put back in place later */
 
     if(client->sessionState == UA_SESSIONSTATE_ACTIVATED ||
        requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST])
         rr->authenticationToken = client->authenticationToken;
     rr->timestamp = el->dateTime_now(el);
+
+    /* Use the default AuditEntryId if not manually defined. */
+    if(rr->auditEntryId.length == 0)
+        rr->auditEntryId = client->config.auditEntryId;
 
     /* Create a unique handle >100,000 if not manually defined. The handle is
      * not necessarily unique when manually defined and used to cancel async
@@ -544,6 +554,7 @@ sendRequest(UA_Client *client, const void *request,
         UA_SecureChannel_sendMSG(&client->channel, rqId, rr, requestType);
 
     rr->authenticationToken = oldToken; /* Set back to the original token */
+    rr->auditEntryId = oldAuditEntryId; /* Set back to the original id */
 
     /* A stream write failure invalidates the transport framing. An HTTP POST
      * is request-local and does not invalidate sibling requests or the logical

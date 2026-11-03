@@ -614,6 +614,16 @@ struct UA_ClientConfig {
      * setting a non-null "timeoutHint" in the request header. */
     UA_UInt32 timeout;
 
+    /* Default AuditEntryId sent in the RequestHeader of every request.
+     * This default can be overridden for individual
+     * requests by setting a non-empty "auditEntryId" in the request header.
+     *
+     * The value applies to all requests of the client, including those sent in
+     * the background (e.g. PublishRequests). Clients that act on behalf of
+     * several users should set the auditEntryId in the request header of each
+     * request instead of changing the default between calls. */
+    UA_String auditEntryId;
+
     /* Self-description of the client.
      * The ApplicationUri set in the ApplicationDescription must match the URI
      * set in the certificate */

@@ -1678,6 +1678,8 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                 cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
                 if(strcmp(field, "timeout") == 0)
                     retval = Int32Field_parseJson(&ctx, &config->timeout, NULL);
+                else if(strcmp(field, "auditEntryId") == 0)
+                    retval = StringField_parseJson(&ctx, &config->auditEntryId, NULL);
                 else if(strcmp(field, "applicationDescription") == 0)
                     retval = GenericApplicationDescriptionField_parseJson(&ctx, &config->clientDescription, NULL, GENERICAPPLICATIONTYPE_CLIENT);
                 else if(strcmp(field, "endpointUrl") == 0)

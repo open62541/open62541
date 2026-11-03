@@ -749,6 +749,7 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     UA_OpenSecureChannelRequest_init(&opnSecRq);
     opnSecRq.requestHeader.timestamp = el->dateTime_now(el);
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
+    opnSecRq.requestHeader.auditEntryId = client->config.auditEntryId; /* No copy */
     opnSecRq.securityMode = client->channel.securityMode;
     opnSecRq.clientNonce = client->channel.localNonce;
     opnSecRq.requestedLifetime = client->config.secureChannelLifeTime;
@@ -3334,6 +3335,7 @@ closeSecureChannel(UA_Client *client) {
         request.requestHeader.timestamp = el->dateTime_now(el);
         request.requestHeader.timeoutHint = client->config.timeout;
         request.requestHeader.authenticationToken = client->authenticationToken;
+        request.requestHeader.auditEntryId = client->config.auditEntryId; /* No copy */
         UA_SecureChannel_sendCLO(&client->channel,
                                  __Client_nextRequestId(client), &request);
     }

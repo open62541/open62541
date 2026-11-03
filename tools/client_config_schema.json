@@ -10,6 +10,10 @@
       "description": "Connection timeout in milliseconds",
       "minimum": 0
     },
+    "auditEntryId": {
+      "type": "string",
+      "description": "Default AuditEntryId in the RequestHeader of all requests. Overridden by a non-empty AuditEntryId in the header of an individual request."
+    },
     "applicationDescription": {
       "$ref": "#/definitions/ApplicationDescription",
       "description": "Client application description"

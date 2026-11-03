@@ -13,6 +13,7 @@
 
   endpointUrl: "opc.tcp://localhost:4840",
   sessionName: "TestSession",
+  auditEntryId: "TestAuditEntryId",
   sessionLocaleIds: ["en_US", "de_DE"],
   localConnectionConfig: {
     protocolVersion: 0,

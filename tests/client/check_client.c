@@ -88,6 +88,124 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+/* AuditEntryId of the last ActivateSession and Read requests received by the
+ * server. Written in the server thread with the serviceMutex held. */
+static UA_String auditIdActivate;
+static UA_String auditIdRead;
+static size_t auditIdActivateCount;
+static size_t auditIdReadCount;
+static UA_StatusCode
+(*defaultActivateSession)(UA_Server *server, UA_AccessControl *ac,
+                          const UA_EndpointDescription *endpointDescription,
+                          const UA_ByteString *secureChannelRemoteCertificate,
+                          const UA_NodeId *sessionId,
+                          const UA_ExtensionObject *userIdentityToken,
+                          void **sessionContext);
+
+static void
+recordAuditEntryId(UA_Server *s, UA_String *dst, size_t *count) {
+    /* Skip local calls, e.g. the value check when adding the node */
+    if(!s->currentRequest)
+        return;
+    UA_String_clear(dst);
+    UA_String_copy(&s->currentRequest->auditEntryId, dst);
+    (*count)++;
+}
+
+static UA_StatusCode
+activateSessionAudit(UA_Server *s, UA_AccessControl *ac,
+                     const UA_EndpointDescription *endpointDescription,
+                     const UA_ByteString *secureChannelRemoteCertificate,
+                     const UA_NodeId *sessionId,
+                     const UA_ExtensionObject *userIdentityToken,
+                     void **sessionContext) {
+    recordAuditEntryId(s, &auditIdActivate, &auditIdActivateCount);
+    return defaultActivateSession(s, ac, endpointDescription,
+                                  secureChannelRemoteCertificate, sessionId,
+                                  userIdentityToken, sessionContext);
+}
+
+static UA_StatusCode
+readAudit(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+          const UA_NodeId *nodeId, void *nodeContext,
+          UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
+          UA_DataValue *value) {
+    recordAuditEntryId(s, &auditIdRead, &auditIdReadCount);
+    UA_Int32 v = 42;
+    UA_Variant_setScalarCopy(&value->value, &v, &UA_TYPES[UA_TYPES_INT32]);
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static const UA_NodeId auditVariableId = {1, UA_NODEIDTYPE_NUMERIC, {4711}};
+
+static void setupAudit(void) {
+    UA_String_init(&auditIdActivate);
+    UA_String_init(&auditIdRead);
+    auditIdActivateCount = 0;
+    auditIdReadCount = 0;
+
+    UA_atomic_store(&running, true);
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    defaultActivateSession = config->accessControl.activateSession;
+    config->accessControl.activateSession = activateSessionAudit;
+
+    UA_Server_run_startup(server);
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "audit.variable");
+    UA_CallbackValueSource vs = {readAudit, NULL};
+    UA_StatusCode res = UA_Server_addCallbackValueSourceVariableNode(
+        server, auditVariableId, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "audit.variable"), UA_NS0ID(BASEDATAVARIABLETYPE),
+        attr, vs, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void teardownAudit(void) {
+    teardown();
+    UA_String_clear(&auditIdActivate);
+    UA_String_clear(&auditIdRead);
+}
+
+/* Check the AuditEntryId recorded by the server. The value is copied out under
+ * the lock. A failed assertion must not leave the lock held. */
+static void
+assertAuditEntryId(const UA_String *recorded, const size_t *count,
+                   const char *expected) {
+    UA_String actual;
+    UA_LOCK(&server->serviceMutex);
+    size_t c = *count;
+    UA_String_copy(recorded, &actual);
+    UA_UNLOCK(&server->serviceMutex);
+
+    /* Compare the content only. An unset AuditEntryId is decoded as a null
+     * string, which UA_String_equal distinguishes from the empty string. */
+    ck_assert_uint_gt(c, 0);
+    size_t expLen = strlen(expected);
+    ck_assert_msg(actual.length == expLen &&
+                  (expLen == 0 || memcmp(actual.data, expected, expLen) == 0),
+                  "Expected AuditEntryId \"%s\", got \"%.*s\"", expected,
+                  (int)actual.length, (const char*)actual.data);
+    UA_String_clear(&actual);
+}
+
+static void
+assertReadAuditEntryId(const char *expected) {
+    assertAuditEntryId(&auditIdRead, &auditIdReadCount, expected);
+}
+
+static void
+assertActivateAuditEntryId(const char *expected) {
+    assertAuditEntryId(&auditIdActivate, &auditIdActivateCount, expected);
+}
+
 START_TEST(ClientConfig_Copy){
     UA_ClientConfig dstConfig;
     memset(&dstConfig, 0, sizeof(UA_ClientConfig));
@@ -161,6 +279,7 @@ START_TEST(ClientConfig_CopyOwnedMembers){
     srcConfig.applicationUri = UA_STRING_ALLOC("urn:example:application");
     srcConfig.authSecurityPolicyUri = UA_STRING_ALLOC("urn:example:auth-policy");
     srcConfig.sessionName = UA_STRING_ALLOC("copied-session");
+    srcConfig.auditEntryId = UA_STRING_ALLOC("copied-audit-entry-id");
     srcConfig.userTokenPolicy.policyId = UA_STRING_ALLOC("username-policy");
     srcConfig.userTokenPolicy.securityPolicyUri =
         UA_STRING_ALLOC("urn:example:user-policy");
@@ -180,6 +299,8 @@ START_TEST(ClientConfig_CopyOwnedMembers){
     ck_assert(UA_String_equal(&srcConfig.authSecurityPolicyUri,
                               &dstConfig.authSecurityPolicyUri));
     ck_assert(UA_String_equal(&srcConfig.sessionName, &dstConfig.sessionName));
+    ck_assert(UA_String_equal(&srcConfig.auditEntryId, &dstConfig.auditEntryId));
+    ck_assert_ptr_ne(srcConfig.auditEntryId.data, dstConfig.auditEntryId.data);
     ck_assert(UA_String_equal(&srcConfig.userTokenPolicy.policyId,
                               &dstConfig.userTokenPolicy.policyId));
     ck_assert(UA_String_equal(&srcConfig.userTokenPolicy.securityPolicyUri,
@@ -1447,6 +1568,99 @@ START_TEST(Client_activateSessionAnonymousUserChangeRejected) {
 }
 END_TEST
 
+/* The default AuditEntryId is sent with internal and high-level requests */
+START_TEST(Client_auditEntryIdDefault) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->auditEntryId = UA_STRING_ALLOC("operator1@hmi");
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* ActivateSession is sent internally during connect */
+    assertActivateAuditEntryId("operator1@hmi");
+
+    /* High-level read */
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client, auditVariableId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+    assertReadAuditEntryId("operator1@hmi");
+
+    /* The configured string is not consumed by sending */
+    UA_String expected = UA_STRING("operator1@hmi");
+    ck_assert(UA_String_equal(&cc->auditEntryId, &expected));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* A non-empty AuditEntryId in the RequestHeader overrides the default. An
+ * empty one is replaced by the default only for sending. */
+START_TEST(Client_auditEntryIdOverride) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_Client_getConfig(client)->auditEntryId = UA_STRING_ALLOC("default-id");
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = auditVariableId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_ReadRequest req;
+    UA_ReadRequest_init(&req);
+    req.nodesToRead = &rvi;
+    req.nodesToReadSize = 1;
+
+    /* The AuditEntryId of the request takes precedence */
+    UA_String perRequest = UA_STRING_ALLOC("operator2@hmi");
+    req.requestHeader.auditEntryId = perRequest;
+    UA_ReadResponse resp;
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_READREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_READRESPONSE]);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ReadResponse_clear(&resp);
+    assertReadAuditEntryId("operator2@hmi");
+    ck_assert_ptr_eq(req.requestHeader.auditEntryId.data, perRequest.data);
+    ck_assert_uint_eq(req.requestHeader.auditEntryId.length, perRequest.length);
+    UA_String_clear(&perRequest);
+
+    /* An empty AuditEntryId uses the default. The request is restored
+     * afterwards and does not point into the client configuration. */
+    UA_String_init(&req.requestHeader.auditEntryId);
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_READREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_READRESPONSE]);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ReadResponse_clear(&resp);
+    assertReadAuditEntryId("default-id");
+    ck_assert_ptr_null(req.requestHeader.auditEntryId.data);
+    ck_assert_uint_eq(req.requestHeader.auditEntryId.length, 0);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Without a configured default, no AuditEntryId is sent */
+START_TEST(Client_auditEntryIdUnset) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    assertActivateAuditEntryId("");
+
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client, auditVariableId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+    assertReadAuditEntryId("");
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -1514,6 +1728,13 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_ext, Client_service_queryFirst_emptyRequest);
 #endif
     suite_add_tcase(s, tc_ext);
+
+    TCase *tc_audit = tcase_create("Client AuditEntryId");
+    tcase_add_checked_fixture(tc_audit, setupAudit, teardownAudit);
+    tcase_add_test(tc_audit, Client_auditEntryIdDefault);
+    tcase_add_test(tc_audit, Client_auditEntryIdOverride);
+    tcase_add_test(tc_audit, Client_auditEntryIdUnset);
+    suite_add_tcase(s, tc_audit);
 
     return s;
 }

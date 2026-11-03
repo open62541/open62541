@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Default AuditEntryId for client requests
+
+The new `UA_ClientConfig.auditEntryId` is sent in the RequestHeader of every
+client request, including the requests the client sends internally (e.g.
+OpenSecureChannel, CreateSession and ActivateSession). A non-empty
+`auditEntryId` in the header of an individual request takes precedence.
+
 ### Own memory functions on Zephyr
 
 With `CONFIG_OPEN62541_MALLOC_EXTERN`, `UA_malloc`, `UA_calloc`, `UA_realloc`

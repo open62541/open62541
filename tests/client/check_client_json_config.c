@@ -233,6 +233,11 @@ START_TEST(loadClientConfig) {
     ck_assert(UA_String_equal(&clientConfig.sessionName,
                               &expected_sessionName));
 
+    /* test audit entry id */
+    const UA_String expected_auditEntryId = UA_STRING_STATIC("TestAuditEntryId");
+    ck_assert(UA_String_equal(&clientConfig.auditEntryId,
+                              &expected_auditEntryId));
+
     /* test local connection configuration */
     ck_assert_uint_eq(clientConfig.localConnectionConfig.protocolVersion, 0);
     ck_assert_uint_eq(clientConfig.localConnectionConfig.recvBufferSize, 65536);
@@ -459,6 +464,8 @@ START_TEST(loadClientAndClientConfigAndCompare) {
     /* test session name */
     ck_assert(UA_String_equal(&cc2->sessionName,
                               &clientConfig.sessionName));
+    ck_assert(UA_String_equal(&cc2->auditEntryId,
+                              &clientConfig.auditEntryId));
 
     /* test local connection configuration */
     ck_assert_uint_eq(cc2->localConnectionConfig.protocolVersion,
