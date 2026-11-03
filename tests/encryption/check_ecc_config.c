@@ -8,6 +8,8 @@
 /* Test the UA_ServerConfig_addSecurityPolicyEcc*() public API functions.
  * These are the entry points users call to add individual ECC policies. */
 
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy.h>
@@ -342,6 +344,120 @@ START_TEST(config_add_ecc_aead) {
     UA_Server_delete(server);
 }
 END_TEST
+
+/* The client counterparts: UA_ClientConfig_addSecurityPolicyEcc* */
+typedef struct {
+    const char *uri;
+    UA_StatusCode (*add)(UA_ClientConfig *, const UA_ByteString *,
+                         const UA_ByteString *);
+    UA_ByteString cert;
+    UA_ByteString key;
+} ClientEccRow;
+
+#define CROW(FRAG, FN, C) \
+    {"http://opcfoundation.org/UA/SecurityPolicy#" FRAG, \
+     UA_ClientConfig_addSecurityPolicy##FN, \
+     {CERT_##C##_DER_LENGTH, CERT_##C##_DER_DATA}, \
+     {KEY_##C##_DER_LENGTH, KEY_##C##_DER_DATA}}
+
+static const ClientEccRow clientRows[] = {
+    CROW("ECC_nistP256_AesGcm", EccNistP256AesGcm, P256),
+    CROW("ECC_nistP256_ChaChaPoly", EccNistP256ChaChaPoly, P256),
+    CROW("ECC_nistP384_AesGcm", EccNistP384AesGcm, P384),
+    CROW("ECC_nistP384_ChaChaPoly", EccNistP384ChaChaPoly, P384),
+    CROW("ECC_brainpoolP256r1_AesGcm", EccBrainpoolP256r1AesGcm, BP256R1),
+    CROW("ECC_brainpoolP256r1_ChaChaPoly", EccBrainpoolP256r1ChaChaPoly, BP256R1),
+    CROW("ECC_brainpoolP384r1_AesGcm", EccBrainpoolP384r1AesGcm, BP384R1),
+    CROW("ECC_brainpoolP384r1_ChaChaPoly", EccBrainpoolP384r1ChaChaPoly, BP384R1),
+    CROW("ECC_curve25519_AesGcm", EccCurve25519AesGcm, ED25519),
+    CROW("ECC_curve25519_ChaChaPoly", EccCurve25519ChaChaPoly, ED25519),
+    CROW("ECC_curve448_AesGcm", EccCurve448AesGcm, ED448),
+    CROW("ECC_curve448_ChaChaPoly", EccCurve448ChaChaPoly, ED448)
+};
+
+static size_t
+countPolicy(const UA_SecurityPolicy *policies, size_t size, const char *uri,
+            const UA_ByteString *cert) {
+    UA_String u = UA_STRING((char *)(uintptr_t)uri);
+    size_t n = 0;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_String_equal(&policies[i].policyUri, &u) &&
+           (!cert || UA_ByteString_equal(&policies[i].localCertificate, cert)))
+            n++;
+    }
+    return n;
+}
+
+START_TEST(client_config_add_ecc_aead) {
+    UA_ByteString rsaCert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString rsaKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(cc));
+    ck_assert_uint_eq(UA_ClientConfig_setDefaultEncryption(&cc, rsaCert, rsaKey,
+                                                           NULL, 0, NULL, 0),
+                      UA_STATUSCODE_GOOD);
+    size_t baseSize = cc.securityPoliciesSize;
+
+    /* All twelve, each with the certificate of its curve */
+    for(size_t i = 0; i < sizeof(clientRows) / sizeof(clientRows[0]); i++) {
+        const ClientEccRow *r = &clientRows[i];
+        ck_assert_uint_eq(r->add(&cc, &r->cert, &r->key), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(cc.securityPoliciesSize, baseSize + i + 1);
+        ck_assert_uint_eq(countPolicy(cc.securityPolicies, cc.securityPoliciesSize,
+                                      r->uri, &r->cert), 1);
+        ck_assert_int_eq(cc.securityPolicies[baseSize + i].secureChannelEnhancements,
+                         true);
+    }
+
+    /* A certificate on another curve is refused and adds nothing */
+    ck_assert_uint_eq(UA_ClientConfig_addSecurityPolicyEccNistP384AesGcm(
+                          &cc, &clientRows[0].cert, &clientRows[0].key),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(UA_ClientConfig_addSecurityPolicyEccCurve448ChaChaPoly(
+                          &cc, &clientRows[8].cert, &clientRows[8].key),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(cc.securityPoliciesSize, baseSize + 12);
+
+    UA_ClientConfig_clear(&cc);
+}
+END_TEST
+
+/* setAuthenticationCert adds an instance with the user certificate for every
+ * configured ECC AEAD policy that the certificate fits */
+START_TEST(client_config_auth_ecc_aead) {
+    UA_ByteString cert256 = {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA};
+    UA_ByteString key256 = {KEY_P256_DER_LENGTH, KEY_P256_DER_DATA};
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(cc));
+    ck_assert_uint_eq(UA_ClientConfig_setDefaultEncryption(&cc, cert256, key256,
+                                                           NULL, 0, NULL, 0),
+                      UA_STATUSCODE_GOOD);
+    const ClientEccRow *p384 = &clientRows[2];  /* ECC_nistP384_AesGcm */
+    const ClientEccRow *bp384 = &clientRows[6]; /* ECC_brainpoolP384r1_AesGcm */
+    const ClientEccRow *x448 = &clientRows[11]; /* ECC_curve448_ChaChaPoly */
+    ck_assert_uint_eq(p384->add(&cc, &p384->cert, &p384->key), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bp384->add(&cc, &bp384->cert, &bp384->key), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(x448->add(&cc, &x448->cert, &x448->key), UA_STATUSCODE_GOOD);
+
+    /* A P-384 user certificate fits ECC_nistP384_AesGcm only */
+    ck_assert_uint_eq(UA_ClientConfig_setAuthenticationCert(&cc, p384->cert, p384->key),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(countPolicy(cc.authSecurityPolicies, cc.authSecurityPoliciesSize,
+                                  p384->uri, &p384->cert), 1);
+    ck_assert_uint_eq(countPolicy(cc.authSecurityPolicies, cc.authSecurityPoliciesSize,
+                                  bp384->uri, NULL), 0);
+    ck_assert_uint_eq(countPolicy(cc.authSecurityPolicies, cc.authSecurityPoliciesSize,
+                                  x448->uri, NULL), 0);
+
+    /* Calling it again replaces the instances, it does not duplicate them */
+    ck_assert_uint_eq(UA_ClientConfig_setAuthenticationCert(&cc, p384->cert, p384->key),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(countPolicy(cc.authSecurityPolicies, cc.authSecurityPoliciesSize,
+                                  p384->uri, NULL), 1);
+
+    UA_ClientConfig_clear(&cc);
+}
+END_TEST
 #endif /* UA_ENABLE_ENCRYPTION_OPENSSL */
 
 /* --- Test: the per-policy crypto constants are declared, not re-derived ---
@@ -516,6 +632,8 @@ static Suite* testSuite_ecc_config(void) {
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
     tcase_add_test(tc, config_add_ecc_wrong_curve);
     tcase_add_test(tc, config_add_ecc_aead);
+    tcase_add_test(tc, client_config_add_ecc_aead);
+    tcase_add_test(tc, client_config_auth_ecc_aead);
 #endif
     tcase_add_test(tc, ecc_policies_declare_their_crypto_constants);
 #endif /* UA_ENABLE_ENCRYPTION */
