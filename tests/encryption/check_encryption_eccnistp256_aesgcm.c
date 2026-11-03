@@ -16,6 +16,7 @@
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -51,21 +52,8 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
-static void setup(void) {
-    UA_atomic_store(&running, true);
-
-    UA_ByteString certificate;
-    certificate.length = CERT_P256_DER_LENGTH;
-    certificate.data = CERT_P256_DER_DATA;
-
-    UA_ByteString privateKey;
-    privateKey.length = KEY_P256_DER_LENGTH;
-    privateKey.data = KEY_P256_DER_DATA;
-
-    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
-                                                          NULL, 0, NULL, 0, NULL, 0);
-    ck_assert(server != NULL);
-
+/* Configure the test server and start its thread */
+static void startServer(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
@@ -95,6 +83,61 @@ static void setup(void) {
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
+
+static void setup(void) {
+    UA_atomic_store(&running, true);
+
+    UA_ByteString certificate;
+    certificate.length = CERT_P256_DER_LENGTH;
+    certificate.data = CERT_P256_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_P256_DER_LENGTH;
+    privateKey.data = KEY_P256_DER_DATA;
+
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          NULL, 0, NULL, 0, NULL, 0);
+    ck_assert(server != NULL);
+    startServer();
+}
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+/* The same policy behind the Filestore wrapper, which must forward the AEAD
+ * slots (IV length, per-message nonce and AAD) to the wrapped policy */
+static void setup_filestore(void) {
+    UA_atomic_store(&running, true);
+
+    UA_ByteString certificate;
+    certificate.length = CERT_P256_DER_LENGTH;
+    certificate.data = CERT_P256_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_P256_DER_LENGTH;
+    privateKey.data = KEY_P256_DER_DATA;
+
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_SecurityPolicy *inner = (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
+    ck_assert(inner != NULL);
+    UA_StatusCode res = UA_SecurityPolicy_EccNistP256AesGcm(inner, UA_APPLICATIONTYPE_SERVER,
+                                    certificate, privateKey, config->logging);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    char storePathDir[4096];
+    ck_assert(getcwd(storePathDir, sizeof(storePathDir)) != NULL);
+    res = UA_ServerConfig_addSecurityPolicy_Filestore(config, inner, UA_STRING(storePathDir));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_ServerConfig_addEndpoint(config, UA_STRING(AESGCM_URI),
+                                      UA_MESSAGESECURITYMODE_SIGN);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_ServerConfig_addEndpoint(config, UA_STRING(AESGCM_URI),
+                                      UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    startServer();
+}
+#endif
 
 static void teardown(void) {
     UA_atomic_store(&running, false);
@@ -501,6 +544,16 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc, aesgcm_renew_token_overlap);
 #endif
     suite_add_tcase(s, tc);
+
+#if defined(UA_ENABLE_ENCRYPTION) && (defined(__linux__) || defined(UA_ARCHITECTURE_WIN32))
+    TCase *tcFs = tcase_create("Encryption ECC_nistP256_AesGcm Filestore");
+    tcase_add_checked_fixture(tcFs, setup_filestore, teardown);
+    tcase_add_test(tcFs, aesgcm_connect_sign);
+    tcase_add_test(tcFs, aesgcm_connect_signandencrypt);
+    tcase_add_test(tcFs, aesgcm_connect_username);
+    tcase_add_test(tcFs, aesgcm_renew_multiple);
+    suite_add_tcase(s, tcFs);
+#endif
     return s;
 }
 

@@ -387,6 +387,14 @@ sym_getRemoteBlockSize_filestore(const UA_SecurityPolicy *sp,
     return isp->symEncryptionAlgorithm.getRemoteBlockSize(isp, channelContext);
 }
 
+static size_t
+sym_getLocalIvLength_filestore(const UA_SecurityPolicy *sp,
+                               const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symEncryptionAlgorithm.getLocalIvLength(isp, channelContext);
+}
+
 /*************************/
 /* Certificate Signature */
 /*************************/
@@ -506,6 +514,18 @@ setRemoteSymIv_filestore(const UA_SecurityPolicy *sp,
     Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
     UA_SecurityPolicy *isp = pc->innerPolicy;
     return isp->setRemoteSymIv(isp, channelContext, iv);
+}
+
+static UA_StatusCode
+setMessageSecurityParameters_filestore(const UA_SecurityPolicy *sp,
+                                       void *channelContext, UA_UInt32 tokenId,
+                                       UA_UInt32 previousSequenceNumber,
+                                       const UA_ByteString *additionalAuthData) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->setMessageSecurityParameters(isp, channelContext, tokenId,
+                                             previousSequenceNumber,
+                                             additionalAuthData);
 }
 
 static UA_StatusCode
@@ -676,6 +696,10 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     symEnc->getRemoteKeyLength = sym_getRemoteKeyLength_filestore;
     symEnc->getRemoteBlockSize = sym_getRemoteBlockSize_filestore;
     symEnc->getRemotePlainTextBlockSize = sym_getRemotePlainTextBlockSize_filestore;
+    /* Optional slots of the AEAD policies. Forwarded only if present, since the
+     * core tests them for NULL. */
+    if(isp->symEncryptionAlgorithm.getLocalIvLength)
+        symEnc->getLocalIvLength = sym_getLocalIvLength_filestore;
 
     /* Certificate Signing */
     UA_SecurityPolicySignatureAlgorithm *certSig = &sp->certSignatureAlgorithm;
@@ -696,6 +720,8 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     sp->setRemoteSymEncryptingKey = setRemoteSymEncryptingKey_filestore;
     sp->setRemoteSymSigningKey = setRemoteSymSigningKey_filestore;
     sp->setRemoteSymIv = setRemoteSymIv_filestore;
+    if(isp->setMessageSecurityParameters)
+        sp->setMessageSecurityParameters = setMessageSecurityParameters_filestore;
     sp->compareCertificate = compareCertificate_filestore;
     sp->generateKey = generateKey_filestore;
     sp->generateNonce = generateNonce_filestore;
