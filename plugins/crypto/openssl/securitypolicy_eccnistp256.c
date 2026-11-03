@@ -574,6 +574,9 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccNistP256_generateKey;
     sp->generateNonce = UA_Sym_EccNistP256_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP256_NONCE_LENGTH_BYTES;
+    sp->secretLength = 32;
+    sp->certThumbprintLength = 32;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP256;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP256;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccNistP256;

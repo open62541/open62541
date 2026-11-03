@@ -700,6 +700,12 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     sp->generateKey = generateKey_filestore;
     sp->generateNonce = generateNonce_filestore;
     sp->nonceLength = isp->nonceLength;
+    /* Forward the remaining scalar policy properties. Missing one here makes a
+     * wrapped policy silently misreport itself - e.g. an enhanced policy that
+     * loses secureChannelEnhancements would skip the IKM chaining. */
+    sp->secretLength = isp->secretLength;
+    sp->certThumbprintLength = isp->certThumbprintLength;
+    sp->secureChannelEnhancements = isp->secureChannelEnhancements;
     sp->makeCertThumbprint = makeThumbprint_filestore;
     sp->compareCertThumbprint = compareCertificateThumbprint_filestore;
     sp->updateCertificate = updateCertificate_filestore;

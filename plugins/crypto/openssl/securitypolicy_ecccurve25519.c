@@ -715,6 +715,9 @@ UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccCurve25519_generateKey;
     sp->generateNonce = UA_Sym_EccCurve25519_generateNonce;
     sp->nonceLength = UA_ECCCURVE25519_NONCE_LENGTH_BYTES;
+    sp->secretLength = 32;
+    sp->certThumbprintLength = 32;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccCurve25519;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccCurve25519;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccCurve25519;

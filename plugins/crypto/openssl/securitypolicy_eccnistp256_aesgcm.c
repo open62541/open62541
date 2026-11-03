@@ -787,6 +787,9 @@ UA_SecurityPolicy_EccNistP256AesGcm(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccNistP256AesGcm_generateKey;
     sp->generateNonce = UA_Sym_EccNistP256AesGcm_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP256_AESGCM_NONCE_LENGTH_BYTES;
+    sp->secretLength = 32;
+    sp->certThumbprintLength = 32;
+    sp->secureChannelEnhancements = true;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP256AesGcm;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP256AesGcm;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccNistP256AesGcm;

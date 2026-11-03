@@ -309,6 +309,10 @@ UA_mbedTLS_SecurityPolicy_Ecc(UA_SecurityPolicy *policy,
     policy->generateKey = eccGenerateKey;
     policy->generateNonce = eccGenerateNonce;
     policy->nonceLength = config->nonceLength;
+    /* The Weierstrass ephemeral key is X||Y, the shared secret one coordinate */
+    policy->secretLength = config->nonceLength / 2;
+    policy->certThumbprintLength = config->hashLength;
+    policy->secureChannelEnhancements = false;
     policy->makeCertThumbprint = UA_mbedTLS_makeCertificateThumbprint_generic;
     policy->compareCertThumbprint =
         UA_mbedTLS_compareCertificateThumbprint_generic;

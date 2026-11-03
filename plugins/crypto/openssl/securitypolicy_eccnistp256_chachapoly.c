@@ -787,6 +787,9 @@ UA_SecurityPolicy_EccNistP256ChaChaPoly(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccNistP256ChaChaPoly_generateKey;
     sp->generateNonce = UA_Sym_EccNistP256ChaChaPoly_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_NONCE_LENGTH_BYTES;
+    sp->secretLength = 32;
+    sp->certThumbprintLength = 32;
+    sp->secureChannelEnhancements = true;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP256ChaChaPoly;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP256ChaChaPoly;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccNistP256ChaChaPoly;

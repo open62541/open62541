@@ -705,6 +705,9 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccCurve448_generateKey;
     sp->generateNonce = UA_Sym_EccCurve448_generateNonce;
     sp->nonceLength = UA_ECCCURVE448_NONCE_LENGTH_BYTES;
+    sp->secretLength = 56;
+    sp->certThumbprintLength = 48;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccCurve448;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccCurve448;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccCurve448;

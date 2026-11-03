@@ -553,6 +553,9 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccBrainpoolP384r1_generateKey;
     sp->generateNonce = UA_Sym_EccBrainpoolP384r1_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCBRAINPOOLP384R1_NONCE_LENGTH_BYTES;
+    sp->secretLength = 48;
+    sp->certThumbprintLength = 48;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccBrainpoolP384r1;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccBrainpoolP384r1;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccBrainpoolP384r1;

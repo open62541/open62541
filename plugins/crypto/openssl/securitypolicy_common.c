@@ -230,14 +230,13 @@ policyUriContains(const UA_String *uri, const char *token) {
 }
 
 /* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
- * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
- * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
+ * leaf, DER) with the policy's CertificateThumbprintAlgorithm, SHA-256 or
+ * SHA-384 as declared by certThumbprintLength. Used to build the channel-bound
  * CreateSession / ActivateSession SignatureData.
  *
- * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
- * policy's CertificateThumbprintAlgorithm (SHA-1 by default) and is produced by
- * makeCertThumbprint / UA_Openssl_X509_GetCertificateThumbprint. The digest
- * here is selected from the policy URI's curve. */
+ * This is NOT the OPN-header Certificate thumbprint: that thumbprint is SHA-1
+ * (Part 6 Table 58) and is produced by makeCertThumbprint /
+ * UA_Openssl_X509_GetCertificateThumbprint. */
 UA_StatusCode
 UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
                                   const UA_ByteString *certificate,
@@ -245,19 +244,15 @@ UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
     if(policy == NULL || certificate == NULL || hash == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* Select the digest from the policy's elliptic curve, not a fixed
-     * algorithm. */
+    /* The digest is the one the policy declares */
     const EVP_MD *md;
-    size_t hashLen;
-    if(policyUriContains(&policy->policyUri, "P384")) {
+    size_t hashLen = policy->certThumbprintLength;
+    if(hashLen == 48)
         md = EVP_sha384();
-        hashLen = 48;
-    } else if(policyUriContains(&policy->policyUri, "P256")) {
+    else if(hashLen == 32)
         md = EVP_sha256();
-        hashLen = 32;
-    } else {
+    else
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-    }
 
     X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(x509 == NULL)
@@ -277,24 +272,9 @@ UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Backend-agnostic SecurityPolicy properties derived from the policy URI. Kept
- * out of the UA_SecurityPolicy struct (so its layout stays stable across the
- * 1.5 release family); see the #None fallback in ua_securitypolicy_none.c used
- * when no crypto backend is built. */
-
-/* True if the policy requires the OPC UA Part 6 v1.05.07
- * SecureChannelEnhancements behavior (the ECC_nistP256_* policies). */
-UA_Boolean
-UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
-    if(!policy)
-        return false;
-    static const UA_String eccNistP256AesGcm =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm");
-    static const UA_String eccNistP256ChaChaPoly =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly");
-    return UA_String_equal(&policy->policyUri, &eccNistP256AesGcm) ||
-           UA_String_equal(&policy->policyUri, &eccNistP256ChaChaPoly);
-}
+/* Backend-agnostic SecurityPolicy property derived from the policy URI; see the
+ * #None fallback in ua_securitypolicy_none.c used when no crypto backend is
+ * built. */
 
 /* In the OPC UA reference stack the SequenceNumber handling depends on a
  * SecurityPolicy property `LegacySequenceNumbers`: false for all ECC policies

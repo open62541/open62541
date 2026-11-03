@@ -537,6 +537,9 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccNistP384_generateKey;
     sp->generateNonce = UA_Sym_EccNistP384_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP384_NONCE_LENGTH_BYTES;
+    sp->secretLength = 48;
+    sp->certThumbprintLength = 48;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP384;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP384;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccNistP384;
