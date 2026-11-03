@@ -153,9 +153,7 @@ START_TEST(setSecurityPolicyWithoutOPN_enhancedPolicy_rejected) {
     UA_SecureChannel direct;
     UA_SecureChannel_init(&direct);
     UA_SecurityPolicy policy = *getNonePolicy();
-    const UA_String enhancedPolicyUri = UA_STRING_STATIC(
-        "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm");
-    policy.policyUri = enhancedPolicyUri;
+    policy.secureChannelEnhancements = true;
     ck_assert(UA_SecurityPolicy_isEnhancedSecurity(&policy));
     ck_assert_uint_eq(
         UA_SecureChannel_setSecurityPolicyWithoutOPN(
