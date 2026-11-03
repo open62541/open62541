@@ -64,13 +64,14 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
 
 /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining (enhanced
  * policies only). The IKM is XORed with the new shared secret on each renewal;
- * the accumulator is the curve's coordinate size (half the nonceLength, e.g. 32
- * bytes for P-256). It is carried through sp->generateKey without changing that
- * signature by prepending it to the `secret` ByteString: the backend's
- * DeriveKeys helper detects the prepend (key1 longer than the ephemeral public
- * key), XORs, and writes the chained IKM back into the slot. */
+ * the accumulator is the size of the shared secret the policy declares
+ * (secretLength, e.g. 32 bytes for P-256). It is carried through
+ * sp->generateKey without changing that signature by prepending it to the
+ * `secret` ByteString: the backend's DeriveKeys helper detects the prepend
+ * (key1 longer than the ephemeral public key), XORs, and writes the chained IKM
+ * back into the slot. */
 #define IKM_PREPEND_LENGTH(channel) \
-    ((channel)->enhancedSecurity ? ((channel)->securityPolicy->nonceLength / 2) : 0)
+    ((channel)->enhancedSecurity ? (channel)->securityPolicy->secretLength : 0)
 
 /* Allocate and fill the prepend buffer [currentIKM | nonce] when
  * chaining is active; otherwise point *outInput at the original

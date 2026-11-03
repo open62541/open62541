@@ -17,15 +17,9 @@
 #endif
 
 #ifndef UA_ENABLE_ENCRYPTION
-/* The URI-derived SecurityPolicy property helpers are normally provided by the
+/* The URI-derived SecurityPolicy property helper is normally provided by the
  * crypto backend's securitypolicy_common.c. With no crypto backend the only
- * SecurityPolicy is #None, so they reduce to constants. */
-UA_Boolean
-UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
-    (void)policy;
-    return false;
-}
-
+ * SecurityPolicy is #None, so it reduces to a constant. */
 UA_Boolean
 UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
     (void)policy;
