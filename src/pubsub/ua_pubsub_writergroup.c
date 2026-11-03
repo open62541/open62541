@@ -1010,6 +1010,19 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     nm.publisherIdType = connection->config.publisherIdType;
     nm.publisherId = connection->config.publisherId;
 
+    /* The JSON message settings select if the PublisherId is included. Without
+     * message settings it is included. */
+    const UA_ExtensionObject *ms = &wg->config.messageSettings;
+    if(ms->encoding == UA_EXTENSIONOBJECT_DECODED &&
+       ms->content.decoded.type == &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE] &&
+       ms->content.decoded.data) {
+        const UA_JsonWriterGroupMessageDataType *settings =
+            (const UA_JsonWriterGroupMessageDataType*)ms->content.decoded.data;
+        nm.publisherIdEnabled =
+            ((UA_UInt32)settings->networkMessageContentMask &
+             (UA_UInt32)UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
+    }
+
     /* Compute the message length */
     size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);
 

@@ -25,6 +25,28 @@ static void stopHandler(int sig) {
     running = false;
 }
 
+/* Clients that use the address space to discover how to decode a DataType look
+ * for its DefaultBinary encoding. Add the DataTypeEncoding Object with the
+ * binaryEncodingId from the datatype description and link it with HasEncoding. */
+static void
+addBinaryEncoding(UA_Server *server, const UA_DataType *type) {
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("", "Default Binary");
+    UA_StatusCode res =
+        UA_Server_addObjectNode(server, type->binaryEncodingId, UA_NODEID_NULL,
+                                UA_NODEID_NULL, UA_QUALIFIEDNAME(0, "Default Binary"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_DATATYPEENCODINGTYPE),
+                                attr, NULL, NULL);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_addReference(server, type->typeId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASENCODING),
+                                     UA_EXPANDEDNODEID_NODEID(type->binaryEncodingId), true);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Could not add the encoding of the datatype %s: %s",
+                     type->typeName, UA_StatusCode_name(res));
+}
+
 static void add3DPointDataType(UA_Server* server)
 {
     UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
@@ -33,6 +55,7 @@ static void add3DPointDataType(UA_Server* server)
     UA_Server_addDataTypeNode(
         server, PointType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "3D.Point"), attr, NULL, NULL);
+    addBinaryEncoding(server, &PointType);
 }
 
 static void
@@ -86,6 +109,7 @@ static void addMeasurementSeriesDataType(UA_Server* server)
     UA_Server_addDataTypeNode(
         server, MeasurementType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "Measurement Series"), attr, NULL, NULL);
+    addBinaryEncoding(server, &MeasurementType);
 }
 
 static void
@@ -145,6 +169,7 @@ static void addOptStructDataType(UA_Server* server)
     UA_Server_addDataTypeNode(
         server, OptType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "OptStruct Example"), attr, NULL, NULL);
+    addBinaryEncoding(server, &OptType);
 }
 
 static void
@@ -199,6 +224,7 @@ static void addUnionExampleDataType(UA_Server* server)
     UA_Server_addDataTypeNode(
         server, UniType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_UNION),
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "Union Example"), attr, NULL, NULL);
+    addBinaryEncoding(server, &UniType);
 }
 
 static void

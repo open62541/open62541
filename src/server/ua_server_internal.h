@@ -685,6 +685,12 @@ void
 Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
+/* Browse and collect the references of all pages, even if the server limits the
+ * number of references per node. No continuation point is left behind. */
+void
+Operation_BrowseAll(UA_Server *server, UA_Session *session,
+                    const UA_BrowseDescription *descr, UA_BrowseResult *result);
+
 /* External data either from a datasource callback or with a _beforeRead
  * callback where fresh values get switched in on demand. Variables with an
  * external data source require monitoring with a sampling interval. As we

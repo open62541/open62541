@@ -787,8 +787,22 @@ __Client_AsyncService(UA_Client *client, const void *request,
 
     /* Is the SecureChannel connected? */
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
+        /* Log the request and the endpoint to be able to identify the client
+         * (the application can have several) and the caller */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "SecureChannel must be connected to send request");
+                     "SecureChannel must be connected to send request "
+                     "(request type %s, endpoint \"%.*s\")", requestType->typeName,
+                     (int)client->config.endpointUrl.length,
+                     (const char*)client->config.endpointUrl.data);
+#else
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "SecureChannel must be connected to send request "
+                     "(request type %" PRIu32 ", endpoint \"%.*s\")",
+                     requestType->binaryEncodingId.identifier.numeric,
+                     (int)client->config.endpointUrl.length,
+                     (const char*)client->config.endpointUrl.data);
+#endif
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
 
