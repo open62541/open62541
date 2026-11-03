@@ -1115,6 +1115,18 @@ UA_OpenSSL_writePrivateKeyDer(EVP_PKEY *key, UA_ByteString *outPrivateKey) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* The digest to sign a CSR with. PureEdDSA hashes the message itself and takes
+ * no digest. */
+static const EVP_MD *
+csrDigest(EVP_PKEY *key) {
+#if !defined(LIBRESSL_VERSION_NUMBER)
+    int keyType = EVP_PKEY_base_id(key);
+    if(keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_ED448)
+        return NULL;
+#endif
+    return EVP_sha256();
+}
+
 UA_StatusCode
 UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                                 EVP_PKEY **csrLocalPrivateKey,
@@ -1268,6 +1280,18 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                 goto cleanup;
             }
 #endif
+#if !defined(LIBRESSL_VERSION_NUMBER)
+        } else if(keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_ED448) {
+            /* Generate a new EdDSA key of the same type as the local key */
+            EVP_PKEY_CTX *kctx = EVP_PKEY_CTX_new_id(keyType, NULL);
+            if(!kctx || EVP_PKEY_keygen_init(kctx) != 1 ||
+               EVP_PKEY_keygen(kctx, csrLocalPrivateKey) != 1) {
+                EVP_PKEY_CTX_free(kctx);
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+            EVP_PKEY_CTX_free(kctx);
+#endif
         } else {
             /* Generate a new RSA key */
             size_t keySize = 0;
@@ -1333,7 +1357,8 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             goto cleanup;
         }
 
-        if(!X509_REQ_sign(request, *csrLocalPrivateKey, EVP_sha256())) {
+        if(!X509_REQ_sign(request, *csrLocalPrivateKey,
+                          csrDigest(*csrLocalPrivateKey))) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             EVP_PKEY_free(*csrLocalPrivateKey);
             goto cleanup;
@@ -1350,7 +1375,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             EVP_PKEY_free(pubkey);
             goto cleanup;
         }
-        if(!X509_REQ_sign(request, localPrivateKey, EVP_sha256())) {
+        if(!X509_REQ_sign(request, localPrivateKey, csrDigest(localPrivateKey))) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             EVP_PKEY_free(pubkey);
             goto cleanup;
