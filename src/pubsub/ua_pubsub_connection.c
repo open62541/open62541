@@ -262,7 +262,11 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
         c->dc.callback = delayedPubSubConnection_delete;
         c->dc.application = server;
         c->dc.context = c;
+        if(el != server->config.eventLoop)
+            unlockServer(server); /* Unlock to avoid deadlocks between different EventLoops */
         el->addDelayedCallback(el, &c->dc);
+        if(el != server->config.eventLoop)
+            lockServer(server);
         return;
     }
 
