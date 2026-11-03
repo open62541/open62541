@@ -52,21 +52,8 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
-static void setup(void) {
-    UA_atomic_store(&running, true);
-
-    UA_ByteString certificate;
-    certificate.length = CERT_P256_DER_LENGTH;
-    certificate.data = CERT_P256_DER_DATA;
-
-    UA_ByteString privateKey;
-    privateKey.length = KEY_P256_DER_LENGTH;
-    privateKey.data = KEY_P256_DER_DATA;
-
-    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
-                                                          NULL, 0, NULL, 0, NULL, 0);
-    ck_assert(server != NULL);
-
+/* Configure the test server and start its thread */
+static void startServer(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
@@ -97,11 +84,7 @@ static void setup(void) {
     THREAD_CREATE(server_thread, serverloop);
 }
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
-/* Server whose ECC_nistP256_ChaChaPoly policy is wrapped by the Filestore
- * SecurityPolicy (UA_SecurityPolicy_Filestore). The default filestore config
- * does not contain ChaChaPoly, so the wrapped policy is added explicitly. */
-static void setupFilestore(void) {
+static void setup(void) {
     UA_atomic_store(&running, true);
 
     UA_ByteString certificate;
@@ -112,40 +95,49 @@ static void setupFilestore(void) {
     privateKey.length = KEY_P256_DER_LENGTH;
     privateKey.data = KEY_P256_DER_DATA;
 
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          NULL, 0, NULL, 0, NULL, 0);
+    ck_assert(server != NULL);
+    startServer();
+}
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+/* The same policy behind the Filestore wrapper, which must forward the AEAD
+ * slots (IV length, per-message nonce and AAD) to the wrapped policy */
+static void setup_filestore(void) {
+    UA_atomic_store(&running, true);
+
+    UA_ByteString certificate;
+    certificate.length = CERT_P256_DER_LENGTH;
+    certificate.data = CERT_P256_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_P256_DER_LENGTH;
+    privateKey.data = KEY_P256_DER_DATA;
+
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_SecurityPolicy *inner = (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
+    ck_assert(inner != NULL);
+    UA_StatusCode res = UA_SecurityPolicy_EccNistP256ChaChaPoly(inner, UA_APPLICATIONTYPE_SERVER,
+                                    certificate, privateKey, config->logging);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
     char storePathDir[4096];
     ck_assert(getcwd(storePathDir, sizeof(storePathDir)) != NULL);
-    UA_String storePath = UA_STRING(storePathDir);
-    server = UA_Server_newForUnitTestWithSecurityPolicies_Filestore(
-        4840, &certificate, &privateKey, storePath);
-    ck_assert(server != NULL);
-
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
-    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
-
-    /* The Filestore wrapper takes ownership of the heap-allocated inner policy */
-    UA_SecurityPolicy *innerPolicy = (UA_SecurityPolicy *)
-        UA_calloc(1, sizeof(UA_SecurityPolicy));
-    ck_assert(innerPolicy != NULL);
-    UA_StatusCode res =
-        UA_SecurityPolicy_EccNistP256ChaChaPoly(innerPolicy, UA_APPLICATIONTYPE_SERVER,
-                                                certificate, privateKey,
-                                                config->logging);
+    res = UA_ServerConfig_addSecurityPolicy_Filestore(config, inner, UA_STRING(storePathDir));
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    res = UA_ServerConfig_addSecurityPolicy_Filestore(config, innerPolicy, storePath);
+    res = UA_ServerConfig_addEndpoint(config, UA_STRING(CHACHAPOLY_URI),
+                                      UA_MESSAGESECURITYMODE_SIGN);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     res = UA_ServerConfig_addEndpoint(config, UA_STRING(CHACHAPOLY_URI),
                                       UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-
-    UA_String_clear(&config->applicationDescription.applicationUri);
-    config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
-
-    UA_Server_run_startup(server);
-    THREAD_CREATE(server_thread, serverloop);
+    startServer();
 }
-#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+#endif
 
 static void teardown(void) {
     UA_atomic_store(&running, false);
@@ -578,14 +570,16 @@ static Suite* testSuite_encryption(void) {
 #endif
     suite_add_tcase(s, tc);
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
-    TCase *tc_filestore = tcase_create("Encryption ECC_nistP256_ChaChaPoly filestore");
-    tcase_add_checked_fixture(tc_filestore, setupFilestore, teardown);
-#ifdef UA_ENABLE_ENCRYPTION
-    tcase_add_test(tc_filestore, chachapoly_connect_signandencrypt_filestore);
+#if defined(UA_ENABLE_ENCRYPTION) && (defined(__linux__) || defined(UA_ARCHITECTURE_WIN32))
+    TCase *tcFs = tcase_create("Encryption ECC_nistP256_ChaChaPoly Filestore");
+    tcase_add_checked_fixture(tcFs, setup_filestore, teardown);
+    tcase_add_test(tcFs, chachapoly_connect_sign);
+    tcase_add_test(tcFs, chachapoly_connect_signandencrypt);
+    tcase_add_test(tcFs, chachapoly_connect_username);
+    tcase_add_test(tcFs, chachapoly_renew_multiple);
+    tcase_add_test(tcFs, chachapoly_connect_signandencrypt_filestore);
+    suite_add_tcase(s, tcFs);
 #endif
-    suite_add_tcase(s, tc_filestore);
-#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
     return s;
 }
 
