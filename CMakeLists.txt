@@ -1869,12 +1869,6 @@ foreach(lib ${open62541_PUBLIC_LIBRARIES})
     set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
 endforeach()
 
-if(BUILD_SHARED_LIBS)
-    foreach(lib ${open62541_LIBRARIES})
-        set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
-    endforeach()
-endif()
-
 if(UA_ENABLE_AMALGAMATION)
     set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
 endif()
