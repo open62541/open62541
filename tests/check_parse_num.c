@@ -43,6 +43,15 @@ START_TEST(parseUint64Overflow) {
     ck_assert_uint_eq(len, 0); /* overflow → return 0 */
 } END_TEST
 
+START_TEST(parseUint64OverflowAboveLastValue) {
+    uint64_t result = 0;
+    /* 2^61 * 10 wraps around to 2^62, which is still larger than the value
+     * before the last digit (2^61) */
+    const char *str = "23058430092136939520";
+    size_t len = parseUInt64(str, strlen(str), &result);
+    ck_assert_uint_eq(len, 0); /* overflow → return 0 */
+} END_TEST
+
 START_TEST(parseUint64Hex) {
     uint64_t result = 0;
     size_t len = parseUInt64("0xFF", 4, &result);
@@ -78,6 +87,15 @@ START_TEST(parseUint64HexLarge) {
     size_t len = parseUInt64(str, strlen(str), &result);
     ck_assert_uint_eq(len, 18);
     ck_assert_uint_eq(result, UINT64_MAX);
+} END_TEST
+
+START_TEST(parseUint64HexOverflow) {
+    uint64_t result = 0;
+    /* 65 bits. Shifting 0x1800000000000000 by four drops the top bit and
+     * leaves 0x8000000000000000, which is larger than the value before. */
+    const char *str = "0x18000000000000000";
+    size_t len = parseUInt64(str, strlen(str), &result);
+    ck_assert_uint_eq(len, 0); /* overflow → return 0 */
 } END_TEST
 
 START_TEST(parseUint64PartialConsumption) {
@@ -170,6 +188,14 @@ START_TEST(parseInt64OverflowNegative) {
     ck_assert_uint_eq(len, 0); /* overflow → return 0 */
 } END_TEST
 
+START_TEST(parseInt64OverflowWrapped) {
+    int64_t result = 0;
+    /* The absolute value wraps around to 2^62 in parseUInt64 */
+    const char *str = "-23058430092136939520";
+    size_t len = parseInt64(str, strlen(str), &result);
+    ck_assert_uint_eq(len, 0); /* overflow → return 0 */
+} END_TEST
+
 /* parseDouble tests */
 
 START_TEST(parseDoubleSimple) {
@@ -234,11 +260,13 @@ static Suite *testSuite_parse_num(void) {
     tcase_add_test(tc_uint, parseUint64Simple);
     tcase_add_test(tc_uint, parseUint64Max);
     tcase_add_test(tc_uint, parseUint64Overflow);
+    tcase_add_test(tc_uint, parseUint64OverflowAboveLastValue);
     tcase_add_test(tc_uint, parseUint64Hex);
     tcase_add_test(tc_uint, parseUint64HexLower);
     tcase_add_test(tc_uint, parseUint64HexZero);
     tcase_add_test(tc_uint, parseUint64HexNoDigit);
     tcase_add_test(tc_uint, parseUint64HexLarge);
+    tcase_add_test(tc_uint, parseUint64HexOverflow);
     tcase_add_test(tc_uint, parseUint64PartialConsumption);
     tcase_add_test(tc_uint, parseUint64EmptyString);
     tcase_add_test(tc_uint, parseUint64NonNumeric);
@@ -253,6 +281,7 @@ static Suite *testSuite_parse_num(void) {
     tcase_add_test(tc_int, parseInt64Min);
     tcase_add_test(tc_int, parseInt64OverflowPositive);
     tcase_add_test(tc_int, parseInt64OverflowNegative);
+    tcase_add_test(tc_int, parseInt64OverflowWrapped);
 
     TCase *tc_double = tcase_create("parseDouble");
     tcase_add_test(tc_double, parseDoubleSimple);
