@@ -21,6 +21,7 @@
 #include <mbedtls/oid.h>
 #include <mbedtls/asn1write.h>
 #include <mbedtls/platform.h>
+#include <mbedtls/platform_time.h>
 #include <mbedtls/platform_util.h>
 #include <mbedtls/psa_util.h>
 
@@ -390,8 +391,10 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    /* Use the open62541 UTC conversion. Unlike gmtime, this is reentrant. */
-    UA_DateTime currentTime = UA_DateTime_now();
+    /* Use the verifier's clock. On Linux, time() can briefly lag behind
+     * gettimeofday() at a second boundary, making a new certificate appear
+     * not yet valid. Keep the reentrant open62541 UTC conversion. */
+    UA_DateTime currentTime = UA_DateTime_fromUnixTime((UA_Int64)mbedtls_time(NULL));
     UA_DateTime futureTime = currentTime +
         (UA_DateTime)expiresInDays * 24 * 60 * 60 * UA_DATETIME_SEC;
     char current_timestamp[15]; /* YYYYMMDDhhmmss + '\0' */
