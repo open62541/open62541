@@ -3,6 +3,34 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### All twelve ECC AEAD SecurityPolicies of OPC UA Part 7
+
+The OpenSSL backend now implements the ten ECC AEAD SecurityPolicies that were
+missing besides `ECC_nistP256_AesGcm` and `ECC_nistP256_ChaChaPoly`:
+`ECC_nistP384`, `ECC_brainpoolP256r1`, `ECC_brainpoolP384r1`, `ECC_curve25519`
+and `ECC_curve448`, each with `_AesGcm` and `_ChaChaPoly`. They have
+constructors `UA_SecurityPolicy_Ecc<Curve><Aead>` and server config helpers
+`UA_ServerConfig_addSecurityPolicyEcc<Curve><Aead>`, and for all twelve the
+client helpers `UA_ClientConfig_addSecurityPolicyEcc<Curve><Aead>`. They are
+not part of the default policy set, since a certificate is valid for one curve
+only. `UA_ClientConfig_setAuthenticationCert` also creates an instance with the
+user certificate for every ECC AEAD policy the client has configured.
+The certificate must be on the curve of the policy (Ed25519/Ed448 for the
+curve25519/curve448 policies); otherwise the constructor returns
+`BadCertificateInvalid`. The deprecated `ECC_curve25519` and `ECC_curve448`
+policies are now marked as such.
+
+### SecurityPolicies declare their key-agreement properties
+
+`UA_SecurityPolicy` has three new members: `secretLength` (the key-agreement
+shared secret, also the width of the v1.05.07 IKM accumulator),
+`certThumbprintLength` (the digest of the channel-bound SignatureData) and
+`secureChannelEnhancements`. Before, the core derived these from the policy URI
+and `nonceLength`, which does not hold for X25519/X448. Custom SecurityPolicies
+must set them; zero/false means "not applicable".
+`UA_SecurityPolicy_isEnhancedSecurity` is now an inline function over the new
+member and no longer an exported symbol.
+
 ### Own memory functions on Zephyr
 
 With `CONFIG_OPEN62541_MALLOC_EXTERN`, `UA_malloc`, `UA_calloc`, `UA_realloc`

@@ -64,13 +64,14 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
 
 /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining (enhanced
  * policies only). The IKM is XORed with the new shared secret on each renewal;
- * the accumulator is the curve's coordinate size (half the nonceLength, e.g. 32
- * bytes for P-256). It is carried through sp->generateKey without changing that
- * signature by prepending it to the `secret` ByteString: the backend's
- * DeriveKeys helper detects the prepend (key1 longer than the ephemeral public
- * key), XORs, and writes the chained IKM back into the slot. */
+ * the accumulator is the size of the shared secret the policy declares
+ * (secretLength, e.g. 32 bytes for P-256). It is carried through
+ * sp->generateKey without changing that signature by prepending it to the
+ * `secret` ByteString: the backend's DeriveKeys helper detects the prepend
+ * (key1 longer than the ephemeral public key), XORs, and writes the chained IKM
+ * back into the slot. */
 #define IKM_PREPEND_LENGTH(channel) \
-    ((channel)->enhancedSecurity ? ((channel)->securityPolicy->nonceLength / 2) : 0)
+    ((channel)->enhancedSecurity ? (channel)->securityPolicy->secretLength : 0)
 
 /* Allocate and fill the prepend buffer [currentIKM | nonce] when
  * chaining is active; otherwise point *outInput at the original
@@ -97,17 +98,31 @@ prepareKeyInput(UA_SecureChannel *channel, const UA_ByteString *nonce,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Pull the (possibly updated) IKM from the prepend slot and store
- * it as channel->currentIKM. Called only by the local-keys pass;
- * the remote-keys pass leaves the accumulator untouched. */
+/* Park the updated IKM from the prepend slot in channel->nextIKM. Called by the
+ * local-keys pass, which is the one derivation every peer performs exactly once
+ * per OPN generation. It must not land in currentIKM directly: the remote-keys
+ * pass of the same generation still has to derive against IKM_n-1. */
 static UA_StatusCode
 captureIKMSlot(UA_SecureChannel *channel, const UA_ByteString *combined) {
     size_t ikmLen = IKM_PREPEND_LENGTH(channel);
     if(ikmLen == 0)
         return UA_STATUSCODE_GOOD;
-    UA_ByteString_clear(&channel->currentIKM);
+    UA_ByteString_clear(&channel->nextIKM);
     UA_ByteString ikmSlot = {ikmLen, combined->data};
-    return UA_ByteString_copy(&ikmSlot, &channel->currentIKM);
+    return UA_ByteString_copy(&ikmSlot, &channel->nextIKM);
+}
+
+/* Move IKM_n into place as the accumulator of the generation that starts now.
+ * Called at the top of the local-keys pass, so both passes of a generation see
+ * the same value and each generation advances exactly once, whether or not the
+ * peer ever sent anything under the previous token. */
+static void
+promoteIKM(UA_SecureChannel *channel) {
+    if(channel->nextIKM.length == 0)
+        return;
+    UA_ByteString_clear(&channel->currentIKM);
+    channel->currentIKM = channel->nextIKM;
+    UA_ByteString_init(&channel->nextIKM);
 }
 
 /* OPC UA Part 6, 6.8.1 Step 1: "When not using AuthenticatedEncryption with
@@ -125,14 +140,24 @@ derivedKeyMaterialLength(const UA_SecureChannel *channel, size_t signKL,
     return totalLength;
 }
 
-UA_StatusCode
-UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
+/* The local-keys pass of an OPN generation. With install = false, only the IKM
+ * accumulator advances and the derived keys are discarded. */
+static UA_StatusCode
+deriveLocalKeys(UA_SecureChannel *channel, UA_Boolean install) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local keys");
+    if(install)
+        UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local keys");
+    else
+        UA_LOG_DEBUG_CHANNEL(sp->logger, channel,
+                             "Advancing the IKM of a skipped SecurityToken");
 
     void *cc = channel->channelContext;
     const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
+
+    /* This pass opens a new OPN generation: the IKM computed by the previous
+     * one becomes the accumulator both passes of this one derive against. */
+    promoteIKM(channel);
 
     /* Generate symmetric key buffer of the required length. The block size is
      * identical for local/remote. For AEAD ciphers the IV length differs from
@@ -169,18 +194,21 @@ UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
     /* Generate key. The policy's wrapper detects the prepend (via the
      * length mismatch in key1 vs the local ephemeral public key) and
      * performs the IKM chaining, deriving against the *previous*
-     * accumulator (channel->currentIKM). The new accumulator is NOT
-     * promoted here: the local- and remote-keys passes of one OPN must
-     * both derive against the same previous accumulator, so the
-     * advance to IKM_n happens exactly once, in generateRemoteKeys
-     * (the last of the two passes). */
+     * accumulator (channel->currentIKM). */
     res = sp->generateKey(sp, cc, &secretInput, &seedInput, &derived);
     UA_CHECK_STATUS(res, goto error);
 
+    /* Park the new accumulator. The remote-keys pass of this generation still
+     * derives against the old one, so it is not promoted before the next OPN. */
+    res = captureIKMSlot(channel, &secretCombined);
+    UA_CHECK_STATUS(res, goto error);
+
     /* Set the channel context */
-    res |= sp->setLocalSymSigningKey(sp, cc, &localSigningKey);
-    res |= sp->setLocalSymEncryptingKey(sp, cc, &localEncryptingKey);
-    res |= sp->setLocalSymIv(sp, cc, &localIv);
+    if(install) {
+        res |= sp->setLocalSymSigningKey(sp, cc, &localSigningKey);
+        res |= sp->setLocalSymEncryptingKey(sp, cc, &localEncryptingKey);
+        res |= sp->setLocalSymIv(sp, cc, &localIv);
+    }
 
  error:
     if(res != UA_STATUSCODE_GOOD) {
@@ -191,6 +219,18 @@ UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
     UA_ByteString_clear(&buf);
     UA_ByteString_clear(&secretCombined);
     return res;
+}
+
+UA_StatusCode
+UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
+    return deriveLocalKeys(channel, true);
+}
+
+UA_StatusCode
+UA_SecureChannel_advanceIKM(UA_SecureChannel *channel) {
+    if(IKM_PREPEND_LENGTH(channel) == 0)
+        return UA_STATUSCODE_GOOD;
+    return deriveLocalKeys(channel, false);
 }
 
 UA_StatusCode
@@ -224,10 +264,11 @@ generateRemoteKeys(UA_SecureChannel *channel) {
 
     /* Build the IKM-prefixed `secret` input. Both the local- and
      * remote-keys passes of one OPN derive against the *same* previous
-     * accumulator (channel->currentIKM); generateLocalKeys deliberately
-     * did not advance it. The `seed` arg is passed unchanged — the
-     * helper uses it as the alternate ephemeral public key candidate
-     * and as part of the salt, so the prepend must not appear there. */
+     * accumulator (channel->currentIKM); generateLocalKeys parked the
+     * advanced one in channel->nextIKM. The `seed` arg is passed
+     * unchanged — the helper uses it as the alternate ephemeral public
+     * key candidate and as part of the salt, so the prepend must not
+     * appear there. */
     UA_ByteString secretInput, seedInput = channel->remoteNonce;
     UA_ByteString secretCombined = UA_BYTESTRING_NULL;
     res = prepareKeyInput(channel, &channel->localNonce,
@@ -235,21 +276,10 @@ generateRemoteKeys(UA_SecureChannel *channel) {
     UA_CHECK_STATUS(res, goto error);
 
     /* Generate key. The policy's wrapper XORs the previous accumulator
-     * with the new shared secret and writes the result (IKM_n) back
-     * into secretCombined. */
+     * with the new shared secret. No capture here: the accumulator was
+     * already advanced by the local-keys pass of this generation. */
     res = sp->generateKey(sp, cc, &secretInput, &seedInput, &derived);
     UA_CHECK_STATUS(res, goto error);
-
-    /* This is the last derivation of the OPN: promote the just-updated
-     * IKM slot into channel->currentIKM so the next renewal chains from
-     * IKM_n. (On the first OPN currentIKM was empty, so IKM_0 == the raw
-     * shared secret for both passes — matching the spec's "no chaining
-     * on the first OpenSecureChannel".) */
-    res = captureIKMSlot(channel, &secretCombined);
-    if(res != UA_STATUSCODE_GOOD) {
-        res = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto error;
-    }
 
     /* Set the channel context */
     res |= sp->setRemoteSymSigningKey(sp, cc, &remoteSigningKey);

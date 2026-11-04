@@ -334,6 +334,29 @@ struct UA_SecurityPolicy {
     /* The length of the nonce used in the SecureChannel */
     size_t nonceLength;
 
+    /* The length of the key-agreement shared secret (ECDH / XDH). This is also
+     * the width of the OPC UA Part 6 v1.05.07 IKM accumulator that enhanced
+     * policies chain across renewals. Zero for policies without key agreement.
+     *
+     * It is not derivable from nonceLength: for the Weierstrass curves the
+     * nonce is the ephemeral public key X||Y, i.e. twice the secret, but for
+     * X25519/X448 the nonce is the whole raw public key and equals the secret.
+     * Each policy therefore states it explicitly. */
+    size_t secretLength;
+
+    /* The length of the certificate thumbprint that goes into the
+     * channel-bound SignatureData of the enhanced policies: 32 for SHA-256, 48
+     * for SHA-384 (OPC UA Part 6, CertificateThumbprintAlgorithm). Zero if the
+     * policy has no certificate thumbprint algorithm. */
+    size_t certThumbprintLength;
+
+    /* True if the policy uses the OPC UA Part 6 v1.05.07
+     * SecureChannelEnhancements: the ChannelThumbprint in the OpenSecureChannel
+     * response signature, IKM chaining on renewal, channel-bound
+     * CreateSession/ActivateSession signatures, and an empty algorithm field in
+     * SignatureData. */
+    UA_Boolean secureChannelEnhancements;
+
     /* Generates a thumbprint for the specified certificate.
      *
      * @param policy The policy that generates the thumbprint.
@@ -394,11 +417,12 @@ struct UA_SecurityPolicy {
 /* True if the SecurityPolicy requires the OPC UA Part 6 v1.05.07
  * SecureChannelEnhancements behavior (see the conformance unit "Security
  * SecureChannelEnhancements True"). The changed behavior is implemented in the
- * core library, not in the SecurityPolicy itself. Detected from the policy URI
- * so it does not depend on a struct member - this keeps the SecurityPolicy
- * layout stable across the 1.5 release family. */
-UA_EXPORT UA_Boolean
-UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy);
+ * core library, not in the SecurityPolicy itself; the policy only declares
+ * that it applies. NULL-safe so call sites can pass an unset policy. */
+static UA_INLINE UA_Boolean
+UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
+    return policy != NULL && policy->secureChannelEnhancements;
+}
 
 /* True if the SecurityPolicy uses the legacy SequenceNumber handling (the OPC
  * UA reference stack's LegacySequenceNumbers = true): the channel SequenceNumber
@@ -412,16 +436,15 @@ UA_EXPORT UA_Boolean
 UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy);
 
 /* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
- * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
- * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
+ * leaf, DER) with the policy's CertificateThumbprintAlgorithm - SHA-256 or
+ * SHA-384, as declared by certThumbprintLength. Used to build the channel-bound
  * CreateSession / ActivateSession SignatureData.
  *
- * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
- * SecurityPolicy's CertificateThumbprintAlgorithm (SHA-1 by default) and is
- * produced by makeCertThumbprint. The digest here is selected from the policy
- * URI's curve; the implementation is provided by the crypto backend.
+ * This is NOT the OPN-header Certificate thumbprint: that thumbprint is SHA-1
+ * (Part 6 Table 58) and is produced by makeCertThumbprint. The implementation
+ * is provided by the crypto backend.
  *
- * @param policy The policy whose curve selects the hash algorithm.
+ * @param policy The policy whose certThumbprintLength selects the hash.
  * @param certificate The certificate to hash (DER; leaf is used).
  * @param hash Output buffer; allocated by the callee. */
 UA_EXPORT UA_StatusCode

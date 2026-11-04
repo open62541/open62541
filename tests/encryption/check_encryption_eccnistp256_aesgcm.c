@@ -16,6 +16,7 @@
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -51,21 +52,8 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
-static void setup(void) {
-    UA_atomic_store(&running, true);
-
-    UA_ByteString certificate;
-    certificate.length = CERT_P256_DER_LENGTH;
-    certificate.data = CERT_P256_DER_DATA;
-
-    UA_ByteString privateKey;
-    privateKey.length = KEY_P256_DER_LENGTH;
-    privateKey.data = KEY_P256_DER_DATA;
-
-    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
-                                                          NULL, 0, NULL, 0, NULL, 0);
-    ck_assert(server != NULL);
-
+/* Configure the test server and start its thread */
+static void startServer(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
@@ -95,6 +83,61 @@ static void setup(void) {
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
+
+static void setup(void) {
+    UA_atomic_store(&running, true);
+
+    UA_ByteString certificate;
+    certificate.length = CERT_P256_DER_LENGTH;
+    certificate.data = CERT_P256_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_P256_DER_LENGTH;
+    privateKey.data = KEY_P256_DER_DATA;
+
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          NULL, 0, NULL, 0, NULL, 0);
+    ck_assert(server != NULL);
+    startServer();
+}
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+/* The same policy behind the Filestore wrapper, which must forward the AEAD
+ * slots (IV length, per-message nonce and AAD) to the wrapped policy */
+static void setup_filestore(void) {
+    UA_atomic_store(&running, true);
+
+    UA_ByteString certificate;
+    certificate.length = CERT_P256_DER_LENGTH;
+    certificate.data = CERT_P256_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_P256_DER_LENGTH;
+    privateKey.data = KEY_P256_DER_DATA;
+
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_SecurityPolicy *inner = (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
+    ck_assert(inner != NULL);
+    UA_StatusCode res = UA_SecurityPolicy_EccNistP256AesGcm(inner, UA_APPLICATIONTYPE_SERVER,
+                                    certificate, privateKey, config->logging);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    char storePathDir[4096];
+    ck_assert(getcwd(storePathDir, sizeof(storePathDir)) != NULL);
+    res = UA_ServerConfig_addSecurityPolicy_Filestore(config, inner, UA_STRING(storePathDir));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_ServerConfig_addEndpoint(config, UA_STRING(AESGCM_URI),
+                                      UA_MESSAGESECURITYMODE_SIGN);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_ServerConfig_addEndpoint(config, UA_STRING(AESGCM_URI),
+                                      UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    startServer();
+}
+#endif
 
 static void teardown(void) {
     UA_atomic_store(&running, false);
@@ -329,6 +372,88 @@ START_TEST(aesgcm_renew_multiple) {
 }
 END_TEST
 
+/* Two renewals back to back, with no symmetric message in between. The client
+ * derives its remote keys only once the server sends with the new token (Part 4
+ * 5.5.2), so here it derives the local keys of both renewals without the remote
+ * keys of the first. Both peers must still advance the IKM accumulator once per
+ * renewal, or the keys of the second renewal differ and the next message fails
+ * with BadSecurityChecksFailed. aesgcm_renew_multiple reads after every
+ * renewal, which drives the client's remote-keys pass and hides the ordering. */
+START_TEST(aesgcm_renew_twice_without_traffic) {
+    UA_Client *client = createAesGcmClient(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    ck_assert(client != NULL);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_UInt32 channelId = client->channel.securityToken.channelId;
+
+    pauseServer();
+    for(int round = 0; round < 2; round++) {
+        UA_UInt32 oldToken = client->channel.securityToken.tokenId;
+        UA_fakeSleep((UA_UInt32)(client->channel.securityToken.revisedLifetime * 0.8));
+        UA_Client_run_iterate(client, 1);     /* client sends the RenewSecureChannel OPN */
+        UA_Server_run_iterate(server, false); /* server issues the new token + responds */
+        UA_Client_run_iterate(client, 1);     /* client adopts the new token */
+        ck_assert_uint_ne(oldToken, client->channel.securityToken.tokenId);
+    }
+    runServer();
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    retval = UA_Client_readValueAttribute(client,
+                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+    ck_assert_uint_eq(channelId, client->channel.securityToken.channelId);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* As above, but the client renews the second time right away, before the
+ * server's old token expires. The server never rolls over to the first new
+ * token: it is still pending when the second renewal arrives. The client chained
+ * the IKM of that generation when it adopted the token, so the server must
+ * chain it as well, or the next message fails with BadSecurityChecksFailed. */
+START_TEST(aesgcm_renew_twice_before_token_expiry) {
+    UA_Client *client = createAesGcmClient(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    ck_assert(client != NULL);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_UInt32 channelId = client->channel.securityToken.channelId;
+
+    pauseServer();
+    for(int round = 0; round < 2; round++) {
+        UA_UInt32 oldToken = client->channel.securityToken.tokenId;
+        if(round == 0) {
+            UA_fakeSleep((UA_UInt32)(client->channel.securityToken.revisedLifetime * 0.8));
+            UA_Client_run_iterate(client, 1);  /* client sends the RenewSecureChannel OPN */
+        } else {
+            client->nextChannelRenewal = 0;    /* renew again without waiting */
+            retval = UA_Client_renewSecureChannel(client);
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+        UA_Server_run_iterate(server, false); /* server issues the new token + responds */
+        UA_Client_run_iterate(client, 1);     /* client adopts the new token */
+        ck_assert_uint_ne(oldToken, client->channel.securityToken.tokenId);
+    }
+    runServer();
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    retval = UA_Client_readValueAttribute(client,
+                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+    ck_assert_uint_eq(channelId, client->channel.securityToken.channelId);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Token-rollover overlap: the client renews (token T1 -> T2) while a Read
  * request still secured with the OLD token T1 is in flight. The open62541
  * server issues T2 but keeps answering the in-flight request with T1 (Part 4
@@ -414,9 +539,21 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc, aesgcm_connect_username);
     tcase_add_test(tc, aesgcm_connect_certificate);
     tcase_add_test(tc, aesgcm_renew_multiple);
+    tcase_add_test(tc, aesgcm_renew_twice_without_traffic);
+    tcase_add_test(tc, aesgcm_renew_twice_before_token_expiry);
     tcase_add_test(tc, aesgcm_renew_token_overlap);
 #endif
     suite_add_tcase(s, tc);
+
+#if defined(UA_ENABLE_ENCRYPTION) && (defined(__linux__) || defined(UA_ARCHITECTURE_WIN32))
+    TCase *tcFs = tcase_create("Encryption ECC_nistP256_AesGcm Filestore");
+    tcase_add_checked_fixture(tcFs, setup_filestore, teardown);
+    tcase_add_test(tcFs, aesgcm_connect_sign);
+    tcase_add_test(tcFs, aesgcm_connect_signandencrypt);
+    tcase_add_test(tcFs, aesgcm_connect_username);
+    tcase_add_test(tcFs, aesgcm_renew_multiple);
+    suite_add_tcase(s, tcFs);
+#endif
     return s;
 }
 

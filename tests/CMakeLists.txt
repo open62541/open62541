@@ -698,6 +698,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
                                ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
     ua_add_test(encryption/check_encryption_eccnistp256_aesgcm.c)
     ua_add_test(encryption/check_encryption_eccnistp256_chachapoly.c)
+    ua_add_test(encryption/check_encryption_ecc_aead.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR

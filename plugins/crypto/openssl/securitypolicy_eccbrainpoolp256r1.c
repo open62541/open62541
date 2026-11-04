@@ -292,7 +292,7 @@ UA_Sym_EccBrainpoolP256r1_generateKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     return UA_OpenSSL_ECC_DeriveKeys(OBJ_txt2nid("brainpoolP256r1"), "SHA256",
                                      pctx->applicationType, cc->localEphemeralKeyPair,
-                                     secret, seed, out);
+                                     secret, seed, NULL /* no IKM chaining */, out);
 }
 
 static UA_StatusCode
@@ -553,6 +553,9 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccBrainpoolP256r1_generateKey;
     sp->generateNonce = UA_Sym_EccBrainpoolP256r1_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCBRAINPOOLP256R1_NONCE_LENGTH_BYTES;
+    sp->secretLength = 32;
+    sp->certThumbprintLength = 32;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccBrainpoolP256r1;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccBrainpoolP256r1;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccBrainpoolP256r1;

@@ -308,6 +308,62 @@ UA_ServerConfig_addSecurityPolicyEccCurve448(UA_ServerConfig *config,
                                              const UA_ByteString *certificate,
                                              const UA_ByteString *privateKey);
 
+/* The ECC AEAD SecurityPolicies of OPC UA Part 7 that are not part of the
+ * default policy set: a server certificate is valid for exactly one curve, so
+ * an application adds the policies matching the certificate it holds. The
+ * certificate must be on the curve of the policy (Ed25519/Ed448 for the
+ * curve25519/curve448 policies), otherwise BadCertificateInvalid is returned.
+ * OpenSSL only. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384AesGcm(UA_ServerConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1AesGcm(UA_ServerConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1ChaChaPoly(UA_ServerConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1AesGcm(UA_ServerConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1ChaChaPoly(UA_ServerConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve25519AesGcm(UA_ServerConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve25519ChaChaPoly(UA_ServerConfig *config,
+                                                         const UA_ByteString *certificate,
+                                                         const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve448AesGcm(UA_ServerConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve448ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey);
+
 /* Adds all supported security policies and sets up certificate
  * validation procedures.
  *

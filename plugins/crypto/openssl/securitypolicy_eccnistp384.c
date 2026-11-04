@@ -290,7 +290,7 @@ UA_Sym_EccNistP384_generateKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     return UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-384"), "SHA384",
                                      pctx->applicationType, cc->localEphemeralKeyPair,
-                                     secret, seed, out);
+                                     secret, seed, NULL /* no IKM chaining */, out);
 }
 
 static UA_StatusCode
@@ -537,6 +537,9 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccNistP384_generateKey;
     sp->generateNonce = UA_Sym_EccNistP384_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP384_NONCE_LENGTH_BYTES;
+    sp->secretLength = 48;
+    sp->certThumbprintLength = 48;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP384;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP384;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccNistP384;

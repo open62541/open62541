@@ -140,6 +140,20 @@ Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
             return;
         }
 
+        /* The previous token is still pending: the client renews again before
+         * it sent anything under it. The client chained the IKM of that
+         * generation when it adopted the token, so chain it here as well before
+         * its nonces are replaced. */
+        if(channel->renewState == UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER) {
+            response->responseHeader.serviceResult = UA_SecureChannel_advanceIKM(channel);
+            if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR_CHANNEL(sc->logging, channel,
+                                     "OpenSecureChannel: Cannot advance the IKM "
+                                     "of the pending SecurityToken");
+                return;
+            }
+        }
+
         break;
 
     /* Unknown request type */

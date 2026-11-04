@@ -603,7 +603,7 @@ UA_Sym_EccCurve448_generateKey(const UA_SecurityPolicy *policy,
     return UA_OpenSSL_XDHE_DeriveKeys(EVP_PKEY_X448, "SHA256",
                                        pctx->applicationType,
                                        cc->localEphemeralKeyPair,
-                                       secret, seed, out);
+                                       secret, seed, NULL /* no IKM chaining */, out);
 }
 
 /* --- Thumbprint --- */
@@ -705,6 +705,9 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
     sp->generateKey = UA_Sym_EccCurve448_generateKey;
     sp->generateNonce = UA_Sym_EccCurve448_generateNonce;
     sp->nonceLength = UA_ECCCURVE448_NONCE_LENGTH_BYTES;
+    sp->secretLength = 56;
+    sp->certThumbprintLength = 48;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccCurve448;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccCurve448;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccCurve448;

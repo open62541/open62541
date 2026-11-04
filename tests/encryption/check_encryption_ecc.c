@@ -574,11 +574,14 @@ START_TEST(encryption_csr_generation) {
     UA_StatusCode retval = sp->createSigningRequest(sp, &subjectName,
                                                      NULL, NULL,
                                                      &csr, NULL);
-    /* Curve25519/448 may not support standard CSR generation */
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+#else
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&csr);
         return;
     }
+#endif
     ck_assert(csr.length > 0);
     UA_ByteString_clear(&csr);
 
