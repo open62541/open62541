@@ -29,7 +29,7 @@
 size_t
 parseUInt64(const char *str, size_t size, uint64_t *result) {
     size_t i = 0;
-    uint64_t n = 0, prev = 0;
+    uint64_t n = 0;
 
     /* Hex */
     if(size > 2 && str[0] == '0' && (str[1] | 32) == 'x') {
@@ -44,10 +44,10 @@ parseUInt64(const char *str, size_t size, uint64_t *result) {
                 c = (uint8_t)(c - 'A' + 10);
             else
                 break;
-            n = (n << 4) | (c & 0xF);
-            if(n < prev) /* Check for overflow */
+            /* Check for overflow before the shift drops the top bits */
+            if(n > (UINT64_MAX >> 4))
                 return 0;
-            prev = n;
+            n = (n << 4) | (c & 0xF);
         }
         *result = n;
         return (i > 2) ? i : 0; /* 2 -> No digit was parsed */
@@ -57,11 +57,13 @@ parseUInt64(const char *str, size_t size, uint64_t *result) {
     for(; i < size; i++) {
         if(str[i] < '0' || str[i] > '9')
             break;
-        /* Fast multiplication: n*10 == (n*8) + (n*2) */
-        n = (n << 3) + (n << 1) + (uint8_t)(str[i] - '0');
-        if(n < prev) /* Check for overflow */
+        uint8_t digit = (uint8_t)(str[i] - '0');
+        /* Check for overflow before n*10 + digit wraps around. A wrapped
+         * result is not necessarily smaller than the previous value. */
+        if(n > (UINT64_MAX - digit) / 10)
             return 0;
-        prev = n;
+        /* Fast multiplication: n*10 == (n*8) + (n*2) */
+        n = (n << 3) + (n << 1) + digit;
     }
     *result = n;
     return i;

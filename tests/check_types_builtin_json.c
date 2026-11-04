@@ -3274,6 +3274,21 @@ START_TEST(UA_UInt64_Overflow_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_UInt64_OverflowWrapped_json_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    /* 2^61 * 10, which wraps around to 2^62 in 64 bits */
+    UA_ByteString buf = UA_STRING("{\"UaType\":9,\"Value\":\"23058430092136939520\"}");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_SByte_Min_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -3439,6 +3454,21 @@ START_TEST(UA_Int64_TooBig_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
     UA_ByteString buf = UA_STRING("{\"UaType\":8,\"Value\":\"111111111111111111111111111111\"}");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_Int64_OverflowWrapped_json_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    /* -(2^61 * 10), whose absolute value wraps around to 2^62 in 64 bits */
+    UA_ByteString buf = UA_STRING("{\"UaType\":8,\"Value\":\"-23058430092136939520\"}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
@@ -5575,6 +5605,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_Int64_Max_json_decode);
     tcase_add_test(tc_json_decode, UA_Int64_Overflow_json_decode);
     tcase_add_test(tc_json_decode, UA_Int64_TooBig_json_decode);
+    tcase_add_test(tc_json_decode, UA_Int64_OverflowWrapped_json_decode);
     tcase_add_test(tc_json_decode, UA_Int64_NoDigit_json_decode);
 
     tcase_add_test(tc_json_decode, UA_UInt64_json_decode_wrapped);
@@ -5582,6 +5613,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_UInt64_Min_json_decode);
     tcase_add_test(tc_json_decode, UA_UInt64_Max_json_decode);
     tcase_add_test(tc_json_decode, UA_UInt64_Overflow_json_decode);
+    tcase_add_test(tc_json_decode, UA_UInt64_OverflowWrapped_json_decode);
 
     tcase_add_test(tc_json_decode, UA_Float_json_decode);
     tcase_add_test(tc_json_decode, UA_Float_json_one_decode);
