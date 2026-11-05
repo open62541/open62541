@@ -539,6 +539,29 @@ checkKeylessCertificate(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
     return UA_STATUSCODE_BADCERTIFICATEINVALID;
 }
 
+/* Check the key of a certificate after it was verified. A certificate with
+ * changed bytes, for example in its public key, can still parse. Then only the
+ * signature check of the verification finds the change and returns
+ * Bad_CertificateInvalid. Bad_NotSupported is for a PrivateKey that does not
+ * match a valid certificate (Part 12, 7.10.5). Without a PrivateKey, the
+ * certificate must match a key of the Server. */
+static UA_StatusCode
+checkCertificateKey(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
+                    const UA_NodeId *certificateTypeId,
+                    const UA_ByteString *certificate,
+                    const UA_ByteString *privateKey) {
+    if(!privateKey)
+        return checkKeylessCertificate(ctx, sc, certificateTypeId, certificate);
+    if(UA_CertificateUtils_checkKeyPair(certificate, privateKey) !=
+       UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "UpdateCertificate: The PrivateKey does not match the "
+                     "certificate");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /* The SecurityPolicies use the key of the CSR for a certificate without a
  * PrivateKey that matches the CSR. Then the CSR is no longer pending. */
 static void
@@ -639,25 +662,20 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     if(leafCertificate.length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    /* The certificate must parse before the PrivateKey is checked against it.
-     * A corrupted certificate is invalid, not a PrivateKey that does not
-     * match. */
+    /* A certificate that does not parse is invalid. Reject it before the state
+     * of the transaction is checked. */
     size_t keySize = 0;
     if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
        UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    /* Verify that the privateKey is in a supported format and
-     * that it matches the specified certificate */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(privateKey && privateKey->length > 0) {
+    /* The PrivateKey must be in a supported format */
+    const UA_Boolean hasPrivateKey = (privateKey && privateKey->length > 0);
+    if(hasPrivateKey) {
         const UA_String pemFormat = UA_STRING("PEM");
         const UA_String pkcs8Format = UA_STRING("PKCS8");
         if(!UA_String_equal(&pemFormat, privateKeyFormat) &&
            !UA_String_equal(&pkcs8Format, privateKeyFormat))
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        retval = UA_CertificateUtils_checkKeyPair(&leafCertificate, privateKey);
-        if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
@@ -682,15 +700,14 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
                            certificateGroupId))
             certGroup = &transaction->certGroups[i];
     }
-    retval = verifyIssuedCertificate(sc, certGroup, &leafCertificate,
-                                     "UpdateCertificate");
+    UA_StatusCode retval = verifyIssuedCertificate(sc, certGroup, &leafCertificate,
+                                                   "UpdateCertificate");
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(!privateKey || privateKey->length == 0) {
-        retval = checkKeylessCertificate(ctx, sc, certificateTypeId, &leafCertificate);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
+    retval = checkCertificateKey(ctx, sc, certificateTypeId, &leafCertificate,
+                                 hasPrivateKey ? privateKey : NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, ctx->drv.server, *sessionId);
@@ -1233,7 +1250,7 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
     if(leafCertificate.length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    /* The certificate must parse before the PrivateKey is checked against it */
+    /* A certificate that does not parse is invalid */
     size_t keySize = 0;
     if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
        UA_STATUSCODE_GOOD)
@@ -1241,14 +1258,6 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
 
     UA_Server *server = receiver->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
-    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
-    if(privateKey) {
-        if(UA_CertificateUtils_checkKeyPair(&leafCertificate, privateKey) !=
-           UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        newPrivateKey = *privateKey;
-    }
-
     UA_CertificateGroup *certGroup = getCertGroup(server, &certGroupId);
     if(!certGroup)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1256,11 +1265,11 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
                                                 "UpdateCertificate");
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    if(!privateKey) {
-        res = checkKeylessCertificate(ctx, sc, &certificateTypeId, &leafCertificate);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    }
+    res = checkCertificateKey(ctx, sc, &certificateTypeId, &leafCertificate,
+                              privateKey);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_ByteString newPrivateKey = privateKey ? *privateKey : UA_BYTESTRING_NULL;
 
     CloseChannelsCallback *ccb =
         (CloseChannelsCallback*)UA_calloc(1, sizeof(CloseChannelsCallback));
