@@ -170,7 +170,23 @@ eccGenerateKey(const UA_SecurityPolicy *policy, void *channelContext,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     return UA_mbedTLS_PsaEccDerive(
         policyContext->config->hashAlgorithm, policyContext->applicationType,
-        &context->localEphemeralKeyPair, secret, seed, output);
+        &context->localEphemeralKeyPair, secret, seed, output, false);
+}
+
+static UA_StatusCode
+eccGenerateEncryptedSecretKey(const UA_SecurityPolicy *policy, void *channelContext,
+                              const UA_ByteString *receiverPublicKey,
+                              const UA_ByteString *senderPublicKey,
+                              UA_ByteString *output) {
+    const EccPolicyContext *policyContext =
+        policy ? (const EccPolicyContext*)policy->policyContext : NULL;
+    EccChannelContext *context = (EccChannelContext*)channelContext;
+    if(!policyContext || !context)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return UA_mbedTLS_PsaEccDerive(
+        policyContext->config->hashAlgorithm, policyContext->applicationType,
+        &context->localEphemeralKeyPair, receiverPublicKey, senderPublicKey,
+        output, true);
 }
 
 static UA_StatusCode
@@ -307,6 +323,7 @@ UA_mbedTLS_SecurityPolicy_Ecc(UA_SecurityPolicy *policy,
     policy->setRemoteSymIv = UA_mbedTLS_setRemoteSymIv_generic;
     policy->compareCertificate = UA_mbedTLS_compareCertificate_generic;
     policy->generateKey = eccGenerateKey;
+    policy->generateEncryptedSecretKey = eccGenerateEncryptedSecretKey;
     policy->generateNonce = eccGenerateNonce;
     policy->nonceLength = config->nonceLength;
     /* The Weierstrass ephemeral key is X||Y, the shared secret one coordinate */
