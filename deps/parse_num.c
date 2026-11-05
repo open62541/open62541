@@ -59,8 +59,9 @@ parseUInt64(const char *str, size_t size, uint64_t *result) {
             break;
         uint8_t digit = (uint8_t)(str[i] - '0');
         /* Check for overflow before n*10 + digit wraps around. A wrapped
-         * result is not necessarily smaller than the previous value. */
-        if(n > (UINT64_MAX - digit) / 10)
+         * result is not necessarily smaller than the previous value. Both
+         * bounds are compile-time constants. */
+        if(n > UINT64_MAX / 10 || (n == UINT64_MAX / 10 && digit > UINT64_MAX % 10))
             return 0;
         /* Fast multiplication: n*10 == (n*8) + (n*2) */
         n = (n << 3) + (n << 1) + digit;
