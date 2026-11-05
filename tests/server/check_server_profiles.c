@@ -363,6 +363,59 @@ START_TEST(externalValueKept) {
 } END_TEST
 #endif
 
+#ifdef UA_ENABLE_JSON_ENCODING
+static const char *validJson[] = {
+    "{tcpEnabled:false}",
+    "{serverProfileArray:[]}",
+    "{serverProfileArray:['urn:example:profile:server','urn:example:profile:facet']}",
+    "{serverProfileArray:['urn:example:old'],serverProfileArray:[]}",
+    "{serverProfileArray:[],serverProfileArray:[],tcpEnabled:false}"
+};
+
+START_TEST(jsonDeclarations) {
+    UA_ServerConfig config;
+    UA_ByteString json = UA_STRING((char*)(uintptr_t)validJson[_i]);
+    ck_assert_uint_eq(UA_ServerConfig_loadFromFile(&config, json), UA_STATUSCODE_GOOD);
+    size_t count = (_i == 2) ? 2 : 0;
+    ck_assert_uint_eq(config.serverProfileArraySize, count);
+    config.tcpEnabled = false;
+#ifndef UA_GENERATED_NAMESPACE_ZERO
+    insertProfileNode(&config, NULL, 0);
+#endif
+    UA_Server *server = UA_Server_newWithConfig(&config);
+    ck_assert_ptr_nonnull(server);
+    assertProfiles(server, profiles, count);
+    startServer(server);
+    assertProfiles(server, profiles, count);
+    stopServer(server);
+    UA_Server_delete(server);
+} END_TEST
+
+static const char *invalidJson[] = {
+    "{serverProfileArray:null}",
+    "{serverProfileArray:'urn:example:profile'}",
+    "{serverProfileArray:7}",
+    "{serverProfileArray:{uri:'urn:example:profile'}}",
+    "{serverProfileArray:['urn:example:profile',null]}",
+    "{serverProfileArray:['urn:example:profile',7]}",
+    "{serverProfileArray:[false]}",
+    "{serverProfileArray:[[]]}",
+    "{serverProfileArray:[{}]}",
+    "{serverProfileArray:['urn:example:old'],serverProfileArray:[null]}"
+};
+
+START_TEST(invalidJsonClearsResources) {
+    UA_ServerConfig config;
+    UA_ByteString json = UA_STRING((char*)(uintptr_t)invalidJson[_i]);
+    ck_assert_uint_eq(UA_ServerConfig_loadFromFile(&config, json),
+                      UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_null(config.serverProfileArray);
+    ck_assert_uint_eq(config.serverProfileArraySize, 0);
+    ck_assert_ptr_null(config.eventLoop);
+    UA_ServerConfig_clear(&config);
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s = suite_create("Server profile declarations");
     TCase *tc = tcase_create("profiles");
@@ -381,6 +434,11 @@ int main(void) {
 #else
     tcase_add_test(tc, missingNodeAtCreation);
     tcase_add_test(tc, externalValueKept);
+#endif
+#ifdef UA_ENABLE_JSON_ENCODING
+    tcase_add_loop_test(tc, jsonDeclarations, 0, (int)(sizeof(validJson) / sizeof(validJson[0])));
+    tcase_add_loop_test(tc, invalidJsonClearsResources, 0,
+                       (int)(sizeof(invalidJson) / sizeof(invalidJson[0])));
 #endif
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s);
