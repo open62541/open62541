@@ -559,6 +559,9 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
+    res = writeNs0ServerProfileArray(server, false);
+    UA_CHECK_STATUS(res, goto cleanup);
+
 #ifdef UA_ENABLE_RBAC
     res = initNS0RBAC(server);
     UA_CHECK_STATUS(res, goto cleanup);
@@ -1158,8 +1161,14 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* Apply configuration changes made after creation or while stopped.
+     * Fail before starting the EventLoop or any transport. */
+    lockServer(server);
+    UA_StatusCode retVal = writeNs0ServerProfileArray(server, true);
+    unlockServer(server);
+    UA_CHECK_STATUS(retVal, return retVal);
+
     /* Start the EventLoop if not already started */
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_EventLoop *el = config->eventLoop;
     UA_CHECK_MEM_ERROR(el, return UA_STATUSCODE_BADINTERNALERROR,
                        config->logging, UA_LOGCATEGORY_SERVER,

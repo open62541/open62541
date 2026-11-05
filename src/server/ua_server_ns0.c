@@ -817,6 +817,78 @@ writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
     return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
 }
 
+/* Without a declaration, these write results leave the current value in place:
+ * the node has a read-only value source, or the application did not supply the
+ * node to a MINIMAL or NONE namespace zero. */
+static UA_Boolean
+keepsUndeclaredProfiles(UA_StatusCode res) {
+    if(res == UA_STATUSCODE_BADWRITENOTSUPPORTED || res == UA_STATUSCODE_BADNOTWRITABLE)
+        return true;
+#ifndef UA_GENERATED_NAMESPACE_ZERO
+    if(res == UA_STATUSCODE_BADNODEIDUNKNOWN)
+        return true;
+#endif
+    return false;
+}
+
+UA_StatusCode
+writeNs0ServerProfileArray(UA_Server *server, UA_Boolean startup) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ServerConfig *config = &server->config;
+    size_t size = config->serverProfileArraySize;
+    if(size > 0 &&
+       (uintptr_t)config->serverProfileArray <= (uintptr_t)UA_EMPTY_ARRAY_SENTINEL) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                     "ServerProfileArray has a nonzero size but no array");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* Every entry is the URI of a Profile (Part 5, 6.3.2) */
+    for(size_t i = 0; i < size; i++) {
+        if(config->serverProfileArray[i].length == 0) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "ServerProfileArray entry %u is not a Profile URI",
+                         (unsigned)i);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+    }
+
+#ifndef UA_GENERATED_NAMESPACE_ZERO
+    /* The application or an external nodestore supplies the node. Keep its
+     * value unless profiles are declared or an earlier declaration is
+     * retracted. */
+    if(size == 0 && !server->serverProfileArrayDeclared)
+        return UA_STATUSCODE_GOOD;
+#endif
+
+    void *profiles = (size > 0) ? (void*)config->serverProfileArray : UA_EMPTY_ARRAY_SENTINEL;
+    UA_StatusCode res = writeNs0VariableArray(server,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY, profiles,
+        size, &UA_TYPES[UA_TYPES_STRING]);
+    if(res == UA_STATUSCODE_GOOD) {
+        server->serverProfileArrayDeclared = (size > 0);
+        if(startup && size == 0)
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                           "No Server Profiles are declared in the ServerProfileArray. "
+                           "Configure the Profiles supported by the server.");
+        return UA_STATUSCODE_GOOD;
+    }
+
+    if(size == 0 && keepsUndeclaredProfiles(res)) {
+        UA_LOG_INFO(config->logging, UA_LOGCATEGORY_SERVER,
+                    "ServerProfileArray keeps its current value (%s)",
+                    UA_StatusCode_name(res));
+        server->serverProfileArrayDeclared = false;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    if(res == UA_STATUSCODE_BADNODEIDUNKNOWN && size > 0)
+        res = UA_STATUSCODE_BADCONFIGURATIONERROR;
+    UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                 "Could not write ServerProfileArray (%s)", UA_StatusCode_name(res));
+    return res;
+}
+
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 static UA_StatusCode
 writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
@@ -1110,18 +1182,6 @@ configureNS0(UA_Server *server) {
     UA_UInt16 maxBrowseContinuationPoints = UA_MAXCONTINUATIONPOINTS;
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS,
                                &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
-
-    /* ServerProfileArray */
-    UA_String profileArray[3];
-    UA_UInt16 profileArraySize = 0;
-#define ADDPROFILEARRAY(x) profileArray[profileArraySize++] = UA_STRING(x)
-    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/StandardUA2017");
-#ifdef UA_ENABLE_NODEMANAGEMENT
-    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NodeManagement");
-#endif
-    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/Methods");
-    retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
-                                    profileArray, profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
 
     /* ServerCapabilities - MaxQueryContinuationPoints */
     UA_UInt16 maxQueryContinuationPoints = 0;

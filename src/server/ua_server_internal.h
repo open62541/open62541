@@ -189,6 +189,9 @@ struct UA_Server {
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
 
+    /* The ServerProfileArray node holds a declaration from the config */
+    UA_Boolean serverProfileArrayDeclared;
+
     /* Current depth while recursively instantiating node children */
     size_t nodeInstantiationDepth;
 
@@ -1197,6 +1200,10 @@ UA_StatusCode initNS0_dataSources(UA_Server *server);
 /* Write the ServerConfiguration variables that mirror the
  * ApplicationDescription of the server config */
 UA_StatusCode writeNs0ApplicationDescription(UA_Server *server);
+
+/* Copy the configured profile declarations into the AddressSpace. During
+ * startup, an empty declaration is reported. */
+UA_StatusCode writeNs0ServerProfileArray(UA_Server *server, UA_Boolean startup);
 
 /* Write the ServerCapabilities derived during startup */
 UA_StatusCode writeNs0ServerCapabilities(UA_Server *server);
