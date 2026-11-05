@@ -296,6 +296,24 @@ UA_Sym_EccBrainpoolP256r1_generateKey(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
+UA_Sym_EccBrainpoolP256r1_generateEncryptedSecretKey(const UA_SecurityPolicy *policy,
+                                                     void *channelContext,
+                                                     const UA_ByteString *receiverPublicKey,
+                                                     const UA_ByteString *senderPublicKey,
+                                                     UA_ByteString *out) {
+    Policy_Context_EccBrainpoolP256r1 *pctx =
+        (Policy_Context_EccBrainpoolP256r1 *)policy->policyContext;
+    Channel_Context_EccBrainpoolP256r1 *cc =
+        (Channel_Context_EccBrainpoolP256r1 *)channelContext;
+    if(!pctx || !cc)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_OpenSSL_ECC_DeriveSessionKey(OBJ_txt2nid("brainpoolP256r1"), "SHA256",
+                                           pctx->applicationType,
+                                           cc->localEphemeralKeyPair,
+                                           receiverPublicKey, senderPublicKey, out);
+}
+
+static UA_StatusCode
 EccBrainpoolP256r1_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
                                          void *channelContext,
                                          const UA_ByteString *key) {
@@ -551,6 +569,7 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *sp,
     sp->setRemoteSymIv = EccBrainpoolP256r1_setRemoteSymIv;
     sp->compareCertificate = EccBrainpoolP256r1_compareCertificate;
     sp->generateKey = UA_Sym_EccBrainpoolP256r1_generateKey;
+    sp->generateEncryptedSecretKey = UA_Sym_EccBrainpoolP256r1_generateEncryptedSecretKey;
     sp->generateNonce = UA_Sym_EccBrainpoolP256r1_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCBRAINPOOLP256R1_NONCE_LENGTH_BYTES;
     sp->secretLength = 32;

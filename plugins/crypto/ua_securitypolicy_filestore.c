@@ -538,6 +538,18 @@ generateKey_filestore(const UA_SecurityPolicy *sp,
 }
 
 static UA_StatusCode
+generateEncryptedSecretKey_filestore(const UA_SecurityPolicy *sp,
+                                     void *channelContext,
+                                     const UA_ByteString *receiverPublicKey,
+                                     const UA_ByteString *senderPublicKey,
+                                     UA_ByteString *out) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->generateEncryptedSecretKey(isp, channelContext, receiverPublicKey,
+                                           senderPublicKey, out);
+}
+
+static UA_StatusCode
 generateNonce_filestore(const UA_SecurityPolicy *sp,
                            void *channelContext, UA_ByteString *out) {
     Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
@@ -724,6 +736,8 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
         sp->setMessageSecurityParameters = setMessageSecurityParameters_filestore;
     sp->compareCertificate = compareCertificate_filestore;
     sp->generateKey = generateKey_filestore;
+    if(isp->generateEncryptedSecretKey)
+        sp->generateEncryptedSecretKey = generateEncryptedSecretKey_filestore;
     sp->generateNonce = generateNonce_filestore;
     sp->nonceLength = isp->nonceLength;
     /* Forward the remaining scalar policy properties. Missing one here makes a

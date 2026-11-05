@@ -1064,11 +1064,8 @@ START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
     UA_ByteString seed1 = {64, remotePubXY};
     UA_ByteString seed2 = {64, remotePubXY};
 
-    /* The helper reads the session-key marker (0x03 0x03 0x04) from the
-     * output buffer, so it must not start with random bytes */
     UA_ByteString out;
     ck_assert_int_eq(UA_ByteString_allocBuffer(&out, 32), UA_STATUSCODE_GOOD);
-    memset(out.data, 0, out.length);
 
     /* First call: prepend1 -> chained IKM written back to slot1. */
     ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(
@@ -1078,7 +1075,6 @@ START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
                      UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&out);
     ck_assert_int_eq(UA_ByteString_allocBuffer(&out, 32), UA_STATUSCODE_GOOD);
-    memset(out.data, 0, out.length);
 
     /* Second call: prepend2 -> chained IKM written back to slot2.
      * Same ephemeral keys => same shared secret as call 1. */
@@ -1169,17 +1165,12 @@ START_TEST(SecureChannel_XDH_clientServerAgreement) {
     ck_assert(UA_ByteString_equal(&keys[2], &keys[3]));
     ck_assert(!UA_ByteString_equal(&keys[0], &keys[2]));
 
-    /* The existing helper uses this output prefix to request session keys. */
-    for(size_t i = 4; i < 6; i++) {
-        keyBytes[i][0] = 3;
-        keyBytes[i][1] = 3;
-        keyBytes[i][2] = 4;
-    }
-    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
-        UA_APPLICATIONTYPE_CLIENT, clientKey, &serverPublic, &clientPublic, NULL, &keys[4]),
+    /* The EccEncryptedSecret key uses its own label */
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveSessionKey(xdhKeyTypes[curve], "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, clientKey, &serverPublic, &clientPublic, &keys[4]),
         UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
-        UA_APPLICATIONTYPE_SERVER, serverKey, &serverPublic, &clientPublic, NULL, &keys[5]),
+    ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveSessionKey(xdhKeyTypes[curve], "SHA256",
+        UA_APPLICATIONTYPE_SERVER, serverKey, &serverPublic, &clientPublic, &keys[5]),
         UA_STATUSCODE_GOOD);
     ck_assert(UA_ByteString_equal(&keys[4], &keys[5]));
     ck_assert(!UA_ByteString_equal(&keys[4], &keys[0]));
@@ -1351,7 +1342,6 @@ deriveP256(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
     UA_ByteString key1 = {64, (UA_Byte *)(uintptr_t)nonce1};
     UA_ByteString key2 = {64, (UA_Byte *)(uintptr_t)nonce2};
     UA_ByteString out = {32, out32};
-    memset(out32, 0, 32); /* not the session-key marker */
     UA_StatusCode res =
         UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
                                   role, localKp, &key1, &key2, &ikm, &out);
@@ -1461,7 +1451,6 @@ deriveX25519(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
     UA_ByteString key1 = {32, (UA_Byte *)(uintptr_t)nonce1};
     UA_ByteString key2 = {32, (UA_Byte *)(uintptr_t)nonce2};
     UA_ByteString out = {32, out32};
-    memset(out32, 0, 32); /* not the session-key marker */
     UA_StatusCode res = UA_OpenSSL_XDHE_DeriveKeys(EVP_PKEY_X25519, "SHA256",
                                                    role, localKp, &key1, &key2,
                                                    &ikm, &out);
@@ -1548,6 +1537,56 @@ START_TEST(SecureChannel_IKMChaining_splitIKM) {
     UA_OpenSSL_splitIKM(&sp, &prefixed, &ikm, &nonce);
     ck_assert_uint_eq(ikm.length, 0);
     ck_assert_uint_eq(nonce.length, 96);
+} END_TEST
+
+/* The key of an EccEncryptedSecret (UserIdentityToken): both peers derive the
+ * same key material from (server key, client key) with the "opcua-secret"
+ * label. That label sets it apart from the SecureChannel keys of the same
+ * ephemeral keys. Whatever the output buffer holds beforehand does not matter
+ * (it used to carry a 0x03 0x03 0x04 marker that selected the label).
+ * SecureChannel_XDH_clientServerAgreement covers X25519 and X448. */
+START_TEST(SecureChannel_EncryptedSecretKey_p256) {
+    P256Ephemeral c, s;
+    newEphemeral(&c);
+    newEphemeral(&s);
+    UA_ByteString serverPub = {64, s.nonce};
+    UA_ByteString clientPub = {64, c.nonce};
+
+    UA_Byte clientKey[32], serverKey[32];
+    UA_ByteString out = {32, clientKey};
+    ck_assert_uint_eq(UA_OpenSSL_ECC_DeriveSessionKey(
+                          EC_curve_nist2nid("P-256"), "SHA256",
+                          UA_APPLICATIONTYPE_CLIENT, c.kp,
+                          &serverPub, &clientPub, &out), UA_STATUSCODE_GOOD);
+    out.data = serverKey;
+    ck_assert_uint_eq(UA_OpenSSL_ECC_DeriveSessionKey(
+                          EC_curve_nist2nid("P-256"), "SHA256",
+                          UA_APPLICATIONTYPE_SERVER, s.kp,
+                          &serverPub, &clientPub, &out), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(memcmp(clientKey, serverKey, 32), 0);
+
+    /* The SecureChannel keys from the same nonces differ, also when the
+     * output buffer starts with the former marker */
+    UA_Byte channelKey[32] = {0x03, 0x03, 0x04};
+    out.data = channelKey;
+    ck_assert_uint_eq(UA_OpenSSL_ECC_DeriveKeys(
+                          EC_curve_nist2nid("P-256"), "SHA256",
+                          UA_APPLICATIONTYPE_CLIENT, c.kp,
+                          &serverPub, &clientPub, NULL, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_ne(memcmp(channelKey, clientKey, 32), 0);
+
+    UA_Byte channelKeyZero[32] = {0};
+    out.data = channelKeyZero;
+    ck_assert_uint_eq(UA_OpenSSL_ECC_DeriveKeys(
+                          EC_curve_nist2nid("P-256"), "SHA256",
+                          UA_APPLICATIONTYPE_CLIENT, c.kp,
+                          &serverPub, &clientPub, NULL, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(memcmp(channelKey, channelKeyZero, 32), 0);
+
+    EVP_PKEY_free(c.kp);
+    EVP_PKEY_free(s.kp);
 } END_TEST
 
 #endif /* UA_ENABLE_ENCRYPTION_OPENSSL && !LIBRESSL_VERSION_NUMBER */
@@ -1707,6 +1746,7 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_accumulatesSharedSecrets);
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_x25519AccumulatorIsFullWidth);
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_splitIKM);
+    tcase_add_test(tc_ikmChaining, SecureChannel_EncryptedSecretKey_p256);
     suite_add_tcase(s, tc_ikmChaining);
 
     TCase *tc_xdh = tcase_create("XDH key derivation");

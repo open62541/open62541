@@ -322,6 +322,22 @@ struct UA_SecurityPolicy {
                                  void *channelContext, const UA_ByteString *secret,
                                  const UA_ByteString *seed, UA_ByteString *out);
 
+    /* Derive the symmetric key material [EncryptionKey | IV] of an
+     * EccEncryptedSecret (OPC UA Part 4, 7.41.x) with the "opcua-secret"
+     * label. NULL for policies without ephemeral key agreement.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context that holds the local ephemeral key
+     * @param receiverPublicKey The ephemeral public key of the server
+     * @param senderPublicKey The ephemeral public key of the client
+     * @param out An output to write the data to. The length defines the
+     *        number of output bytes that are produced. */
+    UA_StatusCode (*generateEncryptedSecretKey)(const UA_SecurityPolicy *policy,
+                                                void *channelContext,
+                                                const UA_ByteString *receiverPublicKey,
+                                                const UA_ByteString *senderPublicKey,
+                                                UA_ByteString *out);
+
     /* Random generator for generating nonces.
      *
      * @param policy The SecurityPolicy to which the callback belongs.

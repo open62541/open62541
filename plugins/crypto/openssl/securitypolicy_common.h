@@ -197,6 +197,17 @@ UA_OpenSSL_ECC_DeriveKeys (const int curveID,
                            UA_ByteString * ikmInOut,
                            UA_ByteString * out);
 
+/* Derive the key material of an EccEncryptedSecret: ECDH and HKDF with the
+ * "opcua-secret" label and no IKM chaining */
+UA_StatusCode
+UA_OpenSSL_ECC_DeriveSessionKey(const int curveID,
+                                const char *hashAlgorithm,
+                                const UA_ApplicationType applicationType,
+                                EVP_PKEY *localEphemeralKeyPair,
+                                const UA_ByteString *receiverPublicKey,
+                                const UA_ByteString *senderPublicKey,
+                                UA_ByteString *out);
+
 /* Split the `secret` argument of UA_SecurityPolicy.generateKey into the IKM
  * accumulator the SecureChannel prepends for an enhanced policy and the nonce.
  * Without a prepend, `ikmInOut` is empty and `nonce` is the whole `secret`.
@@ -441,6 +452,16 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
                             const UA_ByteString *key2,
                             UA_ByteString *ikmInOut,
                             UA_ByteString *out);
+
+/* X25519/X448 counterpart of UA_OpenSSL_ECC_DeriveSessionKey */
+UA_StatusCode
+UA_OpenSSL_XDHE_DeriveSessionKey(int keyType,
+                                 const char *hashAlgorithm,
+                                 UA_ApplicationType applicationType,
+                                 EVP_PKEY *localEphemeralKeyPair,
+                                 const UA_ByteString *receiverPublicKey,
+                                 const UA_ByteString *senderPublicKey,
+                                 UA_ByteString *out);
 
 /* Every ECC AEAD SecurityPolicy uses a 12-byte IV and a 16-byte tag
  * (OPC UA Part 6: InitializationVectorLength 96 bits, SignatureLength 128 bits). */

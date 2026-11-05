@@ -616,6 +616,24 @@ UA_Sym_EccCurve25519_generateKey(const UA_SecurityPolicy *policy,
                                        secret, seed, NULL /* no IKM chaining */, out);
 }
 
+static UA_StatusCode
+UA_Sym_EccCurve25519_generateEncryptedSecretKey(const UA_SecurityPolicy *policy,
+                                                void *channelContext,
+                                                const UA_ByteString *receiverPublicKey,
+                                                const UA_ByteString *senderPublicKey,
+                                                UA_ByteString *out) {
+    Policy_Context_EccCurve25519 *pctx =
+        (Policy_Context_EccCurve25519 *)policy->policyContext;
+    Channel_Context_EccCurve25519 *cc =
+        (Channel_Context_EccCurve25519 *)channelContext;
+    if(!pctx || !cc)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_OpenSSL_XDHE_DeriveSessionKey(EVP_PKEY_X25519, "SHA256",
+                                            pctx->applicationType,
+                                            cc->localEphemeralKeyPair,
+                                            receiverPublicKey, senderPublicKey, out);
+}
+
 /* --- Thumbprint --- */
 
 static UA_StatusCode
@@ -713,6 +731,7 @@ UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *sp,
     sp->setMessageSecurityParameters = EccCurve25519_setMessageSecurityParameters;
     sp->compareCertificate = EccCurve25519_compareCertificate;
     sp->generateKey = UA_Sym_EccCurve25519_generateKey;
+    sp->generateEncryptedSecretKey = UA_Sym_EccCurve25519_generateEncryptedSecretKey;
     sp->generateNonce = UA_Sym_EccCurve25519_generateNonce;
     sp->nonceLength = UA_ECCCURVE25519_NONCE_LENGTH_BYTES;
     sp->secretLength = 32;

@@ -536,7 +536,8 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
                         const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
                         const UA_ByteString *key1,
                         const UA_ByteString *key2,
-                        UA_ByteString *output) {
+                        UA_ByteString *output,
+                        UA_Boolean sessionSecret) {
     if(!localEphemeralKeyPair || !mbedtlsValidByteString(key1) ||
        !mbedtlsValidByteString(key2) || !mbedtlsValidByteString(output))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -553,8 +554,7 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
     static const UA_ByteString serverLabel = UA_STRING_STATIC("opcua-server");
     static const UA_ByteString clientLabel = UA_STRING_STATIC("opcua-client");
     static const UA_ByteString sessionLabel = UA_STRING_STATIC("opcua-secret");
-    if(output->length >= 3 && output->data[0] == 0x03 &&
-       output->data[1] == 0x03 && output->data[2] == 0x04) {
+    if(sessionSecret) {
         label = &sessionLabel;
         remotePublic = (applicationType == UA_APPLICATIONTYPE_SERVER) ? key2 : key1;
     } else if(UA_ByteString_equal(&localPublic, key1)) {

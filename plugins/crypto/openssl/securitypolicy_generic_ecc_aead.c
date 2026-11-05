@@ -686,6 +686,34 @@ eccAead_generateKey(const UA_SecurityPolicy *policy,
                                      &nonce, seed, &ikmInOut, out);
 }
 
+/* The key of an EccEncryptedSecret is derived without IKM chaining, so the
+ * input is not split like in eccAead_generateKey */
+static UA_StatusCode
+eccAead_generateEncryptedSecretKey(const UA_SecurityPolicy *policy,
+                                   void *channelContext,
+                                   const UA_ByteString *receiverPublicKey,
+                                   const UA_ByteString *senderPublicKey,
+                                   UA_ByteString *out) {
+    Policy_Context_EccAead *pctx = (Policy_Context_EccAead *)policy->policyContext;
+    Channel_Context_EccAead *cc = (Channel_Context_EccAead *)channelContext;
+    const UA_EccAeadParams *params = eccAead_params(policy);
+    if(!pctx || !cc || !params)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    if(params->kexKind == ECC_AEAD_KEX_XDH)
+        return UA_OpenSSL_XDHE_DeriveSessionKey(pctx->keyId, params->hkdfHash,
+                                                pctx->applicationType,
+                                                cc->localEphemeralKeyPair,
+                                                receiverPublicKey,
+                                                senderPublicKey, out);
+
+    return UA_OpenSSL_ECC_DeriveSessionKey(pctx->keyId, params->hkdfHash,
+                                           pctx->applicationType,
+                                           cc->localEphemeralKeyPair,
+                                           receiverPublicKey,
+                                           senderPublicKey, out);
+}
+
 /************************/
 /* Symmetric Key Setup  */
 /************************/
@@ -1106,6 +1134,7 @@ eccAead_policy(UA_SecurityPolicy *sp, const UA_EccAeadParams *params,
     sp->setMessageSecurityParameters = eccAead_setMessageSecurityParameters;
     sp->compareCertificate = eccAead_compareCertificate;
     sp->generateKey = eccAead_generateKey;
+    sp->generateEncryptedSecretKey = eccAead_generateEncryptedSecretKey;
     sp->generateNonce = eccAead_generateNonce;
     sp->nonceLength = params->nonceLength;
     sp->secretLength = params->secretLength;

@@ -127,6 +127,12 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
                             UA_ByteString *tokenData,
                             const UA_ByteString serverSessionNonce,
                             const UA_ByteString serverEphemeralPubKey) {
+    if(!sp->generateEncryptedSecretKey) {
+        UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: The "
+                             "SecurityPolicy cannot derive the key material");
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
     /* Extract some basic information from the SecurityPolicy. AEAD policies
      * (AES-GCM) expose a dedicated IV length (12 bytes) and append an
      * authentication tag after the ciphertext; legacy CBC policies use the
@@ -220,16 +226,10 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         return retval;
     }
 
-    /* This is a (temporary) measure so that the salt generation function (for
-     * the symmetric key derivation ) knows that the salt is generated for
-     * session authentication (to choose the correct label) */
-    /* TODO: find a better way to signal symmetric key generation for session
-     * authentication */
-    symEncKeyMaterial.data[0] = 0x03;
-    symEncKeyMaterial.data[1] = 0x03;
-    symEncKeyMaterial.data[2] = 0x04;
-    retval = sp->generateKey(sp, spContext, &secret.receiverPublicKey,
-                             &secret.senderPublicKey, &symEncKeyMaterial);
+    retval = sp->generateEncryptedSecretKey(sp, spContext,
+                                            &secret.receiverPublicKey,
+                                            &secret.senderPublicKey,
+                                            &symEncKeyMaterial);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(logger, channel,
                              "EccEncryptedSecret: Failed to derive key material");
@@ -437,19 +437,16 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
     if(res != UA_STATUSCODE_GOOD)
         goto cleanecc;
 
-    /* This is a (temporary) measure so that the salt generation function (for
-     * the symmetric key derivation ) knows that the salt is generated for
-     * session authentication (to choose the correct label) */
-    /* TODO: find a better way to signal symmetric key generation for session
-     * authentication */
-    symEncKeyMaterial.data[0] = 0x03;
-    symEncKeyMaterial.data[1] = 0x03;
-    symEncKeyMaterial.data[2] = 0x04;
-
-    /* Call logic for server for session authentication: receiver public key is
-     * local (server), sender public key is remote (client) */
-    res = sp->generateKey(sp, spContext, &esd.receiverPublicKey,
-                          &esd.senderPublicKey, &symEncKeyMaterial);
+    /* Receiver public key is local (server), sender public key is remote
+     * (client) */
+    if(!sp->generateEncryptedSecretKey) {
+        UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: The "
+                             "SecurityPolicy cannot derive the key material");
+        res = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+        goto cleanecc;
+    }
+    res = sp->generateEncryptedSecretKey(sp, spContext, &esd.receiverPublicKey,
+                                         &esd.senderPublicKey, &symEncKeyMaterial);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
                              "Failed to derive key material");

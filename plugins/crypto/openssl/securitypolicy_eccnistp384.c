@@ -294,6 +294,24 @@ UA_Sym_EccNistP384_generateKey(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
+UA_Sym_EccNistP384_generateEncryptedSecretKey(const UA_SecurityPolicy *policy,
+                                              void *channelContext,
+                                              const UA_ByteString *receiverPublicKey,
+                                              const UA_ByteString *senderPublicKey,
+                                              UA_ByteString *out) {
+    Policy_Context_EccNistP384 *pctx =
+        (Policy_Context_EccNistP384 *)policy->policyContext;
+    Channel_Context_EccNistP384 *cc =
+        (Channel_Context_EccNistP384 *)channelContext;
+    if(!pctx || !cc)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_OpenSSL_ECC_DeriveSessionKey(EC_curve_nist2nid("P-384"), "SHA384",
+                                           pctx->applicationType,
+                                           cc->localEphemeralKeyPair,
+                                           receiverPublicKey, senderPublicKey, out);
+}
+
+static UA_StatusCode
 EccNistP384_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
                                   void *channelContext,
                                   const UA_ByteString *key) {
@@ -535,6 +553,7 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *sp,
     sp->setRemoteSymIv = EccNistP384_setRemoteSymIv;
     sp->compareCertificate = EccNistP384_compareCertificate;
     sp->generateKey = UA_Sym_EccNistP384_generateKey;
+    sp->generateEncryptedSecretKey = UA_Sym_EccNistP384_generateEncryptedSecretKey;
     sp->generateNonce = UA_Sym_EccNistP384_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP384_NONCE_LENGTH_BYTES;
     sp->secretLength = 48;

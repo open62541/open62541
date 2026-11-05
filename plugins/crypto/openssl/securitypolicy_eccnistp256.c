@@ -315,6 +315,24 @@ UA_Sym_EccNistP256_generateKey(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
+UA_Sym_EccNistP256_generateEncryptedSecretKey(const UA_SecurityPolicy *policy,
+                                              void *channelContext,
+                                              const UA_ByteString *receiverPublicKey,
+                                              const UA_ByteString *senderPublicKey,
+                                              UA_ByteString *out) {
+    Policy_Context_EccNistP256 *pctx =
+        (Policy_Context_EccNistP256 *)policy->policyContext;
+    Channel_Context_EccNistP256 *cc =
+        (Channel_Context_EccNistP256 *)channelContext;
+    if(!pctx || !cc)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_OpenSSL_ECC_DeriveSessionKey(EC_curve_nist2nid("P-256"), "SHA256",
+                                           pctx->applicationType,
+                                           cc->localEphemeralKeyPair,
+                                           receiverPublicKey, senderPublicKey, out);
+}
+
+static UA_StatusCode
 EccNistP256_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
                                                    void *channelContext,
                                                    const UA_ByteString *key) {
@@ -572,6 +590,7 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
     sp->setRemoteSymIv = EccNistP256_setRemoteSymIv;
     sp->compareCertificate = EccNistP256_compareCertificate;
     sp->generateKey = UA_Sym_EccNistP256_generateKey;
+    sp->generateEncryptedSecretKey = UA_Sym_EccNistP256_generateEncryptedSecretKey;
     sp->generateNonce = UA_Sym_EccNistP256_generateNonce;
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP256_NONCE_LENGTH_BYTES;
     sp->secretLength = 32;

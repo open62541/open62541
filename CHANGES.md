@@ -20,6 +20,14 @@ curve25519/curve448 policies); otherwise the constructor returns
 `BadCertificateInvalid`. The deprecated `ECC_curve25519` and `ECC_curve448`
 policies are now marked as such.
 
+### Own callback for the EccEncryptedSecret key derivation
+
+`UA_SecurityPolicy` has a new member `generateEncryptedSecretKey`. It derives
+the key material of an EccEncryptedSecret (UserIdentityToken) with the
+"opcua-secret" label. Before, the core wrote the marker bytes `0x03 0x03 0x04`
+into the output buffer of `generateKey` to select that label. Custom ECC
+SecurityPolicies must implement the new callback; others leave it NULL.
+
 ### SecurityPolicies declare their key-agreement properties
 
 `UA_SecurityPolicy` has three new members: `secretLength` (the key-agreement

@@ -92,13 +92,17 @@ UA_mbedTLS_PsaAsymmetricDecrypt(const mbedtls_pk_context *key,
                                 psa_algorithm_t algorithm,
                                 UA_ByteString *data);
 
+/* ECDH and HKDF key derivation. With `sessionSecret` the "opcua-secret" label
+ * of an EccEncryptedSecret is used; then key1 is the server's (receiver's) and
+ * key2 the client's (sender's) ephemeral public key. */
 UA_StatusCode
 UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
                         const UA_ApplicationType applicationType,
                         const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
                         const UA_ByteString *key1,
                         const UA_ByteString *key2,
-                        UA_ByteString *output);
+                        UA_ByteString *output,
+                        UA_Boolean sessionSecret);
 
 UA_StatusCode
 UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
