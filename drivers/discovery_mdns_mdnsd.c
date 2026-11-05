@@ -1176,6 +1176,15 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     freeaddrinfo(infoptr);
 }
 
+/* Announce a local entry now and schedule its next announcement */
+static void
+announceLocalSON(MdnsdDriver *md, ServerOnNetworkRecord *entry) {
+    announceRecord(md, entry);
+    UA_EventLoop *el = UA_Server_getConfig(md->mdns.drv.server)->eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    entry->nextAction = now + ((entry->ttl * 9 * UA_DATETIME_SEC) / 10);
+}
+
 /* Loop over all SON and perform required actions */
 static void
 MdnsdHouseKeeping(UA_Server *server, void *drv) {
@@ -1212,8 +1221,9 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
     if(type != UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK)
         return;
 
-    if(drv->state != UA_LIFECYCLESTATE_STARTED)
-        return;
+    /* While the driver is not started, only the entries are updated. The
+     * start announces the local entries. */
+    UA_Boolean live = (drv->state == UA_LIFECYCLESTATE_STARTED);
 
     MdnsdDriver *md = (MdnsdDriver*)drv;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -1263,8 +1273,10 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
          * mDNS. Retract the entry if it was announced before. */
         if(!announce) {
             if(entry && isLocalOwnedSON(entry)) {
-                retractRecord(md, &entry->serverOnNetwork);
-                flushMulticastMessages(md);
+                if(live) {
+                    retractRecord(md, &entry->serverOnNetwork);
+                    flushMulticastMessages(md);
+                }
                 removeLocalSON(md, entry);
             }
             return;
@@ -1306,12 +1318,8 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
         entry->ttl = ttl;
 
         /* Announce right away */
-        announceRecord(md, entry);
-
-        /* Next time the entry is announced */
-        UA_EventLoop *el = UA_Server_getConfig(md->mdns.drv.server)->eventLoop;
-        UA_DateTime now = el->dateTime_nowMonotonic(el);
-        entry->nextAction = now + ((entry->ttl * 9 * UA_DATETIME_SEC) / 10);
+        if(live)
+            announceLocalSON(md, entry);
     }
 
     /* Remove record */
@@ -1320,11 +1328,14 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
             return;
 
         if(isLocalOwnedSON(entry)) {
-            /* Locally owned record: the API removal means we own the goodbye. */
-            retractRecord(md, son);
-            /* Send the goodbye message immediately so the
-             * public-api tests observe the deregister packet. */
-            flushMulticastMessages(md);
+            /* Locally owned record: the API removal means we own the goodbye.
+             * A stopped driver has sent it already. */
+            if(live) {
+                retractRecord(md, son);
+                /* Send the goodbye message immediately so the
+                 * public-api tests observe the deregister packet. */
+                flushMulticastMessages(md);
+            }
             removeLocalSON(md, entry);
         } else {
             /* Received record: the server notification was caused by a remote
@@ -1360,7 +1371,7 @@ MdnsdDriver_stop(UA_Driver *drv) {
      * via the normal deregister path. */
     ServerOnNetworkRecord *son, *son_tmp;
     LIST_FOREACH_SAFE(son, &md->serverList, listPointers, son_tmp) {
-        if(isLocalOwnedSON(son))
+        if(isLocalOwnedSON(son) && md->mdnsDaemon)
             retractRecord(md, &son->serverOnNetwork);
     }
 
@@ -1409,10 +1420,10 @@ MdnsdDriver_start(UA_Driver *drv) {
 
     drv->state = UA_LIFECYCLESTATE_STARTED;
 
-    /* Initialize the list of server-on-network records. The list head is
-     * embedded in the driver struct (zeroed by calloc) so the initial state
-     * is an empty list. Re-initialize in case the driver is restarted. */
-    LIST_INIT(&md->serverList);
+    /* The list of server-on-network records is embedded in the driver struct
+     * (zeroed by calloc) and kept across a restart. The stop sent goodbyes for
+     * the local entries, and changes while stopped were applied to the list.
+     * The local entries are announced again below. */
 
     /* Extract the configuration parameters from the key-value map */
     const UA_Boolean *listen = (const UA_Boolean*)
@@ -1499,6 +1510,19 @@ MdnsdDriver_start(UA_Driver *drv) {
     UA_Server_addRepeatedCallback(md->mdns.drv.server, MdnsdHouseKeeping,
                                   md, UA_MDNS_POLL_INTERVAL_MS,
                                   &md->sendCallbackId);
+
+    /* Announce the local entries again. Received entries could not be
+     * refreshed while the driver was stopped. They expire if they are not
+     * received again within their TTL. */
+    UA_EventLoop *el = config->eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    ServerOnNetworkRecord *son;
+    LIST_FOREACH(son, &md->serverList, listPointers) {
+        if(isLocalOwnedSON(son))
+            announceLocalSON(md, son);
+        else
+            son->nextAction = now + (UA_DATETIME_SEC * son->ttl);
+    }
 
     if(md->queryPresence) {
         queryPresence(md);
