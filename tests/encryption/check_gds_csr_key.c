@@ -35,6 +35,24 @@
 #endif
 #endif
 
+/* The filestore keeps the state of the server in a PKI directory. The restart
+ * tests create a new server with the same PKI directory. */
+#if defined(CAN_SIGN_CSR) && (defined(__linux__) || defined(UA_ARCHITECTURE_WIN32))
+#define CAN_RESTART_WITH_FILESTORE
+#include <stdlib.h>
+#include <string.h>
+#ifdef _WIN32
+# include <windows.h>
+# define TEST_PATH_MAX MAX_PATH
+#else
+# include <dirent.h>
+# include <limits.h>
+# include <sys/stat.h>
+# include <unistd.h>
+# define TEST_PATH_MAX PATH_MAX
+#endif
+#endif
+
 /* Not the default port 4840. The server sets SO_REUSEPORT. A test server of
  * another process on the same port would answer some of the connections, and
  * the tests check which certificate the server presents. */
@@ -52,27 +70,21 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
-static void setup(void) {
-    UA_atomic_store(&running, true);
-    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
-    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+/* Trust the CAs of the client certificate and the CA that signs the CSRs of
+ * the server. UpdateCertificate verifies the issuer. */
+static UA_ByteString trustList[3] = {
+    {INTERMEDIATE_CERT_DER_LENGTH, INTERMEDIATE_CERT_DER_DATA},
+    {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA},
+    {CSR_CA_CERT_DER_LENGTH, CSR_CA_CERT_DER_DATA}};
+static UA_ByteString revocationList[3] = {
+    {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA},
+    {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA},
+    {CSR_CA_EMPTY_CRL_DER_LENGTH, CSR_CA_EMPTY_CRL_DER_DATA}};
 
-    /* Trust the CAs of the client certificate and the CA that signs the CSRs
-     * of the server. UpdateCertificate verifies the issuer. */
-    UA_ByteString trustList[3] = {
-        {INTERMEDIATE_CERT_DER_LENGTH, INTERMEDIATE_CERT_DER_DATA},
-        {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA},
-        {CSR_CA_CERT_DER_LENGTH, CSR_CA_CERT_DER_DATA}};
-    UA_ByteString revocationList[3] = {
-        {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA},
-        {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA},
-        {CSR_CA_EMPTY_CRL_DER_LENGTH, CSR_CA_EMPTY_CRL_DER_DATA}};
-
-    server = UA_Server_newForUnitTestWithSecurityPolicies(SERVER_PORT, &certificate, &privateKey,
-                                                          trustList, 3, trustList, 3,
-                                                          revocationList, 3);
-    ck_assert(server != NULL);
-
+/* Helper: add a GDS receiver to the created server, start the server and run
+ * it in a thread */
+static void
+startServer(void) {
     receiver = UA_GDSReceiver_new();
     ck_assert_ptr_nonnull(receiver);
     UA_StatusCode res = UA_Server_addDriver(server, &receiver->drv);
@@ -105,16 +117,151 @@ static void setup(void) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 #endif
 
-    UA_Server_run_startup(server);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 }
 
-static void teardown(void) {
+/* Helper: stop the server thread, shut the server down and delete it */
+static void
+stopServer(void) {
     UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    server = NULL;
+    receiver = NULL;
 }
+
+static void setup(void) {
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    server = UA_Server_newForUnitTestWithSecurityPolicies(SERVER_PORT, &certificate, &privateKey,
+                                                          trustList, 3, trustList, 3,
+                                                          revocationList, 3);
+    ck_assert(server != NULL);
+    startServer();
+}
+
+static void teardown(void) {
+    stopServer();
+}
+
+#ifdef CAN_RESTART_WITH_FILESTORE
+
+/* The PKI directory of the filestore. Every test gets a new directory, so no
+ * state of an earlier test is used. */
+static char storePath[TEST_PATH_MAX];
+
+static UA_Boolean
+createTempDir(void) {
+#ifdef _WIN32
+    for(int i = 0; i < 100; i++) {
+        snprintf(storePath, sizeof(storePath), "ua_gds_csr_pki_%lu_%d",
+                 GetTickCount(), i);
+        if(CreateDirectoryA(storePath, NULL))
+            return true;
+    }
+    return false;
+#else
+    snprintf(storePath, sizeof(storePath), "/tmp/ua_gds_csr_pki_XXXXXX");
+    return mkdtemp(storePath) != NULL;
+#endif
+}
+
+/* Recursively remove a directory */
+static void
+removeDir(const char *path) {
+#ifdef _WIN32
+    char search[MAX_PATH + 3];
+    snprintf(search, sizeof(search), "%s\\*", path);
+    WIN32_FIND_DATAA ffd;
+    HANDLE hFind = FindFirstFileA(search, &ffd);
+    if(hFind == INVALID_HANDLE_VALUE)
+        return;
+    do {
+        if(strcmp(ffd.cFileName, ".") == 0 || strcmp(ffd.cFileName, "..") == 0)
+            continue;
+        char full[MAX_PATH + 1];
+        snprintf(full, sizeof(full), "%s\\%s", path, ffd.cFileName);
+        if(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            removeDir(full);
+        else
+            DeleteFileA(full);
+    } while(FindNextFileA(hFind, &ffd) != 0);
+    FindClose(hFind);
+    RemoveDirectoryA(path);
+#else
+    DIR *dir = opendir(path);
+    if(!dir)
+        return;
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+        char full[TEST_PATH_MAX];
+        int n = snprintf(full, sizeof(full), "%s/%s", path, entry->d_name);
+        if(n < 0 || (size_t)n >= sizeof(full))
+            continue;
+        struct stat st;
+        if(stat(full, &st) != 0)
+            continue;
+        if(S_ISDIR(st.st_mode))
+            removeDir(full);
+        else
+            unlink(full);
+    }
+    closedir(dir);
+    rmdir(path);
+#endif
+}
+
+/* Helper: create the server with its original certificate and private key and
+ * the filestore in storePath. The server loads the TrustList from the
+ * filestore. */
+static void
+createFilestoreServer(void) {
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    server = UA_Server_newForUnitTestWithSecurityPolicies_Filestore(
+        SERVER_PORT, &certificate, &privateKey, UA_STRING(storePath));
+    ck_assert(server != NULL);
+}
+
+static void setupFilestore(void) {
+    ck_assert(createTempDir());
+    createFilestoreServer();
+
+    /* The filestore writes the TrustList to the PKI directory */
+    UA_TrustListDataType tl;
+    UA_TrustListDataType_init(&tl);
+    tl.specifiedLists =
+        UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES | UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    tl.trustedCertificates = trustList;
+    tl.trustedCertificatesSize = 3;
+    tl.trustedCrls = revocationList;
+    tl.trustedCrlsSize = 3;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert_uint_eq(config->secureChannelPKI.addToTrustList(&config->secureChannelPKI, &tl),
+                      UA_STATUSCODE_GOOD);
+    startServer();
+}
+
+static void teardownFilestore(void) {
+    stopServer();
+    removeDir(storePath);
+}
+
+/* Helper: restart the server. The new server has the configuration of the
+ * first start. Only the PKI directory keeps state across the restart. */
+static void
+restartServer(void) {
+    stopServer();
+    createFilestoreServer();
+    startServer();
+}
+
+#endif /* CAN_RESTART_WITH_FILESTORE */
 
 /* Helper: create a client for the Aes128_Sha256_RsaOaep endpoint, which uses
  * an RsaSha256ApplicationCertificate. Not yet connected. */
@@ -571,6 +718,76 @@ START_TEST(update_certificate_reject_key_of_replaced_csr) {
 }
 END_TEST
 
+#ifdef CAN_RESTART_WITH_FILESTORE
+
+/* Helper: the server presents the certificate, and a new client can connect.
+ * The handshake fails if the private key does not match the certificate. */
+static void
+checkServerUsesCertificate(const UA_ByteString *certificate) {
+    UA_ByteString endpointCertificate;
+    getEndpointCertificate(&endpointCertificate);
+    ck_assert(UA_ByteString_equal(&endpointCertificate, certificate));
+    UA_ByteString_clear(&endpointCertificate);
+    ck_assert_uint_eq(connectNewClient(), UA_STATUSCODE_GOOD);
+}
+
+/* Positive control for the restart test below. With the filestore, the
+ * certificate for the key of the CSR is accepted without a restart. */
+START_TEST(update_certificate_csr_key_filestore) {
+    UA_Client *client = createSecureClient();
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(callCreateSigningRequest(client, true, &csr), UA_STATUSCODE_GOOD);
+
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    signCsr(&csr, &cert);
+    ck_assert_uint_eq(callUpdateCertificate(client, &cert), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callApplyChanges(client), UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    checkServerUsesCertificate(&cert);
+
+    UA_ByteString_clear(&cert);
+    UA_ByteString_clear(&csr);
+}
+END_TEST
+
+/* Part 12, 7.10.10: "The new key pair created with CreateSigningRequest shall
+ * be persisted and shall be available for UpdateCertificate even if it is
+ * called from a different Session." The CertificateManager requests the
+ * certificate from the issuer between CreateSigningRequest and
+ * UpdateCertificate (Part 12, 7.7.4). The server can restart in the meantime.
+ * A restart is not one of the events that discard the new key pair. These are
+ * another CreateSigningRequest, UpdateCertificate, CreateSelfSignedCertificate
+ * and DeleteCertificate. */
+START_TEST(update_certificate_csr_key_after_restart) {
+    UA_Client *client = createSecureClient();
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(callCreateSigningRequest(client, true, &csr), UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    restartServer();
+
+    /* The issuer signs the CSR while the server restarts. UpdateCertificate
+     * without a PrivateKey uses the key pair of the CSR. */
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    signCsr(&csr, &cert);
+    client = createSecureClient();
+    ck_assert_uint_eq(callUpdateCertificate(client, &cert), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callApplyChanges(client), UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    checkServerUsesCertificate(&cert);
+
+    UA_ByteString_clear(&cert);
+    UA_ByteString_clear(&csr);
+}
+END_TEST
+
+#endif /* CAN_RESTART_WITH_FILESTORE */
+
 #endif /* CAN_SIGN_CSR */
 
 /* Part 12 §7.10.10: The Nonce is at least 32 bytes long if
@@ -665,6 +882,14 @@ static Suite *testSuite_gds_csr_key(void) {
     tcase_add_test(tc_arguments, csr_reject_invalid_nonce);
     tcase_add_test(tc_arguments, csr_reject_invalid_subject_name);
     suite_add_tcase(s, tc_arguments);
+
+#ifdef CAN_RESTART_WITH_FILESTORE
+    TCase *tc_restart = tcase_create("CSR Key Restart");
+    tcase_add_checked_fixture(tc_restart, setupFilestore, teardownFilestore);
+    tcase_add_test(tc_restart, update_certificate_csr_key_filestore);
+    tcase_add_test(tc_restart, update_certificate_csr_key_after_restart);
+    suite_add_tcase(s, tc_restart);
+#endif
 
     /* A CSR without a new key replaces a CSR with a new key. A dangling CSR
      * key in a SecurityPolicy would crash the test binary, so these tests run
