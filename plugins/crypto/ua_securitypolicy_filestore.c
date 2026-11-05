@@ -178,6 +178,86 @@ writeCertificateAndPrivateKeyToFilestore(const UA_String storePath,
         return UA_STATUSCODE_GOOD;
 }
 
+/* Resolve the CertificateTypeId to its BrowseName for naming staged keys. */
+static const struct {
+    UA_UInt32 id;
+    const char *name;
+} stagedKeyCertificateTypes[] = {
+    {UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE, "RsaMinApplicationCertificateType"},
+    {UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE, "RsaSha256ApplicationCertificateType"},
+    {UA_NS0ID_ECCNISTP256APPLICATIONCERTIFICATETYPE, "EccNistP256ApplicationCertificateType"},
+    {UA_NS0ID_ECCNISTP384APPLICATIONCERTIFICATETYPE, "EccNistP384ApplicationCertificateType"},
+    {UA_NS0ID_ECCBRAINPOOLP256R1APPLICATIONCERTIFICATETYPE,
+     "EccBrainpoolP256r1ApplicationCertificateType"},
+    {UA_NS0ID_ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE,
+     "EccBrainpoolP384r1ApplicationCertificateType"},
+    {UA_NS0ID_ECCCURVE25519APPLICATIONCERTIFICATETYPE, "EccCurve25519ApplicationCertificateType"},
+    {UA_NS0ID_ECCCURVE448APPLICATIONCERTIFICATETYPE, "EccCurve448ApplicationCertificateType"}
+};
+
+static const char *
+getStagedKeyCertificateTypeName(const UA_NodeId *certificateTypeId) {
+    if(certificateTypeId->namespaceIndex != 0 ||
+       certificateTypeId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return NULL;
+    size_t typesSize =
+        sizeof(stagedKeyCertificateTypes) / sizeof(stagedKeyCertificateTypes[0]);
+    for(size_t i = 0; i < typesSize; i++) {
+        if(stagedKeyCertificateTypes[i].id == certificateTypeId->identifier.numeric)
+            return stagedKeyCertificateTypes[i].name;
+    }
+    return NULL;
+}
+
+static UA_StatusCode
+createStagedKeyFilename(const UA_String storePath, const UA_NodeId *certificateTypeId,
+                        char *path, size_t pathLen) {
+    const char *typeName = getStagedKeyCertificateTypeName(certificateTypeId);
+    if(!typeName)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    int len = mp_snprintf(path, pathLen, "%.*s/ApplCerts/own/private/staged_%s.key",
+                          (int)storePath.length, (char *)storePath.data, typeName);
+    if(len < 0 || (size_t)len >= pathLen)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+removeStagedPrivateKeyFromFilestore(const UA_String storePath,
+                                    const UA_NodeId *certificateTypeId) {
+    /* No key is staged for a CertificateType without a filename */
+    if(!getStagedKeyCertificateTypeName(certificateTypeId))
+        return UA_STATUSCODE_GOOD;
+
+    char path[UA_PATH_MAX];
+    UA_StatusCode retval =
+        createStagedKeyFilename(storePath, certificateTypeId, path, UA_PATH_MAX);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* The file does not exist if no key is staged */
+    if(UA_remove(path) != 0 && errno != ENOENT)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+writeStagedPrivateKeyToFilestore(const UA_String storePath,
+                                 const UA_NodeId *certificateTypeId,
+                                 const UA_ByteString stagedPrivateKey) {
+    char path[UA_PATH_MAX];
+    UA_StatusCode retval =
+        createStagedKeyFilename(storePath, certificateTypeId, path, UA_PATH_MAX);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Do not leave a partially written key behind */
+    retval = writeByteStringToFile(path, &stagedPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD)
+        (void)UA_remove(path);
+    return retval;
+}
+
 /************************/
 /* Asymmetric Signature */
 /************************/
@@ -569,7 +649,22 @@ createSigningRequest_filestore(UA_SecurityPolicy *sp,
                                UA_ByteString *newPrivateKey) {
     Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
     UA_SecurityPolicy *isp = pc->innerPolicy;
-    return isp->createSigningRequest(isp, subjectName, nonce, params, csr, newPrivateKey);
+    UA_StatusCode retval =
+        isp->createSigningRequest(isp, subjectName, nonce, params, csr, newPrivateKey);
+
+    /* A failed CSR or a CSR without a new key discards the key of an earlier
+     * CSR (Part 12, 7.10.10). The GDS receiver forgets the earlier CSR in both
+     * cases as well. */
+    if(retval != UA_STATUSCODE_GOOD) {
+        (void)removeStagedPrivateKeyFromFilestore(pc->storePath, &sp->certificateTypeId);
+        return retval;
+    }
+    if(!newPrivateKey || newPrivateKey->length == 0)
+        return removeStagedPrivateKeyFromFilestore(pc->storePath, &sp->certificateTypeId);
+
+    /* The CSR is not returned if its key is not persisted */
+    return writeStagedPrivateKeyToFilestore(pc->storePath, &sp->certificateTypeId,
+                                            *newPrivateKey);
 }
 
 static UA_StatusCode
