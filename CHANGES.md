@@ -51,6 +51,10 @@ node supplied by the application or an external nodestore (or its absence),
 unless it retracts a declaration applied earlier. A nonempty declaration
 requires the application to supply the node; the SDK does not create it.
 
+JSON configuration accepts `serverProfileArray: ["urn:example:profile:server"]`.
+Omitting the field leaves the default empty; `[]` clears a preceding declaration.
+Non-array values and non-string elements are rejected.
+
 Adding these fields changes the public configuration structure's binary layout.
 Rebuild dependent applications and bindings, and migrate profile declarations
 from direct node writes to the configuration fields.

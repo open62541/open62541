@@ -3177,6 +3177,9 @@ UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
  * is compiled in, configure them with ``webSocketEnabled`` / ``webSocket`` and
  * ``httpEnabled`` / ``http`` respectively.
  *
+ * The optional ``serverProfileArray`` property is an array of profile URI
+ * strings. It defaults to an empty list; ``[]`` clears any preceding declaration.
+ *
  * The following functions require JSON encoding support
  * (``UA_ENABLE_JSON_ENCODING``). */
 
