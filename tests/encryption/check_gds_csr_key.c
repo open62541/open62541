@@ -39,6 +39,7 @@
  * tests create a new server with the same PKI directory. */
 #if defined(CAN_SIGN_CSR) && (defined(__linux__) || defined(UA_ARCHITECTURE_WIN32))
 #define CAN_RESTART_WITH_FILESTORE
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef _WIN32
@@ -695,6 +696,46 @@ START_TEST(securitypolicy_update_reject_csr_key_mismatch) {
 }
 END_TEST
 
+/* Part 12, 7.10.10 keeps one active and one new key pair. A certificate for
+ * the active key is accepted while the key of a CSR is staged. The replaced
+ * certificate discards the new key pair, so a certificate for it is rejected
+ * afterwards. */
+START_TEST(update_certificate_current_key_discards_csr_key) {
+    UA_Client *client = createSecureClient();
+    UA_ByteString csrCurrent = UA_BYTESTRING_NULL;
+    UA_ByteString csrNew = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(callCreateSigningRequest(client, false, &csrCurrent),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callCreateSigningRequest(client, true, &csrNew), UA_STATUSCODE_GOOD);
+
+    UA_ByteString certCurrent = UA_BYTESTRING_NULL;
+    UA_ByteString certNew = UA_BYTESTRING_NULL;
+    signCsr(&csrCurrent, &certCurrent);
+    signCsr(&csrNew, &certNew);
+    ck_assert_uint_eq(callUpdateCertificate(client, &certCurrent), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callApplyChanges(client), UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    UA_ByteString endpointCertificate;
+    getEndpointCertificate(&endpointCertificate);
+    ck_assert(UA_ByteString_equal(&endpointCertificate, &certCurrent));
+    UA_ByteString_clear(&endpointCertificate);
+    ck_assert_uint_eq(connectNewClient(), UA_STATUSCODE_GOOD);
+
+    client = createSecureClient();
+    ck_assert_uint_eq(callUpdateCertificate(client, &certNew),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    UA_ByteString_clear(&certNew);
+    UA_ByteString_clear(&certCurrent);
+    UA_ByteString_clear(&csrNew);
+    UA_ByteString_clear(&csrCurrent);
+}
+END_TEST
+
 /* A CreateSigningRequest without RegeneratePrivateKey replaces a CSR with a
  * new key. The server signs the new CSR with its current key. A certificate
  * for the key of the replaced CSR must be rejected. */
@@ -780,6 +821,101 @@ START_TEST(update_certificate_csr_key_after_restart) {
     UA_Client_delete(client);
 
     checkServerUsesCertificate(&cert);
+
+    UA_ByteString_clear(&cert);
+    UA_ByteString_clear(&csr);
+}
+END_TEST
+
+/* Helper: the file of the filestore with the staged key of the
+ * RsaSha256ApplicationCertificateType */
+static void
+getStagedKeyPath(char *path, size_t pathLen) {
+    snprintf(path, pathLen,
+             "%s/ApplCerts/own/private/staged_RsaSha256ApplicationCertificateType.key",
+             storePath);
+}
+
+static UA_Boolean
+fileExists(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if(!f)
+        return false;
+    fclose(f);
+    return true;
+}
+
+/* The filestore keeps the staged key in a file until a CSR without a new key
+ * discards it */
+START_TEST(csr_without_new_key_removes_staged_key_file) {
+    char stagedKeyPath[TEST_PATH_MAX];
+    getStagedKeyPath(stagedKeyPath, sizeof(stagedKeyPath));
+
+    UA_Client *client = createSecureClient();
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(callCreateSigningRequest(client, true, &csr), UA_STATUSCODE_GOOD);
+    ck_assert(fileExists(stagedKeyPath));
+    UA_ByteString_clear(&csr);
+
+    ck_assert_uint_eq(callCreateSigningRequest(client, false, &csr), UA_STATUSCODE_GOOD);
+    ck_assert(!fileExists(stagedKeyPath));
+    UA_ByteString_clear(&csr);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* The applied certificate replaces the certificate of the CertificateType.
+ * Then the staged key is discarded (Part 12, 7.10.10), and its file is
+ * removed. */
+START_TEST(apply_changes_removes_staged_key_file) {
+    char stagedKeyPath[TEST_PATH_MAX];
+    getStagedKeyPath(stagedKeyPath, sizeof(stagedKeyPath));
+
+    UA_Client *client = createSecureClient();
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(callCreateSigningRequest(client, true, &csr), UA_STATUSCODE_GOOD);
+    ck_assert(fileExists(stagedKeyPath));
+
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    signCsr(&csr, &cert);
+    ck_assert_uint_eq(callUpdateCertificate(client, &cert), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callApplyChanges(client), UA_STATUSCODE_GOOD);
+    ck_assert(!fileExists(stagedKeyPath));
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    UA_ByteString_clear(&cert);
+    UA_ByteString_clear(&csr);
+}
+END_TEST
+
+/* The filestore reads the staged key only at startup. Without the file, the
+ * restarted server has no staged key and rejects a certificate for it. No
+ * certificate is installed with a key that does not match. */
+START_TEST(update_certificate_reject_csr_key_after_staged_file_removed) {
+    char stagedKeyPath[TEST_PATH_MAX];
+    getStagedKeyPath(stagedKeyPath, sizeof(stagedKeyPath));
+
+    UA_Client *client = createSecureClient();
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(callCreateSigningRequest(client, true, &csr), UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    stopServer();
+    ck_assert_int_eq(remove(stagedKeyPath), 0);
+    createFilestoreServer();
+    startServer();
+
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    signCsr(&csr, &cert);
+    client = createSecureClient();
+    ck_assert_uint_eq(callUpdateCertificate(client, &cert),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
 
     UA_ByteString_clear(&cert);
     UA_ByteString_clear(&csr);
@@ -874,6 +1010,7 @@ static Suite *testSuite_gds_csr_key(void) {
     tcase_add_test(tc_key, update_certificate_reject_discarded_csr_key);
     tcase_add_test(tc_key, apply_changes_discarded_csr_key_keeps_server_reachable);
     tcase_add_test(tc_key, securitypolicy_update_reject_csr_key_mismatch);
+    tcase_add_test(tc_key, update_certificate_current_key_discards_csr_key);
     suite_add_tcase(s, tc_key);
 #endif
 
@@ -888,6 +1025,9 @@ static Suite *testSuite_gds_csr_key(void) {
     tcase_add_checked_fixture(tc_restart, setupFilestore, teardownFilestore);
     tcase_add_test(tc_restart, update_certificate_csr_key_filestore);
     tcase_add_test(tc_restart, update_certificate_csr_key_after_restart);
+    tcase_add_test(tc_restart, csr_without_new_key_removes_staged_key_file);
+    tcase_add_test(tc_restart, apply_changes_removes_staged_key_file);
+    tcase_add_test(tc_restart, update_certificate_reject_csr_key_after_staged_file_removed);
     suite_add_tcase(s, tc_restart);
 #endif
 

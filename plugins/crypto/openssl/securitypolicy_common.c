@@ -1142,11 +1142,31 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                                 UA_SecurityPolicy *securityPolicy,
                                 const UA_String *subjectName,
                                 const UA_ByteString *nonce,
+                                const UA_KeyValueMap *params,
                                 UA_ByteString *csr,
                                 UA_ByteString *newPrivateKey) {
     /* Check parameter */
     if(!securityPolicy || !csr || !localPrivateKey) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Return the staged key without changing anything (see
+     * createSigningRequest in securitypolicy.h) */
+    const UA_Boolean *readStagedKey = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "staged-private-key"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(readStagedKey && *readStagedKey) {
+        if(!newPrivateKey || newPrivateKey->length > 0)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        if(!*csrLocalPrivateKey)
+            return UA_STATUSCODE_GOOD;
+        UA_StatusCode res =
+            UA_OpenSSL_writePrivateKeyDer(*csrLocalPrivateKey, newPrivateKey);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_ByteString_memZero(newPrivateKey);
+            UA_ByteString_clear(newPrivateKey);
+        }
+        return res;
     }
 
     /* A new CSR discards the private key of the previous CSR. The
@@ -1699,8 +1719,12 @@ UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityP
     else if(!isLocalKey)
         privateKey = pc->csrLocalPrivateKey;
 
+    /* The PrivateKey does not parse. Or there is no PrivateKey and no key of a
+     * CSR. Then the certificate is for none of the keys of the Server, like a
+     * certificate for a key that does not match (see below). */
     if(!privateKey) {
-        retval = UA_STATUSCODE_BADNOTSUPPORTED;
+        retval = (newPrivateKey.length > 0) ?
+            UA_STATUSCODE_BADNOTSUPPORTED : UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
 
@@ -1735,6 +1759,10 @@ UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityP
         pc->localPrivateKey = pc->csrLocalPrivateKey;
         pc->csrLocalPrivateKey = NULL;
     }
+
+    /* The replaced certificate discards the new key pair of a CSR. */
+    EVP_PKEY_free(pc->csrLocalPrivateKey);
+    pc->csrLocalPrivateKey = NULL;
 
     return UA_STATUSCODE_GOOD;
 

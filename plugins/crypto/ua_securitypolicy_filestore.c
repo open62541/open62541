@@ -258,6 +258,73 @@ writeStagedPrivateKeyToFilestore(const UA_String storePath,
     return retval;
 }
 
+/* Read the staged key from the inner SecurityPolicy. */
+static void
+readStagedPrivateKeyFromPolicy(UA_SecurityPolicy *isp, UA_ByteString *stagedKey) {
+    UA_ByteString_init(stagedKey);
+    if(!isp->createSigningRequest)
+        return;
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    if(UA_ByteString_allocBuffer(&csr, 1) != UA_STATUSCODE_GOOD)
+        return;
+    csr.data[0] = 0;
+
+    UA_Boolean readStagedKey = true;
+    UA_KeyValuePair param;
+    param.key = UA_QUALIFIEDNAME(0, "staged-private-key");
+    UA_Variant_setScalar(&param.value, &readStagedKey, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap params = {1, &param};
+
+    UA_StatusCode res = isp->createSigningRequest(isp, NULL, NULL, &params, &csr, stagedKey);
+    UA_ByteString_clear(&csr);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_memZero(stagedKey);
+        UA_ByteString_clear(stagedKey);
+    }
+}
+
+/* The staged private key file is read once when the SecurityPolicy is created.
+ * While the server runs, the SecurityPolicy holds the staged key in memory. */
+static void
+loadStagedPrivateKeyFromFilestore(UA_SecurityPolicy *sp) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    if(!isp->createSigningRequest ||
+       !getStagedKeyCertificateTypeName(&sp->certificateTypeId))
+        return;
+
+    char path[UA_PATH_MAX];
+    if(createStagedKeyFilename(pc->storePath, &sp->certificateTypeId,
+                               path, UA_PATH_MAX) != UA_STATUSCODE_GOOD)
+        return;
+
+    /* No key is staged if the file does not exist */
+    UA_ByteString stagedKey = UA_BYTESTRING_NULL;
+    UA_StatusCode res = readFileToByteString(path, &stagedKey);
+    if(res == UA_STATUSCODE_BADNOTFOUND)
+        return;
+    if(res == UA_STATUSCODE_GOOD && stagedKey.length == 0)
+        res = UA_STATUSCODE_BADINTERNALERROR;
+
+    /* An existing key in newPrivateKey becomes the staged key of the inner
+     * SecurityPolicy. No CSR is created. */
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_ByteString csr = UA_BYTESTRING_NULL;
+        res = isp->createSigningRequest(isp, NULL, NULL, &UA_KEYVALUEMAP_NULL,
+                                        &csr, &stagedKey);
+        UA_ByteString_clear(&csr);
+    }
+    UA_ByteString_memZero(&stagedKey);
+    UA_ByteString_clear(&stagedKey);
+
+    /* The server starts without the staged key. A certificate for it is
+     * rejected, and the CertificateManager has to create a new CSR. */
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "Could not load the staged private key %s (%s)",
+                       path, UA_StatusCode_name(res));
+}
+
 /************************/
 /* Asymmetric Signature */
 /************************/
@@ -618,25 +685,45 @@ static UA_StatusCode
 updateCertificate_filestore(UA_SecurityPolicy *sp,
                             const UA_ByteString newCertificate,
                             const UA_ByteString newPrivateKey) {
-    /* Temporarily save the old certificate file so that it can be removed from
-     * CertStore */
-    UA_ByteString localCertificateTmp;
-    UA_ByteString_copy(&sp->localCertificate, &localCertificateTmp);
-
     Filestore_Context *pc =
         (Filestore_Context *) sp->policyContext;
     UA_SecurityPolicy *isp = pc->innerPolicy;
 
+    /* A certificate without a PrivateKey can activate the staged key of the
+     * last CSR. During execution, the inner SecurityPolicy holds the staged
+     * key. */
+    UA_ByteString activatedKey = UA_BYTESTRING_NULL;
+    if(newPrivateKey.length == 0 &&
+       getStagedKeyCertificateTypeName(&sp->certificateTypeId)) {
+        readStagedPrivateKeyFromPolicy(isp, &activatedKey);
+        if(activatedKey.length > 0 &&
+           UA_CertificateUtils_checkKeyPair(&newCertificate, &activatedKey) !=
+           UA_STATUSCODE_GOOD) {
+            UA_ByteString_memZero(&activatedKey);
+            UA_ByteString_clear(&activatedKey);
+        }
+    }
+
     UA_StatusCode retval = isp->updateCertificate(isp, newCertificate, newPrivateKey);
     if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+        goto cleanup;
 
     sp->localCertificate = isp->localCertificate;
 
-    retval = writeCertificateAndPrivateKeyToFilestore(pc->storePath,
-                                                      newCertificate, newPrivateKey);
-    UA_ByteString_clear(&localCertificateTmp);
+    retval = writeCertificateAndPrivateKeyToFilestore(
+        pc->storePath, newCertificate,
+        (newPrivateKey.length > 0) ? newPrivateKey : activatedKey);
 
+    /* The replaced certificate discards the staged key (Part 12, 7.10.10).
+     * The inner SecurityPolicy has discarded it in memory already. */
+    UA_StatusCode removeRes =
+        removeStagedPrivateKeyFromFilestore(pc->storePath, &sp->certificateTypeId);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = removeRes;
+
+cleanup:
+    UA_ByteString_memZero(&activatedKey);
+    UA_ByteString_clear(&activatedKey);
     return retval;
 }
 
@@ -649,12 +736,19 @@ createSigningRequest_filestore(UA_SecurityPolicy *sp,
                                UA_ByteString *newPrivateKey) {
     Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
     UA_SecurityPolicy *isp = pc->innerPolicy;
+
+    /* Reading the staged key doesn't modify anything. */
+    const UA_Boolean *readStagedKey = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "staged-private-key"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(readStagedKey && *readStagedKey)
+        return isp->createSigningRequest(isp, subjectName, nonce, params, csr,
+                                         newPrivateKey);
+
     UA_StatusCode retval =
         isp->createSigningRequest(isp, subjectName, nonce, params, csr, newPrivateKey);
 
-    /* A failed CSR or a CSR without a new key discards the key of an earlier
-     * CSR (Part 12, 7.10.10). The GDS receiver forgets the earlier CSR in both
-     * cases as well. */
+    /* A failed CSR or a CSR without a new key discards the key of an earlier CSR. */
     if(retval != UA_STATUSCODE_GOOD) {
         (void)removeStagedPrivateKeyFromFilestore(pc->storePath, &sp->certificateTypeId);
         return retval;
@@ -810,6 +904,9 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     /* Set the inner policy */
     Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
     pc->innerPolicy = innerPolicy;
+
+    /* Restore the staged key of a CSR from before a restart */
+    loadStagedPrivateKeyFromFilestore(sp);
 
     return UA_STATUSCODE_GOOD;
 }

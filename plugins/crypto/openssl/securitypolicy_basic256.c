@@ -41,7 +41,7 @@ createSigningRequest_sp_basic256(UA_SecurityPolicy *securityPolicy,
 
     return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey, &pc->csrLocalPrivateKey,
                                            securityPolicy, subjectName, nonce,
-                                           csr, newPrivateKey);
+                                           params, csr, newPrivateKey);
 }
 
 /* create the channel context */

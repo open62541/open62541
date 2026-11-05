@@ -110,7 +110,7 @@ createSigningRequest_sp_eccnistp256(UA_SecurityPolicy *securityPolicy,
     return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey,
                                            &pc->csrLocalPrivateKey,
                                            securityPolicy, subjectName,
-                                           nonce, csr, newPrivateKey);
+                                           nonce, params, csr, newPrivateKey);
 }
 
 static UA_StatusCode
