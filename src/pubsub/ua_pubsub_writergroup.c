@@ -529,9 +529,15 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                        UA_PubSubState_name(wg->head.state));
 
     /* Inform the application about state change */
-    if(server->config.pubSubConfig.stateChangeCallback)
+    if(server->config.pubSubConfig.stateChangeCallback) {
+        const UA_NodeId identifier = wg->head.identifier;
         server->config.pubSubConfig.
-            stateChangeCallback(server, wg->head.identifier, wg->head.state, ret);
+            stateChangeCallback(server, identifier, wg->head.state, ret);
+
+        /* The callback may remove this WriterGroup or its connection. */
+        if(UA_WriterGroup_find(psm, identifier) != wg)
+            return ret;
+    }
 
     /* Children evaluate their state machine after the state change of the parent.
      * Keep the current child state as the target state for the child. */
