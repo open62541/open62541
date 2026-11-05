@@ -1669,6 +1669,7 @@ decodeRawField(PubSubDecodeCtx *ctx,
     value->value.data = ctxCalloc(&ctx->ctx, count, type->memSize);
     if(!value->value.data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    value->value.arrayLength = count;
 
     /* Decode the content */
     uintptr_t val = (uintptr_t)value->value.data;
