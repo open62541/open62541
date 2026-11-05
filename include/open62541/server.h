@@ -2349,24 +2349,19 @@ struct UA_ServerConfig {
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
 
-    /* Profile URIs exposed in ServerCapabilities.ServerProfileArray (ns=0;i=2269).
-     * The default is an empty list: no profiles are declared automatically, and
-     * startup warns when it writes an empty list. The application is responsible
-     * for supporting all mandatory ConformanceUnits of the profiles it declares
-     * in its current configuration (Part 5, 6.3.2; Part 7, 4.5). Only Server
-     * Profiles and Facets belong here; Transport and Security Profile URIs are
-     * part of the EndpointDescriptions (Part 7, 4.4). Vendor-defined URIs are
-     * accepted unchanged and in order. Empty entries are rejected.
+    /* Profile URIs advertised in ServerCapabilities.ServerProfileArray. Declare
+     * only the Server Profiles and Facets that the server fully supports in its
+     * current configuration. The list is empty by default, and the server logs
+     * a warning at startup when it advertises an empty list. Empty entries are
+     * rejected.
      *
-     * The config owns the array and its strings. Allocate them with UA_Array_copy;
-     * UA_ServerConfig_clear releases them. Change the list only while stopped.
-     * A nonempty list is written to the node on creation and before each startup,
-     * overwriting direct writes; the node has to accept the write. An empty list
-     * keeps the value of a read-only value source. With MINIMAL or NONE namespace
-     * zero, it also keeps the node supplied by the application or an external
-     * nodestore, unless it retracts an earlier declaration. A nonempty list then
-     * requires the application to supply the node.
-     * See CHANGES.md for an allocation example and migration notes. */
+     * The config owns the array and its strings: allocate them with
+     * UA_Array_copy, UA_ServerConfig_clear frees them. Change the list only
+     * while the server is stopped. A nonempty list is written to the node on
+     * creation and before every startup, which fails if the node cannot take
+     * it. An empty list does not touch a read-only value source, nor (with
+     * MINIMAL or NONE namespace zero) a node supplied by the application or an
+     * external nodestore. */
     size_t serverProfileArraySize;
     UA_String *serverProfileArray;
 
