@@ -1329,7 +1329,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             /* Generate a new EdDSA key of the same type as the local key */
             EVP_PKEY_CTX *kctx = EVP_PKEY_CTX_new_id(keyType, NULL);
             if(!kctx || EVP_PKEY_keygen_init(kctx) != 1 ||
-               EVP_PKEY_keygen(kctx, csrLocalPrivateKey) != 1) {
+               EVP_PKEY_keygen(kctx, &csrKey) != 1) {
                 EVP_PKEY_CTX_free(kctx);
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
@@ -2119,12 +2119,16 @@ UA_OpenSSL_splitIKM(const UA_SecurityPolicy *policy, const UA_ByteString *secret
     nonce->length = secret->length - prefix;
 }
 
-UA_StatusCode
-UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
-                          const UA_ApplicationType applicationType,
-                          EVP_PKEY *localEphemeralKeyPair,
-                          const UA_ByteString *key1, const UA_ByteString *key2,
-                          UA_ByteString *ikmInOut, UA_ByteString *out) {
+/* `sessionSecret` selects the "opcua-secret" label of an EccEncryptedSecret.
+ * Then key1 is the server's (receiver's) and key2 the client's (sender's)
+ * ephemeral public key. */
+static UA_StatusCode
+eccDeriveKeys(const int curveID, const char *hashAlgorithm,
+              const UA_ApplicationType applicationType,
+              EVP_PKEY *localEphemeralKeyPair,
+              const UA_ByteString *key1, const UA_ByteString *key2,
+              UA_ByteString *ikmInOut, UA_ByteString *out,
+              UA_Boolean sessionSecret) {
 #if defined(LIBRESSL_VERSION_NUMBER)
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
@@ -2167,10 +2171,8 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
     static UA_String clientLabel = UA_STRING_STATIC("opcua-client");
     static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
 
-    /* (Temporary) measure to signal salt generation for sessions. out should
-     * always be allocated before this check, so it shouldn't cause problems. */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(out->data[0] == 0x03 && out->data[1] == 0x03 && out->data[2] == 0x04 ) {
+    if(sessionSecret) {
         label = &sessionLabel;
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {
             remoteEphPubKey = key2;
@@ -2231,7 +2233,7 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
 
     /* Call HKDF to derive keys */
     /* Salt is given as the info argument (check 6.8.1., tables 66 and 67) */
-    ret = UA_OpenSSL_HKDF(hashAlgorithm, secret, &salt, &salt, out);
+    ret = UA_OpenSSL_HKDF((char *)(uintptr_t)hashAlgorithm, secret, &salt, &salt, out);
     if(ret != UA_STATUSCODE_GOOD) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -2244,6 +2246,28 @@ errout:
     clearSecret(&ikm);
 
     return ret;
+}
+
+UA_StatusCode
+UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
+                          const UA_ApplicationType applicationType,
+                          EVP_PKEY *localEphemeralKeyPair,
+                          const UA_ByteString *key1, const UA_ByteString *key2,
+                          UA_ByteString *ikmInOut, UA_ByteString *out) {
+    return eccDeriveKeys(curveID, hashAlgorithm, applicationType,
+                         localEphemeralKeyPair, key1, key2, ikmInOut, out, false);
+}
+
+UA_StatusCode
+UA_OpenSSL_ECC_DeriveSessionKey(const int curveID, const char *hashAlgorithm,
+                                const UA_ApplicationType applicationType,
+                                EVP_PKEY *localEphemeralKeyPair,
+                                const UA_ByteString *receiverPublicKey,
+                                const UA_ByteString *senderPublicKey,
+                                UA_ByteString *out) {
+    return eccDeriveKeys(curveID, hashAlgorithm, applicationType,
+                         localEphemeralKeyPair, receiverPublicKey,
+                         senderPublicKey, NULL, out, true);
 }
 
 UA_StatusCode
@@ -2820,15 +2844,14 @@ errout:
     return ret;
 }
 
-UA_StatusCode
-UA_OpenSSL_XDHE_DeriveKeys(int keyType,
-                            const char *hashAlgorithm,
-                            UA_ApplicationType applicationType,
-                            EVP_PKEY *localEphemeralKeyPair,
-                            const UA_ByteString *key1,
-                            const UA_ByteString *key2,
-                            UA_ByteString *ikmInOut,
-                            UA_ByteString *out) {
+/* See eccDeriveKeys for `sessionSecret` */
+static UA_StatusCode
+xdheDeriveKeys(int keyType, const char *hashAlgorithm,
+               UA_ApplicationType applicationType,
+               EVP_PKEY *localEphemeralKeyPair,
+               const UA_ByteString *key1, const UA_ByteString *key2,
+               UA_ByteString *ikmInOut, UA_ByteString *out,
+               UA_Boolean sessionSecret) {
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
     UA_ByteString ikm = UA_BYTESTRING_NULL;
@@ -2856,7 +2879,7 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
     static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(out->data[0] == 0x03 && out->data[1] == 0x03 && out->data[2] == 0x04) {
+    if(sessionSecret) {
         label = &sessionLabel;
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {
             remoteEphPubKey = key2;
@@ -2906,6 +2929,31 @@ errout:
     UA_ByteString_clear(&salt);
     clearSecret(&ikm);
     return ret;
+}
+
+UA_StatusCode
+UA_OpenSSL_XDHE_DeriveKeys(int keyType,
+                            const char *hashAlgorithm,
+                            UA_ApplicationType applicationType,
+                            EVP_PKEY *localEphemeralKeyPair,
+                            const UA_ByteString *key1,
+                            const UA_ByteString *key2,
+                            UA_ByteString *ikmInOut,
+                            UA_ByteString *out) {
+    return xdheDeriveKeys(keyType, hashAlgorithm, applicationType,
+                          localEphemeralKeyPair, key1, key2, ikmInOut, out, false);
+}
+
+UA_StatusCode
+UA_OpenSSL_XDHE_DeriveSessionKey(int keyType, const char *hashAlgorithm,
+                                 UA_ApplicationType applicationType,
+                                 EVP_PKEY *localEphemeralKeyPair,
+                                 const UA_ByteString *receiverPublicKey,
+                                 const UA_ByteString *senderPublicKey,
+                                 UA_ByteString *out) {
+    return xdheDeriveKeys(keyType, hashAlgorithm, applicationType,
+                          localEphemeralKeyPair, receiverPublicKey,
+                          senderPublicKey, NULL, out, true);
 }
 
 /* A context with the key set up. A message only sets the IV. */
