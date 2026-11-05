@@ -220,6 +220,14 @@ START_TEST(SecureChannel_open_validSecurityMode) {
     UA_OpenSecureChannelRequest_init(&request);
     request.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
     request.securityMode = (UA_MessageSecurityMode)_i;
+    /* A secured channel needs a nonce of the policy's nonceLength */
+    if(request.securityMode != UA_MESSAGESECURITYMODE_NONE) {
+        size_t nonceLength = testChannel.securityPolicy->nonceLength;
+        ck_assert_uint_eq(UA_ByteString_allocBuffer(&request.clientNonce,
+                                                    nonceLength),
+                          UA_STATUSCODE_GOOD);
+        memset(request.clientNonce.data, 0x42, nonceLength);
+    }
     UA_OpenSecureChannelResponse response;
     UA_OpenSecureChannelResponse_init(&response);
 
@@ -1589,6 +1597,47 @@ START_TEST(SecureChannel_EncryptedSecretKey_p256) {
     EVP_PKEY_free(s.kp);
 } END_TEST
 
+/* A nonce comes from the remote side and can be longer than the local
+ * ephemeral key. It must not match the local key (and must not make the
+ * comparison read past the encoded key), so the derivation fails. */
+START_TEST(SecureChannel_ECC_rejectsOverlongNonce) {
+    P256Ephemeral c, s;
+    newEphemeral(&c);
+    newEphemeral(&s);
+
+    /* Starts with the local nonce, then 64 more bytes */
+    UA_Byte longBytes[128];
+    memcpy(longBytes, c.nonce, 64);
+    memset(longBytes + 64, 0xab, 64);
+    UA_ByteString overlong = {sizeof(longBytes), longBytes};
+    UA_ByteString remote = {64, s.nonce};
+
+    UA_Byte keyBytes[32];
+    UA_ByteString out = {32, keyBytes};
+    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(
+                          EC_curve_nist2nid("P-256"), "SHA256",
+                          UA_APPLICATIONTYPE_CLIENT, c.kp,
+                          &overlong, &remote, NULL, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(
+                          EC_curve_nist2nid("P-256"), "SHA256",
+                          UA_APPLICATIONTYPE_CLIENT, c.kp,
+                          &remote, &overlong, NULL, &out),
+                      UA_STATUSCODE_GOOD);
+
+    /* The other key matches the local one, so the overlong nonce is taken as
+     * the remote key - and rejected by the ECDH */
+    UA_ByteString local = {64, c.nonce};
+    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(
+                          EC_curve_nist2nid("P-256"), "SHA256",
+                          UA_APPLICATIONTYPE_CLIENT, c.kp,
+                          &overlong, &local, NULL, &out),
+                      UA_STATUSCODE_GOOD);
+
+    EVP_PKEY_free(c.kp);
+    EVP_PKEY_free(s.kp);
+} END_TEST
+
 #endif /* UA_ENABLE_ENCRYPTION_OPENSSL && !LIBRESSL_VERSION_NUMBER */
 
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
@@ -1747,6 +1796,7 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_x25519AccumulatorIsFullWidth);
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_splitIKM);
     tcase_add_test(tc_ikmChaining, SecureChannel_EncryptedSecretKey_p256);
+    tcase_add_test(tc_ikmChaining, SecureChannel_ECC_rejectsOverlongNonce);
     suite_add_tcase(s, tc_ikmChaining);
 
     TCase *tc_xdh = tcase_create("XDH key derivation");

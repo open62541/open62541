@@ -164,6 +164,17 @@ Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    /* The SecureChannel nonce has exactly the length defined by the
+     * SecurityPolicy. For ECC it is the ephemeral public key. */
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE &&
+       request->clientNonce.length != sp->nonceLength) {
+        UA_LOG_ERROR_CHANNEL(sc->logging, channel,
+                             "OpenSecureChannel: The client nonce has the "
+                             "wrong length");
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNONCEINVALID;
+        return;
+    }
+
     /* Create a new SecurityToken. It will be switched over when the first
      * message is received. The ChannelId is left unchanged. */
     channel->altSecurityToken.channelId = channel->securityToken.channelId;

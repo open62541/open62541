@@ -2072,11 +2072,13 @@ eccDeriveKeys(const int curveID, const char *hashAlgorithm,
     UA_ByteString ikm = UA_BYTESTRING_NULL;
     const UA_ByteString *secret = NULL; /* &sharedSecret or &ikm */
 
-    /* Get the local ephemeral public key to use in comparison. The
-     * encoded form begins with a single 0x04 byte (for uncompressed
-     * points) followed by the X and Y coordinates. The comparison
-     * below uses &keyPubEnc[1] as the start, so the expected length
-     * of `key1` is (keyPubEncSize - 1). */
+    /* Get the local ephemeral public key to use in comparison. This function
+     * handles the Weierstrass curves only (X25519/X448 use xdheDeriveKeys).
+     * The encoded form begins with a single 0x04 byte (for uncompressed
+     * points) followed by the X and Y coordinates. The comparison below
+     * starts at &keyPubEnc[1], so a nonce can only match if its length is
+     * (keyPubEncSize - 1). The nonces come from the remote side; check the
+     * length first so that memcmp does not read past keyPubEnc. */
     UA_Byte *keyPubEnc = NULL;
 #if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
     size_t keyPubEncSize =
@@ -2115,7 +2117,8 @@ eccDeriveKeys(const int curveID, const char *hashAlgorithm,
         }
     }
     /* Comparing from the second byte since the first byte has 0x04 from the encoding */
-    else if(memcmp(&keyPubEnc[1], key1Effective.data, key1Effective.length) == 0) {
+    else if(keyPubEncSize - 1 == key1Effective.length &&
+            memcmp(&keyPubEnc[1], key1Effective.data, key1Effective.length) == 0) {
         /* Key 1 is local ephemeral public key => generating remote keys */
         remoteEphPubKey = key2;
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {
@@ -2124,7 +2127,8 @@ eccDeriveKeys(const int curveID, const char *hashAlgorithm,
             label = &serverLabel;
         }
     }
-    else if(memcmp(&keyPubEnc[1], key2->data, key2->length) == 0) {
+    else if(keyPubEncSize - 1 == key2->length &&
+            memcmp(&keyPubEnc[1], key2->data, key2->length) == 0) {
         /* Key 2 is local ephemeral public key => generating local keys */
         remoteEphPubKey = &key1Effective;
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {
