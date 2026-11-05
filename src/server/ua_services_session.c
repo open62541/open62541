@@ -772,6 +772,28 @@ Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                                                   &response->serverEndpoints,
                                                   &response->serverEndpointsSize);
 
+    /* Part 4, 5.7.2.2: "If the securityPolicyUri is None and none of the
+     * UserTokenPolicies requires encryption, the Server shall not send an
+     * ApplicationInstanceCertificate". Conversely, the certificate must be sent
+     * if one of the UserTokenPolicies requires encryption. Also when the Client
+     * provided no certificate (and no sessionSp was instantiated above). Use
+     * the same certificate the GetEndpoints response announces for that. */
+    if(response->serverCertificate.length == 0 &&
+       sp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
+        for(size_t i = 0; i < response->serverEndpointsSize; i++) {
+            const UA_EndpointDescription *ed = &response->serverEndpoints[i];
+            if(!UA_String_equal(&ed->securityPolicyUri, &sp->policyUri))
+                continue;
+            const UA_ByteString *encCert =
+                getUserTokenEncryptionCertificate(server, ed);
+            if(!encCert)
+                continue;
+            rh->serviceResult |=
+                UA_ByteString_copy(encCert, &response->serverCertificate);
+            break;
+        }
+    }
+
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                              "CreateSession: Could not prepare the response (%s)",
