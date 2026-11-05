@@ -10,6 +10,7 @@
 #include <open62541/server_config_default.h>
 
 #include "ua_server_internal.h"
+#include "client/ua_client_internal.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -95,12 +96,62 @@ START_TEST(none_policy_connect_fail) {
 }
 END_TEST
 
+START_TEST(none_policy_createSession_serverCertWithoutClientCert) {
+    server->config.allowNonePolicyPassword = false;
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionRequest_init(&createReq);
+    createReq.endpointUrl = UA_STRING("opc.tcp://localhost:4840");
+    createReq.requestedSessionTimeout = 10000;
+    UA_CreateSessionResponse createRes;
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* The username token of the #None endpoint requires encryption */
+    UA_Boolean encryptedTokenPolicy = false;
+    for(size_t i = 0; i < createRes.serverEndpointsSize; i++) {
+        const UA_EndpointDescription *ed = &createRes.serverEndpoints[i];
+        if(!UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI))
+            continue;
+        for(size_t j = 0; j < ed->userIdentityTokensSize; j++) {
+            if(ed->userIdentityTokens[j].tokenType == UA_USERTOKENTYPE_USERNAME &&
+               ed->userIdentityTokens[j].securityPolicyUri.length > 0)
+                encryptedTokenPolicy = true;
+        }
+    }
+    ck_assert(encryptedTokenPolicy);
+
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    ck_assert(UA_ByteString_equal(&createRes.serverCertificate, &certificate));
+
+    UA_CloseSessionRequest closeReq;
+    UA_CloseSessionRequest_init(&closeReq);
+    closeReq.requestHeader.authenticationToken = createRes.authenticationToken;
+    closeReq.deleteSubscriptions = true;
+    UA_CloseSessionResponse closeRes;
+    __UA_Client_Service(client, &closeReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &closeRes, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    UA_CloseSessionResponse_clear(&closeRes);
+    UA_CreateSessionResponse_clear(&createRes);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("NoneClientWithEncryptionServer");
     TCase *tc_encryption = tcase_create("Client without certificate and server with certificate");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
     tcase_add_test(tc_encryption, none_policy_connect);
     tcase_add_test(tc_encryption, none_policy_connect_fail);
+    tcase_add_test(tc_encryption, none_policy_createSession_serverCertWithoutClientCert);
     suite_add_tcase(s,tc_encryption);
     return s;
 }
