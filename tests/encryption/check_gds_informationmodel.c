@@ -1289,7 +1289,9 @@ callUpdateCertificateWithPushKey(UA_Client *client, UA_ByteString certificate) {
 }
 
 /* A certificate with changed bytes is invalid, also if a PrivateKey is
- * provided. The PrivateKey cannot match a certificate that does not parse. */
+ * provided (Part 12, 7.10.5). The certificate is verified before the
+ * PrivateKey is checked against it. A changed public key does not match the
+ * PrivateKey, but the certificate is invalid and not the PrivateKey. */
 START_TEST(update_certificate_reject_corrupted) {
     UA_Client *client = createSecureClient();
     trustPushCa();
@@ -1310,11 +1312,54 @@ START_TEST(update_certificate_reject_corrupted) {
     retval = callUpdateCertificateWithPushKey(client, cert);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
 
+    /* A byte in the middle of the RSA-2048 modulus. The certificate still
+     * parses, but the signature of the issuer does not match. */
+    cert.data[4] = 0x30;
+    static const UA_Byte rsaPublicKey[] = /* SEQUENCE { INTEGER (257 bytes) */
+        {0x30, 0x82, 0x01, 0x0a, 0x02, 0x82, 0x01, 0x01, 0x00};
+    size_t modulus = 0;
+    for(size_t i = 0; i + sizeof(rsaPublicKey) <= cert.length; i++) {
+        if(memcmp(&cert.data[i], rsaPublicKey, sizeof(rsaPublicKey)) == 0) {
+            modulus = i + sizeof(rsaPublicKey);
+            break;
+        }
+    }
+    ck_assert_uint_gt(modulus, 0);
+    cert.data[modulus + 128] ^= 0xff;
+    size_t keySize = 0;
+    ck_assert_uint_eq(UA_CertificateUtils_getKeySize(&cert, &keySize),
+                      UA_STATUSCODE_GOOD);
+    retval = callUpdateCertificateWithPushKey(client, cert);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+
     /* No transaction was started */
     retval = applyChanges(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTHINGTODO);
 
     UA_ByteString_clear(&cert);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.10.5: A valid certificate with a PrivateKey that does not match
+ * returns Bad_NotSupported */
+START_TEST(update_certificate_reject_mismatched_key) {
+    UA_Client *client = createSecureClient();
+    trustPushCa();
+
+    UA_ByteString cert = {PUSH_APP_CERT_DER_LENGTH, PUSH_APP_CERT_DER_DATA};
+    UA_ByteString wrongKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_String keyFormat = UA_STRING("PKCS8");
+    UA_StatusCode retval =
+        callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                     &cert, &keyFormat, &wrongKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+
+    /* No transaction was started */
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTHINGTODO);
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -2263,6 +2308,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate_chain_stages_leaf);
     tcase_add_test(tc_cert, update_certificate_reject_truncated);
     tcase_add_test(tc_cert, update_certificate_reject_corrupted);
+    tcase_add_test(tc_cert, update_certificate_reject_mismatched_key);
     tcase_add_test(tc_cert, update_certificate_accept_expired);
     tcase_add_test(tc_cert, update_certificate_accept_invalid_hostname);
     tcase_add_test(tc_cert, add_certificate_success);
