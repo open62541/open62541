@@ -1260,6 +1260,7 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
 
 static UA_StatusCode
 createSigningRequestLocked(UA_GDSReceiver *receiver,
+                           const UA_NodeId *sessionId,
                            const UA_NodeId certificateGroupId,
                            const UA_NodeId certificateTypeId,
                            const UA_String *subjectName,
@@ -1287,6 +1288,14 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
     if(!UA_NodeId_equal(&sc->secureChannelPKI.certificateGroupId,
                         &defaultApplicationGroup))
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Bad_TransactionPending if a transaction is active for another Session. */
+    UA_GDSTransaction *transaction = &ctx->transaction;
+    if(transaction->applyChangesQueued)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH &&
+       (!sessionId || !UA_NodeId_equal(&transaction->sessionId, sessionId)))
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ByteString *newPrivateKey = NULL;
@@ -1332,13 +1341,14 @@ cleanup:
 }
 
 UA_StatusCode
-UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
-                                    const UA_NodeId certificateGroupId,
-                                    const UA_NodeId certificateTypeId,
-                                    const UA_String *subjectName,
-                                    const UA_Boolean *regenerateKey,
-                                    const UA_ByteString *nonce,
-                                    UA_ByteString *csr) {
+UA_GDSReceiver_createSigningRequestForSession(UA_GDSReceiver *receiver,
+                                              const UA_NodeId *sessionId,
+                                              const UA_NodeId certificateGroupId,
+                                              const UA_NodeId certificateTypeId,
+                                              const UA_String *subjectName,
+                                              const UA_Boolean *regenerateKey,
+                                              const UA_ByteString *nonce,
+                                              UA_ByteString *csr) {
     if(!receiver || !csr)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!receiver->drv.server)
@@ -1347,10 +1357,23 @@ UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
     UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
     sc->eventLoop->lock(sc->eventLoop);
     UA_StatusCode res = createSigningRequestLocked(
-        receiver, certificateGroupId, certificateTypeId, subjectName,
+        receiver, sessionId, certificateGroupId, certificateTypeId, subjectName,
         regenerateKey, nonce, csr);
     sc->eventLoop->unlock(sc->eventLoop);
     return res;
+}
+
+UA_StatusCode
+UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
+                                    const UA_NodeId certificateGroupId,
+                                    const UA_NodeId certificateTypeId,
+                                    const UA_String *subjectName,
+                                    const UA_Boolean *regenerateKey,
+                                    const UA_ByteString *nonce,
+                                    UA_ByteString *csr) {
+    return UA_GDSReceiver_createSigningRequestForSession(
+        receiver, NULL, certificateGroupId, certificateTypeId, subjectName,
+        regenerateKey, nonce, csr);
 }
 
 static UA_StatusCode
