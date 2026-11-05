@@ -1921,6 +1921,87 @@ START_TEST(add_remove_certificate_reject_transaction_pending) {
 }
 END_TEST
 
+/* Helper: call CreateSigningRequest for the RsaSha256ApplicationCertificate of
+ * the DefaultApplicationGroup with the current private key */
+static UA_StatusCode
+callCreateSigningRequest(UA_Client *client) {
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_String subjectName = UA_STRING_NULL;
+    UA_Boolean regenerateKey = false;
+    UA_ByteString nonce = UA_BYTESTRING_NULL;
+
+    UA_Variant inputArguments[5];
+    UA_Variant_setScalar(&inputArguments[0], &groupId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&inputArguments[1], &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&inputArguments[2], &subjectName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&inputArguments[3], &regenerateKey, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&inputArguments[4], &nonce, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 5;
+    callMethodRequest.inputArguments = inputArguments;
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
+    callMethodRequest.methodId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST);
+
+    UA_CallRequest callReq;
+    UA_CallRequest_init(&callReq);
+    callReq.methodsToCallSize = 1;
+    callReq.methodsToCall = &callMethodRequest;
+
+    UA_CallResponse response = UA_Client_Service_call(client, callReq);
+    ck_assert_uint_eq(1, response.resultsSize);
+    UA_StatusCode res = response.results[0].statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(1, response.results[0].outputArgumentsSize);
+        UA_Variant *out = &response.results[0].outputArguments[0];
+        ck_assert(UA_Variant_hasScalarType(out, &UA_TYPES[UA_TYPES_BYTESTRING]));
+        ck_assert_uint_gt(((UA_ByteString*)out->data)->length, 0);
+    } else {
+        ck_assert_uint_eq(0, response.results[0].outputArgumentsSize);
+    }
+    UA_CallResponse_clear(&response);
+    return res;
+}
+
+/* Part 12 §7.10.10: CreateSigningRequest returns Bad_TransactionPending while
+ * a transaction is active for another Session. The Session of the transaction
+ * can still create a CSR. */
+START_TEST(create_signing_request_reject_transaction_pending) {
+    UA_Client *client = createSecureClient();
+    UA_Client *other = createSecureClient();
+
+    /* No transaction is active */
+    ck_assert_uint_eq(callCreateSigningRequest(other), UA_STATUSCODE_GOOD);
+
+    /* UpdateCertificate starts the transaction */
+    ck_assert_uint_eq(callUpdateCertificate(client), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callCreateSigningRequest(other),
+                      UA_STATUSCODE_BADTRANSACTIONPENDING);
+    ck_assert_uint_eq(callCreateSigningRequest(client), UA_STATUSCODE_GOOD);
+
+    /* A local call has no Session. Like UA_GDSReceiver_updateCertificate, it
+     * is rejected while any transaction is active. */
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_GDSReceiver_createSigningRequest(receiver, UA_NODEID_NULL,
+                                                          typeId, NULL, NULL, NULL, &csr),
+                      UA_STATUSCODE_BADTRANSACTIONPENDING);
+    ck_assert_uint_eq(csr.length, 0);
+
+    /* Closing the Session discards its transaction (Part 12 §7.10.9) */
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    ck_assert_uint_eq(callCreateSigningRequest(other), UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(other);
+    UA_Client_delete(other);
+}
+END_TEST
+
 START_TEST(read_trustlist_reject_negative_length) {
     UA_Client *client = createSecureClient();
 
@@ -2282,6 +2363,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, remove_certificate_failure_clears_transaction);
     tcase_add_test(tc_cert, remove_issuer_certificate_removes_issuer_crls);
     tcase_add_test(tc_cert, add_remove_certificate_reject_transaction_pending);
+    tcase_add_test(tc_cert, create_signing_request_reject_transaction_pending);
     tcase_add_test(tc_cert, push_forged_crl_accepts_client);
     tcase_add_test(tc_cert, push_forged_crl_first_accepts_client);
     tcase_add_test(tc_cert, push_revoking_crl_rejects_client);
