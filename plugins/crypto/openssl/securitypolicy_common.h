@@ -232,6 +232,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                                 UA_SecurityPolicy *securityPolicy,
                                 const UA_String *subjectName,
                                 const UA_ByteString *nonce,
+                                const UA_KeyValueMap *params,
                                 UA_ByteString *csr,
                                 UA_ByteString *newPrivateKey);
 

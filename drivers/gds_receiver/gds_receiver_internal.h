@@ -50,15 +50,6 @@ typedef struct ChannelMetadata {
     UA_ByteString certificate;
 } ChannelMetadata;
 
-/* The CSR of the last CreateSigningRequest for a certificate type. The
- * SecurityPolicies keep the private key of the CSR until a certificate for it
- * is applied. The CSR is independent of the transactions. */
-typedef struct UA_GDSPendingCsr {
-    LIST_ENTRY(UA_GDSPendingCsr) pointers;
-    UA_NodeId certificateTypeId;
-    UA_ByteString csr;
-} UA_GDSPendingCsr;
-
 /* An open TrustList: the encoded snapshot of a read or the staged bytes of a
  * write. The file transfer driver owns the FileHandle of the client. */
 typedef struct UA_GDSTrustListHandle {
@@ -91,7 +82,6 @@ struct UA_GDSReceiverContext {
     UA_GDSTransaction transaction;
     UA_GDSTrustList trustLists[UA_GDSRECEIVER_TRUSTLISTS];
     LIST_HEAD(, ChannelMetadata) secureChannels;
-    LIST_HEAD(, UA_GDSPendingCsr) pendingCsrs;
     size_t pendingDelayedCallbacks;
 };
 
@@ -154,6 +144,18 @@ UA_GDSReceiver_transactionPending(UA_GDSReceiverContext *ctx);
 UA_StatusCode
 UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
                                      const UA_NodeId *sessionId);
+
+/* CreateSigningRequest of a Session. Returns Bad_TransactionPending if a
+ * transaction is active for another Session. */
+UA_StatusCode
+UA_GDSReceiver_createSigningRequestForSession(UA_GDSReceiver *receiver,
+                                              const UA_NodeId *sessionId,
+                                              const UA_NodeId certificateGroupId,
+                                              const UA_NodeId certificateTypeId,
+                                              const UA_String *subjectName,
+                                              const UA_Boolean *regenerateKey,
+                                              const UA_ByteString *nonce,
+                                              UA_ByteString *csr);
 
 UA_StatusCode
 UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
