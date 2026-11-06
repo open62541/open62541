@@ -429,9 +429,9 @@ ENCODE_JSON(Double) {
     size_t len;
     if(*src != *src)
         return writeChars(ctx, "\"NaN\"", 5);
-    if(*src == INFINITY)
+    if(*src == (UA_Double)INFINITY)
         return writeChars(ctx, "\"Infinity\"", 10);
-    if(*src == -INFINITY)
+    if(*src == -(UA_Double)INFINITY)
         return writeChars(ctx, "\"-Infinity\"", 11);
     len = dtoa(*src, buffer);
     if(ctx->pos + len > ctx->end)
@@ -1605,23 +1605,23 @@ DECODE_JSON(Double) {
         ctx->index++;
 
         if(tokenSize == 8 && memcmp(tokenData, "Infinity", 8) == 0) {
-            *dst = INFINITY;
+            *dst = (UA_Double)INFINITY;
             return UA_STATUSCODE_GOOD;
         }
 
         if(tokenSize == 9 && memcmp(tokenData, "-Infinity", 9) == 0) {
             /* workaround an MSVC 2013 issue */
-            *dst = -INFINITY;
+            *dst = -(UA_Double)INFINITY;
             return UA_STATUSCODE_GOOD;
         }
 
         if(tokenSize == 3 && memcmp(tokenData, "NaN", 3) == 0) {
-            *dst = NAN;
+            *dst = (UA_Double)NAN;
             return UA_STATUSCODE_GOOD;
         }
 
         if(tokenSize == 4 && memcmp(tokenData, "-NaN", 4) == 0) {
-            *dst = NAN;
+            *dst = (UA_Double)NAN;
             return UA_STATUSCODE_GOOD;
         }
 

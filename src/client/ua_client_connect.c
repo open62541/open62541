@@ -705,7 +705,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
-    UA_Float lifetime = (UA_Float)response.securityToken.revisedLifetime / 1000;
+    UA_Double lifetime = (UA_Double)response.securityToken.revisedLifetime / 1000;
     UA_Boolean renew = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
     if(renew) {
         UA_LOG_INFO_CHANNEL(client->config.logging, &client->channel, "SecureChannel "

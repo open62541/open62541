@@ -560,10 +560,10 @@ cj5_get_float(const cj5_result *r, unsigned int tok_index, double *out) {
 
     // Detect prefixed inf/nan
     if(strncmp(tokstr, "Infinity", toksize) == 0) {
-        *out = neg ? -INFINITY : INFINITY;
+        *out = neg ? -(double)INFINITY : (double)INFINITY;
         return CJ5_ERROR_NONE;
     } else if(strncmp(tokstr, "NaN", toksize) == 0) {
-        *out = NAN;
+        *out = (double)NAN;
         return CJ5_ERROR_NONE;
     }
 
