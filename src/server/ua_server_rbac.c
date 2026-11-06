@@ -1401,10 +1401,14 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
     if(server->rolesSize == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Determine session identity characteristics from the token */
+    /* Determine session identity characteristics from the token. Part 4,
+     * Section 5.6.3.2, Table 17: A NULL or empty UserIdentityToken is
+     * interpreted as Anonymous. This is the same classification that
+     * ActivateSession uses to select the UserTokenPolicy. */
     const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
     UA_Boolean isAnonymous =
-        (tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+        (userIdentityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY ||
+         tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
     UA_String userName = UA_STRING_NULL;
     if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         const UA_UserNameIdentityToken *ut =
