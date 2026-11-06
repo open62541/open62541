@@ -2,6 +2,8 @@
 
 import argparse
 import os
+import ssl
+from pathlib import Path
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,6 +12,18 @@ from urllib.parse import parse_qs
 
 class TestRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == "/redirect-to-https":
+            self.send_response(302)
+            self.send_header("Location", f"https://127.0.0.1:{self.server.https_port}/secure")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if self.path == "/secure":
+            self.send_response(200)
+            self.send_header("x-response", "present")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if self.path != "/":
             self.send_error(404, "Page not found")
             return
@@ -43,17 +57,28 @@ class TestRequestHandler(BaseHTTPRequestHandler):
 
 def run_test(command):
     server = ThreadingHTTPServer(("127.0.0.1", 0), TestRequestHandler)
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    server_thread.start()
+    certificates = Path(__file__).resolve().parents[2] / "tests/client/client_json"
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certificates / "server_cert.pem", certificates / "server_key.pem")
+    context.set_alpn_protocols(["http/1.1"])
+    secure_server = ThreadingHTTPServer(("127.0.0.1", 0), TestRequestHandler)
+    secure_server.socket = context.wrap_socket(secure_server.socket, server_side=True)
+    server.https_port = secure_server.server_port
+    servers = (server, secure_server)
+    threads = [threading.Thread(target=item.serve_forever, daemon=True) for item in servers]
+    for thread in threads:
+        thread.start()
 
     environment = os.environ.copy()
     environment["OPEN62541_TEST_HTTP_PORT"] = str(server.server_port)
     try:
         return subprocess.run(command, env=environment, check=False).returncode
     finally:
-        server.shutdown()
-        server.server_close()
-        server_thread.join()
+        for item in servers:
+            item.shutdown()
+            item.server_close()
+        for thread in threads:
+            thread.join()
 
 
 def main():
