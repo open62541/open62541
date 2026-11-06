@@ -443,6 +443,7 @@ endif()
 
 ua_add_test(server/check_session.c)
 ua_add_test(server/check_session_errorpaths.c)
+ua_add_test(server/check_session_lifecycle.c)
 ua_add_test(server/check_session_authtoken_rng.c)
 ua_add_test(server/check_server.c)
 ua_add_test(server/check_server_profiles.c)
