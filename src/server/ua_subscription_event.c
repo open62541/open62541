@@ -1144,38 +1144,11 @@ evaluateWhereClause(UA_FilterEvalContext *ctx) {
     if(ctx->filter.whereClause.elementsSize == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Information-model filters (e.g. HistoricalEventFilter) can bypass
-     * creation-time validation. Re-check the limits needed for evaluation. */
-    const UA_ContentFilter *wc = &ctx->filter.whereClause;
-
-    /* Keep all results within the fixed-size operatorResults stack. */
-    if(wc->elementsSize > UA_EVENTFILTER_MAXELEMENTS)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-    for(size_t i = 0; i < wc->elementsSize; i++) {
-        const UA_ContentFilterElement *elm = &wc->elements[i];
-
-        /* Validate the operator before indexing the jump table. */
-        if((UA_UInt32)elm->filterOperator > UA_FILTEROPERATOR_BITWISEOR)
+    /* Reject unknown operators before indexing the jump table. */
+    for(size_t i = 0; i < ctx->filter.whereClause.elementsSize; i++) {
+        if((UA_UInt32)ctx->filter.whereClause.elements[i].filterOperator >
+           UA_FILTEROPERATOR_BITWISEOR)
             return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-        /* Enforce operand counts even when operator assertions are disabled. */
-        if(elm->filterOperandsSize <
-               operatorJumptable[elm->filterOperator].minOperatorCount ||
-           elm->filterOperandsSize >
-               operatorJumptable[elm->filterOperator].maxOperatorCount)
-            return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-
-        /* Element operands must reference an existing, later element, which
-         * is evaluated first by the reverse iteration below. */
-        for(size_t j = 0; j < elm->filterOperandsSize; j++) {
-            const UA_ExtensionObject *op = &elm->filterOperands[j];
-            if(!UA_ExtensionObject_hasDecodedType(op, &UA_TYPES[UA_TYPES_ELEMENTOPERAND]))
-                continue;
-            const UA_ElementOperand *eo =
-                (const UA_ElementOperand *)op->content.decoded.data;
-            if(eo->index <= i || eo->index >= wc->elementsSize)
-                return UA_STATUSCODE_BADINDEXRANGEINVALID;
-        }
     }
 
     /* Pacify some compilers by initializing the first result */
@@ -1423,6 +1396,65 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
     return er;
 }
 
+/* Shared validation for monitored-item filters and HistoricalEventFilter values.
+ * filterResult is optional when the caller does not need detailed diagnostics. */
+UA_StatusCode
+UA_EventFilterValidation(UA_Server *server, const UA_EventFilter *eventFilter,
+                         UA_ExtensionObject *filterResult) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Require selected fields and keep their diagnostics within the array. */
+    if(eventFilter->selectClausesSize == 0 ||
+       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    /* Bound the evaluation stack. An empty where clause matches every event. */
+    if(eventFilter->whereClause.elementsSize > UA_EVENTFILTER_MAXELEMENTS)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    /* Validate operators, operand counts, types and element references. */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    const UA_ContentFilter *cf = &eventFilter->whereClause;
+    UA_ContentFilterElementResult whereRes[UA_EVENTFILTER_MAXELEMENTS];
+    for(size_t i = 0; i < cf->elementsSize; ++i) {
+        const UA_ContentFilterElement *ef = &cf->elements[i];
+        whereRes[i] = UA_ContentFilterElementValidation(server, i, cf->elementsSize, ef);
+        if(whereRes[i].statusCode != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
+            res = whereRes[i].statusCode;
+    }
+
+    /* Validate selected attributes, types, browse paths and index ranges. */
+    UA_StatusCode selectRes[UA_EVENTFILTER_MAXSELECT];
+    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
+        const UA_SimpleAttributeOperand *sao = &eventFilter->selectClauses[i];
+        selectRes[i] = UA_SimpleAttributeOperandValidation(server, sao);
+        if(selectRes[i] != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
+            res = selectRes[i];
+    }
+
+    /* Monitored-item services return details; historical events need only status. */
+    if(res != UA_STATUSCODE_GOOD && filterResult) {
+        UA_EventFilterResult *efr = UA_EventFilterResult_new();
+        if(!efr) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+        } else {
+            UA_EventFilterResult tmp_efr;
+            UA_EventFilterResult_init(&tmp_efr);
+            tmp_efr.selectClauseResultsSize = eventFilter->selectClausesSize;
+            tmp_efr.selectClauseResults = selectRes;
+            tmp_efr.whereClauseResult.elementResultsSize = cf->elementsSize;
+            tmp_efr.whereClauseResult.elementResults = whereRes;
+            UA_EventFilterResult_copy(&tmp_efr, efr);
+            UA_ExtensionObject_setValue(filterResult, efr,
+                                        &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+        }
+    }
+
+    for(size_t i = 0; i < cf->elementsSize; ++i)
+        UA_ContentFilterElementResult_clear(&whereRes[i]);
+    return res;
+}
+
 /*************************/
 /* Create Event Instance */
 /*************************/
@@ -1533,6 +1565,14 @@ setHistoricalEvent(UA_Server *server, const UA_NodeId *emitNode,
         return;
     }
     UA_EventFilter *ef = (UA_EventFilter*)historicalEventFilterValue.data;
+
+    /* The property can change between events, including through a data source.
+     * Apply the same static validation as for Create/ModifyMonitoredItems. */
+    retval = UA_EventFilterValidation(server, ef, NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Variant_clear(&historicalEventFilterValue);
+        return;
+    }
 
     UA_FilterEvalContext ctx;
     UA_FilterEvalContext_init(&ctx);
