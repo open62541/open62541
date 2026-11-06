@@ -1144,26 +1144,29 @@ evaluateWhereClause(UA_FilterEvalContext *ctx) {
     if(ctx->filter.whereClause.elementsSize == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Information-model filters (e.g. a node's HistoricalEventFilter property)
-     * reach this point without the creation-time validation that
-     * CreateMonitoredItems applies. Re-check the structural limits the
-     * evaluation relies on: the element count must fit the fixed-size
-     * operatorResults stack, every operator must be known and carry a valid
-     * number of operands, and an ElementOperand must reference an
-     * already-evaluated element. Otherwise the loops below index
-     * operatorResults[] and the operands array out of bounds. */
+    /* Information-model filters (e.g. HistoricalEventFilter) can bypass
+     * creation-time validation. Re-check the limits needed for evaluation. */
     const UA_ContentFilter *wc = &ctx->filter.whereClause;
+
+    /* Keep all results within the fixed-size operatorResults stack. */
     if(wc->elementsSize > UA_EVENTFILTER_MAXELEMENTS)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
     for(size_t i = 0; i < wc->elementsSize; i++) {
         const UA_ContentFilterElement *elm = &wc->elements[i];
+
+        /* Validate the operator before indexing the jump table. */
         if((UA_UInt32)elm->filterOperator > UA_FILTEROPERATOR_BITWISEOR)
             return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+        /* Enforce operand counts even when operator assertions are disabled. */
         if(elm->filterOperandsSize <
                operatorJumptable[elm->filterOperator].minOperatorCount ||
            elm->filterOperandsSize >
                operatorJumptable[elm->filterOperator].maxOperatorCount)
             return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+
+        /* Element operands must reference an existing, later element, which
+         * is evaluated first by the reverse iteration below. */
         for(size_t j = 0; j < elm->filterOperandsSize; j++) {
             const UA_ExtensionObject *op = &elm->filterOperands[j];
             if((op->encoding != UA_EXTENSIONOBJECT_DECODED &&

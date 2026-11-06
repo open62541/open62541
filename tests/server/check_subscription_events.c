@@ -1411,6 +1411,34 @@ START_TEST(filterOperandCountMismatch) {
     UA_ContentFilterElementResult_clear(&elmRes);
 } END_TEST
 
+/* Information-model filters bypass creation-time validation. Reject both too
+ * few and too many operands during evaluation, but accept the exact count. */
+START_TEST(evaluateFilterOperandCount) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_EQUALS;
+    cfe.filterOperandsSize = (size_t)_i;
+
+    UA_Boolean value = true;
+    UA_LiteralOperand literal;
+    UA_LiteralOperand_init(&literal);
+    UA_Variant_setScalar(&literal.value, &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_ExtensionObject operands[3];
+    for(size_t i = 0; i < cfe.filterOperandsSize; i++)
+        UA_ExtensionObject_setValueNoDelete(&operands[i], &literal,
+                                            &UA_TYPES[UA_TYPES_LITERALOPERAND]);
+    cfe.filterOperands = operands;
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, _i == 2 ? UA_STATUSCODE_GOOD :
+                      UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
+} END_TEST
+
 START_TEST(filterDouble_comparison) {
     /* Test GreaterThan with Double values */
     UA_ContentFilterElement cfe;
@@ -2784,6 +2812,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, filterOr);
     tcase_add_test(tc_server, filterEquals_typeConversion);
     tcase_add_test(tc_server, filterOperandCountMismatch);
+    tcase_add_loop_test(tc_server, evaluateFilterOperandCount, 0, 4);
     tcase_add_test(tc_server, filterDouble_comparison);
     tcase_add_test(tc_server, eventFieldsMap);
     tcase_add_test(tc_server, nonNormalFormEventFieldsMap);
