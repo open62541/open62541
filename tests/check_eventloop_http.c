@@ -868,6 +868,8 @@ openHTTPClient(UA_ConnectionManager *cm, HTTPTestContext *ctx,
                                  (void*)(uintptr_t)privateKey,
                                  &UA_TYPES[UA_TYPES_BYTESTRING]);
         }
+    }
+    if(caCertificate) {
         parameters[size].key = UA_QUALIFIEDNAME(0, "ca-certificate");
         UA_Variant_setScalar(&parameters[size++].value,
                              (void*)(uintptr_t)caCertificate,
@@ -1806,6 +1808,41 @@ START_TEST(clientServerMutualTls) {
     stopEventLoop(eventLoop);
 } END_TEST
 
+START_TEST(clientHttpToHttpsRedirect) {
+    HTTPTestContext ctx = {0};
+    ctx.port = httpPort;
+    UA_ByteString certificate = loadFile("server_cert.der");
+    ck_assert_ptr_nonnull(certificate.data);
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("redirect"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+
+    /* The Python fixture redirects to its HTTPS listener. TLS is needed only
+     * after following Location, but the original binding's CA policy applies. */
+    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL,
+                   _i == 0 ? &certificate : NULL);
+    UA_String path = UA_STRING("/redirect-to-https");
+    UA_KeyValuePair parameter = {UA_QUALIFIEDNAME(0, "path"), {0}};
+    UA_Variant_setScalar(&parameter.value, &path, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap map = {1, &parameter};
+    ck_assert_uint_eq(cm->sendWithConnection(cm, ctx.clientId, &map, NULL),
+                      UA_STATUSCODE_GOOD);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 300);
+    if(_i == 0) {
+        ck_assert_uint_eq(ctx.goodRequestCompletions, 1);
+        ck_assert_uint_eq(ctx.responseStatus, 200);
+        ck_assert(ctx.responseHeaderReceived);
+    } else {
+        ck_assert_uint_eq(ctx.badRequestCompletions, 1);
+    }
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    stopEventLoop(eventLoop);
+    UA_ByteString_clear(&certificate);
+} END_TEST
+
 START_TEST(messageSizeLimits) {
     /* Client send limit. */
     HTTPTestContext ctx = {0};
@@ -2219,7 +2256,9 @@ int main(void) {
     tcase_add_test(timeouts, serverConnectionCapAndRequestDeadline);
     suite_add_tcase(s, timeouts);
     TCase *tls = tcase_create("mutual-tls");
+    tcase_add_checked_fixture(tls, setup, teardown);
     tcase_add_test(tls, clientServerMutualTls);
+    tcase_add_loop_test(tls, clientHttpToHttpsRedirect, 0, 2);
     suite_add_tcase(s, tls);
     TCase *limits = tcase_create("message-size-limits");
     tcase_add_test(limits, messageSizeLimits);
