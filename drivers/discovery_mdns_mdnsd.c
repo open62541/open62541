@@ -1018,6 +1018,22 @@ MulticastDiscoverySendCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                state, params, msg, false);
 }
 
+/* Announcements and queries are sent over the send connection. A driver that
+ * only listens sends nothing. */
+static UA_Boolean
+sendsMessages(const MdnsdDriver *md) {
+    return md->announce || md->queryPresence || md->queryDetails;
+}
+
+/* The configuration needs the send connection if it sends and otherwise the
+ * receive connection if it listens */
+static UA_Boolean
+connectionMissing(const MdnsdDriver *md) {
+    if(sendsMessages(md))
+        return md->mdnsSendConnection == 0;
+    return md->listen && md->mdnsRecvConnectionsSize == 0;
+}
+
 /* Create multicast 224.0.0.251:5353 socket */
 static void
 createMulticastSocket(MdnsdDriver *md) {
@@ -1087,8 +1103,7 @@ createMulticastSocket(MdnsdDriver *md) {
 
     /* Open the send connection */
     listen = false;
-    if((md->announce || md->queryPresence || md->queryDetails) &&
-       md->mdnsSendConnection == 0) {
+    if(sendsMessages(md) && md->mdnsSendConnection == 0) {
         res = md->cm->openConnection(md->cm, &kvm, md->mdns.drv.server, md,
                                      MulticastDiscoverySendCallback);
         if(res != UA_STATUSCODE_GOOD)
@@ -1117,7 +1132,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         } else if(md->mdns.drv.state == UA_LIFECYCLESTATE_STARTED) {
             /* Restart mdns sockets if not shutting down */
             createMulticastSocket(md);
-            if(md->mdnsSendConnection == 0)
+            if(connectionMissing(md))
                 UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
                              "mDNS: Could not create UDP multicast socket");
         }
@@ -1494,15 +1509,13 @@ MdnsdDriver_start(UA_Driver *drv) {
     }
 
     /* Open the UDP sockets if needed */
-    if(md->listen || md->announce || md->queryPresence || md->queryDetails) {
-        if(md->mdnsSendConnection == 0)
-            createMulticastSocket(md);
-        if(md->mdnsSendConnection == 0) {
-            UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
-                         "mDNS: Could not create UDP multicast socket");
-            MdnsdDriver_stop(&md->mdns.drv);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
+    if(connectionMissing(md))
+        createMulticastSocket(md);
+    if(connectionMissing(md)) {
+        UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "mDNS: Could not create UDP multicast socket");
+        MdnsdDriver_stop(&md->mdns.drv);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Add a repeated callback to process actions and send out multicast

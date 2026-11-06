@@ -2121,6 +2121,54 @@ START_TEST(MdnsQueryDetailsSendsSrvQueryForTxtOnly) {
 }
 END_TEST
 
+/* A driver that only listens has nothing to send. It starts without a send
+ * connection and registers the servers it receives. */
+START_TEST(MdnsListenOnlyStartsWithoutSendConnection) {
+    UA_Server *localServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(localServer, NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(localServer);
+    config->serversOnNetworkEnabled = true;
+    config->discoveryNotificationCallback = serverDiscoveryNotificationCallback;
+
+    UA_ConnectionManager *localCm = NULL;
+    TestUdpIntercept *localIntercept = NULL;
+    replaceUdpConnectionManagerFor(localServer, &localCm, &localIntercept);
+    UA_MdnsDriver *mdns =
+        addMdnsDriverWithQueries(localServer, true, false, false, false, 0);
+    ck_assert_uint_eq(UA_Server_run_startup(localServer), UA_STATUSCODE_GOOD);
+
+    /* The server does not report driver startup failures */
+    ck_assert_int_eq(mdns->drv.state, UA_LIFECYCLESTATE_STARTED);
+    ck_assert_uint_eq(localIntercept->openedListenConnections, 1);
+    ck_assert_uint_eq(localIntercept->openedSendConnections, 0);
+
+    char serviceInstance[128];
+    char expectedServerName[128];
+    char targetHost[64];
+    createInjectedServiceInstanceName(serviceInstance, sizeof(serviceInstance),
+                                      "ListenOnly", "remote-host");
+    createInjectedServerOnNetworkName(expectedServerName, sizeof(expectedServerName),
+                                      "ListenOnly", "remote-host");
+    createInjectedTargetName(targetHost, sizeof(targetHost), "remote-host");
+    UA_ByteString packet = UA_BYTESTRING_NULL;
+    buildInjectedMdnsPacket(serviceInstance, targetHost, 4840, "/", "NA",
+                            true, 600, true, 600, &packet);
+
+    resetDiscoveryCounters();
+    injectMdnsPacket(localCm, &packet);
+    ck_assert_uint_eq(discoveryCounters.serverOnNetworkAnnounceCalls, 1);
+    ck_assert_str_eq(discoveryCounters.lastServerName, expectedServerName);
+    ck_assert_str_eq(discoveryCounters.lastDiscoveryUrl,
+                     "opc.tcp://remote-host.local:4840");
+    ck_assert_uint_eq(localIntercept->sentMessages, 0);
+
+    UA_ByteString_clear(&packet);
+    UA_Server_run_shutdown(localServer);
+    UA_Server_delete(localServer);
+    clearTestUdpIntercept(&localIntercept);
+}
+END_TEST
+
 START_TEST(PublicApiFindServersOnNetworkListsRegisteredServers) {
 #ifndef DISCOVERY_TEST_AUTHENTICATED_REGISTER
     return; /* RegisterServer(2) needs an authenticated SecureChannel */
@@ -3237,6 +3285,7 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_test(tc_query, MdnsQueryDetailsSendsSrvTxtQueriesForPtr);
     tcase_add_test(tc_query, MdnsQueryDetailsSendsTxtQueryForSrvOnly);
     tcase_add_test(tc_query, MdnsQueryDetailsSendsSrvQueryForTxtOnly);
+    tcase_add_test(tc_query, MdnsListenOnlyStartsWithoutSendConnection);
     suite_add_tcase(s, tc_query);
 
     TCase *tc_config = tcase_create("Driver config mirroring");
