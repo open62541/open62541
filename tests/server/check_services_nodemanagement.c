@@ -784,6 +784,43 @@ START_TEST(AddObjectWithConstructor) {
     ck_assert_int_eq(constructorCalled, true);
 } END_TEST
 
+/* Count expensive full-node reads for the type whose lifecycle is used.
+ * A storage backend can otherwise materialize every inverse HasTypeDefinition
+ * reference just to retrieve one destructor callback. */
+static UA_NodeId watchedType;
+static size_t fullTypeReads, lifecycleTypeReads;
+static const UA_Node *(*originalGetNode)(UA_Nodestore*, const UA_NodeId*,
+                                       UA_UInt32, UA_ReferenceTypeSet, UA_BrowseDirection);
+static const UA_Node *(*originalGetNodeFromPtr)(UA_Nodestore*, UA_NodePointer,
+                                              UA_UInt32, UA_ReferenceTypeSet,
+                                              UA_BrowseDirection);
+
+static void
+countTypeRead(const UA_Node *node, UA_UInt32 mask, UA_BrowseDirection direction) {
+    if(!node || !UA_NodeId_equal(&node->head.nodeId, &watchedType))
+        return;
+    if(mask == ~(UA_UInt32)0 && direction == UA_BROWSEDIRECTION_BOTH)
+        fullTypeReads++;
+    if(mask == 0 && direction == UA_BROWSEDIRECTION_INVALID)
+        lifecycleTypeReads++;
+}
+
+static const UA_Node *
+countingGetNode(UA_Nodestore *ns, const UA_NodeId *id, UA_UInt32 mask,
+                UA_ReferenceTypeSet refs, UA_BrowseDirection direction) {
+    const UA_Node *node = originalGetNode(ns, id, mask, refs, direction);
+    countTypeRead(node, mask, direction);
+    return node;
+}
+
+static const UA_Node *
+countingGetNodeFromPtr(UA_Nodestore *ns, UA_NodePointer ptr, UA_UInt32 mask,
+                       UA_ReferenceTypeSet refs, UA_BrowseDirection direction) {
+    const UA_Node *node = originalGetNodeFromPtr(ns, ptr, mask, refs, direction);
+    countTypeRead(node, mask, direction);
+    return node;
+}
+
 static UA_Boolean destructorCalled = false;
 
 static void
@@ -824,11 +861,22 @@ START_TEST(DeleteObjectWithDestructor) {
                                   attr2, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
-    /* Delete the object */
-    UA_Server_deleteNode(server, objectid, true);
-
-    /* Verify that the destructor was called */
-    ck_assert_int_eq(destructorCalled, true);
+    /* Deleting an instance only needs lifecycle state from its type. */
+    UA_Nodestore *ns = UA_Server_getConfig(server)->nodestore;
+    originalGetNode = ns->getNode;
+    originalGetNodeFromPtr = ns->getNodeFromPtr;
+    ns->getNode = countingGetNode;
+    ns->getNodeFromPtr = countingGetNodeFromPtr;
+    watchedType = objecttypeid;
+    fullTypeReads = lifecycleTypeReads = 0;
+    destructorCalled = false;
+    res = UA_Server_deleteNode(server, objectid, true);
+    ns->getNode = originalGetNode;
+    ns->getNodeFromPtr = originalGetNodeFromPtr;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(destructorCalled);
+    ck_assert_uint_eq(fullTypeReads, 0);
+    ck_assert_uint_gt(lifecycleTypeReads, 0);
 } END_TEST
 
 START_TEST(DeleteObjectAndReferences) {
