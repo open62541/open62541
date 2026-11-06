@@ -386,12 +386,34 @@ START_TEST(Client_commonAttributes_requireBrowse) {
                       UA_STATUSCODE_GOOD);
     UA_Variant_clear(&readValue);
 
+    /* Browsing the parent does not list the node */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    UA_BrowseRequest request;
+    UA_BrowseRequest_init(&request);
+    request.nodesToBrowseSize = 1;
+    request.nodesToBrowse = &bd;
+    UA_BrowseResponse response = UA_Client_Service_browse(client, request);
+    size_t referencesSize = 0;
+    UA_Boolean listed = false;
+    if(response.resultsSize == 1) {
+        referencesSize = response.results[0].referencesSize;
+        for(size_t i = 0; i < referencesSize; i++)
+            listed |= UA_NodeId_equal(&response.results[0].references[i].nodeId.nodeId,
+                                      &nodeId);
+    }
+    UA_BrowseResponse_clear(&response);
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    ck_assert_uint_gt(referencesSize, 0);
+    ck_assert(!listed);
 } END_TEST
 
 /* Write status codes: Bad_NotWritable if the WriteMask (AccessLevel for the

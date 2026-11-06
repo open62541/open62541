@@ -8,6 +8,9 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "server/ua_subscription.h"
+#ifdef UA_ENABLE_RBAC
+#include "test_helpers_rbac.h"
+#endif
 
 #include <check.h>
 #include <math.h>
@@ -2910,6 +2913,91 @@ START_TEST(Server_monitoredItems_sameNode_list) {
     ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server, ids[3]), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(nodeMonitoredItemCount(nodeId), 0);
 } END_TEST
+
+#ifdef UA_ENABLE_RBAC
+/* A write samples the zero-interval MonitoredItems of the node with the rights
+ * of the subscriber, not with those of the writer */
+static const struct {
+    UA_UInt32 subscriber;
+    UA_UInt32 writer;
+    UA_Boolean readable;
+} zeroIntervalCases[] = {
+    {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN, false},
+    {UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER, UA_NS0ID_WELLKNOWNROLE_OPERATOR, true}
+};
+
+START_TEST(Server_zeroIntervalItem_usesSubscriberRights) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 val = 1;
+    UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "zeroInterval.var");
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, nodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "zeroInterval"), UA_NODEID_NULL, attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    const UA_PermissionType rw = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+        UA_PERMISSIONTYPE_WRITE;
+    UA_RolePermission rp[4] = {
+        {UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS), UA_PERMISSIONTYPE_BROWSE},
+        {UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER),
+         UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ},
+        {UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR), rw},
+        {UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN), rw}};
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, nodeId, 4, rp,
+                                                       false, NULL), UA_STATUSCODE_GOOD);
+    UA_NodeId role = UA_NODEID_NUMERIC(0, zeroIntervalCases[_i].subscriber);
+    rbacSetRoles(server, &session->sessionId, 1, &role);
+    UA_Session *writer =
+        rbacSession(server, NULL, UA_NODEID_NUMERIC(0, zeroIntervalCases[_i].writer));
+
+    UA_StatusCode res;
+    UA_MonitoredItem *mon = rbacMonitor(server, session, nodeId, UA_ATTRIBUTEID_VALUE,
+                                        NULL, &res);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(mon->samplingType, UA_MONITOREDITEMSAMPLINGTYPE_EVENT);
+
+    /* The initial sample, the write of the writer and of the local admin */
+    for(UA_Int32 i = 1; i <= 3; i++) {
+        UA_Variant v;
+        UA_Variant_setScalar(&v, &i, &UA_TYPES[UA_TYPES_INT32]);
+        if(i == 2) {
+            UA_WriteValue wv;
+            UA_WriteValue_init(&wv);
+            wv.nodeId = nodeId;
+            wv.attributeId = UA_ATTRIBUTEID_VALUE;
+            wv.value.hasValue = true;
+            wv.value.value = v;
+            res = UA_STATUSCODE_BADINTERNALERROR;
+            lockServer(server);
+            Operation_Write(server, writer, &wv, &res);
+            unlockServer(server);
+            ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        } else if(i == 3) {
+            ck_assert_uint_eq(UA_Server_writeValue(server, nodeId, v), UA_STATUSCODE_GOOD);
+        }
+        UA_DataValue dv;
+        lockServer(server);
+        UA_DataValue_copy(&TAILQ_LAST(&mon->queue, NotificationQueue)->data.dataChange.value,
+                          &dv);
+        unlockServer(server);
+        if(zeroIntervalCases[_i].readable) {
+            ck_assert(dv.hasValue);
+            ck_assert_int_eq(*(UA_Int32*)dv.value.data, i);
+        } else {
+            ck_assert(!dv.hasValue);
+            ck_assert_uint_eq(dv.status, UA_STATUSCODE_BADUSERACCESSDENIED);
+        }
+        UA_DataValue_clear(&dv);
+    }
+
+    lockServer(server);
+    UA_Server_closeSession(server, &writer->sessionId);
+    unlockServer(server);
+} END_TEST
+#endif /* UA_ENABLE_RBAC */
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription");
     TCase *tc_server = tcase_create("Server Subscription Basic");
@@ -2972,6 +3060,10 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_firstPublishingCycleNotBatched);
     tcase_add_test(tc_server, Server_dataSourceSamplingIntervalZero);
     tcase_add_test(tc_server, Server_monitoredItems_sameNode_list);
+#ifdef UA_ENABLE_RBAC
+    tcase_add_loop_test(tc_server, Server_zeroIntervalItem_usesSubscriberRights, 0,
+                        sizeof(zeroIntervalCases) / sizeof(zeroIntervalCases[0]));
+#endif
     suite_add_tcase(s, tc_server);
 
     return s;
