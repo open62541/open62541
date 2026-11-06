@@ -429,9 +429,9 @@ ENCODE_JSON(Double) {
     size_t len;
     if(*src != *src)
         return writeChars(ctx, "\"NaN\"", 5);
-    if(*src == INFINITY)
+    if(*src == (UA_Double)INFINITY)
         return writeChars(ctx, "\"Infinity\"", 10);
-    if(*src == -INFINITY)
+    if(*src == -(UA_Double)INFINITY)
         return writeChars(ctx, "\"-Infinity\"", 11);
     len = dtoa(*src, buffer);
     if(ctx->pos + len > ctx->end)
