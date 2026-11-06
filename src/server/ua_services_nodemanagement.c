@@ -3482,3 +3482,26 @@ UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
     unlockServer(server);
     return retval;
 }
+
+UA_StatusCode
+UA_Server_getNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
+                               UA_NodeTypeLifecycle *lifecycle) {
+    if(!lifecycle)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!node) {
+        retval = UA_STATUSCODE_BADNODEIDUNKNOWN;
+    } else if(node->head.nodeClass == UA_NODECLASS_OBJECTTYPE) {
+        *lifecycle = node->objectTypeNode.lifecycle;
+    } else if(node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
+        *lifecycle = node->variableTypeNode.lifecycle;
+    } else {
+        retval = UA_STATUSCODE_BADNODECLASSINVALID;
+    }
+    if(node)
+        UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+    return retval;
+}

@@ -208,6 +208,52 @@ START_TEST(methodCallback_getSet) {
     ck_assert_ptr_eq((void*)(uintptr_t)cb, (void*)(uintptr_t)myTestMethod2);
 } END_TEST
 
+/* === nodeTypeLifecycle === */
+static UA_StatusCode
+testTypeConstructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                    const UA_NodeId *typeNodeId, void *typeNodeContext,
+                    const UA_NodeId *nodeId, void **nodeContext) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+testTypeDestructor(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *typeNodeId, void *typeNodeContext,
+                   const UA_NodeId *nodeId, void **nodeContext) {}
+
+START_TEST(nodeTypeLifecycle_getSet) {
+    UA_NodeTypeLifecycle lc;
+    memset(&lc, 0xff, sizeof(UA_NodeTypeLifecycle));
+    UA_StatusCode res = UA_Server_getNodeTypeLifecycle(server, UA_NS0ID(BASEOBJECTTYPE), &lc);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(lc.constructor == NULL);
+    ck_assert(lc.destructor == NULL);
+
+    UA_NodeTypeLifecycle set;
+    memset(&set, 0, sizeof(UA_NodeTypeLifecycle));
+    set.constructor = testTypeConstructor;
+    set.destructor = testTypeDestructor;
+    res = UA_Server_setNodeTypeLifecycle(server, UA_NS0ID(BASEOBJECTTYPE), set);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_getNodeTypeLifecycle(server, UA_NS0ID(BASEOBJECTTYPE), &lc);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(lc.constructor == testTypeConstructor);
+    ck_assert(lc.destructor == testTypeDestructor);
+    ck_assert(lc.earlyConstructor == NULL);
+
+    /* VariableTypes have a lifecycle as well */
+    res = UA_Server_getNodeTypeLifecycle(server, UA_NS0ID(BASEDATAVARIABLETYPE), &lc);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Other NodeClasses and unknown nodes */
+    res = UA_Server_getNodeTypeLifecycle(server, UA_NS0ID(OBJECTSFOLDER), &lc);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNODECLASSINVALID);
+    res = UA_Server_getNodeTypeLifecycle(server, UA_NODEID_NUMERIC(1, 999999), &lc);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    res = UA_Server_getNodeTypeLifecycle(server, UA_NS0ID(BASEOBJECTTYPE), NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+} END_TEST
+
 /* === addMethodNodeEx === */
 START_TEST(addMethodNodeEx_test) {
     UA_Argument inputArg;
@@ -666,6 +712,7 @@ static Suite *testSuite_nodeManagement(void) {
     tcase_add_test(tc_ctx, nodeContext_badNode);
     tcase_add_test(tc_ctx, setDynamic);
     tcase_add_test(tc_ctx, methodCallback_getSet);
+    tcase_add_test(tc_ctx, nodeTypeLifecycle_getSet);
     tcase_add_test(tc_ctx, addMethodNodeEx_test);
     tcase_add_test(tc_ctx, valueCallback_test);
 
