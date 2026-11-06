@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/plugin/log_stdout.h>
+
 #include "util/ua_util_internal.h"
 
 #include <stdlib.h>
@@ -269,6 +271,116 @@ START_TEST(CheckKVMSetReplace) {
 }
 END_TEST
 
+static const UA_KeyValueRestriction validateRestrictions[] = {
+    {{0, UA_STRING_STATIC("number")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("list")}, &UA_TYPES[UA_TYPES_UINT32], false, false, true},
+    {{0, UA_STRING_STATIC("any")}, NULL, false, true, true},
+    {{0, UA_STRING_STATIC("must")}, &UA_TYPES[UA_TYPES_STRING], true, true, false}
+};
+#define VALIDATE_SIZE (sizeof(validateRestrictions) / sizeof(validateRestrictions[0]))
+
+static UA_StatusCode
+validateMap(UA_KeyValueMap *kvm, UA_Boolean rejectUnknown) {
+    return UA_KeyValueMap_validate(kvm, validateRestrictions, VALIDATE_SIZE,
+                                   rejectUnknown, UA_Log_Stdout,
+                                   UA_LOGCATEGORY_USERLAND, "Test");
+}
+
+static void
+validateSetMust(UA_KeyValueMap *kvm) {
+    UA_String must = UA_STRING("value");
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "must"),
+                                               &must, &UA_TYPES[UA_TYPES_STRING]),
+                      UA_STATUSCODE_GOOD);
+}
+
+START_TEST(CheckKVMValidateRequired) {
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(validateMap(NULL, false), UA_STATUSCODE_BADINTERNALERROR);
+    validateSetMust(kvm);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_GOOD);
+    UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
+START_TEST(CheckKVMValidateTypeAndShape) {
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    validateSetMust(kvm);
+
+    /* Wrong type */
+    UA_UInt16 shortValue = 1;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "number"), &shortValue,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_BADINTERNALERROR);
+
+    /* Right type */
+    UA_UInt32 number = 1;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "number"), &number,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_GOOD);
+
+    /* An array where only a scalar is allowed */
+    UA_UInt32 numbers[2] = {1, 2};
+    UA_Variant v;
+    UA_Variant_setArray(&v, numbers, 2, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap_set(kvm, UA_QUALIFIEDNAME(0, "number"), &v);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_BADCONNECTIONREJECTED);
+    UA_KeyValueMap_remove(kvm, UA_QUALIFIEDNAME(0, "number"));
+
+    /* A scalar where only an array is allowed, then an array */
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "list"), &number,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_BADINTERNALERROR);
+    UA_Variant_setArray(&v, numbers, 2, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap_set(kvm, UA_QUALIFIEDNAME(0, "list"), &v);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_GOOD);
+
+    /* A NULL restriction type accepts any type, scalar or array */
+    UA_Double d = 1.0;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "any"), &d,
+                             &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_GOOD);
+    UA_Variant_setArray(&v, numbers, 2, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap_set(kvm, UA_QUALIFIEDNAME(0, "any"), &v);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_GOOD);
+
+    UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
+START_TEST(CheckKVMValidateUnknown) {
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    validateSetMust(kvm);
+    UA_UInt32 number = 1;
+
+    /* Unknown keys are ignored unless they are rejected */
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "unknown"), &number,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(validateMap(kvm, false), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(validateMap(kvm, true), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_KeyValueMap_remove(kvm, UA_QUALIFIEDNAME(0, "unknown"));
+    ck_assert_uint_eq(validateMap(kvm, true), UA_STATUSCODE_GOOD);
+
+    /* Only namespace zero is reserved. The same name in another namespace
+     * is not rejected and does not satisfy a restriction. */
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(1, "unknown"), &number,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(1, "number"), &number,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(validateMap(kvm, true), UA_STATUSCODE_GOOD);
+    UA_KeyValueMap_remove(kvm, UA_QUALIFIEDNAME(0, "must"));
+    ck_assert_uint_eq(validateMap(kvm, true), UA_STATUSCODE_BADINTERNALERROR);
+
+    /* No map, no logger and no prefix */
+    ck_assert_uint_eq(UA_KeyValueMap_validate(NULL, validateRestrictions + 1, 2, true,
+                                              NULL, UA_LOGCATEGORY_USERLAND, NULL),
+                      UA_STATUSCODE_GOOD);
+
+    UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test KeyValueMap Utilities");
     TCase *tc = tcase_create("test cases");
@@ -285,6 +397,9 @@ int main(void) {
     tcase_add_test(tc, CheckKVMRemoveMissing);
     tcase_add_test(tc, CheckKVMSetArray);
     tcase_add_test(tc, CheckKVMSetReplace);
+    tcase_add_test(tc, CheckKVMValidateRequired);
+    tcase_add_test(tc, CheckKVMValidateTypeAndShape);
+    tcase_add_test(tc, CheckKVMValidateUnknown);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

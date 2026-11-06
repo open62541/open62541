@@ -31,6 +31,14 @@ UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup);
  * 0:max-rejected-listsize [uint32]
  *    The maximum number of certificate files that can be stored in the rejected list.
  *    (default: 100).
+ *
+ * Keys in namespace zero are reserved for the plugin. Unknown namespace zero
+ * keys and values of the wrong data type are rejected with an error. Keys in
+ * other namespaces are ignored.
+ *
+ * With OpenSSL, the deprecated keys 0:maxTrustListSize and
+ * 0:maxRejectedListSize are still accepted and log a warning. They are
+ * replaced by the keys above.
  */
 UA_EXPORT UA_StatusCode
 UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
@@ -56,6 +64,8 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
  * 0:max-rejected-listsize [uint32]
  *    The maximum number of certificate files that can be stored in the rejected list.
  *    (default: 100).
+ *
+ * The parameters are handled as for the Memorystore backend.
  *
  * **PKI folder structure**
  *
