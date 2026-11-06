@@ -943,6 +943,40 @@ mdnsPacketMatchesExpectation(const UA_ByteString *packet,
     return txtRecordMatchesExpectation(txtRecord, expectation);
 }
 
+/* Checks the SRV target of an intercepted announcement of the expected
+ * service instance */
+static void
+assertInterceptedSrvTarget(const TestUdpIntercept *intercept,
+                           const MdnsMessageExpectation *expectation,
+                           const char *srvTarget) {
+    for(size_t i = 0; i < TEST_UDP_CAPTURED_MESSAGES; i++) {
+        const UA_ByteString *packet = &intercept->recentMessages[i];
+        if(packet->length == 0 || packet->length >= MAX_PACKET_LEN)
+            continue;
+        unsigned char packetBuf[MAX_PACKET_LEN];
+        memset(packetBuf, 0, sizeof(packetBuf));
+        memcpy(packetBuf, packet->data, packet->length);
+        struct message message;
+        memset(&message, 0, sizeof(message));
+        if(message_parse(&message, packetBuf) != 0)
+            continue;
+
+        const struct resource *sections[3] = {message.an, message.ns, message.ar};
+        const int sectionSizes[3] = {message.ancount, message.nscount, message.arcount};
+        for(size_t j = 0; j < 3; j++) {
+            for(int k = 0; k < sectionSizes[j]; k++) {
+                const struct resource *r = &sections[j][k];
+                if(r->type == QTYPE_SRV && r->ttl > 0 && r->name &&
+                   isExpectedServiceInstanceName(r->name, expectation) &&
+                   r->known.srv.name && strcmp(r->known.srv.name, srvTarget) == 0)
+                    return;
+            }
+        }
+    }
+    ck_abort_msg("No intercepted SRV record of %s targets %s",
+                 expectation->serverName, srvTarget);
+}
+
 static void
 copyBuiltPacket(struct message *msg, UA_ByteString *outPacket) {
     int packetLen = message_packet_len(msg);
@@ -1912,6 +1946,34 @@ START_TEST(MdnsAnnouncesRegisteredRecordWithDefaultTtl) {
     }
 
     waitForMdnsMessageAndAssert(intercepts, 1, 0, &expectation);
+}
+END_TEST
+
+/* The SRV target appends the .local domain to the hostname of the
+ * DiscoveryUrl. A hostname qualified with .local keeps the domain once. */
+START_TEST(MdnsSrvTargetContainsLocalDomainOnce) {
+    const struct {
+        const char *serverName;
+        const char *discoveryUrl;
+        const char *srvTarget;
+    } cases[] = {
+        {"SrvTargetQualifiedRoot", "opc.tcp://Workshop.LOCAL.:4840", "Workshop.local."},
+        {"SrvTargetQualified", "opc.tcp://workshop.local:4840", "workshop.local."},
+        {"SrvTargetBare", "opc.tcp://plain:4840", "plain.local."},
+    };
+    const char *capabilities[] = {"NA"};
+    TestUdpIntercept *intercepts[] = {testUdpIntercept};
+
+    for(size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        size_t previousSends = UA_atomic_load(&globalInterceptedMdnsMessages);
+        registerServerOnNetwork(server, cases[i].serverName, cases[i].discoveryUrl,
+                                capabilities, 1);
+        MdnsMessageExpectation expectation =
+            {cases[i].serverName, "/", "NA", 4840, true, 0, false};
+        waitForMdnsMessageAndAssert(intercepts, 1, previousSends, &expectation);
+        assertInterceptedSrvTarget(testUdpIntercept, &expectation, cases[i].srvTarget);
+        deregisterServerOnNetwork(server, cases[i].serverName, cases[i].discoveryUrl);
+    }
 }
 END_TEST
 
@@ -3215,6 +3277,7 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_test(tc, MdnsStartupOpensReceiveAndSendConnections);
     tcase_add_test(tc, MdnsShortDatagramUsesParserSizedBuffer);
     tcase_add_test(tc, MdnsAnnouncesRegisteredRecordWithDefaultTtl);
+    tcase_add_test(tc, MdnsSrvTargetContainsLocalDomainOnce);
     tcase_add_test(tc, MdnsShutdownSendsSelfGoodbyeAndDrainsQueue);
     tcase_add_test(tc, MdnsRestartAnnouncesLocalEntriesAgain);
     tcase_add_test(tc, MdnsRestartExpiresReceivedEntries);

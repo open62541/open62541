@@ -598,12 +598,37 @@ announcePTR(MdnsdDriver *md, const char *serviceDomain,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Removes the .local domain, also with the trailing root dot, from a qualified
+ * hostname. The domain is compared without case. */
+static UA_String
+removeLocalDomain(UA_String hostname) {
+    const char *domain = ".local";
+    const size_t domainLen = 6;
+    UA_String name = hostname;
+    if(name.length > 0 && name.data[name.length - 1] == '.')
+        name.length--;
+    if(name.length <= domainLen)
+        return hostname;
+    const UA_Byte *tail = &name.data[name.length - domainLen];
+    for(size_t i = 0; i < domainLen; i++) {
+        UA_Byte c = tail[i];
+        if(c >= 'A' && c <= 'Z')
+            c = (UA_Byte)(c - 'A' + 'a');
+        if(c != (UA_Byte)domain[i])
+            return hostname;
+    }
+    name.length -= domainLen;
+    return name;
+}
+
 /* SRV record: [servername]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].local.
- * The first 63 characters of the hostname (or less) and ".local." */
+ * The first 63 characters of the hostname (or less) and ".local." A hostname
+ * qualified with .local keeps the domain once. */
 static UA_StatusCode
 announceSVR(MdnsdDriver *md, UA_String hostname, UA_UInt16 port,
             const char *serviceDomain, const UA_ServerOnNetwork *son,
             UA_UInt32 ttl) {
+    hostname = removeLocalDomain(hostname);
     size_t maxHostnameLen = UA_MIN(hostname.length, 63);
     char localDomain[71];
     memcpy(localDomain, hostname.data, maxHostnameLen);
