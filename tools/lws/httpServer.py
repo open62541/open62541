@@ -59,6 +59,7 @@ def run_test(command):
     server = ThreadingHTTPServer(("127.0.0.1", 0), TestRequestHandler)
     certificates = Path(__file__).resolve().parents[2] / "tests/client/client_json"
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(certificates / "server_cert.pem", certificates / "server_key.pem")
     context.set_alpn_protocols(["http/1.1"])
     secure_server = ThreadingHTTPServer(("127.0.0.1", 0), TestRequestHandler)
