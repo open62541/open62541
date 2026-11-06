@@ -524,7 +524,7 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     case UA_DATATYPEKIND_UINT32: /* or */
     case UA_DATATYPEKIND_STATUSCODE: u = *(UA_UInt32*)in->data; break;
     case UA_DATATYPEKIND_UINT64: u = *(UA_UInt64*)in->data; break;
-    case UA_DATATYPEKIND_FLOAT:  f = *(UA_Float*)in->data; break;
+    case UA_DATATYPEKIND_FLOAT:  f = (UA_Double)*(UA_Float*)in->data; break;
     case UA_DATATYPEKIND_DOUBLE: f = *(UA_Double*)in->data; break;
     default: return;
     }

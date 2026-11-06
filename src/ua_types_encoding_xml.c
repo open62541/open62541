@@ -1225,22 +1225,22 @@ DECODE_XML(Double) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     if(length == 3 && memcmp(data, "INF", 3) == 0) {
-        *dst = INFINITY;
+        *dst = (UA_Double)INFINITY;
         return UA_STATUSCODE_GOOD;
     }
 
     if(length == 4 && memcmp(data, "-INF", 4) == 0) {
-        *dst = -INFINITY;
+        *dst = -(UA_Double)INFINITY;
         return UA_STATUSCODE_GOOD;
     }
 
     if(length == 3 && memcmp(data, "NaN", 3) == 0) {
-        *dst = NAN;
+        *dst = (UA_Double)NAN;
         return UA_STATUSCODE_GOOD;
     }
 
     if(length == 3 && memcmp(data, "-NaN", 3) == 0) {
-        *dst = NAN;
+        *dst = (UA_Double)NAN;
         return UA_STATUSCODE_GOOD;
     }
 
