@@ -461,6 +461,14 @@ START_TEST(ConfiguredSizeReachesRuntimeEncoder) {
     clearCapture(&capture);
 } END_TEST
 
+static UA_StatusCode
+acceptCustomReaderState(UA_Server *s, const UA_NodeId id, void *context,
+                        UA_PubSubState *state, UA_PubSubState target) {
+    (void)s; (void)id; (void)context;
+    *state = target;
+    return UA_STATUSCODE_GOOD;
+}
+
 START_TEST(UnsupportedFixedPlacementIsRejected) {
     UA_WriterGroup *wg = createPublisher(1, 0);
     wg->head.state = UA_PUBSUBSTATE_DISABLED;
@@ -486,8 +494,26 @@ START_TEST(UnsupportedFixedPlacementIsRejected) {
     rc.name = UA_STRING("fixed reader");
     UA_ExtensionObject_setValue(&rc.messageSettings, &rm,
                                &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]);
+    /* Store fixed offsets before a custom state machine is attached. */
+    UA_NodeId readerId;
     ck_assert_uint_eq(UA_Server_addDataSetReader(server, readerGroup->head.identifier,
-                                                &rc, NULL), UA_STATUSCODE_BADNOTSUPPORTED);
+                                                &rc, &readerId), UA_STATUSCODE_GOOD);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *reader = UA_DataSetReader_find(psm, readerId);
+    readerGroup->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    lockServer(server);
+    UA_StatusCode res = UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_PREOPERATIONAL, UA_STATUSCODE_GOOD);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(reader->head.state, UA_PUBSUBSTATE_ERROR);
+    readerGroup->config.customStateMachine = acceptCustomReaderState;
+    lockServer(server);
+    res = UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_PREOPERATIONAL, UA_STATUSCODE_GOOD);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reader->head.state, UA_PUBSUBSTATE_OPERATIONAL);
 } END_TEST
 
 START_TEST(ConfiguredSizePadsEmptyMessages) {
