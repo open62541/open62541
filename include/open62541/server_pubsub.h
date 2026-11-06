@@ -799,7 +799,14 @@ typedef struct {
                                       * after which we want to receive a
                                       * message. Gets reset after every received
                                       * message. If <= 0.0, then no timeout is
-                                      * configured. */
+                                      * configured. The built-in state machine
+                                      * recovers from a receive-timeout Error
+                                      * after a compatible complete key frame
+                                      * with usable values is written to all
+                                      * targets. Without an override, timeout
+                                      * retains target Values with BadTimeout
+                                      * quality. Custom state machines handle
+                                      * recovery themselves. */
     UA_UInt32 keyFrameCount; /* Maximum key-frame period. A value <= 1
                               * accepts key frames only. */
     UA_String headerLayoutUri;

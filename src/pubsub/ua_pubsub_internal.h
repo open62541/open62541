@@ -475,6 +475,7 @@ struct UA_DataSetReader {
 
     /* MessageReceiveTimeout handling */
     UA_UInt64 msgRcvTimeoutTimerId;
+    UA_Boolean msgRcvTimedOut;
     UA_Boolean receivedKeyFrame;
     UA_UInt32 deltaFrameCounter;
 
@@ -482,6 +483,12 @@ struct UA_DataSetReader {
     UA_DataValue *lastUsableValues;
     size_t lastUsableValuesSize;
 };
+
+static UA_INLINE UA_Boolean
+UA_DataSetReader_canRecover(const UA_DataSetReader *dsr) {
+    return dsr->head.state == UA_PUBSUBSTATE_ERROR &&
+        dsr->msgRcvTimedOut && !dsr->config.customStateMachine;
+}
 
 UA_DataSetReader *
 UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id);
@@ -496,7 +503,7 @@ UA_DataSetReader_checkSequence(UA_PubSubManager *psm, UA_DataSetReader *reader,
 
 /* Validate a DataSetMessage and apply its fields to the targets. Return true
  * when the message is accepted, even if an individual target rejects its
- * write. */
+ * write, except during timeout recovery, which requires all writes to succeed. */
 UA_Boolean
 UA_DataSetReader_process(UA_PubSubManager *psm,
                          UA_DataSetReader *dataSetReader,

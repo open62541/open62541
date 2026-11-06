@@ -736,16 +736,41 @@ updateTargetsForState(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     for(size_t i = 0; i < tvs->targetVariablesSize; i++) {
         UA_WriteValue wv;
         UA_WriteValue_init(&wv);
-        UA_StatusCode res = getTargetFallback(psm, dsr, i, badStatus, &wv.value);
+        UA_StatusCode res;
+        if(dsr->msgRcvTimedOut &&
+           tvs->targetVariables[i].overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED &&
+           tvs->targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
+            /* With no configured override, retain the sample but mark its
+             * quality as timed out, including targets with an index range. */
+            UA_ReadValueId rvi;
+            UA_ReadValueId_init(&rvi);
+            rvi.nodeId = tvs->targetVariables[i].targetNodeId;
+            rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+            wv.value = readWithSession(psm->drv.server, &psm->drv.server->adminSession,
+                                       &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+            res = UA_STATUSCODE_GOOD;
+            wv.value.hasStatus = true;
+            wv.value.status = UA_STATUSCODE_BADTIMEOUT;
+        } else {
+            res = getTargetFallback(psm, dsr, i, badStatus, &wv.value);
+        }
         if(res == UA_STATUSCODE_GOOD) {
             wv.nodeId = tvs->targetVariables[i].targetNodeId;
             wv.attributeId = tvs->targetVariables[i].attributeId;
             wv.indexRange = tvs->targetVariables[i].writeIndexRange;
+            if(dsr->msgRcvTimedOut &&
+               tvs->targetVariables[i].overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED &&
+               wv.attributeId == UA_ATTRIBUTEID_VALUE)
+                wv.indexRange = UA_STRING_NULL;
             Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &wv, &res);
         }
         UA_DataValue_clear(&wv.value);
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                  "Cannot update target %u quality: %s",
+                                  (unsigned)i, UA_StatusCode_name(res));
             result = res;
+        }
     }
     return result;
 }
@@ -821,12 +846,28 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
        dsr->config.messageReceiveTimeout > 0.0 &&
        dsr->msgRcvTimeoutTimerId == 0) {
         UA_EventLoop *el = psm->drv.server->config.eventLoop;
-        el->addTimer(el, UA_DataSetReader_handleMessageReceiveTimeout,
-                     psm, dsr, dsr->config.messageReceiveTimeout, NULL,
-                     UA_TIMERPOLICY_CURRENTTIME, &dsr->msgRcvTimeoutTimerId);
+        res = el->addTimer(el, UA_DataSetReader_handleMessageReceiveTimeout,
+                          psm, dsr, dsr->config.messageReceiveTimeout, NULL,
+                          UA_TIMERPOLICY_CURRENTTIME, &dsr->msgRcvTimeoutTimerId);
+        if(res != UA_STATUSCODE_GOOD) {
+            dsr->head.state = UA_PUBSUBSTATE_ERROR;
+            dsr->receivedKeyFrame = false;
+            dsr->deltaFrameCounter = 0;
+            errorReason = res;
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                  "Cannot start receive-timeout monitoring: %s",
+                                  UA_StatusCode_name(res));
+        }
     }
 
  finalize_state_machine:
+
+    /* A parent state reevaluation passes Good without introducing a new
+     * error. Do not lose the timeout cause while remaining in Error. */
+    dsr->msgRcvTimedOut = (dsr->head.state == UA_PUBSUBSTATE_ERROR &&
+                          (errorReason == UA_STATUSCODE_BADTIMEOUT ||
+                           (oldState == UA_PUBSUBSTATE_ERROR && dsr->msgRcvTimedOut &&
+                            errorReason == UA_STATUSCODE_GOOD)));
 
     /* No state change has happened */
     if(dsr->head.state == oldState)
@@ -899,7 +940,7 @@ UA_DataSetReader_handleMessageReceiveTimeout(void *application /* UA_PubSubManag
        dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return;
 
-    UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "Message receive timeout occurred");
+    UA_LOG_WARNING_PUBSUB(psm->logging, dsr, "Message receive timeout occurred");
 
     lockServer(psm->drv.server);
     UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR,
@@ -915,8 +956,9 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "Received a network message");
 
+    UA_Boolean recovering = UA_DataSetReader_canRecover(dsr);
     if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-       dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
+       dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL && !recovering) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Received a network message but not operational");
         return false;
@@ -959,7 +1001,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* Reset receive-timeout monitoring for a compatible message before
      * handling its payload, including keep-alive and heartbeat messages. */
-    if(dsr->config.messageReceiveTimeout > 0.0) {
+    if(!recovering && dsr->config.messageReceiveTimeout > 0.0) {
         UA_EventLoop *el = psm->drv.server->config.eventLoop;
         if(dsr->msgRcvTimeoutTimerId == 0) {
             el->addTimer(el, UA_DataSetReader_handleMessageReceiveTimeout,
@@ -975,6 +1017,25 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     UA_Boolean deltaFrame =
         (msg->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME);
+    if(recovering) {
+        UA_TargetVariablesDataType *targets = &dsr->config.subscribedDataSet.target;
+        if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME ||
+           msg->fieldCount != targets->targetVariablesSize ||
+           (msg->fieldCount == 0 && targets->targetVariablesSize > 0)) {
+            UA_LOG_DEBUG_PUBSUB(psm->logging, dsr,
+                                "Receive-timeout recovery requires a complete key frame");
+            return false;
+        }
+        for(size_t i = 0; i < msg->fieldCount; i++) {
+            UA_DataValue *field = &msg->data.keyFrameFields[i];
+            if(!field->hasValue || UA_Variant_isEmpty(&field->value) ||
+               (field->hasStatus && UA_StatusCode_isBad(field->status))) {
+                UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                      "Cannot recover from receive timeout without fresh field values");
+                return false;
+            }
+        }
+    }
     if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME &&
        !deltaFrame) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
@@ -983,7 +1044,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     }
 
     /* Received a heartbeat with no fields */
-    if(msg->fieldCount == 0)
+    if(msg->fieldCount == 0 && !recovering)
         return true;
 
     /* Check whether the field count matches the configuration */
@@ -1029,6 +1090,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* Write the message fields. RT has the external data value configured. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_Boolean writeFailed = false;
     for(size_t i = 0; i < msg->fieldCount; i++) {
         size_t targetIndex = i;
         UA_DataValue *field = NULL;
@@ -1102,6 +1164,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         writeVal.value = writeValue;
         Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &writeVal, &res);
         if(res != UA_STATUSCODE_GOOD) {
+            writeFailed = true;
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",
                                (unsigned)targetIndex, UA_StatusCode_name(res));
@@ -1127,6 +1190,18 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         }
         UA_DataValue_clear(&fallback);
         UA_Variant_clear(&rangedValue);
+    }
+    if(recovering) {
+        if(writeFailed)
+            return false;
+        res = UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
+                                             UA_STATUSCODE_GOOD);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                  "Cannot activate DataSetReader: %s",
+                                  UA_StatusCode_name(res));
+            return false;
+        }
     }
     return true;
 }
