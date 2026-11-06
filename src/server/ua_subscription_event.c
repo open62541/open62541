@@ -1169,9 +1169,7 @@ evaluateWhereClause(UA_FilterEvalContext *ctx) {
          * is evaluated first by the reverse iteration below. */
         for(size_t j = 0; j < elm->filterOperandsSize; j++) {
             const UA_ExtensionObject *op = &elm->filterOperands[j];
-            if((op->encoding != UA_EXTENSIONOBJECT_DECODED &&
-                op->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
-               op->content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND])
+            if(!UA_ExtensionObject_hasDecodedType(op, &UA_TYPES[UA_TYPES_ELEMENTOPERAND]))
                 continue;
             const UA_ElementOperand *eo =
                 (const UA_ElementOperand *)op->content.decoded.data;
