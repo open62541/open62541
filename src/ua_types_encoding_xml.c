@@ -458,9 +458,9 @@ ENCODE_XML(Double) {
     size_t len;
     if(*src != *src)
         return xmlEncodeWriteChars(ctx, "NaN", 3);
-    if(*src == INFINITY)
+    if(*src == (UA_Double)INFINITY)
         return xmlEncodeWriteChars(ctx, "INF", 3);
-    if(*src == -INFINITY)
+    if(*src == -(UA_Double)INFINITY)
         return xmlEncodeWriteChars(ctx, "-INF", 4);
 
     len = dtoa(*src, buffer);

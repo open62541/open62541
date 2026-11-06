@@ -196,7 +196,7 @@ Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
                             "SecurityPolicy %S and a revised lifetime of %.2fs",
                             securityModeNames[channel->securityMode],
                             channel->securityPolicy->policyUri,
-                            (UA_Float)response->securityToken.revisedLifetime / 1000);
+                            (UA_Double)response->securityToken.revisedLifetime / 1000);
 
         /* Notify the application about the open SecureChannel */
         notifySecureChannel(server, channel,
@@ -205,7 +205,7 @@ Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_INFO_CHANNEL(sc->logging, channel,
                             "OpenSecureChannel: Channel renewed with a revised "
                             "lifetime of %.2fs",
-                            (UA_Float)response->securityToken.revisedLifetime / 1000);
+                            (UA_Double)response->securityToken.revisedLifetime / 1000);
     }
 }
 
