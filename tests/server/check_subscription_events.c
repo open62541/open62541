@@ -1554,6 +1554,131 @@ START_TEST(filterValidation_attributeOperand) {
     UA_ContentFilterElementResult_clear(&elmRes);
 } END_TEST
 
+#ifdef UA_ENABLE_HISTORIZING
+static void
+recordHistoricalEvent(UA_Server *srv, void *context,
+                      const UA_NodeId *originId, const UA_NodeId *emitterId,
+                      const UA_EventFilter *filter, UA_EventFieldList *fields) {
+    size_t *count = (size_t*)context;
+    (*count)++;
+    ck_assert_uint_eq(fields->eventFieldsSize, 1);
+    ck_assert(UA_Variant_hasScalarType(&fields->eventFields[0],
+                                       &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert_uint_eq(*(UA_UInt16*)fields->eventFields[0].data, 100);
+}
+
+/* First store an event with a valid filter, then replace the property value.
+ * Every event must validate the current filter before invoking the backend. */
+static void
+checkHistoricalWhereClause(UA_ContentFilterElement *elements, size_t elementsSize,
+                            UA_Boolean accepted) {
+    UA_Server *historyServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(historyServer);
+    size_t stored = 0;
+    historyServer->config.historyDatabase.context = &stored;
+    historyServer->config.historyDatabase.setEvent = recordHistoricalEvent;
+
+    UA_QualifiedName severity = UA_QUALIFIEDNAME(0, "Severity");
+    UA_SimpleAttributeOperand select;
+    UA_SimpleAttributeOperand_init(&select);
+    select.typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
+    select.attributeId = UA_ATTRIBUTEID_VALUE;
+    select.browsePath = &severity;
+    select.browsePathSize = 1;
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClauses = &select;
+    filter.selectClausesSize = 1;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = UA_TYPES[UA_TYPES_EVENTFILTER].typeId;
+    attr.valueRank = UA_VALUERANK_SCALAR;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Variant_setScalar(&attr.value, &filter, &UA_TYPES[UA_TYPES_EVENTFILTER]);
+    UA_NodeId property;
+    UA_StatusCode res =
+        UA_Server_addVariableNode(historyServer, UA_NODEID_NUMERIC(1, 0), UA_NS0ID(SERVER),
+                                  UA_NS0ID(HASPROPERTY),
+                                  UA_QUALIFIEDNAME(0, "HistoricalEventFilter"),
+                                  UA_NS0ID(PROPERTYTYPE), attr, NULL, &property);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_createEvent(historyServer, UA_NS0ID(SERVER), UA_NS0ID(BASEEVENTTYPE), 100,
+                                message, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(stored, 1);
+
+    filter.whereClause.elements = elements;
+    filter.whereClause.elementsSize = elementsSize;
+    res = UA_Server_writeValue(historyServer, property, attr.value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_createEvent(historyServer, UA_NS0ID(SERVER), UA_NS0ID(BASEEVENTTYPE), 100,
+                                message, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    size_t expected = accepted ? 2 : 1;
+    ck_assert_uint_eq(stored, expected);
+
+    res = UA_Server_deleteNode(historyServer, property, true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&property);
+    UA_Server_delete(historyServer);
+}
+
+/* Equals requires exactly two operands. Exercise both count bounds and the
+ * valid case through a HistoricalEventFilter updated after node creation. */
+START_TEST(historicalFilterOperandCount) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_EQUALS;
+    cfe.filterOperandsSize = (size_t)_i;
+
+    UA_Boolean value = true;
+    UA_LiteralOperand literal;
+    UA_LiteralOperand_init(&literal);
+    UA_Variant_setScalar(&literal.value, &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_ExtensionObject operands[3];
+    for(size_t i = 0; i < cfe.filterOperandsSize; i++)
+        UA_ExtensionObject_setValueNoDelete(&operands[i], &literal,
+                                            &UA_TYPES[UA_TYPES_LITERALOPERAND]);
+    cfe.filterOperands = operands;
+    checkHistoricalWhereClause(&cfe, 1, _i == 2);
+} END_TEST
+
+/* The maximum count is valid; one more would overrun the evaluation stack. */
+START_TEST(historicalFilterElementCount) {
+    size_t count = UA_EVENTFILTER_MAXELEMENTS + (size_t)_i;
+    UA_ContentFilterElement elements[UA_EVENTFILTER_MAXELEMENTS + 1];
+    UA_LiteralOperand literal;
+    UA_LiteralOperand_init(&literal);
+    UA_ExtensionObject operand;
+    UA_ExtensionObject_setValueNoDelete(&operand, &literal,
+                                        &UA_TYPES[UA_TYPES_LITERALOPERAND]);
+    for(size_t i = 0; i < count; i++) {
+        UA_ContentFilterElement_init(&elements[i]);
+        elements[i].filterOperator = UA_FILTEROPERATOR_ISNULL;
+        elements[i].filterOperandsSize = 1;
+        elements[i].filterOperands = &operand;
+    }
+    checkHistoricalWhereClause(elements, count, _i == 0);
+} END_TEST
+
+/* Reject self-references, the first out-of-range index and a far larger index. */
+START_TEST(historicalFilterElementOperand) {
+    UA_UInt32 indices[] = {0, 1, 0x7fffffff};
+    UA_ElementOperand reference;
+    UA_ElementOperand_init(&reference);
+    reference.index = indices[_i];
+    UA_ExtensionObject operand;
+    UA_ExtensionObject_setValueNoDelete(&operand, &reference,
+                                        &UA_TYPES[UA_TYPES_ELEMENTOPERAND]);
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_NOT;
+    cfe.filterOperandsSize = 1;
+    cfe.filterOperands = &operand;
+    checkHistoricalWhereClause(&cfe, 1, false);
+} END_TEST
+#endif
+
 /* Test ContentFilterElementValidation with ElementOperand point backward (invalid) */
 START_TEST(filterValidation_elementOperandBackward) {
     UA_ContentFilterElement cfe[2];
@@ -2737,6 +2862,11 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, filterValidation_inViewRelatedTo);
     tcase_add_test(tc_server, filterValidation_likeCast);
     tcase_add_test(tc_server, filterValidation_attributeOperand);
+#ifdef UA_ENABLE_HISTORIZING
+    tcase_add_loop_test(tc_server, historicalFilterOperandCount, 0, 4);
+    tcase_add_loop_test(tc_server, historicalFilterElementCount, 0, 2);
+    tcase_add_loop_test(tc_server, historicalFilterElementOperand, 0, 3);
+#endif
     tcase_add_test(tc_server, filterValidation_elementOperandBackward);
     tcase_add_test(tc_server, filterValidation_undecoded);
     tcase_add_test(tc_server, filterValidation_ofTypeNonNodeId);
