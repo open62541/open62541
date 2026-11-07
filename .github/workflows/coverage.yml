@@ -9,12 +9,13 @@ on:
 
 jobs:
   run:
-    runs-on: ubuntu-latest
+    # Keep the pinned nodesetLoader compatible with the system libxml2 headers.
+    runs-on: ubuntu-24.04
     steps:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq python3-sphinx graphviz check libmbedtls-dev mosquitto
+          sudo apt-get install -y -qq python3-sphinx graphviz check libmbedtls-dev libxml2-dev mosquitto
       - name: Fetch
         uses: actions/checkout@v2
         with:
