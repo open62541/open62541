@@ -305,7 +305,9 @@ function unit_tests_pubsub_sks {
 
 function unit_tests_with_coverage {
     mkdir -p build; cd build; rm -rf *
+    # The pinned nodesetLoader needs a policy floor for CMake 4 compatibility.
     cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ALLOW_REUSEADDR=ON \
