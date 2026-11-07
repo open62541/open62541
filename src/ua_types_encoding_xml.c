@@ -1239,7 +1239,7 @@ DECODE_XML(Double) {
         return UA_STATUSCODE_GOOD;
     }
 
-    if(length == 3 && memcmp(data, "-NaN", 3) == 0) {
+    if(length == 4 && memcmp(data, "-NaN", 4) == 0) {
         *dst = (UA_Double)NAN;
         return UA_STATUSCODE_GOOD;
     }
