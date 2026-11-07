@@ -428,11 +428,9 @@ FindAndCheckDiscoveryUrls(const char *requestedEndpointUrl,
                           UA_Boolean expectRegistered) {
     UA_Client *client = UA_Client_newForUnitTest();
 
-    UA_StatusCode retval = UA_Client_connect(client, requestedEndpointUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return false;
-    }
+    /* Discovery services do not require a Session. */
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, requestedEndpointUrl);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
@@ -549,7 +547,8 @@ static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
                      const UA_String *expectedEndpointUrl) {
     UA_Client *client = UA_Client_newForUnitTest();
-    ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(client, discoveryUrl),
+                      UA_STATUSCODE_GOOD);
 
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
@@ -993,7 +992,7 @@ START_TEST(Server_registerServer2_withoutCertificate_rejected) {
     while(!Client_find_discovery()) {}
 
     UA_Client *client = UA_Client_newForUnitTest();
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_String uninvitedUri =
