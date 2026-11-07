@@ -1,0 +1,30 @@
+name: Optional Session Lifecycle Model
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  model-and-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ELAN_TOOLCHAIN: leanprover/lean4:v4.19.0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Install test dependencies and pinned Lean
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y elan check libsubunit-dev libpcap-dev ninja-build
+          elan toolchain install leanprover/lean4:v4.19.0
+      - name: Check model, generated fixtures, and native histories
+        run: node tests/server/session_lifecycle/verify.mjs --build build-session-model
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: session-lifecycle-evidence
+          path: build-session-model/evidence/
+          if-no-files-found: error
