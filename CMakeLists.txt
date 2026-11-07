@@ -133,7 +133,8 @@ if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     # Detect whether any loaded companion spec requires the RoleSet node
     set(UA_NODESET_INJECTOR_NEEDS_ROLESET OFF)
     foreach(_model ${UA_INFORMATION_MODEL_AUTOLOAD})
-        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data")
+        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data" OR
+           _model STREQUAL "DemoModel" OR _model STREQUAL "TestModel")
             set(UA_NODESET_INJECTOR_NEEDS_ROLESET ON)
         endif()
     endforeach()
