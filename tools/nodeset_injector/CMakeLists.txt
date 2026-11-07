@@ -1,3 +1,18 @@
+# All injected models must agree on the namespace indices baked into their
+# datatype arrays, even when they have different dependency closures.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+file(GLOB_RECURSE injector_xml CONFIGURE_DEPENDS "${UA_NODESET_DIR}/*.xml")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    ${injector_xml} "${CMAKE_CURRENT_SOURCE_DIR}/generate_namespace_map.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/generate_namespace_map.py" "${UA_NODESET_DIR}"
+    RESULT_VARIABLE injector_map_result
+    OUTPUT_VARIABLE UA_NODESETINJECTOR_NAMESPACE_MAP
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT injector_map_result EQUAL 0)
+    message(FATAL_ERROR "Failed to generate the nodeset injector namespace map")
+endif()
+
 foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
 
     string(TOLOWER "${MODEL}" NODESET_NAME)
@@ -5,10 +20,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # ===================================================================
     # Level 0 — No dependency beyond the base OPC UA namespace
     # ===================================================================
-
-    # NOTE: RSL and GPOS depend on OPC UA Part 8 spatial types (3DFrame,
-    # 3DCartesianCoordinates) and use abstract VariableTypes as
-    # TypeDefinitions, which are not yet fully supported.
 
     # Standard pattern: single XML, no companion-spec dependency.
     # Model folders that follow the Opc.Ua.<Name>.NodeSet2.xml naming.
@@ -69,6 +80,30 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # ===================================================================
     # Level 2+ — Multiple / complex dependencies
     # ===================================================================
+
+    elseif(MODEL STREQUAL "IA-Examples")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/IA/Opc.Ua.IA.NodeIds.examples.csv"
+                FILE_NS "${UA_NODESET_DIR}/IA/Opc.Ua.IA.NodeSet2.examples.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia")
+
+    elseif(MODEL STREQUAL "MachineVision-AMCM")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/MachineVision/AMCM/Opc.Ua.MachineVision.AMCM.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/MachineVision/AMCM/Opc.Ua.MachineVision.AMCM.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery")
+
+    elseif(MODEL STREQUAL "CranesHoists")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/CranesHoists/Opc.Ua.CranesHoists.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "robotics")
 
     # Machinery needs both DI and IA
     elseif(MODEL STREQUAL "Machinery")
@@ -150,6 +185,16 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "irdi" DEPENDS "padim")
 
+    elseif(MODEL STREQUAL "Machinery-Examples")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/Machinery/Opc.Ua.Machinery.Examples.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/Machinery/Opc.Ua.Machinery.Examples.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "irdi" DEPENDS "padim" DEPENDS "machinery-processvalues"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs" DEPENDS "machinery-result")
+
     elseif(MODEL STREQUAL "MachineTool")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
@@ -217,6 +262,26 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
                 DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs")
 
+    elseif(MODEL STREQUAL "SurfaceTechnology-CleaningPretreatment")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/SurfaceTechnology/CleaningPretreatment/Opc.Ua.ST.CleaningPretreatment.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/SurfaceTechnology/CleaningPretreatment/Opc.Ua.ST.CleaningPretreatment.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "irdi" DEPENDS "padim" DEPENDS "machinery-processvalues"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs" DEPENDS "stgeneraltypes")
+
+    elseif(MODEL STREQUAL "SurfaceTechnology-OCT-MSS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/SurfaceTechnology/OCT-MSS/Opc.Ua.ST-Mss.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/SurfaceTechnology/OCT-MSS/Opc.Ua.ST-Mss.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "irdi" DEPENDS "padim" DEPENDS "machinery-processvalues"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs" DEPENDS "stgeneraltypes")
+
     elseif(MODEL STREQUAL "STGeneralTypes")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
@@ -243,6 +308,16 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery" DEPENDS "ia" DEPENDS "machinetool"
                 DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs")
+
+    elseif(MODEL STREQUAL "LaserSystems-Example")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/LaserSystems/LaserSystem-Example.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/LaserSystems/LaserSystem-Example.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs" DEPENDS "machinetool"
+                DEPENDS "lasersystems")
 
     elseif(MODEL STREQUAL "Onboarding")
         ua_generate_nodeset_and_datatypes(
@@ -287,11 +362,75 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # Specs with non-standard file naming
     # ===================================================================
 
+    elseif(MODEL STREQUAL "AML-BaseTypes")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/AML/Opc.Ua.AMLBaseTypes.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "AML-Libraries")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/AML/Opc.Ua.AMLLibraries.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "aml-basetypes")
+
+    elseif(MODEL STREQUAL "DemoModel")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/DemoModel/DemoModel.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/DemoModel/DemoModel.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "RSL")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/RSL/NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/RSL/Opc.Ua.RSL.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "GPOS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/GPOS/Opc.Ua.GPOS.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/GPOS/Opc.Ua.GPOS.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "rsl")
+
+    elseif(MODEL STREQUAL "TestModel")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/TestModel/TestModel.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/TestModel/TestModel.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "UnattendedRetail")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/UnattendedRetail/Opc.Ua.UnattendedRetail.csv"
+                FILE_NS "${UA_NODESET_DIR}/UnattendedRetail/Opc.Ua.UnattendedRetail.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di")
+
+    elseif(MODEL STREQUAL "XML")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/XML/Opc.Ua.Xml.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/XML/Opc.Ua.Xml.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
     elseif(MODEL STREQUAL "DI")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Di.NodeIds.csv"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Di.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "DI-PackageMetadata")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.PackageMetadata.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.PackageMetadata.NodeSet2.xml"
                 INTERNAL AUTOLOAD)
 
     elseif(MODEL STREQUAL "AutoID")
@@ -316,6 +455,15 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Flat/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery")
+
+    elseif(MODEL STREQUAL "Glass-v2")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/Glass/Flat/v2/Opc.Ua.Glass.v2.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/Glass/Flat/v2/Opc.Ua.Glass.v2.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs")
 
     elseif(MODEL STREQUAL "IJT")
         ua_generate_nodeset_and_datatypes(
@@ -361,6 +509,12 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.PnRio.Nodeset2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di")
+
+    elseif(MODEL STREQUAL "ISA-95")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/ISA-95/Opc.ISA95.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
 
     elseif(MODEL STREQUAL "ISA95-JOBCONTROL")
         ua_generate_nodeset_and_datatypes(
@@ -526,6 +680,33 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/GeneralTypes/1.03/Opc.Ua.PlasticsRubber.GeneralTypes.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di")
+
+    elseif(MODEL STREQUAL "PlasticsRubber-Dosing")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Dosing/Opc.Ua.PlasticsRubber.Dosing.Nodeids.csv"
+                FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Dosing/Opc.Ua.PlasticsRubber.Dosing.Nodeset2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "plasticsrubber-generaltypes")
+
+    elseif(MODEL STREQUAL "PlasticsRubber-FoamCutting")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/FlexiblePURFoam/Cutting/Opc.Ua.PlasticsRubber.FoamCutting.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/FlexiblePURFoam/Cutting/Opc.Ua.PlasticsRubber.FoamCutting.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "plasticsrubber-generaltypes")
+
+    elseif(MODEL STREQUAL "PlasticsRubber-GDD")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/GDD/Opc.Ua.PlasticsRubber.GDD.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/GDD/Opc.Ua.PlasticsRubber.GDD.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "plasticsrubber-generaltypes")
 
     elseif(MODEL STREQUAL "PlasticsRubber-TCD")
         ua_generate_nodeset_and_datatypes(
@@ -964,6 +1145,15 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 FILE_NS "${UA_NODESET_DIR}/Mining/TransportDumping/General/1.0.0/Opc.Ua.Mining.TransportDumping.General.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery" DEPENDS "mining-general")
+
+    elseif(MODEL STREQUAL "Mining-TransportDumping-Conveying")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/Mining/TransportDumping/Conveying/opc.ua.mining.transportdumping.conveying.nodeids.csv"
+                FILE_NS "${UA_NODESET_DIR}/Mining/TransportDumping/Conveying/opc.ua.mining.transportdumping.conveying.nodeset2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "mining-general")
 
     elseif(MODEL STREQUAL "Mining-TransportDumping-RearDumpTruck")
         ua_generate_nodeset_and_datatypes(
