@@ -1361,7 +1361,10 @@ UA_Server_run_shutdown_async(UA_Server *server) {
         return UA_LIFECYCLESTATE_STOPPED;
 
     lockServer(server);
-    if(server->state == UA_LIFECYCLESTATE_STARTED)
+    /* Synchronous facades can leave worker-owned storage even before startup
+     * or after a completed shutdown. STOPPED alone does not imply drained. */
+    if(server->state == UA_LIFECYCLESTATE_STARTED ||
+       (server->state == UA_LIFECYCLESTATE_STOPPED && !testStoppedCondition(server)))
         stopServer(server);
     if(server->state == UA_LIFECYCLESTATE_STOPPING)
         finishShutdown(server);
@@ -1386,6 +1389,13 @@ UA_Server_run_shutdown(UA_Server *server) {
     UA_Server_run_shutdown_async(server);
     UA_EventLoop *el = server->config.eventLoop;
     while(UA_Server_getLifecycleState(server) != UA_LIFECYCLESTATE_STOPPED) {
+        /* Pre-start or post-shutdown workers may finish from timed callbacks.
+         * Start their EventLoop without starting the server's drivers. */
+        if(el->state == UA_EVENTLOOPSTATE_FRESH || el->state == UA_EVENTLOOPSTATE_STOPPED) {
+            UA_StatusCode res = el->start(el);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+        }
         UA_StatusCode res = el->run(el, 100);
         if(res != UA_STATUSCODE_GOOD)
             return res;

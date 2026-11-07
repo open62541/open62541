@@ -69,13 +69,8 @@ static void
 teardown(void) {
     if(server == NULL)
         return;
-    /* Only call UA_Server_run_shutdown if the server was actually
-     * started. Tests that exercise the "server not started" branch in
-     * the state machine leave the server unstarted. */
-    if(server->state == UA_LIFECYCLESTATE_STARTED) {
-        UA_Server_run_shutdown(server);
-    }
-    UA_Server_delete(server);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
     server = NULL;
     UA_NodeId_init(&connectionIdent);
     UA_NodeId_init(&writerGroupIdent);

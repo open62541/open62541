@@ -163,7 +163,12 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
  *
  * Use nonblocking shutdown from EventLoop callbacks or when application work
  * is needed between iterations. The blocking API's callback restrictions are
- * listed below. */
+ * listed below.
+ *
+ * Shutdown also waits for deferred operations started by local synchronous calls
+ * before startup or after a previous shutdown, even if the lifecycle state is
+ * STOPPED. Blocking shutdown starts their EventLoop if needed; for nonblocking
+ * shutdown, the caller must start it before driving it. */
 
 /* Shut down the server and run the EventLoop until shutdown completes.
  *
