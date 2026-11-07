@@ -465,6 +465,14 @@ typedef struct {
     UA_Variant stack[UA_EVENTFILTER_MAXOPERANDS];
 } UA_FilterEvalContext;
 
+/* Initialize every pushed operand so cleanup is safe even if resolution fails. */
+static UA_Variant *
+pushOperand(UA_FilterEvalContext *ctx) {
+    UA_Variant *v = &ctx->stack[ctx->top++];
+    UA_Variant_init(v);
+    return v;
+}
+
 /* Operand Resolving
  * ~~~~~~~~~~~~~~~~~
  * Methods that all resolve an operator operand to a Variant. */
@@ -589,7 +597,7 @@ ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
     UA_assert(elm->filterOperandsSize == 1);
 
     /* Get the operand. Must be a literal NodeId */
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     if(res != UA_STATUSCODE_GOOD || !UA_Variant_hasScalarType(op0, &UA_TYPES[UA_TYPES_NODEID]))
         return setOperandError(ctx, index, 0, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
@@ -622,10 +630,10 @@ static UA_StatusCode
 andOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize == 2);
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    UA_Variant *op1 = &ctx->stack[ctx->top++];
+    UA_Variant *op1 = pushOperand(ctx);
     res = resolveOperand(ctx, &elm->filterOperands[1], op1);
     UA_CHECK_STATUS(res, return res);
     ctx->results[index] = t2v(UA_Ternary_and(v2t(op0), v2t(op1)));
@@ -636,10 +644,10 @@ static UA_StatusCode
 orOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize == 2);
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    UA_Variant *op1 = &ctx->stack[ctx->top++];
+    UA_Variant *op1 = pushOperand(ctx);
     res = resolveOperand(ctx, &elm->filterOperands[1], op1);
     UA_CHECK_STATUS(res, return res);
     ctx->results[index] = t2v(UA_Ternary_or(v2t(op0), v2t(op1)));
@@ -650,7 +658,7 @@ static UA_StatusCode
 notOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize == 1);
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
     ctx->results[index] = t2v(UA_Ternary_not(v2t(op0)));
@@ -670,7 +678,7 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
     UA_assert(ctx->top == 0); /* Assume the stack is empty */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < elm->filterOperandsSize; i++) {
-        res = resolveOperand(ctx, &elm->filterOperands[i], &ctx->stack[ctx->top++]);
+        res = resolveOperand(ctx, &elm->filterOperands[i], pushOperand(ctx));
         UA_CHECK_STATUS(res, return res);
     }
     UA_assert(ctx->top > 0); /* Assume the stack is no longer empty */
@@ -860,8 +868,8 @@ inListOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize >= 2);
     UA_Boolean found = false;
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
-    UA_Variant *op1 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
+    UA_Variant *op1 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
     for(size_t i = 1; i < elm->filterOperandsSize && !found; i++) {
@@ -880,7 +888,7 @@ static UA_StatusCode
 isNullOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize == 1);
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
     ctx->results[index] = t2v(UA_Variant_isEmpty(op0) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE);
@@ -948,12 +956,6 @@ evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eve
     ctx.session = session;
     ctx.eventNode = eventNode;
     ctx.top = 0;
-
-    /* Operands are pushed to the stack before they are resolved. A failed
-     * resolution leaves the entry untouched and it is still cleaned up with
-     * the rest of the stack. Start from initialized (empty) variants.
-     * UA_Variant_clear resets an entry, so they stay initialized. */
-    memset(ctx.stack, 0, sizeof(ctx.stack));
 
     /* Pacify some compilers by initializing the first result */
     UA_Variant_init(&ctx.results[0]);

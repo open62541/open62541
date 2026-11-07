@@ -923,12 +923,15 @@ poisonStack(void) {
 /* An operand that cannot be resolved (here: a field the event does not have)
  * must make the evaluation fail cleanly. The failed operand must not be cleaned
  * up as if it held a valid Variant. */
-START_TEST(evaluateFilterUnresolvableOperand) {
+static void
+checkUnresolvableOperand(UA_FilterOperator filterOperator) {
     UA_NodeId eventNodeId;
     UA_StatusCode retval = eventSetup(&eventNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* Equals(42, /NoSuchField) */
+    /* Equals(42, /NoSuchField) or InList(/NoSuchField, 42). InList pushes
+     * both operands before resolving the first. If that fails, the second
+     * operand must still be safe to clear even though it was never resolved. */
     UA_Int32 v = 42;
     UA_LiteralOperand lop;
     UA_LiteralOperand_init(&lop);
@@ -954,7 +957,12 @@ START_TEST(evaluateFilterUnresolvableOperand) {
 
     UA_ContentFilterElement element;
     UA_ContentFilterElement_init(&element);
-    element.filterOperator = UA_FILTEROPERATOR_EQUALS;
+    if(filterOperator == UA_FILTEROPERATOR_INLIST) {
+        UA_ExtensionObject tmp = ops[0];
+        ops[0] = ops[1];
+        ops[1] = tmp;
+    }
+    element.filterOperator = filterOperator;
     element.filterOperandsSize = 2;
     element.filterOperands = ops;
     UA_ContentFilter filter = {1, &element};
@@ -967,8 +975,18 @@ START_TEST(evaluateFilterUnresolvableOperand) {
                                  &filter, &result);
     unlockServer(server);
 
-    /* The filter does not match. Reaching this point means no crash. */
-    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    /* The missing browse target yields BadNoMatch for both operators.
+     * Both must clean up without crashing. */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+    UA_ContentFilterResult_clear(&result);
+}
+
+START_TEST(evaluateFilterUnresolvableOperand) {
+    checkUnresolvableOperand(UA_FILTEROPERATOR_EQUALS);
+} END_TEST
+
+START_TEST(evaluateFilterInListUnresolvableFirstOperand) {
+    checkUnresolvableOperand(UA_FILTEROPERATOR_INLIST);
 } END_TEST
 
 START_TEST(evaluateFilterRejectsOutOfRangeOperator) {
@@ -1009,6 +1027,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateFilterWhereClause);
     tcase_add_test(tc_server, evaluateFilterUnresolvableOperand);
+    tcase_add_test(tc_server, evaluateFilterInListUnresolvableFirstOperand);
     tcase_add_loop_test(tc_server, evaluateFilterRejectsOutOfRangeOperator, 0, 3);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
