@@ -418,6 +418,7 @@ if (UA_MULTITHREADING GREATER_EQUAL 100)
     ua_add_test(server/check_server_asyncop.c)
 endif()
 
+ua_add_test(server/check_server_async_tutorial.c)
 ua_add_test(server/check_services_call.c)
 ua_add_test(server/check_services_method_coverage.c)
 

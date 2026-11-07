@@ -248,7 +248,8 @@ Main Build Options
   - 0-99: Multithreading support disabled.
   - >=100: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
     Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
-    Furthermore, this level support the handling of asynchronous method calls from external worker threads.
+    This level is required to complete async Read, Write or Call operations from worker threads.
+    Async work on the server's event loop does not require multithreading support.
 
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
