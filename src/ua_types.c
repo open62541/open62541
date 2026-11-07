@@ -260,7 +260,7 @@ UA_String_fromChars(const char *src) {
     if(!s.data)
         return s;
     memcpy(s.data, src, len);
-    s.data[s.length] = 0;
+    s.data[len] = 0;
     s.length = len;
     return s;
 }
@@ -326,8 +326,6 @@ UA_StatusCode
 UA_String_append(UA_String *s, const UA_String s2) {
     if(s2.length == 0)
         return UA_STATUSCODE_GOOD;
-    if(s->length == 0)
-        return UA_String_copy(&s2, s);
     UA_Byte *buf = (UA_Byte*)
         UA_realloc((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL),
                    s->length + s2.length + 1);
@@ -367,10 +365,14 @@ UA_String_vformat(UA_String *str, const char *format, va_list args) {
 
     if(str->length == 0) {
         /* Allocate the output buffer and encode again (+1 length for the trailing \0) */
-        res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
+        UA_String buf;
+        res = UA_ByteString_allocBuffer(&buf, (size_t)out + 1);
         if(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
-            mp_vsnprintf((char*)str->data, str->length, format, args2);
-            str->length--;
+            mp_vsnprintf((char*)buf.data, buf.length, format, args2);
+            buf.length--;
+            /* Empty strings can own a buffer. Keep it on allocation failure. */
+            UA_String_clear(str);
+            *str = buf;
         }
     } else {
         /* Encode into existing buffer. mp_snprintf adds a trailing \0. So out must
