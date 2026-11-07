@@ -843,6 +843,12 @@ UA_SecurityPolicy *
 getDefaultEncryptedSecurityPolicy(UA_Server *server,
                                   UA_SecurityPolicyType type);
 
+/* Returns the Server certificate a Client needs to encrypt a UserIdentityToken
+ * for the endpoint. */
+const UA_ByteString *
+getUserTokenEncryptionCertificate(UA_Server *server,
+                                  const UA_EndpointDescription *ed);
+
 /* If the channel is non-NULL, then only compatible endpoints are returned.
  * Depending on ECC/RSA for the SecurityPolicy of the existing channel. */
 UA_StatusCode
