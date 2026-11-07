@@ -321,6 +321,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     ua_add_test(server/check_subscription_events.c)
     ua_add_test(server/check_subscription_event_filter.c)
+    ua_add_test(server/check_subscription_event_filter_cast.c)
 endif()
 endif()
 

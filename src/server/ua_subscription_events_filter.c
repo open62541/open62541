@@ -17,7 +17,7 @@
  * -------------
  * Similar to SQL, OPC UA Queries use the K3 - Strong Kleene Logic that
  * considers ternary values true/false/null (unknown). Every operator result
- * (Variant) can be cast to a a ternary truth value. See the v2t method below.
+ * (Variant) can be cast to a ternary truth value. See the v2t method below.
  * We cast all operands to a ternary truth value before a logical operator is
  * applied. */
 
@@ -235,13 +235,14 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     default: return;
     }
 
-    /* Boolean is true if the numerical input is non-null */
+    /* Boolean is true if the numerical input is nonzero */
     if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
         const UA_Boolean *b = &bFalse;
         if(i != 0 || u != 0 || f != 0.0)
             b = &bTrue;
         UA_Variant_setScalar(out, (void*)(uintptr_t)b, type);
         out->storageType = UA_VARIANT_DATA_NODELETE;
+        return;
     }
 
     /* Allocate the output data. Return NULL value if malloc fails. */
@@ -315,7 +316,7 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
 /* Implicit Casting
  * ---------------- */
 
-static UA_INLINE UA_Byte uppercase(UA_Byte in) { return in | 32; }
+static UA_INLINE UA_Byte uppercase(UA_Byte in) { return in & (UA_Byte)~32; }
 
 static UA_StatusCode
 castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
@@ -736,8 +737,6 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
         UA_Variant orig = ctx->stack[pos];
         UA_Variant_init(&ctx->stack[pos]);
         res = castImplicit(&orig, targetType, &ctx->stack[pos]);
-        if(res != UA_STATUSCODE_GOOD)
-            return (setError) ? setOperandError(ctx, index, pos, res) : res;
         if(ctx->stack[pos].data == orig.data) {
             /* Reuse the storage type of the original data if the variant is
              * identical or only the type has changed */
@@ -745,6 +744,8 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
         } else {
             UA_Variant_clear(&orig); /* Fresh allocation of the cast variant. Clean up. */
         }
+        if(res != UA_STATUSCODE_GOOD)
+            return (setError) ? setOperandError(ctx, index, pos, res) : res;
     }
 
     return UA_STATUSCODE_GOOD;
