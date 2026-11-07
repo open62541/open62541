@@ -2273,6 +2273,91 @@ START_TEST(UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored) {
     ck_assert_uint_ne(rv, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(UA_PubSub_EnDecode_RawArrays) {
+    UA_UInt32 dims[2] = {2, 3};
+    size_t dimsSize = (_i % 2 == 0) ? 1 : 2;
+    size_t count = (_i % 2 == 0) ? 2 : 6;
+    UA_String strings[6] = {UA_STRING("one"), UA_STRING("two"), UA_STRING("three"),
+                            UA_STRING("four"), UA_STRING("five"), UA_STRING("six")};
+    const UA_DataType *type = &UA_TYPES[_i < 2 ? UA_TYPES_UINT32 : UA_TYPES_STRING];
+    UA_UInt32 data[6] = {11, 22, 33, 44, 55, 66};
+    UA_FieldMetaData field;
+    memset(&field, 0, sizeof(field));
+    field.dataType = type->typeId;
+    field.builtInType = (UA_Byte)(type->typeKind + 1);
+    field.maxStringLength = _i < 2 ? 0 : 8;
+    field.valueRank = (UA_Int32)dimsSize;
+    field.arrayDimensions = dims;
+    field.arrayDimensionsSize = dimsSize;
+    UA_DataSetMessage_EncodingMetaData emd;
+    memset(&emd, 0, sizeof(emd));
+    emd.fields = &field;
+    emd.fieldsSize = 1;
+    UA_NetworkMessage_EncodingOptions eo;
+    memset(&eo, 0, sizeof(eo));
+    eo.metaData = &emd;
+    eo.metaDataSize = 1;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    UA_Variant_setArray(&value.value, _i < 2 ? (void*)data : (void*)strings, count, type);
+    value.value.arrayDimensions = dims;
+    value.value.arrayDimensionsSize = dimsSize;
+    value.hasValue = true;
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
+    dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    dsm.fieldCount = 1;
+    dsm.data.keyFrameFields = &value;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.version = 1;
+    nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    nm.messageCount = 1;
+    nm.payload.dataSetMessages = &dsm;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    size_t expectedSize = UA_NetworkMessage_calcSizeBinary(&nm, &eo);
+    ck_assert_uint_gt(expectedSize, 0);
+    ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&nm, &encoded, &eo),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(encoded.length, expectedSize);
+    UA_NetworkMessage decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(&encoded, &decoded, &eo, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant *result = &decoded.payload.dataSetMessages[0].data.keyFrameFields[0].value;
+    ck_assert_uint_eq(result->arrayLength, count);
+    ck_assert(!UA_Variant_isScalar(result));
+    ck_assert_uint_eq(result->arrayDimensionsSize, dimsSize);
+    ck_assert_mem_eq(result->arrayDimensions, dims, dimsSize * sizeof(UA_UInt32));
+    if(_i < 2) {
+        ck_assert_mem_eq(result->data, data, count * sizeof(UA_UInt32));
+    } else {
+        for(size_t i = 0; i < count; i++)
+            ck_assert(UA_String_equal(&((UA_String*)result->data)[i], &strings[i]));
+    }
+    /* The decoded shape must survive copying and re-encoding. */
+    UA_Variant copy;
+    ck_assert_uint_eq(UA_Variant_copy(result, &copy), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_equal(result, &copy));
+    UA_Variant_clear(&copy);
+    UA_ByteString reencoded = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&decoded, &reencoded, &eo),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&encoded, &reencoded));
+    UA_ByteString_clear(&reencoded);
+    UA_NetworkMessage_clear(&decoded);
+
+    /* Reject truncated arrays, including partial String arrays that already
+     * own allocated members and must be cleaned up on the failure path. */
+    UA_ByteString truncated = {encoded.length - 1, encoded.data};
+    ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(&truncated, &decoded, &eo, NULL),
+                      UA_STATUSCODE_BADDECODINGERROR);
+    UA_NetworkMessage_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
@@ -2288,6 +2373,7 @@ int main(void) {
     tcase_add_test(tc_decode, UA_PubSub_Decode_RawDataSizeMustFitBuffer);
 
     TCase *tc_ende1 = tcase_create("encode_decode1DS");
+    tcase_add_loop_test(tc_ende1, UA_PubSub_EnDecode_RawArrays, 0, 4);
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame);
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame);
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame);
