@@ -113,6 +113,69 @@ START_TEST(tutorial_completion) {
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
 } END_TEST
 
+static UA_StatusCode
+rejectShutdownEventLoopStart(UA_EventLoop *el) {
+    return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
+}
+
+/* Synchronous facades can leave worker-owned storage before startup or after
+ * a completed shutdown. The public STOPPED state alone does not mean drained. */
+START_TEST(shutdown_stopped_server_with_pending_workers) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(server, NULL);
+    server->config.tcpEnabled = false;
+    server->config.externalEventLoop = (_i & 1) != 0;
+    ck_assert_uint_eq(addHelloWorldMethod(server), UA_STATUSCODE_GOOD);
+    if(_i & 2) {
+        ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    }
+
+    UA_String text = UA_STRING("World");
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &text, &UA_TYPES[UA_TYPES_STRING]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NS0ID(OBJECTSFOLDER);
+    request.methodId = UA_NODEID_NUMERIC(1, 62541);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADWAITINGFORRESPONSE);
+    UA_CallMethodResult_clear(&result);
+    ck_assert_int_eq(server->state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
+
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_fakeSleep(2001);
+    if(_i & 4) {
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPING);
+        /* Nonblocking shutdown leaves EventLoop progress to the caller. */
+        if(el->state == UA_EVENTLOOPSTATE_FRESH || el->state == UA_EVENTLOOPSTATE_STOPPED)
+            ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+        for(size_t i = 0; i < 10 &&
+            UA_Server_run_shutdown_async(server) != UA_LIFECYCLESTATE_STOPPED; i++)
+            UA_Server_run_iterate(server, false);
+    } else {
+        if(_i >= 8) {
+            UA_StatusCode (*start)(UA_EventLoop*) = el->start;
+            el->start = rejectShutdownEventLoopStart;
+            ck_assert_uint_eq(UA_Server_run_shutdown(server),
+                              UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+            ck_assert_int_eq(server->state, UA_LIFECYCLESTATE_STOPPING);
+            ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
+            el->start = start;
+        }
+        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+    ck_assert_int_eq(server->state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_int_eq(el->state, server->config.externalEventLoop ?
+                     UA_EVENTLOOPSTATE_STARTED : UA_EVENTLOOPSTATE_STOPPED);
+    server->config.externalEventLoop = false;
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
 static void
 unexpectedRead(UA_Server *server, void *context, const UA_DataValue *result) {
     ck_abort_msg("Rejected request invoked its result callback");
@@ -1354,6 +1417,9 @@ START_TEST(service_notification_reentrancy) {
 
 int main(void) {
     Suite *s = suite_create("Async tutorial");
+    TCase *shutdown = tcase_create("Stopped server shutdown");
+    tcase_add_loop_test(shutdown, shutdown_stopped_server_with_pending_workers, 0, 10);
+    suite_add_tcase(s, shutdown);
     TCase *tc = tcase_create("Ownership");
     tcase_add_loop_test(tc, tutorial_completion, 0, 5);
     tcase_add_loop_test(tc, shutdown_already_stopping, 0, 2);

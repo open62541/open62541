@@ -236,6 +236,9 @@ started. `UA_Server_run_shutdown` waits until `STOPPED`, including when called
 while already `STOPPING`. Calling this blocking shutdown during operation
 dispatch or async callbacks returns `BadInvalidState`; defer it until the callback
 returns or use `UA_Server_run_shutdown_async`.
+Shutdown also drains workers left by synchronous calls before startup or after
+a completed shutdown. Blocking shutdown starts their EventLoop if necessary;
+with nonblocking shutdown the caller must start and drive it.
 Datachange monitored items sample only while the server is `STARTED`. Items
 created before startup wait for their next sampling trigger; startup does not
 take an initial sample. Zero-interval items sampled on writes wait for a write.
