@@ -581,6 +581,39 @@ START_TEST(datetime_parse_yearOverflow) {
     ck_assert(res != UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(datetime_parse_fiveDigitYear) {
+    /* These years are outside the DateTime range, but their lower 16 bits are
+     * a year inside of it: 67560 - 65536 = 2024, 40000 - 65536 = -25536 and
+     * -40000 + 65536 = 25536. The year must not be truncated before the range
+     * check. */
+    UA_DateTime dt = 0;
+    UA_StatusCode res = UA_DateTime_parse(&dt,
+        UA_STRING("67560-01-15T12:30:45Z"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+    res = UA_DateTime_parse(&dt, UA_STRING("40000-01-15T12:30:45Z"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+    res = UA_DateTime_parse(&dt, UA_STRING("-40000-01-15T12:30:45Z"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+
+    /* Five-digit years inside the range are parsed */
+    res = UA_DateTime_parse(&dt, UA_STRING("20000-01-15T12:30:45Z"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_DateTimeStruct dts = UA_DateTime_toStruct(dt);
+    ck_assert_int_eq(dts.year, 20000);
+    ck_assert_uint_eq(dts.month, 1);
+    ck_assert_uint_eq(dts.day, 15);
+    ck_assert_uint_eq(dts.hour, 12);
+    ck_assert_uint_eq(dts.min, 30);
+    ck_assert_uint_eq(dts.sec, 45);
+
+    res = UA_DateTime_parse(&dt, UA_STRING("-20000-01-15T12:30:45Z"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    dts = UA_DateTime_toStruct(dt);
+    ck_assert_int_eq(dts.year, -20000);
+    ck_assert_uint_eq(dts.month, 1);
+    ck_assert_uint_eq(dts.day, 15);
+} END_TEST
+
 START_TEST(datetime_toStruct_negativeFraction) {
     /* src/ua_types.c:487-491: if(frac < 0) { secSinceUnixEpoch--;
      *   frac += UA_DATETIME_SEC; }
@@ -833,6 +866,7 @@ static Suite *testSuite_types_order(void) {
     tcase_add_test(tc_datetime, datetime_parse_truncatedYear);
     tcase_add_test(tc_datetime, datetime_parse_unterminatedTimezone);
     tcase_add_test(tc_datetime, datetime_parse_yearOverflow);
+    tcase_add_test(tc_datetime, datetime_parse_fiveDigitYear);
     tcase_add_test(tc_datetime, datetime_toStruct_negativeFraction);
     tcase_add_test(tc_datetime, datetime_fromStruct_roundTrip);
 

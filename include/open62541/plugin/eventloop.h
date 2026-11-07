@@ -834,6 +834,8 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  *    DER or PEM encoded CA certificate used to validate the TLS peer. For a
  *    listener, setting this requires clients to present a trusted certificate.
  *    A client uses the system trust store when this parameter is omitted.
+ *    Clients may configure TLS credentials and trust with ``useSSL=false``;
+ *    they apply when an HTTP request redirects to HTTPS.
  *
  * 0:recv-max-message-size [uint32]
  *    Maximum size of a reassembled response body for clients or request body

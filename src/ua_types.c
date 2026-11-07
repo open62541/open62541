@@ -575,7 +575,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     UA_CHECK(len == 4 || str.data[pos] == '-', return UA_STATUSCODE_BADDECODINGERROR);
     if(str.data[0] == '-')
         year = -year;
-    dts.tm_year = (UA_Int16)year - 1900;
+    dts.tm_year = (int)year - 1900;
     if(str.data[pos] == '-')
         pos++;
 

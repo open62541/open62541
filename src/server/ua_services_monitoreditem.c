@@ -171,64 +171,11 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
     UA_assert(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Correct data type? */
-    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
-       params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-    if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+    if(!UA_ExtensionObject_hasDecodedType(&params->filter, &UA_TYPES[UA_TYPES_EVENTFILTER]))
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
-    UA_EventFilter *eventFilter = (UA_EventFilter *)params->filter.content.decoded.data;
-
-    /* Correct number of elements? */
-    if(eventFilter->selectClausesSize == 0 ||
-       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    /* Allow empty where clauses --> select every event */
-    if(eventFilter->whereClause.elementsSize > UA_EVENTFILTER_MAXELEMENTS)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    /* Check where-clause */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    const UA_ContentFilter *cf = &eventFilter->whereClause;
-    UA_ContentFilterElementResult whereRes[UA_EVENTFILTER_MAXELEMENTS];
-    for(size_t i = 0; i < cf->elementsSize; ++i) {
-        UA_ContentFilterElement *ef = &cf->elements[i];
-        whereRes[i] = UA_ContentFilterElementValidation(server, i, cf->elementsSize, ef);
-        if(whereRes[i].statusCode != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
-            res = whereRes[i].statusCode;
-    }
-
-    /* Check select clause */
-    UA_StatusCode selectRes[UA_EVENTFILTER_MAXSELECT];
-    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
-        const UA_SimpleAttributeOperand *sao = &eventFilter->selectClauses[i];
-        selectRes[i] = UA_SimpleAttributeOperandValidation(server, sao);
-        if(selectRes[i] != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
-            res = selectRes[i];
-    }
-
-    /* Filter bad, return details */
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_EventFilterResult *efr = UA_EventFilterResult_new();
-        if(!efr) {
-            res = UA_STATUSCODE_BADOUTOFMEMORY;
-        } else {
-            UA_EventFilterResult tmp_efr;
-            UA_EventFilterResult_init(&tmp_efr);
-            tmp_efr.selectClauseResultsSize = eventFilter->selectClausesSize;
-            tmp_efr.selectClauseResults = selectRes;
-            tmp_efr.whereClauseResult.elementResultsSize = cf->elementsSize;
-            tmp_efr.whereClauseResult.elementResults = whereRes;
-            UA_EventFilterResult_copy(&tmp_efr, efr);
-            UA_ExtensionObject_setValue(filterResult, efr,
-                                        &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
-        }
-    }
-
-    for(size_t i = 0; i < cf->elementsSize; ++i)
-        UA_ContentFilterElementResult_clear(&whereRes[i]);
-    return res;
+    const UA_EventFilter *eventFilter = (const UA_EventFilter*)params->filter.content.decoded.data;
+    return UA_EventFilterValidation(server, eventFilter, filterResult);
 }
 #endif
 

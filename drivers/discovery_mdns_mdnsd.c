@@ -598,12 +598,37 @@ announcePTR(MdnsdDriver *md, const char *serviceDomain,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Removes the .local domain, also with the trailing root dot, from a qualified
+ * hostname. The domain is compared without case. */
+static UA_String
+removeLocalDomain(UA_String hostname) {
+    const char *domain = ".local";
+    const size_t domainLen = 6;
+    UA_String name = hostname;
+    if(name.length > 0 && name.data[name.length - 1] == '.')
+        name.length--;
+    if(name.length <= domainLen)
+        return hostname;
+    const UA_Byte *tail = &name.data[name.length - domainLen];
+    for(size_t i = 0; i < domainLen; i++) {
+        UA_Byte c = tail[i];
+        if(c >= 'A' && c <= 'Z')
+            c = (UA_Byte)(c - 'A' + 'a');
+        if(c != (UA_Byte)domain[i])
+            return hostname;
+    }
+    name.length -= domainLen;
+    return name;
+}
+
 /* SRV record: [servername]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].local.
- * The first 63 characters of the hostname (or less) and ".local." */
+ * The first 63 characters of the hostname (or less) and ".local." A hostname
+ * qualified with .local keeps the domain once. */
 static UA_StatusCode
 announceSVR(MdnsdDriver *md, UA_String hostname, UA_UInt16 port,
             const char *serviceDomain, const UA_ServerOnNetwork *son,
             UA_UInt32 ttl) {
+    hostname = removeLocalDomain(hostname);
     size_t maxHostnameLen = UA_MIN(hostname.length, 63);
     char localDomain[71];
     memcpy(localDomain, hostname.data, maxHostnameLen);
@@ -1018,6 +1043,22 @@ MulticastDiscoverySendCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                state, params, msg, false);
 }
 
+/* Announcements and queries are sent over the send connection. A driver that
+ * only listens sends nothing. */
+static UA_Boolean
+sendsMessages(const MdnsdDriver *md) {
+    return md->announce || md->queryPresence || md->queryDetails;
+}
+
+/* The configuration needs the send connection if it sends and otherwise the
+ * receive connection if it listens */
+static UA_Boolean
+connectionMissing(const MdnsdDriver *md) {
+    if(sendsMessages(md))
+        return md->mdnsSendConnection == 0;
+    return md->listen && md->mdnsRecvConnectionsSize == 0;
+}
+
 /* Create multicast 224.0.0.251:5353 socket */
 static void
 createMulticastSocket(MdnsdDriver *md) {
@@ -1087,8 +1128,7 @@ createMulticastSocket(MdnsdDriver *md) {
 
     /* Open the send connection */
     listen = false;
-    if((md->announce || md->queryPresence || md->queryDetails) &&
-       md->mdnsSendConnection == 0) {
+    if(sendsMessages(md) && md->mdnsSendConnection == 0) {
         res = md->cm->openConnection(md->cm, &kvm, md->mdns.drv.server, md,
                                      MulticastDiscoverySendCallback);
         if(res != UA_STATUSCODE_GOOD)
@@ -1117,7 +1157,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         } else if(md->mdns.drv.state == UA_LIFECYCLESTATE_STARTED) {
             /* Restart mdns sockets if not shutting down */
             createMulticastSocket(md);
-            if(md->mdnsSendConnection == 0)
+            if(connectionMissing(md))
                 UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
                              "mDNS: Could not create UDP multicast socket");
         }
@@ -1494,15 +1534,13 @@ MdnsdDriver_start(UA_Driver *drv) {
     }
 
     /* Open the UDP sockets if needed */
-    if(md->listen || md->announce || md->queryPresence || md->queryDetails) {
-        if(md->mdnsSendConnection == 0)
-            createMulticastSocket(md);
-        if(md->mdnsSendConnection == 0) {
-            UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
-                         "mDNS: Could not create UDP multicast socket");
-            MdnsdDriver_stop(&md->mdns.drv);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
+    if(connectionMissing(md))
+        createMulticastSocket(md);
+    if(connectionMissing(md)) {
+        UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "mDNS: Could not create UDP multicast socket");
+        MdnsdDriver_stop(&md->mdns.drv);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Add a repeated callback to process actions and send out multicast
