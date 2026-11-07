@@ -2593,12 +2593,14 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
      * node if it lives on a different server. */
     UA_Node *targetNode = NULL;
     if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
-        /* Local self-references are not allowed. Validate that the node exists
-         * first so clients receive Source/TargetNodeIdInvalid for missing nodes
-         * instead of a silent Good with no change to the address space. Avoid
-         * dual GET_EDIT of the same node. */
+        /* Local self-references are not supported. Check existence before
+         * rejecting them, without acquiring the same node twice for editing. */
         if(UA_NodeId_equal(&item->targetNodeId.nodeId, &item->sourceNodeId)) {
-            const UA_Node *node = UA_NODESTORE_GET(server, &item->sourceNodeId);
+            const UA_Node *node =
+                UA_NODESTORE_GET_SELECTIVE(server, &item->sourceNodeId,
+                                           UA_NODEATTRIBUTESMASK_NONE,
+                                           UA_REFERENCETYPESET_NONE,
+                                           UA_BROWSEDIRECTION_INVALID);
             if(!node) {
                 UA_LOG_DEBUG_SESSION(server->config.logging, session,
                                      "Cannot add reference - source/target %N does not exist",
