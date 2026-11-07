@@ -751,6 +751,50 @@ START_TEST(NetworkMessageTimestampUsesEventLoopClock) {
 } END_TEST
 
 
+START_TEST(DataSetMessagePicosecondsUsesEventLoopClock) {
+    HeaderTestContext ctx = setupHeaderTest(0);
+    UA_UadpDataSetWriterMessageDataType settings;
+    UA_UadpDataSetWriterMessageDataType_init(&settings);
+    if(_i & 1)
+        settings.dataSetMessageContentMask |= UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP;
+    if(_i & 2)
+        settings.dataSetMessageContentMask |= UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS;
+    ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&ctx.dsw->config.messageSettings,
+        &settings, &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]), UA_STATUSCODE_GOOD);
+
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime (*originalNow)(UA_EventLoop*) = el->dateTime_now;
+    el->dateTime_now = headerTestNow;
+    headerTestTime = UA_DATETIME_UNIX_EPOCH + 123456789 * UA_DATETIME_SEC + 9999999;
+
+    UA_DataSetMessageHeader headers[2];
+    UA_DateTime timestamps[2];
+    /* Publish on either side of a second boundary using the configured clock. */
+    for(size_t i = 0; i < 2; i++) {
+        timestamps[i] = headerTestTime;
+        ck_assert_uint_eq(UA_Server_triggerWriterGroupPublish(server,
+                          ctx.wg->head.identifier), UA_STATUSCODE_GOOD);
+        UA_NetworkMessage message;
+        memset(&message, 0, sizeof(message));
+        ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(
+            TestConnectionManager_getLastSent(ctx.cm), &message, NULL, NULL),
+            UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(message.messageCount, 1);
+        headers[i] = message.payload.dataSetMessages[0].header;
+        UA_NetworkMessage_clear(&message);
+        headerTestTime++;
+    }
+    el->dateTime_now = originalNow;
+    teardownHeaderTest(&ctx);
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_int_eq(headers[i].timestampEnabled, (_i & 1) != 0);
+        ck_assert_int_eq(headers[i].picoSecondsIncluded, _i == 3);
+        ck_assert_int_eq(headers[i].timestamp, (_i & 1) ? timestamps[i] : 0);
+        ck_assert_uint_eq(headers[i].picoSeconds, 0);
+    }
+} END_TEST
+
+
 typedef struct {
     UA_NetworkMessage messages[4];
     size_t count;
@@ -2173,6 +2217,7 @@ int main(void) {
     tcase_add_loop_test(tc_pubsub_publish, DataSetMessageStatusFollowsFieldRepresentation, 0, 4);
 #endif
     tcase_add_loop_test(tc_pubsub_publish, NetworkMessageTimestampUsesEventLoopClock, 0, 4);
+    tcase_add_loop_test(tc_pubsub_publish, DataSetMessagePicosecondsUsesEventLoopClock, 0, 4);
     tcase_add_loop_test(tc_pubsub_publish, NetworkMessageClassIdMatchesIncludedDataSets, 0, 4);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);

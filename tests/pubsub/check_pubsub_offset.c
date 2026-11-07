@@ -11,6 +11,7 @@
 
 #include "test_helpers.h"
 #include "testing_clock.h"
+#include "ua_pubsub_networkmessage.h"
 
 #include <check.h>
 
@@ -328,7 +329,7 @@ addSubscribedVariables (UA_Server *server) {
 
 /* Add DataSetReader to the ReaderGroup */
 static void
-addDataSetReader(UA_Server *server) {
+addDataSetReader(UA_Server *server, UA_UadpDataSetMessageContentMask mask) {
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
@@ -348,7 +349,7 @@ addDataSetReader(UA_Server *server) {
         (UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID | UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
          UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER | UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
          UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
-    dataSetReaderMessage->dataSetMessageContentMask = UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
+    dataSetReaderMessage->dataSetMessageContentMask = mask;
     readerConfig.messageSettings.content.decoded.data = dataSetReaderMessage;
 
     readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
@@ -370,7 +371,7 @@ addDataSetReader(UA_Server *server) {
 START_TEST(SubscriberOffsets) {
     addPubSubConnection(server);
     addReaderGroup(server);
-    addDataSetReader(server);
+    addDataSetReader(server, UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER);
 
     UA_PubSubOffsetTable ot;
     UA_StatusCode res =
@@ -387,11 +388,76 @@ START_TEST(SubscriberOffsets) {
     UA_PubSubOffsetTable_clear(&ot);
 } END_TEST
 
+static UA_DateTime
+offsetTestNow(UA_EventLoop *el) {
+    return UA_DATETIME_UNIX_EPOCH + 123456789 * UA_DATETIME_SEC + 123;
+}
+
+START_TEST(SubscriberPicosecondsOffsets) {
+    addPubSubConnection(server);
+    addReaderGroup(server);
+    UA_UadpDataSetMessageContentMask mask = UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
+    if(_i & 1)
+        mask |= UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP;
+    if(_i & 2)
+        mask |= UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS;
+    addDataSetReader(server, mask);
+
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime (*originalNow)(UA_EventLoop*) = el->dateTime_now;
+    el->dateTime_now = offsetTestNow;
+    UA_PubSubOffsetTable ot;
+    UA_StatusCode res =
+        UA_Server_computeDataSetReaderOffsetTable(server, readerIdentifier, &ot);
+    el->dateTime_now = originalNow;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = ot.networkMessage.data;
+    ctx.ctx.end = ot.networkMessage.data + ot.networkMessage.length;
+    UA_DataSetMessageHeader header;
+    memset(&header, 0, sizeof(header));
+    ck_assert_uint_eq(UA_DataSetMessageHeader_decodeBinary(&ctx, &header),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(header.timestampEnabled, (_i & 1) != 0);
+    ck_assert_int_eq(header.picoSecondsIncluded, _i == 3);
+    ck_assert_int_eq(header.timestamp, (_i & 1) ? offsetTestNow(el) : 0);
+    ck_assert_uint_eq(header.picoSeconds, 0);
+
+    size_t timestampCount = 0, picosecondsCount = 0;
+    size_t timestampOffset = 0, picosecondsOffset = 0, firstFieldOffset = 0;
+    for(size_t i = 0; i < ot.offsetsSize; i++) {
+        const UA_PubSubOffset *offset = &ot.offsets[i];
+        if(offset->offsetType == UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP) {
+            timestampCount++;
+            timestampOffset = offset->offset;
+            ck_assert(UA_NodeId_equal(&offset->component, &readerIdentifier));
+        } else if(offset->offsetType == UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS) {
+            picosecondsCount++;
+            picosecondsOffset = offset->offset;
+            ck_assert(UA_NodeId_equal(&offset->component, &readerIdentifier));
+        } else if(offset->offsetType == UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW &&
+                  firstFieldOffset == 0) {
+            firstFieldOffset = offset->offset;
+        }
+    }
+    ck_assert_uint_eq(timestampCount, (_i & 1) != 0);
+    ck_assert_uint_eq(picosecondsCount, _i == 3);
+    ck_assert_uint_eq(firstFieldOffset, (size_t)(ctx.ctx.pos - ot.networkMessage.data));
+    if(_i == 3) {
+        ck_assert_uint_eq(picosecondsOffset, timestampOffset + sizeof(UA_DateTime));
+        ck_assert_uint_eq(firstFieldOffset, picosecondsOffset + sizeof(UA_UInt16));
+    }
+    UA_PubSubOffsetTable_clear(&ot);
+} END_TEST
+
 int main(void) {
     TCase *tc_offset = tcase_create("PubSub Offset");
     tcase_add_checked_fixture(tc_offset, setup, teardown);
     tcase_add_test(tc_offset, PublisherOffsets);
     tcase_add_test(tc_offset, SubscriberOffsets);
+    tcase_add_loop_test(tc_offset, SubscriberPicosecondsOffsets, 0, 4);
 
     Suite *s = suite_create("PubSub Offsets");
     suite_add_tcase(s, tc_offset);
