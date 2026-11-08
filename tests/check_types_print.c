@@ -111,6 +111,19 @@ START_TEST(string_copy_empty) {
     UA_String_clear(&dst);
 } END_TEST
 
+START_TEST(string_copy_rejects_missing_data) {
+    UA_String src = {1, NULL};
+    UA_String dst;
+    UA_StatusCode res = (_i == 0) ? UA_String_copy(&src, &dst) :
+        UA_ByteString_copy(&src, &dst);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(dst.length, 0);
+    ck_assert_ptr_null(dst.data);
+    ck_assert_uint_eq(src.length, 1);
+    ck_assert_ptr_null(src.data);
+    UA_String_clear(&dst);
+} END_TEST
+
 /* === UA_String_append === */
 START_TEST(string_append_normal) {
     UA_String s = UA_STRING_ALLOC("Hello");
@@ -668,6 +681,7 @@ static Suite *testSuite_typesExtra3(void) {
     tcase_add_test(tc_string, string_fromChars_null);
     tcase_add_test(tc_string, string_copy_terminated);
     tcase_add_loop_test(tc_string, string_copy_empty, 0, 2);
+    tcase_add_loop_test(tc_string, string_copy_rejects_missing_data, 0, 2);
     tcase_add_test(tc_string, string_append_normal);
     tcase_add_test(tc_string, string_append_empty);
     tcase_add_test(tc_string, string_append_to_empty);

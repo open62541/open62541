@@ -774,9 +774,13 @@ START_TEST(Server_getEndpoints_emptyPolicyId) {
 
     UA_UserTokenPolicy *policy = &config->accessControl.userTokenPolicies[0];
     UA_String_clear(&policy->policyId);
-    policy->policyId = UA_STRING_ALLOC("");
-    ck_assert_ptr_eq(policy->policyId.data,
-                     (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    /* Empty policy IDs can use the sentinel or own a terminated buffer. */
+    if(_i == 0)
+        policy->policyId.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+    else
+        policy->policyId = UA_STRING_ALLOC("");
+    ck_assert_uint_eq(policy->policyId.length, 0);
+    ck_assert_ptr_nonnull(policy->policyId.data);
 
     UA_EndpointDescription *endpoints = NULL;
     size_t endpointsSize = 0;
@@ -1032,7 +1036,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_new_del = tcase_create("New Delete");
     tcase_add_test(tc_new_del, Server_new_delete);
     tcase_add_test(tc_new_del, Server_new_shutdown_delete);
-    tcase_add_test(tc_new_del, Server_getEndpoints_emptyPolicyId);
+    tcase_add_loop_test(tc_new_del, Server_getEndpoints_emptyPolicyId, 0, 2);
     tcase_add_loop_test(tc_new_del, Server_addEndpoint_rejectsInvalidSecurityMode, 0, 4);
     tcase_add_loop_test(tc_new_del, Server_getEndpoints_rejectsOutOfRangeSecurityMode, 0, 3);
     suite_add_tcase(s,tc_new_del);
