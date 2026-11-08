@@ -31,6 +31,7 @@ typedef struct {
     UA_StatusCode (*load)(UA_Server *, UA_Boolean);
     size_t typesSize;
     const UA_DataType *(*staticType)(size_t);
+    const CompanionNode *invalidRankNode;
 } CompanionModule;
 extern const CompanionModule *const companionModules[];
 extern const size_t companionModulesSize;

@@ -224,14 +224,6 @@ handleVariableNode(NodeSet *nodeset, const NL_VariableNode *node, UA_NodeId pare
     bool dataTypeOwned = getDataType(server, &node->datatype, &typeDefId, &dataType);
     attr.dataType = dataType;
     attr.valueRank = node->valueRank;
-    /* Resolve constrained ranks before decoding so scalar array defaults
-     * receive the same one-element wrapping as explicit ValueRank=1. */
-    if(!node->valueRankDefined && !UA_NodeId_isNull(&typeDefId)) {
-        UA_Int32 typeRank;
-        if(UA_Server_readValueRank(server, typeDefId, &typeRank) == UA_STATUSCODE_GOOD &&
-           typeRank >= 0)
-            attr.valueRank = typeRank;
-    }
     UA_UInt32 *arrDims = NULL;
     UA_StatusCode ret =
         getArrayDimensions(node->arrayDimensions, &attr.arrayDimensionsSize, &arrDims);
@@ -263,12 +255,6 @@ handleVariableNode(NodeSet *nodeset, const NL_VariableNode *node, UA_NodeId pare
                        node->id);
 #endif
     }
-
-    /* An omitted rank also follows a permissive type for decoded arrays;
-     * scalar instances keep the XML scalar default. */
-    if(!node->valueRankDefined && attr.value.type && !UA_Variant_isScalar(&attr.value) &&
-       !UA_NodeId_isNull(&typeDefId))
-        (void)UA_Server_readValueRank(server, typeDefId, &attr.valueRank);
 
     /* Accept a one-dimensional value that exceeds the declared maximum. */
     if(ret == UA_STATUSCODE_GOOD && attr.valueRank == 1 && attr.arrayDimensionsSize == 1 &&
@@ -312,8 +298,6 @@ handleVariableTypeNode(NodeSet *nodeset, const NL_VariableTypeNode *node, UA_Nod
     bool dataTypeOwned = getDataType(server, &node->datatype, &parentId, &dataType);
     attr.dataType = dataType;
     attr.valueRank = node->valueRank;
-    if(!node->valueRankDefined && !UA_NodeId_isNull(&parentId))
-        (void)UA_Server_readValueRank(server, parentId, &attr.valueRank);
     attr.isAbstract = node->isAbstract;
 
     UA_UInt32 *arrayDimensions = NULL;

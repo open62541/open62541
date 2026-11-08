@@ -6,9 +6,15 @@ refactorings and bug fixes are not reported here.
 ### Default ValueRank is scalar
 
 The default `ValueRank` for `UA_VariableAttributes` and
-`UA_VariableTypeAttributes` is now `UA_VALUERANK_SCALAR` (`-1`), as specified by
-the UANodeSet schema. The nodeset compiler now also applies this default when a
-Variable or VariableType omits the `ValueRank` attribute.
+`UA_VariableTypeAttributes` is now `UA_VALUERANK_SCALAR` (`-1`). Both the nodeset
+compiler and the runtime XML loader also apply the UANodeSet schema's scalar
+default when a Variable or VariableType omits `ValueRank`. They no longer
+inherit the rank from the type definition or supertype in that case.
+
+Array-valued nodes must declare a compatible rank explicitly. This also applies
+to VariableTypes intended to allow arrays. Older NodeSets that relied on rank
+inheritance can now contain incompatible nodes: the generated loader returns an
+error, while the runtime XML loader logs and omits rejected nodes.
 
 ### Configure the advertised server profiles explicitly
 

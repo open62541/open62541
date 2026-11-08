@@ -6,7 +6,8 @@ set(companion_output "${PROJECT_BINARY_DIR}/src_generated/companion")
 file(MAKE_DIRECTORY "${companion_output}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/catalog.txt" "${CMAKE_CURRENT_SOURCE_DIR}/generate.py"
-    "${CMAKE_CURRENT_SOURCE_DIR}/dependency_overrides.json")
+    "${CMAKE_CURRENT_SOURCE_DIR}/dependency_overrides.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/invalid_value_ranks.json")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/generate.py"
     --nodesets "${UA_NODESET_DIR}" --output "${companion_output}"
     RESULT_VARIABLE companion_result)
