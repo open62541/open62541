@@ -147,7 +147,10 @@ jobs:
 
           - name: "Encryption (OpenSSL 4) Build & Unit Tests (gcc)"
             cmd_deps: |
-              curl -L https://github.com/openssl/openssl/releases/download/openssl-4.0.2/openssl-4.0.2.tar.gz --output openssl.tar.gz
+              curl --fail --location --retry 3 --retry-delay 2 \
+                --connect-timeout 30 --max-time 120 \
+                https://github.com/openssl/openssl/releases/download/openssl-4.0.2/openssl-4.0.2.tar.gz \
+                --output openssl.tar.gz
               tar -xz -f openssl.tar.gz
               cd openssl-4.0.2
               ./Configure --prefix=/usr/local --libdir=lib no-docs no-tests
