@@ -31,8 +31,10 @@ failCalloc(size_t count, size_t size) {
 }
 
 START_TEST(txtAllocationFailures) {
-    /* Fail the path, the capabilities array, or its second string. */
-    const size_t sizes[] = {10, 2 * sizeof(UA_String), 7};
+    /* Fail the path, the capabilities array, or its second string.
+     * sizeof includes the trailing zero allocated for each string. */
+    const size_t sizes[] = {sizeof("/discovery"), 2 * sizeof(UA_String),
+                            sizeof("ABCDEFG")};
     unsigned char txt[] = "\x0f" "path=/discovery" "\x10" "caps=LDS,ABCDEFG";
     struct resource r;
     memset(&r, 0, sizeof(r));
