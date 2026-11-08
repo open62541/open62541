@@ -58,8 +58,13 @@ static UA_StatusCode loadXml(UA_Server *server, const char *path) {
     UA_ByteString_clear(&xml);
     return res;
 }
+/* A rejected model cannot be a dependency of a successfully compiled model.
+ * Keep it distinct from a successful load, including in the combined server. */
+enum { MODEL_LOADED = 1, MODEL_REJECTED, MODEL_BLOCKED };
+static UA_StatusCode nodeId(UA_Server *server, const CompanionNode *node, UA_NodeId *id);
+
 static UA_StatusCode loadModule(const CompanionModule *module, UA_Server *server,
-                                UA_Boolean compiled, UA_Boolean copy, UA_Boolean *loaded) {
+                                UA_Boolean compiled, UA_Boolean copy, UA_Byte *loaded) {
     if(loaded[module->index])
         return UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < module->dependenciesSize; i++) {
@@ -69,13 +74,40 @@ static UA_StatusCode loadModule(const CompanionModule *module, UA_Server *server
         UA_StatusCode res = loadModule(dep, server, compiled, copy, loaded);
         if(res)
             return res;
+        if(loaded[dep->index] != MODEL_LOADED) {
+            fprintf(stderr, "CHECK %s: blocked by invalid ValueRank in %s\n",
+                    module->path, dep->path);
+            loaded[module->index] = MODEL_BLOCKED;
+            return UA_STATUSCODE_GOOD;
+        }
     }
     UA_StatusCode res = compiled ? module->load(server, copy) : loadXml(server, module->path);
+    if(module->invalidRankNode) {
+        /* The compiler stops at the first invalid node. The XML loader reports
+         * and omits invalid nodes while continuing the rest of the document. */
+        UA_StatusCode expected = compiled ? UA_STATUSCODE_BADTYPEMISMATCH : UA_STATUSCODE_GOOD;
+        UA_NodeId id = UA_NODEID_NULL;
+        UA_NodeClass nodeClass;
+        UA_StatusCode lookup = nodeId(server, module->invalidRankNode, &id);
+        if(lookup == UA_STATUSCODE_GOOD)
+            lookup = UA_Server_readNodeClass(server, id, &nodeClass);
+        UA_NodeId_clear(&id);
+        if(res != expected || lookup != UA_STATUSCODE_BADNODEIDUNKNOWN) {
+            fprintf(stderr, "Unexpected rejection result for %s: %s, witness %s (%s)\n",
+                    module->path, UA_StatusCode_name(res),
+                    module->invalidRankNode->identifier, UA_StatusCode_name(lookup));
+            return UA_STATUSCODE_BADUNEXPECTEDERROR;
+        }
+        fprintf(stderr, "CHECK %s: rejected invalid ValueRank at %s\n",
+                module->path, module->invalidRankNode->identifier);
+        loaded[module->index] = MODEL_REJECTED;
+        return UA_STATUSCODE_GOOD;
+    }
     if(res)
         fprintf(stderr, "%s %s: %s\n", compiled ? "COMPILED" : "XML", module->path,
                 UA_StatusCode_name(res));
     else
-        loaded[module->index] = true;
+        loaded[module->index] = MODEL_LOADED;
     return res;
 }
 static UA_StatusCode nodeId(UA_Server *server, const CompanionNode *node, UA_NodeId *id) {
@@ -369,9 +401,9 @@ int companionRun(size_t selected, UA_Boolean copyTypes) {
     for(size_t i = 0; i < companionModulesSize; i++)
         if(companionModules[i]->index >= capacity)
             capacity = companionModules[i]->index + 1;
-    UA_Boolean *loaded = (UA_Boolean *)calloc(capacity, sizeof(UA_Boolean));
-    UA_Boolean *referenceLoaded = (UA_Boolean *)calloc(capacity, sizeof(UA_Boolean));
-    UA_Boolean *secondLoaded = (UA_Boolean *)calloc(capacity, sizeof(UA_Boolean));
+    UA_Byte *loaded = (UA_Byte *)calloc(capacity, sizeof(UA_Byte));
+    UA_Byte *referenceLoaded = (UA_Byte *)calloc(capacity, sizeof(UA_Byte));
+    UA_Byte *secondLoaded = (UA_Byte *)calloc(capacity, sizeof(UA_Byte));
     UA_Server *server = newServer(0), *reference = newServer(0),
               *second = newServer(copyTypes ? 3 : 0);
     int failed = 1;
@@ -396,7 +428,7 @@ int companionRun(size_t selected, UA_Boolean copyTypes) {
     if(mappings(server, reference, &ma, &mb))
         goto cleanup;
     for(size_t i = 0; i < companionModulesSize; i++)
-        if(loaded[companionModules[i]->index] &&
+        if(loaded[companionModules[i]->index] == MODEL_LOADED &&
            compare(server, reference, companionModules[i], &ma, &mb, true))
             goto cleanup;
     for(size_t i = 0; i < ma.namespaceUrisSize; i++)
@@ -415,11 +447,13 @@ int companionRun(size_t selected, UA_Boolean copyTypes) {
         if(mappings(server, second, &ma, &mb))
             goto cleanup;
         for(size_t i = 0; i < companionModulesSize; i++)
-            if(loaded[companionModules[i]->index] &&
+            if(loaded[companionModules[i]->index] == MODEL_LOADED &&
                compare(server, second, companionModules[i], &ma, &mb, copyTypes))
                 goto cleanup;
     }
-    failed = 0;
+    /* The rejected dependency was checked, but this model itself could not be
+     * loaded. Report it as skipped instead of a successful model comparison. */
+    failed = (selected != (size_t)-1 && loaded[selected] == MODEL_BLOCKED) ? 77 : 0;
 cleanup:
     for(size_t i = 0; i < ma.namespaceUrisSize; i++)
         UA_String_clear(&ma.namespaceUris[i]);
