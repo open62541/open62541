@@ -305,6 +305,9 @@ String_copy(const void *src, void *dst, const UA_DataType *_) {
     UA_String *dstS = (UA_String*)dst;
     dstS->length = 0;
     dstS->data = NULL;
+    /* Preserve the consistency check previously provided by UA_Array_copy. */
+    if(srcS->length > 0 && !srcS->data)
+        return UA_STATUSCODE_BADINTERNALERROR;
     if(srcS->data) {
         dstS->data = (u8*)UA_malloc(srcS->length+1);
         if(!dstS->data)
