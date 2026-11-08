@@ -31,6 +31,10 @@ example_args = {
         "ci_server":"4840 server.cert.der server.key.der client.cert.der",
         "server_json_config":"server_json_config.json5",
         "client_json_config":"client_json_config.json5",
+        # The pinned POWERLINK model has invalid ranks. Exercise its precise
+        # rejection instead of expecting a running server. The companion tests
+        # pin the model revision and also verify the rejected node.
+        "server_nodeset_powerlink":"--check-invalid-nodeset",
         }
 
 server_needed_examples = {
@@ -75,7 +79,6 @@ client_needed_examples = {
         "server_nodeset":"client",
         "server_nodeset_loader":"client",
         "server_nodeset_plcopen":"client",
-        "server_nodeset_powerlink":"client",
         "server_settimestamp":"client",
         "server_testnodeset":"client",
         "tutorial_server_monitoreditems":"client",
