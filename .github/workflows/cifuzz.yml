@@ -10,6 +10,40 @@ jobs:
       with:
         oss-fuzz-project-name: 'open62541'
         dry-run: false
+        # OSS-Fuzz coverage maps describe other branches, not necessarily 1.4.
+        keep-unaffected-fuzz-targets: true
+    - name: Select fuzzers built from the pull request
+      shell: bash
+      run: |
+        # The OSS-Fuzz image builds two checkouts of this repository. CIFuzz
+        # replaces only one with GITHUB_SHA; do not test the other branch here.
+        matches=0
+        suffix=
+        for checkout in open62541 open62541_15; do
+          revision=$(git -c safe.directory="$PWD/storage/$checkout" \
+            -C "storage/$checkout" rev-parse HEAD 2>/dev/null) || continue
+          if [[ "$revision" == "$GITHUB_SHA" ]]; then
+            matches=$((matches + 1))
+            suffix=${checkout#open62541}
+          fi
+        done
+        if [[ "$matches" != 1 ]]; then
+          echo "Expected exactly one OSS-Fuzz checkout at $GITHUB_SHA, found $matches"
+          exit 1
+        fi
+        selected=0
+        for target in build-out/fuzz_*; do
+          [[ -f "$target" && -x "$target" ]] || continue
+          if { [[ "$suffix" == _15 && "$target" == *_15 ]]; } ||
+             { [[ -z "$suffix" && "$target" != *_15 ]]; }; then
+            selected=$((selected + 1))
+          else
+            # Build output belongs to the root user in the builder container.
+            sudo rm -- "$target"
+          fi
+        done
+        echo "Selected $selected fuzz targets built from $GITHUB_SHA (suffix '$suffix')"
+        test "$selected" -gt 0
     - name: Run Fuzzers
       uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master
       with:
