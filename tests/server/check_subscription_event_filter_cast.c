@@ -294,6 +294,7 @@ int main(void) {
     tcase_add_loop_test(tc, numericElementResult, 0, 2);
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s);
+    srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
     int failed = srunner_ntests_failed(sr);
     srunner_free(sr);
