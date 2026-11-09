@@ -241,6 +241,72 @@ START_TEST(Case_19) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+/* Fail the n-th allocation of a parse */
+static size_t allocationIndex;
+static size_t failingAllocation;
+
+static void *
+failingMalloc(size_t size) {
+    return (allocationIndex++ == failingAllocation) ? NULL : malloc(size);
+}
+
+static void *
+failingCalloc(size_t count, size_t size) {
+    return (allocationIndex++ == failingAllocation) ? NULL : calloc(count, size);
+}
+
+static void *
+failingRealloc(void *ptr, size_t size) {
+    return (allocationIndex++ == failingAllocation) ? NULL : realloc(ptr, size);
+}
+
+static UA_StatusCode
+parseWithFailingAllocation(char *inp, size_t failure, UA_EventFilter *ef) {
+    allocationIndex = 0;
+    failingAllocation = failure;
+    UA_mallocSingleton = failingMalloc;
+    UA_callocSingleton = failingCalloc;
+    UA_reallocSingleton = failingRealloc;
+    UA_EventFilter_init(ef);
+    UA_StatusCode res = UA_EventFilter_parse(ef, UA_STRING(inp), NULL);
+    UA_mallocSingleton = malloc;
+    UA_callocSingleton = calloc;
+    UA_reallocSingleton = realloc;
+    return res;
+}
+
+/* Queries of the cases above with operators, named operands, literals (also in
+ * JSON) and select clauses */
+static char *allocationFailureCases[4] = {
+    "SELECT /Severity WHERE OFTYPE ns=1;s=DrillEventType AND (/Severity > 100 AND "
+    "(NOT /1:Diameter BETWEEN [5,6] AND 75 >= /1:FeedForce)) OR /1:Result == \"Failed\"",
+    "SELECT /Message#Value WHERE /Severity INLIST [1,2,3]",
+    "SELECT /Message, /Severity, /EventType WHERE $test FOR $test := /Severity >= 1000",
+    "SELECT /Severity "
+    "WHERE /Value == {\"UaType\": 3,\"Value\": [1,2,1,5],\"Dimension\": [2,2]}"
+};
+
+/* Fail each allocation of the parse once. The parse must not crash. If it
+ * still succeeds, the filter must be complete. */
+START_TEST(everyAllocationCanFail) {
+    char *inp = allocationFailureCases[_i];
+    UA_EventFilter expected;
+    UA_StatusCode res = parseWithFailingAllocation(inp, (size_t)-1, &expected);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    size_t count = allocationIndex;
+    ck_assert_uint_gt(count, 0);
+    for(size_t failure = 0; failure < count; failure++) {
+        UA_EventFilter ef;
+        res = parseWithFailingAllocation(inp, failure, &ef);
+        if(res == UA_STATUSCODE_GOOD)
+            ck_assert(UA_EventFilter_equal(&ef, &expected));
+        UA_EventFilter_clear(&ef);
+    }
+    UA_EventFilter_clear(&expected);
+} END_TEST
+#endif
+
 /* ==== pos2lines line/column counter ==== */
 
 START_TEST(pos2lines_newlineAdvancesLine) {
@@ -317,6 +383,12 @@ int main(void) {
     tcase_add_test(tc_call, Case_19);
     tcase_add_test(tc_call, pos2lines_newlineAdvancesLine);
     suite_add_tcase(s, tc_call);
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    TCase *tc_alloc = tcase_create("eventfilter parser - allocation failures");
+    tcase_add_loop_test(tc_alloc, everyAllocationCanFail, 0, 4);
+    suite_add_tcase(s, tc_alloc);
+#endif
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
