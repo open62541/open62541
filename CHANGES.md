@@ -9,7 +9,10 @@ refactorings and bug fixes are not reported here.
 server and the client accept every certificate of a CertificateGroup without
 `verifyCertificate`, with a warning per verification. Before, the server
 rejected the certificates of a CertificateGroup that was not configured. The
-default AccessControl always offers x509 user tokens.
+default AccessControl always offers x509 user tokens. The server warns at
+startup if a SecurityPolicy other than #None is configured and the SecureChannel
+PKI, or the Session PKI while x509 user tokens are offered, accepts all
+certificates.
 
 ### Default ValueRank is scalar
 
