@@ -150,7 +150,9 @@ static UA_Byte convertLookupIndex[UA_DATATYPEKINDS] = {
  * is possible */
 static const UA_DataType *
 implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
-    if(!t1 || t1 == t2)
+    if(!t1 || !t2)
+        return NULL;
+    if(t1 == t2)
         return t1;
 
     /* Get the type precedence. Return if no implicit casting is possible. */
@@ -268,7 +270,8 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
             UA_free(data);
             return;
         }
-    } else if(ink == UA_DATATYPEKIND_BYTE   || ink == UA_DATATYPEKIND_UINT16 ||
+    } else if(ink == UA_DATATYPEKIND_BOOLEAN || ink == UA_DATATYPEKIND_STATUSCODE ||
+              ink == UA_DATATYPEKIND_BYTE || ink == UA_DATATYPEKIND_UINT16 ||
               ink == UA_DATATYPEKIND_UINT32 || ink == UA_DATATYPEKIND_UINT64) {
         /* Cast from unsigned */
         switch(type->typeKind) {
