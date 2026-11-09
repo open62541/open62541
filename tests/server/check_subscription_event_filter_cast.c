@@ -258,14 +258,50 @@ START_TEST(attributeStringToBoolean) {
 } END_TEST
 
 START_TEST(numericComparisonRemainsNumeric) {
-    /* Comparisons use implicit numeric conversion, not Boolean truthiness. */
-    UA_Int32 number = 2;
-    UA_Boolean b = true;
-    UA_Variant numeric, boolean;
-    UA_Variant_setScalar(&numeric, &number, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Variant_setScalar(&boolean, &b, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    checkLiteralResult(UA_FILTEROPERATOR_EQUALS, &numeric, &boolean, TRUTH_FALSE);
-    checkLiteralResult(UA_FILTEROPERATOR_EQUALS, &boolean, &numeric, TRUTH_FALSE);
+    /* Test both directions and 0/1/2: checking only 2 != true would also pass
+     * if true were incorrectly converted to zero. */
+    for(unsigned truth = 0; truth < 2; truth++) {
+        UA_Boolean b = (truth != 0);
+        UA_Variant boolean;
+        UA_Variant_setScalar(&boolean, &b, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        for(unsigned number = 0; number < 3; number++) {
+            UA_SByte i8 = (UA_SByte)number;
+            UA_Byte u8 = (UA_Byte)number;
+            UA_Int16 i16 = (UA_Int16)number;
+            UA_UInt16 u16 = (UA_UInt16)number;
+            UA_Int32 i32 = (UA_Int32)number;
+            UA_UInt32 u32 = (UA_UInt32)number;
+            UA_Int64 i64 = (UA_Int64)number;
+            UA_UInt64 u64 = (UA_UInt64)number;
+            UA_Float f = (UA_Float)number;
+            UA_Double d = (UA_Double)number;
+            void *values[] = {&i8, &u8, &i16, &u16, &i32, &u32, &i64, &u64, &f, &d};
+            const size_t types[] = {
+                UA_TYPES_SBYTE, UA_TYPES_BYTE, UA_TYPES_INT16, UA_TYPES_UINT16,
+                UA_TYPES_INT32, UA_TYPES_UINT32, UA_TYPES_INT64, UA_TYPES_UINT64,
+                UA_TYPES_FLOAT, UA_TYPES_DOUBLE
+            };
+            UA_Variant numeric;
+            UA_Variant_setScalar(&numeric, values[_i], &UA_TYPES[types[_i]]);
+            unsigned expected = number == truth ? TRUTH_TRUE : TRUTH_FALSE;
+            checkLiteralResult(UA_FILTEROPERATOR_EQUALS, &numeric, &boolean, expected);
+            checkLiteralResult(UA_FILTEROPERATOR_EQUALS, &boolean, &numeric, expected);
+        }
+    }
+} END_TEST
+
+START_TEST(statusCodeNumericComparison) {
+    UA_StatusCode codes[] = {UA_STATUSCODE_GOOD, 1, UA_STATUSCODE_BAD};
+    UA_StatusCode code = codes[_i];
+    UA_UInt32 number = code;
+    UA_Variant status, numeric;
+    UA_Variant_setScalar(&status, &code, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_Variant_setScalar(&numeric, &number, &UA_TYPES[UA_TYPES_UINT32]);
+    checkLiteralResult(UA_FILTEROPERATOR_EQUALS, &status, &numeric, TRUTH_TRUE);
+    checkLiteralResult(UA_FILTEROPERATOR_EQUALS, &numeric, &status, TRUTH_TRUE);
+    number++;
+    checkLiteralResult(UA_FILTEROPERATOR_EQUALS, &status, &numeric, TRUTH_FALSE);
+    checkLiteralResult(UA_FILTEROPERATOR_EQUALS, &numeric, &status, TRUTH_FALSE);
 } END_TEST
 
 START_TEST(numericElementResult) {
@@ -294,7 +330,8 @@ int main(void) {
                        sizeof(stringCases) / sizeof(stringCases[0]));
     tcase_add_loop_test(tc, attributeStringToBoolean, 0,
                        sizeof(stringCases) / sizeof(stringCases[0]));
-    tcase_add_test(tc, numericComparisonRemainsNumeric);
+    tcase_add_loop_test(tc, numericComparisonRemainsNumeric, 0, 10);
+    tcase_add_loop_test(tc, statusCodeNumericComparison, 0, 3);
     tcase_add_loop_test(tc, numericElementResult, 0, 2);
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s);

@@ -47,6 +47,28 @@ typedef struct {
 } PubSubDecodeJsonCtx;
 #endif
 
+/* Keep component-count-dependent encoding metadata off the stack for large
+ * groups. Metadata borrows its field arrays, so only this array is freed. */
+#define UA_PUBSUB_METADATA_STACK_CAPACITY 16
+
+static UA_INLINE UA_DataSetMessage_EncodingMetaData *
+allocEncodingMetaData(size_t count, UA_DataSetMessage_EncodingMetaData *stack) {
+    if(count <= UA_PUBSUB_METADATA_STACK_CAPACITY) {
+        memset(stack, 0, count * sizeof(*stack));
+        return stack;
+    }
+    if(count > SIZE_MAX / sizeof(*stack))
+        return NULL;
+    return (UA_DataSetMessage_EncodingMetaData*)UA_calloc(count, sizeof(*stack));
+}
+
+static UA_INLINE void
+freeEncodingMetaData(UA_DataSetMessage_EncodingMetaData *metadata,
+                     UA_DataSetMessage_EncodingMetaData *stack) {
+    if(metadata != stack)
+        UA_free(metadata);
+}
+
 const UA_FieldMetaData *
 getFieldMetaData(const UA_DataSetMessage_EncodingMetaData *emd,
                  size_t index);

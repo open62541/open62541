@@ -688,8 +688,11 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
 
     /* Prepare the metadata to encode the DataSetMessages */
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    UA_DataSetMessage_EncodingMetaData stackMetaData[UA_PUBSUB_METADATA_STACK_CAPACITY];
+    UA_DataSetMessage_EncodingMetaData *emd =
+        allocEncodingMetaData(wg->writersCount, stackMetaData);
+    if(!emd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     ctx.eo.metaData = emd;
     ctx.eo.metaDataSize = wg->writersCount;
     UA_DataSetWriter *dsw;
@@ -703,12 +706,16 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
         i++;
     }
 
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
     /* Compute the message length */
     size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, &ctx.eo, NULL);
 
     UA_ConnectionManager *cm = connection->cm;
-    if(!cm)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!cm) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     /* Select the wg sendchannel if configured */
     uintptr_t sendChannel = connection->sendChannel;
@@ -716,13 +723,14 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
         sendChannel = wg->sendChannel;
     if(sendChannel == 0) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Cannot send, no open connection");
-        return UA_STATUSCODE_BADINTERNALERROR;
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
     }
 
     /* Allocate the buffer */
     UA_ByteString buf;
-    UA_StatusCode res = cm->allocNetworkBuffer(cm, sendChannel, &buf, msgSize);
-    UA_CHECK_STATUS(res, return res);
+    res = cm->allocNetworkBuffer(cm, sendChannel, &buf, msgSize);
+    UA_CHECK_STATUS(res, goto cleanup);
 
     /* Encode the message */
     ctx.ctx.pos = buf.data;
@@ -730,13 +738,15 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     res = UA_NetworkMessage_encodeJsonInternal(&ctx, &nm);
     if(res != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, sendChannel, &buf);
-        return res;
+        goto cleanup;
     }
     UA_assert(ctx.ctx.pos == ctx.ctx.end);
 
     /* Send the prepared messages */
     sendNetworkMessageBuffer(psm, wg, connection, sendChannel, &buf);
-    return UA_STATUSCODE_GOOD;
+ cleanup:
+    freeEncodingMetaData(emd, stackMetaData);
+    return res;
 }
 #endif
 
@@ -864,8 +874,11 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     /* Prepare the metadata with information from the readers to decode the
      * DataSetMessages */
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    UA_DataSetMessage_EncodingMetaData stackMetaData[UA_PUBSUB_METADATA_STACK_CAPACITY];
+    UA_DataSetMessage_EncodingMetaData *emd =
+        allocEncodingMetaData(wg->writersCount, stackMetaData);
+    if(!emd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     ctx.eo.metaData = emd;
     ctx.eo.metaDataSize = wg->writersCount;
     UA_DataSetWriter *dsw;
@@ -882,8 +895,10 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     /* Compute the message size. Add the overhead for the security signature.
      * There is no padding and the encryption incurs no size overhead. */
     size_t msgSize = UA_NetworkMessage_calcSizeBinaryInternal(&ctx, &nm);
-    if(msgSize == 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(msgSize == 0) {
+        rv = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     /* Add the overhead for the security signature.
      * There is no padding and the encryption incurs no size overhead. Use the
@@ -894,8 +909,10 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     }
 
     UA_ConnectionManager *cm = connection->cm;
-    if(!cm)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!cm) {
+        rv = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     /* Select the wg sendchannel if configured */
     uintptr_t sendChannel = connection->sendChannel;
@@ -903,13 +920,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
         sendChannel = wg->sendChannel;
     if(sendChannel == 0) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Cannot send, no open connection");
-        return UA_STATUSCODE_BADINTERNALERROR;
+        rv = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
     }
 
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf = UA_BYTESTRING_NULL;
     rv = cm->allocNetworkBuffer(cm, sendChannel, &buf, msgSize);
-    UA_CHECK_STATUS(rv, return rv);
+    UA_CHECK_STATUS(rv, goto cleanup);
 
     /* Encode and encrypt the message */
     ctx.ctx.pos = buf.data;
@@ -917,12 +935,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     rv = encodeNetworkMessage(wg, &ctx, &nm, &buf);
     if(rv != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, sendChannel, &buf);
-        return rv;
+        goto cleanup;
     }
 
     /* Send out the message */
     sendNetworkMessageBuffer(psm, wg, connection, sendChannel, &buf);
-    return UA_STATUSCODE_GOOD;
+ cleanup:
+    freeEncodingMetaData(emd, stackMetaData);
+    return rv;
 }
 
 static void
@@ -1631,14 +1651,20 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     memset(&networkMessage, 0, sizeof(networkMessage));
     memset(ot, 0, sizeof(UA_PubSubOffsetTable));
 
+    /* An offset table describes one NetworkMessage. Reject oversized groups
+     * before allocating or generating DataSetMessages. */
+    if(wg->writersCount >= UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Prepare the metadata encode the DataSetMessages */
     PubSubEncodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeCtx));
     ctx.ot = ot;
 
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    UA_DataSetMessage_EncodingMetaData emd[UA_NETWORKMESSAGE_MAXMESSAGECOUNT] = {0};
     ctx.eo.metaData = emd;
     ctx.eo.metaDataSize = wg->writersCount;
     UA_DataSetWriter *dsw;
@@ -1656,9 +1682,8 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     size_t msgSize;
     size_t dsmCount = 0;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
-    memset(dsmStore, 0, sizeof(UA_DataSetMessage) * wg->writersCount);
+    UA_UInt16 dsWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
+    UA_DataSetMessage dsmStore[UA_NETWORKMESSAGE_MAXMESSAGECOUNT] = {0};
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &dsmStore[dsmCount]);
@@ -1668,18 +1693,6 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     }
 
     /* Generate the NetworkMessage */
-    /* Guard against exceeding the fixed-size dataSetWriterIds array (32 entries).
-     * The sendNetworkMessage path already checks this (line 886), but the offset-
-     * table computation calls generateNetworkMessage directly. Without this guard,
-     * a WriterGroup with more than 32 writers writes past the on-stack
-     * networkMessage.dataSetWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT] array. */
-    if(dsmCount >= UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
-        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
-                            "More DataSetMessages than allowed in "
-                            "UA_NETWORKMESSAGE_MAXMESSAGECOUNT");
-        res = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
     res = generateNetworkMessage(wg->linkedConnection, wg, dsmStore, dsWriterIds,
                                  (UA_Byte) dsmCount, &wg->config.messageSettings,
                                  &wg->config.transportSettings, &networkMessage);

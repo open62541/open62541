@@ -390,6 +390,7 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_publishspeed.c)
 
     ua_add_test(pubsub/check_pubsub_offset.c)
+    ua_add_test(pubsub/check_pubsub_stack.c)
     if(UA_ARCHITECTURE_POSIX)
         ua_add_test(pubsub/check_pubsub_custom_state_machine.c)
     endif()
