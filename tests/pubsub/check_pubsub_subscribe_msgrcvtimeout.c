@@ -964,12 +964,14 @@ START_TEST(Test_timeout_range_recovery) {
     reader->linkedReaderGroup->hasReceived = true;
     ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
         UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD), UA_STATUSCODE_GOOD);
+    ck_assert(UA_DataSetReader_canProcess(reader));
     ck_assert(UA_DataSetReader_process(psm, reader, &msg));
     UA_Int32 expected[] = {10, 60, 70, 40};
     assertTargetArray(target, expected, UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
         UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADTIMEOUT), UA_STATUSCODE_GOOD);
+    ck_assert(UA_DataSetReader_canProcess(reader));
     ck_assert(UA_DataSetReader_canRecover(reader));
     ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
     UA_StatusCode status = UA_STATUSCODE_BADTIMEOUT;
@@ -1088,6 +1090,7 @@ START_TEST(Test_custom_target_fallback) {
     ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
         UA_PUBSUBSTATE_ERROR, reason), UA_STATUSCODE_GOOD);
     ck_assert(!UA_DataSetReader_canRecover(reader));
+    ck_assert(!UA_DataSetReader_canProcess(reader));
     ck_assert(!UA_DataSetReader_process(psm, reader, &msg));
     ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
     reader->config.customStateMachine = NULL;

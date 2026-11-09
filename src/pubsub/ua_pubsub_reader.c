@@ -1022,8 +1022,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "Received a network message");
 
     UA_Boolean recovering = UA_DataSetReader_canRecover(dsr);
-    if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-       dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL && !recovering) {
+    if(!UA_DataSetReader_canProcess(dsr)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Received a network message but not operational");
         return false;

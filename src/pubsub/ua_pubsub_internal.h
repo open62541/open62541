@@ -490,6 +490,13 @@ UA_DataSetReader_canRecover(const UA_DataSetReader *dsr) {
         dsr->msgRcvTimedOut && !dsr->config.customStateMachine;
 }
 
+static UA_INLINE UA_Boolean
+UA_DataSetReader_canProcess(const UA_DataSetReader *dsr) {
+    return dsr->head.state == UA_PUBSUBSTATE_OPERATIONAL ||
+        dsr->head.state == UA_PUBSUBSTATE_PREOPERATIONAL ||
+        UA_DataSetReader_canRecover(dsr);
+}
+
 UA_DataSetReader *
 UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id);
 
