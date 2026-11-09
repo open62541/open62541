@@ -3,6 +3,75 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Default ValueRank is scalar
+
+The default `ValueRank` for `UA_VariableAttributes` and
+`UA_VariableTypeAttributes` is now `UA_VALUERANK_SCALAR` (`-1`). Both the nodeset
+compiler and the runtime XML loader also apply the UANodeSet schema's scalar
+default when a Variable or VariableType omits `ValueRank`. They no longer
+inherit the rank from the type definition or supertype in that case.
+
+Array-valued nodes must declare a compatible rank explicitly. This also applies
+to VariableTypes intended to allow arrays. Older NodeSets that relied on rank
+inheritance can now contain incompatible nodes: the generated loader returns an
+error, while the runtime XML loader logs and omits rejected nodes.
+
+### Configure the advertised server profiles explicitly
+
+`UA_ServerConfig.serverProfileArray` and `serverProfileArraySize` now determine
+`Server.ServerCapabilities.ServerProfileArray` (`ns=0;i=2269`). The default is
+an empty String array. The SDK no longer automatically advertises
+`StandardUA2017`, `NodeManagement`, or `Methods` based on build options. Startup
+logs a warning when it writes an empty list, since clients and compliance tests
+expect the list to name the supported profiles.
+
+Applications must declare only profiles supported by their current configuration,
+including all mandatory ConformanceUnits. See
+[OPC UA Part 5, 6.3.2](https://reference.opcfoundation.org/specs/OPC-10000-5/6.3.2)
+and [Part 7, 4.5](https://reference.opcfoundation.org/specs/OPC-10000-7/4.5).
+Only Server Profiles and Facets belong in the list; Transport and Security
+Profile URIs are part of the EndpointDescriptions
+([Part 7, 4.4](https://reference.opcfoundation.org/specs/OPC-10000-7/4.4)).
+An empty declaration is not a claim of certification compliance. The SDK accepts
+vendor-defined URIs and preserves their order. It rejects empty entries but does
+not validate conformance.
+
+The config owns the array and strings. For example, after setting up the default
+config, allocate a declaration as follows (the URIs below are illustrative):
+
+```c
+UA_String profiles[] = {UA_STRING("urn:example:profile:server"),
+                        UA_STRING("urn:example:profile:facet")};
+UA_StatusCode res = UA_Array_copy(profiles, 2,
+    (void**)&config.serverProfileArray, &UA_TYPES[UA_TYPES_STRING]);
+if(res != UA_STATUSCODE_GOOD) {
+    UA_ServerConfig_clear(&config);
+    return res;
+}
+config.serverProfileArraySize = 2;
+```
+
+`UA_Server_newWithConfig()` takes ownership. When replacing an existing list,
+free it with `UA_Array_delete()` and reset both fields before assigning the new
+array. Modify the configuration only while stopped. A nonempty list is copied
+into the AddressSpace on creation and before each startup, including restarts.
+Direct node writes made before startup are overwritten, and the node has to
+accept the write.
+
+An empty list does not replace the value of a node with a read-only value
+source. With `MINIMAL` or `NONE` namespace zero, an empty list also keeps the
+node supplied by the application or an external nodestore (or its absence),
+unless it retracts a declaration applied earlier. A nonempty declaration
+requires the application to supply the node; the SDK does not create it.
+
+JSON configuration accepts `serverProfileArray: ["urn:example:profile:server"]`.
+Omitting the field leaves the default empty; `[]` clears a preceding declaration.
+Non-array values and non-string elements are rejected.
+
+Adding these fields changes the public configuration structure's binary layout.
+Rebuild dependent applications and bindings, and migrate profile declarations
+from direct node writes to the configuration fields.
+
 ### Own memory functions on Zephyr
 
 With `CONFIG_OPEN62541_MALLOC_EXTERN`, `UA_malloc`, `UA_calloc`, `UA_realloc`

@@ -8,3 +8,5 @@ assign_source_group(ua-cli)
 add_dependencies(ua open62541-object)
 set_target_properties(ua PROPERTIES FOLDER "open62541/tools/ua-cli")
 set_target_properties(ua PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+install(TARGETS ua RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

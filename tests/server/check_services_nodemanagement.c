@@ -784,6 +784,43 @@ START_TEST(AddObjectWithConstructor) {
     ck_assert_int_eq(constructorCalled, true);
 } END_TEST
 
+/* Count expensive full-node reads for the type whose lifecycle is used.
+ * A storage backend can otherwise materialize every inverse HasTypeDefinition
+ * reference just to retrieve one destructor callback. */
+static UA_NodeId watchedType;
+static size_t fullTypeReads, lifecycleTypeReads;
+static const UA_Node *(*originalGetNode)(UA_Nodestore*, const UA_NodeId*,
+                                       UA_UInt32, UA_ReferenceTypeSet, UA_BrowseDirection);
+static const UA_Node *(*originalGetNodeFromPtr)(UA_Nodestore*, UA_NodePointer,
+                                              UA_UInt32, UA_ReferenceTypeSet,
+                                              UA_BrowseDirection);
+
+static void
+countTypeRead(const UA_Node *node, UA_UInt32 mask, UA_BrowseDirection direction) {
+    if(!node || !UA_NodeId_equal(&node->head.nodeId, &watchedType))
+        return;
+    if(mask == ~(UA_UInt32)0 && direction == UA_BROWSEDIRECTION_BOTH)
+        fullTypeReads++;
+    if(mask == 0 && direction == UA_BROWSEDIRECTION_INVALID)
+        lifecycleTypeReads++;
+}
+
+static const UA_Node *
+countingGetNode(UA_Nodestore *ns, const UA_NodeId *id, UA_UInt32 mask,
+                UA_ReferenceTypeSet refs, UA_BrowseDirection direction) {
+    const UA_Node *node = originalGetNode(ns, id, mask, refs, direction);
+    countTypeRead(node, mask, direction);
+    return node;
+}
+
+static const UA_Node *
+countingGetNodeFromPtr(UA_Nodestore *ns, UA_NodePointer ptr, UA_UInt32 mask,
+                       UA_ReferenceTypeSet refs, UA_BrowseDirection direction) {
+    const UA_Node *node = originalGetNodeFromPtr(ns, ptr, mask, refs, direction);
+    countTypeRead(node, mask, direction);
+    return node;
+}
+
 static UA_Boolean destructorCalled = false;
 
 static void
@@ -824,11 +861,22 @@ START_TEST(DeleteObjectWithDestructor) {
                                   attr2, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
-    /* Delete the object */
-    UA_Server_deleteNode(server, objectid, true);
-
-    /* Verify that the destructor was called */
-    ck_assert_int_eq(destructorCalled, true);
+    /* Deleting an instance only needs lifecycle state from its type. */
+    UA_Nodestore *ns = UA_Server_getConfig(server)->nodestore;
+    originalGetNode = ns->getNode;
+    originalGetNodeFromPtr = ns->getNodeFromPtr;
+    ns->getNode = countingGetNode;
+    ns->getNodeFromPtr = countingGetNodeFromPtr;
+    watchedType = objecttypeid;
+    fullTypeReads = lifecycleTypeReads = 0;
+    destructorCalled = false;
+    res = UA_Server_deleteNode(server, objectid, true);
+    ns->getNode = originalGetNode;
+    ns->getNodeFromPtr = originalGetNodeFromPtr;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(destructorCalled);
+    ck_assert_uint_eq(fullTypeReads, 0);
+    ck_assert_uint_gt(lifecycleTypeReads, 0);
 } END_TEST
 
 START_TEST(DeleteObjectAndReferences) {
@@ -1747,12 +1795,9 @@ START_TEST(AddReference_TargetNodeUnknown_rejected) {
     ck_assert_uint_eq(st, UA_STATUSCODE_BADTARGETNODEIDINVALID);
 } END_TEST
 
-START_TEST(AddReference_SourceEqualsTarget_isNoop) {
-    /* src/server/ua_services_nodemanagement.c:2300-2306:
-     *   if(UA_NodeId_equal(&item->targetNodeId.nodeId, &item->sourceNodeId)) {
-     *     *retval = UA_STATUSCODE_GOOD;
-     *     return;
-     * The function returns GOOD without doing anything. */
+START_TEST(AddReference_SourceEqualsTarget_rejected) {
+    /* Local self-references must not return Good without adding a reference.
+     * Existing node -> BadInvalidSelfReference after existence validation. */
     UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId sourceId = addObjInstance(objectsNodeId, "refSrcET");
     UA_NodeId refTypeId = registerRefType("HasEqTgt", "IsEqTgtOf");
@@ -1763,7 +1808,88 @@ START_TEST(AddReference_SourceEqualsTarget_isNoop) {
     targetExpId.serverIndex = 0;
 
     UA_StatusCode st = UA_Server_addReference(
-        server, sourceId, refTypeId, targetExpId, true);
+        server, sourceId, refTypeId, targetExpId, (UA_Boolean)_i);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADINVALIDSELFREFERENCE);
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = sourceId;
+    bd.referenceTypeId = refTypeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_BOTH;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(br.referencesSize, 0);
+    UA_BrowseResult_clear(&br);
+} END_TEST
+
+START_TEST(AddReference_SourceEqualsTarget_unknownNode_rejected) {
+    /* Self-reference on a non-existent NodeId must report the missing node,
+     * not Good (issue #8114). */
+    UA_NodeId missingId = UA_NODEID_NUMERIC(1, 77777);
+    UA_NodeId refTypeId = registerRefType("HasEqMiss", "IsEqMissOf");
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = missingId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    UA_StatusCode st = UA_Server_addReference(
+        server, missingId, refTypeId, targetExpId, (UA_Boolean)_i);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADSOURCENODEIDINVALID);
+} END_TEST
+
+START_TEST(AddReferences_SelfReferences_batch) {
+    UA_NodeId sourceId = addObjInstance(UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        "selfRefBatch");
+    UA_NodeId refTypeId = registerRefType("HasSelfRefBatch", "IsSelfRefBatchOf");
+
+    UA_AddReferencesItem items[3];
+    for(size_t i = 0; i < 3; i++) {
+        UA_AddReferencesItem_init(&items[i]);
+        items[i].sourceNodeId = sourceId;
+        items[i].referenceTypeId = refTypeId;
+        items[i].isForward = (UA_Boolean)_i;
+        items[i].targetNodeId.nodeId = sourceId;
+    }
+    items[1].sourceNodeId = UA_NODEID_NUMERIC(1, 77777);
+    items[1].targetNodeId.nodeId = items[1].sourceNodeId;
+    /* The same NodeId on a different server is not a local self-reference. */
+    items[2].targetNodeId.serverIndex = 1;
+
+    UA_AddReferencesRequest request;
+    UA_AddReferencesRequest_init(&request);
+    request.referencesToAddSize = 3;
+    request.referencesToAdd = items;
+    UA_AddReferencesResponse response;
+    UA_AddReferencesResponse_init(&response);
+
+    lockServer(server);
+    Service_AddReferences(server, &server->adminSession, &request, &response);
+    unlockServer(server);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 3);
+    ck_assert_uint_eq(response.results[0], UA_STATUSCODE_BADINVALIDSELFREFERENCE);
+    ck_assert_uint_eq(response.results[1], UA_STATUSCODE_BADSOURCENODEIDINVALID);
+    ck_assert_uint_eq(response.results[2], UA_STATUSCODE_GOOD);
+    UA_AddReferencesResponse_clear(&response);
+
+    /* Browse omits remote targets; neither rejected local reference is present. */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = sourceId;
+    bd.referenceTypeId = refTypeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_BOTH;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(br.referencesSize, 0);
+    UA_BrowseResult_clear(&br);
+
+    /* Successful deletion confirms the remote reference was actually stored
+     * in the requested direction, rather than silently ignored. */
+    UA_StatusCode st = UA_Server_deleteReference(server, sourceId, refTypeId,
+                                                 (UA_Boolean)_i,
+                                                 items[2].targetNodeId, false);
     ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -2399,7 +2525,9 @@ int main(void) {
     tcase_add_test(tc_addreferences, AddReference_NonRefTypeAsRefType_rejected);
     tcase_add_test(tc_addreferences, AddReference_SourceNodeUnknown_rejected);
     tcase_add_test(tc_addreferences, AddReference_TargetNodeUnknown_rejected);
-    tcase_add_test(tc_addreferences, AddReference_SourceEqualsTarget_isNoop);
+    tcase_add_loop_test(tc_addreferences, AddReference_SourceEqualsTarget_rejected, 0, 2);
+    tcase_add_loop_test(tc_addreferences, AddReference_SourceEqualsTarget_unknownNode_rejected, 0, 2);
+    tcase_add_loop_test(tc_addreferences, AddReferences_SelfReferences_batch, 0, 2);
     tcase_add_test(tc_addreferences, DeleteReference_InvalidRefType_rejected);
     tcase_add_test(tc_addreferences, DeleteReference_SourceNodeUnknown_rejected);
     tcase_add_test(tc_addreferences, DeleteReference_BidirectionalSecondDirection);

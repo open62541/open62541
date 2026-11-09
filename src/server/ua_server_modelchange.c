@@ -112,7 +112,9 @@ addNodeVersionTracking(UA_Server *server, UA_ModelChangeAccumulator *acc,
     if(!UA_NodeId_isNull(&entry->nodeVersionId))
         return UA_STATUSCODE_GOOD;
 
-    const UA_Node *node = UA_NODESTORE_GET(server, affected);
+    /* Metadata uses forward references only (type definition and properties). */
+    const UA_Node *node = UA_NODESTORE_GET_SELECTIVE(server, affected, 0,
+                              UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_FORWARD);
     if(!node)
         return UA_STATUSCODE_BADNOTFOUND;
     UA_StatusCode res =
@@ -171,7 +173,9 @@ UA_ModelChangeAccumulator_record(UA_Server *server,
 
     /* A new entry needs metadata from the affected Node. Missing Nodes are
      * ignored: this can occur for changes reported after external teardown. */
-    const UA_Node *node = UA_NODESTORE_GET(server, affected);
+    /* Metadata uses forward references only (type definition and properties). */
+    const UA_Node *node = UA_NODESTORE_GET_SELECTIVE(server, affected, 0,
+                              UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_FORWARD);
     if(!node)
         return UA_STATUSCODE_GOOD;
 

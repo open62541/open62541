@@ -4,6 +4,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 """Generate test modules, dependency locks and CMake targets from the shared catalog."""
 import argparse
+import hashlib
 import json
 import sys
 import re
@@ -37,6 +38,11 @@ def main():
     output = args.output
     output.mkdir(parents=True, exist_ok=True)
     overrides = json.loads((source/"dependency_overrides.json").read_text())
+    invalid_ranks = json.loads((source/"invalid_value_ranks.json").read_text())
+    invalid_by_path = {entry['path']: entry for entry in invalid_ranks}
+    if len(invalid_by_path) != len(invalid_ranks):
+        raise ValueError('Duplicate invalid ValueRank model')
+    used_invalid = set()
     used_overrides = set()
     models = []
     namespace_uris = set()
@@ -69,12 +75,20 @@ def main():
                 prefix, value = value.split(';', 1)
                 ns = int(prefix[3:])
             return uris[ns], value
+        invalid = invalid_by_path.get(path)
+        invalid_index = None
+        if invalid:
+            if hashlib.sha256((args.nodesets/path).read_bytes()).hexdigest() != invalid['sha256']:
+                raise ValueError('Reassess invalid ValueRanks after model change: '+path)
+            used_invalid.add(path)
         nodes = []
         has_types = False
         for node in root:
             tag = local(node)
             if not tag.startswith('UA') or 'NodeId' not in node.attrib:
                 continue
+            if invalid and node.attrib['NodeId'] == invalid['node']:
+                invalid_index = len(nodes)
             node_identifier = node.attrib['NodeId']
             ns = 0
             if node_identifier.startswith('ns='):
@@ -103,9 +117,13 @@ def main():
                 references.append((type_uri, type_id, target_uri, target_id,
                                    ref.get('IsForward', 'true').lower() != 'false'))
             nodes.append((uris[ns], node_identifier, sum(1 << x for x in set(attrs)), references))
-        models.append(dict(index=len(models), path=path, uri=metadata.attrib['ModelUri'],
+        if invalid and invalid_index is None:
+            raise ValueError('Missing invalid ValueRank witness: '+path)
+        models.append(dict(index=len(models), path=path, invalid_index=invalid_index, uri=metadata.attrib['ModelUri'],
                            date=metadata.get('PublicationDate',''), version=metadata.get('Version',''), required=[d.attrib for d in metadata],
                            nodes=nodes, has_types=has_native_types(root)))
+    if used_invalid != set(invalid_by_path):
+        raise ValueError('Invalid ValueRank models missing from catalog')
     if len({m['path'] for m in models}) != len(models):
         raise ValueError('Duplicate catalog paths')
     providers = {}
@@ -178,7 +196,7 @@ def main():
                   for n,(uri,node,mask,refs) in enumerate(m['nodes'])]
         lines += ['};', 'const CompanionModule companion_'+ident+' = {',
                   str(i)+', '+cstring(m['path'])+', dependencies + 1, '+str(len(dependencies))+',',
-                  'nodes + 1, '+str(len(m['nodes']))+', '+('true' if m['preferred'] else 'false')+', namespace_'+ident+'_generated, UA_TYPES_CS_'+str(i)+'_COUNT, staticType};']
+                  'nodes + 1, '+str(len(m['nodes']))+', '+('true' if m['preferred'] else 'false')+', namespace_'+ident+'_generated, UA_TYPES_CS_'+str(i)+'_COUNT, staticType, '+('nodes + '+str(m['invalid_index']+1) if m['invalid_index'] is not None else 'NULL')+'};']
         write(output/(ident+'.c'), '\n'.join(lines)+'\n')
         files = [output/('namespace_'+ident+'_generated.c'), output/('namespace_'+ident+'_generated.h'),
                  output/('types_'+ident+'_generated.c'),output/('types_'+ident+'_generated.h'),output/('types_'+ident+'_generated_internal.h')]
@@ -212,9 +230,9 @@ def main():
         cm += ['set_target_properties(check_companion_'+ident+' PROPERTIES OUTPUT_NAME check_companion_'+m['label']+')']
         for mode in ('copy','inplace'):
             cm += ['add_test(NAME compiler_'+m['label']+'_'+mode+' COMMAND check_companion_'+ident+' --'+mode+')',
-                   'set_tests_properties(compiler_'+m['label']+'_'+mode+' PROPERTIES LABELS companion TIMEOUT 300)']
+                   'set_tests_properties(compiler_'+m['label']+'_'+mode+' PROPERTIES LABELS companion TIMEOUT 300 SKIP_RETURN_CODE 77)']
         cm += ['add_test(NAME monster_'+m['label']+' COMMAND check_companion_monster --case '+str(i)+' --copy)',
-               'set_tests_properties(monster_'+m['label']+' PROPERTIES LABELS companion TIMEOUT 300)']
+               'set_tests_properties(monster_'+m['label']+' PROPERTIES LABELS companion TIMEOUT 300 SKIP_RETURN_CODE 77)']
     write(output/'registry_all.c', '\n'.join(registry_headers)+'\nconst CompanionModule *const companionModules[] = {'+', '.join(registry_items)+'};\nconst size_t companionModulesSize = sizeof(companionModules)/sizeof(companionModules[0]);\n')
     cm += ['add_executable(check_companion_monster "${CMAKE_CURRENT_SOURCE_DIR}/runner.c" '+cmake_path(output/'registry_all.c')+' '+' '.join('$<TARGET_OBJECTS:cs_'+str(m['index'])+'>' for m in models)+')',
            'target_compile_definitions(check_companion_monster PRIVATE COMPANION_CASE=-1)',

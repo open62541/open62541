@@ -31,6 +31,10 @@ example_args = {
         "ci_server":"4840 server.cert.der server.key.der client.cert.der",
         "server_json_config":"server_json_config.json5",
         "client_json_config":"client_json_config.json5",
+        # The pinned POWERLINK model has invalid ranks. Exercise its precise
+        # rejection instead of expecting a running server. The companion tests
+        # pin the model revision and also verify the rejected node.
+        "server_nodeset_powerlink":"--check-invalid-nodeset",
         }
 
 server_needed_examples = {
@@ -48,17 +52,15 @@ server_needed_examples = {
         "custom_datatype_client":"custom_datatype_server",
         "discovery_client_find_servers":"discovery_server_lds",
         "discovery_server_register":"discovery_server_lds",
-        "discovery_server_multicast":"discovery_server_multicast",
+        "discovery_server_multicast":"discovery_server_lds",
         "pubsub_publish_encrypted":"pubsub_subscribe_encrypted",
         "pubsub_publish_encrypted_sks":"server_pubsub_central_sks server.cert.der server.key.der --enableUnencrypted --enableAnonymous",
         "pubsub_subscribe_encrypted":"pubsub_publish_encrypted",
         "pubsub_subscribe_encrypted_sks":"server_pubsub_central_sks server.cert.der server.key.der --enableUnencrypted --enableAnonymous",
         "pubsub_subscribe_standalone_dataset":"tutorial_pubsub_publish",
         "server_pubsub_subscribe_custom_monitoring":"server_pubsub_publish_on_demand",
-        "server_pubsub_publish_rt_offsets":"server_pubsub_publish_rt_offsets",
-        "server_pubsub_publish_rt_state_machine":"server_pubsub_publish_rt_state_machine",
-        "server_pubsub_subscribe_rt_offsets":"server_pubsub_subscribe_rt_offsets",
-        "server_pubsub_subscribe_rt_state_machine":"server_pubsub_subscribe_rt_state_machine",
+        "server_pubsub_publish_rt_state_machine":"server_pubsub_subscribe_rt_state_machine",
+        "server_pubsub_subscribe_rt_state_machine":"server_pubsub_publish_rt_state_machine",
         "tutorial_client_events":"tutorial_server_events",
         "tutorial_client_firststeps":"tutorial_server_firststeps",
         "tutorial_pubsub_connection":"tutorial_pubsub_subscribe",
@@ -77,7 +79,6 @@ client_needed_examples = {
         "server_nodeset":"client",
         "server_nodeset_loader":"client",
         "server_nodeset_plcopen":"client",
-        "server_nodeset_powerlink":"client",
         "server_settimestamp":"client",
         "server_testnodeset":"client",
         "tutorial_server_monitoreditems":"client",

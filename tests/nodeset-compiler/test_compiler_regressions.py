@@ -114,11 +114,37 @@ def test_c_literals_and_identifiers():
 
 
 
+def test_datatype_array_order(tmp):
+    # NodeId order is deliberately the reverse of declaration/registration order.
+    bsd = tmp / 'ordered.bsd'
+    bsd.write_text('''<opc:TypeDictionary xmlns:opc="http://opcfoundation.org/BinarySchema/"
+        xmlns:t="urn:ordered" TargetNamespace="urn:ordered">
+        <opc:StructuredType Name="Inner"><opc:Field Name="Value" TypeName="opc:UInt32"/></opc:StructuredType>
+        <opc:StructuredType Name="Outer"><opc:Field Name="Value" TypeName="t:Inner"/></opc:StructuredType>
+        </opc:TypeDictionary>''')
+    ids = tmp / 'ordered.csv'
+    ids.write_text('Inner,100,DataType\nOuter,50,DataType\n')
+    output = tmp / 'types_ordered'
+    result = subprocess.run([sys.executable, str(ROOT/'tools/generate_datatypes.py'),
+                             '--type-bsd', str(bsd), '--type-csv', str(ids),
+                             '--no-builtin', str(output)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    header = Path(str(output) + '_generated.h').read_text()
+    source = Path(str(output) + '_generated.c').read_text()
+    assert '#define UA_TYPES_ORDERED_OUTER 0' in header
+    assert '#define UA_TYPES_ORDERED_INNER 1' in header
+    assert header.index('} UA_Inner;') < header.index('} UA_Outer;')
+    array = source.split('const UA_DataType UA_TYPES_ORDERED[', 1)[1]
+    assert array.index('/* Outer */') < array.index('/* Inner */')
+    assert 'UA_TYPES_ORDERED_ORDER[] = {1, 0}' in source
+
+
 def main():
     test_literals_and_opaque_metadata()
     test_c_literals_and_identifiers()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
+        test_datatype_array_order(tmp)
         test_reference_dependencies(tmp)
         test_embedded_standard_structures(tmp)
         uri = tmp / 'uris.xml'

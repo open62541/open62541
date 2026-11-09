@@ -65,13 +65,16 @@ START_TEST(findDataTypeByName_unknown) {
 START_TEST(string_fromChars_normal) {
     UA_String s = UA_String_fromChars("hello");
     ck_assert_uint_eq(s.length, 5);
-    ck_assert(memcmp(s.data, "hello", 5) == 0);
+    ck_assert_mem_eq(s.data, "hello", 6);
     UA_String_clear(&s);
 } END_TEST
 
 START_TEST(string_fromChars_empty) {
     UA_String s = UA_String_fromChars("");
     ck_assert_uint_eq(s.length, 0);
+    ck_assert_ptr_nonnull(s.data);
+    ck_assert_ptr_ne(s.data, UA_EMPTY_ARRAY_SENTINEL);
+    ck_assert_uint_eq(s.data[0], 0);
     UA_String_clear(&s);
 } END_TEST
 
@@ -81,6 +84,46 @@ START_TEST(string_fromChars_null) {
     ck_assert_ptr_eq(s.data, NULL);
 } END_TEST
 
+/* Copying accepts exact-length buffers, including embedded zero bytes. */
+START_TEST(string_copy_terminated) {
+    UA_Byte data[] = {'a', 0, 'b'};
+    UA_String src = {sizeof(data), data};
+    UA_String dst;
+    ck_assert_uint_eq(UA_String_copy(&src, &dst), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dst.length, sizeof(data));
+    ck_assert_mem_eq(dst.data, data, sizeof(data));
+    ck_assert_uint_eq(dst.data[dst.length], 0);
+    UA_String_clear(&dst);
+} END_TEST
+
+START_TEST(string_copy_empty) {
+    UA_String src = {0, _i ? (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL : NULL};
+    UA_String dst;
+    ck_assert_uint_eq(UA_String_copy(&src, &dst), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dst.length, 0);
+    if(_i) {
+        ck_assert_ptr_nonnull(dst.data);
+        ck_assert_ptr_ne(dst.data, UA_EMPTY_ARRAY_SENTINEL);
+        ck_assert_uint_eq(dst.data[0], 0);
+    } else {
+        ck_assert_ptr_null(dst.data);
+    }
+    UA_String_clear(&dst);
+} END_TEST
+
+START_TEST(string_copy_rejects_missing_data) {
+    UA_String src = {1, NULL};
+    UA_String dst;
+    UA_StatusCode res = (_i == 0) ? UA_String_copy(&src, &dst) :
+        UA_ByteString_copy(&src, &dst);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(dst.length, 0);
+    ck_assert_ptr_null(dst.data);
+    ck_assert_uint_eq(src.length, 1);
+    ck_assert_ptr_null(src.data);
+    UA_String_clear(&dst);
+} END_TEST
+
 /* === UA_String_append === */
 START_TEST(string_append_normal) {
     UA_String s = UA_STRING_ALLOC("Hello");
@@ -88,7 +131,7 @@ START_TEST(string_append_normal) {
     UA_StatusCode res = UA_String_append(&s, s2);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(s.length, 11);
-    ck_assert(memcmp(s.data, "Hello World", 11) == 0);
+    ck_assert_mem_eq(s.data, "Hello World", 12);
     UA_String_clear(&s);
 } END_TEST
 
@@ -113,19 +156,17 @@ START_TEST(string_append_to_empty) {
 /* An empty (but not null) string carries the UA_EMPTY_ARRAY_SENTINEL in the
  * data pointer. That must not be handed over to realloc. */
 START_TEST(string_append_to_empty_sentinel) {
-    UA_String s = UA_STRING_ALLOC("");
-    ck_assert_ptr_eq(s.data, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    UA_String s = {0, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL};
     UA_String s2 = UA_STRING("World");
     UA_StatusCode res = UA_String_append(&s, s2);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(s.length, 5);
-    ck_assert(memcmp(s.data, "World", 5) == 0);
+    ck_assert_mem_eq(s.data, "World", 6);
     UA_String_clear(&s);
 } END_TEST
 
 START_TEST(string_escapeAppend_to_empty_sentinel) {
-    UA_String s = UA_STRING_ALLOC("");
-    ck_assert_ptr_eq(s.data, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    UA_String s = {0, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL};
     UA_String s2 = UA_STRING("a/b");
     UA_StatusCode res = UA_String_escapeAppend(&s, s2, UA_ESCAPING_AND);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -569,6 +610,23 @@ START_TEST(string_format_test) {
     UA_String_clear(&s);
 } END_TEST
 
+START_TEST(string_format_existing_buffer) {
+    UA_Byte data[4];
+    UA_String s = {sizeof(data), data};
+    const char *text = (_i == 0) ? "abc" : (_i == 1) ? "" : "abcd";
+    UA_StatusCode res = UA_String_format(&s, "%s", text);
+    ck_assert_ptr_eq(s.data, data);
+    if(_i == 2) {
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+        ck_assert_uint_eq(s.length, sizeof(data));
+        ck_assert_mem_eq(data, "abc", 4);
+    } else {
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(s.length, strlen(text));
+        ck_assert_mem_eq(data, text, s.length + 1);
+    }
+} END_TEST
+
 START_TEST(string_escape_size_insert_append) {
     UA_String plain = UA_STRING((char*)(uintptr_t)escapeCases[_i].plain);
     UA_String expected = UA_STRING((char*)(uintptr_t)escapeCases[_i].escaped);
@@ -621,6 +679,9 @@ static Suite *testSuite_typesExtra3(void) {
     tcase_add_test(tc_string, string_fromChars_normal);
     tcase_add_test(tc_string, string_fromChars_empty);
     tcase_add_test(tc_string, string_fromChars_null);
+    tcase_add_test(tc_string, string_copy_terminated);
+    tcase_add_loop_test(tc_string, string_copy_empty, 0, 2);
+    tcase_add_loop_test(tc_string, string_copy_rejects_missing_data, 0, 2);
     tcase_add_test(tc_string, string_append_normal);
     tcase_add_test(tc_string, string_append_empty);
     tcase_add_test(tc_string, string_append_to_empty);
@@ -631,6 +692,7 @@ static Suite *testSuite_typesExtra3(void) {
     tcase_add_loop_test(tc_string, string_unescape_invalid, 0, 14);
     tcase_add_loop_test(tc_string, string_escape_size_insert_append, 0, 5);
     tcase_add_test(tc_string, string_format_test);
+    tcase_add_loop_test(tc_string, string_format_existing_buffer, 0, 3);
 
     TCase *tc_print = tcase_create("TypePrint");
     tcase_add_test(tc_print, relativePath_print_shortBuffer);

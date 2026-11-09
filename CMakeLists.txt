@@ -45,7 +45,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 5)
-set(OPEN62541_VER_PATCH 9)
+set(OPEN62541_VER_PATCH 10)
 set(OPEN62541_VER_LABEL "") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -133,7 +133,8 @@ if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     # Detect whether any loaded companion spec requires the RoleSet node
     set(UA_NODESET_INJECTOR_NEEDS_ROLESET OFF)
     foreach(_model ${UA_INFORMATION_MODEL_AUTOLOAD})
-        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data")
+        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data" OR
+           _model STREQUAL "DemoModel" OR _model STREQUAL "TestModel")
             set(UA_NODESET_INJECTOR_NEEDS_ROLESET ON)
         endif()
     endforeach()
@@ -165,7 +166,7 @@ option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
 set(UA_FILE_MDNSD "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c")
 set(MDNS_MDNSD_DEFAULT OFF)
-if(UA_ARCHITECTURE_POSIX AND
+if(UA_ARCHITECTURE_POSIX AND NOT UA_ARCHITECTURE_LWIP AND
    NOT UA_ENABLE_DRIVER_MDNS_AVAHI AND EXISTS "${UA_FILE_MDNSD}")
     set(MDNS_MDNSD_DEFAULT ON)
 endif()
@@ -1016,10 +1017,13 @@ if(UA_ENABLE_DRIVER_GDS_RECEIVER)
     list(APPEND exported_headers
          ${PROJECT_SOURCE_DIR}/include/open62541/driver/gds_receiver.h)
     list(APPEND lib_headers
+         ${PROJECT_SOURCE_DIR}/drivers/gds_common/gds_common.h
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_internal.h)
     list(APPEND lib_sources
+         ${PROJECT_SOURCE_DIR}/drivers/gds_common/gds_common.c
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver.c
-         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_ns0.c)
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_ns0.c
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_trustlist.c)
 endif()
 
 if(UA_ENABLE_RBAC)
@@ -1052,7 +1056,8 @@ set(lib_sources ${lib_sources}
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
                 ${PROJECT_SOURCE_DIR}/deps/yxml.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
-                ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
+                ${PROJECT_SOURCE_DIR}/deps/parse_num.c
+                ${PROJECT_SOURCE_DIR}/deps/strtod.c)
 
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
@@ -1368,7 +1373,9 @@ set(UA_NS0_NODESETS)
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
-    set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
+    if(NOT UA_SCHEMA_DIR)
+        set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE PATH "Schema directory")
+    endif()
 
     # Set the full ns0 nodeset
     list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.xml)
@@ -1383,7 +1390,9 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     endif()
 else()
     # Directory with the schema files for installation
-    set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema CACHE INTERNAL "")
+    if(NOT UA_SCHEMA_DIR)
+        set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema CACHE PATH "Schema directory")
+    endif()
 
     # Set the reduced Nodeset for NS0
     list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.Reduced.xml)
@@ -1832,7 +1841,7 @@ endforeach()
 # Create the CMake package files (open62541Config.cmake, ConfigVersion,
 # Targets). open62541Config.cmake includes open62541Targets.cmake, so they
 # must be installed together or not at all.
-if(NOT UA_ARCHITECTURE_FREERTOS AND NOT ZEPHYR_BASE)
+if(NOT UA_ARCHITECTURE_FREERTOS AND NOT ZEPHYR_BASE AND NOT CMAKE_SKIP_INSTALL_RULES)
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
 set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
@@ -1868,12 +1877,6 @@ set(pkgcfgpubliclibs "")
 foreach(lib ${open62541_PUBLIC_LIBRARIES})
     set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
 endforeach()
-
-if(BUILD_SHARED_LIBS)
-    foreach(lib ${open62541_LIBRARIES})
-        set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
-    endforeach()
-endif()
 
 if(UA_ENABLE_AMALGAMATION)
     set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")

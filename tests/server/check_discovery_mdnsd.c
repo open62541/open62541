@@ -943,6 +943,40 @@ mdnsPacketMatchesExpectation(const UA_ByteString *packet,
     return txtRecordMatchesExpectation(txtRecord, expectation);
 }
 
+/* Checks the SRV target of an intercepted announcement of the expected
+ * service instance */
+static void
+assertInterceptedSrvTarget(const TestUdpIntercept *intercept,
+                           const MdnsMessageExpectation *expectation,
+                           const char *srvTarget) {
+    for(size_t i = 0; i < TEST_UDP_CAPTURED_MESSAGES; i++) {
+        const UA_ByteString *packet = &intercept->recentMessages[i];
+        if(packet->length == 0 || packet->length >= MAX_PACKET_LEN)
+            continue;
+        unsigned char packetBuf[MAX_PACKET_LEN];
+        memset(packetBuf, 0, sizeof(packetBuf));
+        memcpy(packetBuf, packet->data, packet->length);
+        struct message message;
+        memset(&message, 0, sizeof(message));
+        if(message_parse(&message, packetBuf) != 0)
+            continue;
+
+        const struct resource *sections[3] = {message.an, message.ns, message.ar};
+        const int sectionSizes[3] = {message.ancount, message.nscount, message.arcount};
+        for(size_t j = 0; j < 3; j++) {
+            for(int k = 0; k < sectionSizes[j]; k++) {
+                const struct resource *r = &sections[j][k];
+                if(r->type == QTYPE_SRV && r->ttl > 0 && r->name &&
+                   isExpectedServiceInstanceName(r->name, expectation) &&
+                   r->known.srv.name && strcmp(r->known.srv.name, srvTarget) == 0)
+                    return;
+            }
+        }
+    }
+    ck_abort_msg("No intercepted SRV record of %s targets %s",
+                 expectation->serverName, srvTarget);
+}
+
 static void
 copyBuiltPacket(struct message *msg, UA_ByteString *outPacket) {
     int packetLen = message_packet_len(msg);
@@ -1915,6 +1949,34 @@ START_TEST(MdnsAnnouncesRegisteredRecordWithDefaultTtl) {
 }
 END_TEST
 
+/* The SRV target appends the .local domain to the hostname of the
+ * DiscoveryUrl. A hostname qualified with .local keeps the domain once. */
+START_TEST(MdnsSrvTargetContainsLocalDomainOnce) {
+    const struct {
+        const char *serverName;
+        const char *discoveryUrl;
+        const char *srvTarget;
+    } cases[] = {
+        {"SrvTargetQualifiedRoot", "opc.tcp://Workshop.LOCAL.:4840", "Workshop.local."},
+        {"SrvTargetQualified", "opc.tcp://workshop.local:4840", "workshop.local."},
+        {"SrvTargetBare", "opc.tcp://plain:4840", "plain.local."},
+    };
+    const char *capabilities[] = {"NA"};
+    TestUdpIntercept *intercepts[] = {testUdpIntercept};
+
+    for(size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        size_t previousSends = UA_atomic_load(&globalInterceptedMdnsMessages);
+        registerServerOnNetwork(server, cases[i].serverName, cases[i].discoveryUrl,
+                                capabilities, 1);
+        MdnsMessageExpectation expectation =
+            {cases[i].serverName, "/", "NA", 4840, true, 0, false};
+        waitForMdnsMessageAndAssert(intercepts, 1, previousSends, &expectation);
+        assertInterceptedSrvTarget(testUdpIntercept, &expectation, cases[i].srvTarget);
+        deregisterServerOnNetwork(server, cases[i].serverName, cases[i].discoveryUrl);
+    }
+}
+END_TEST
+
 START_TEST(MdnsStartupOpensReceiveAndSendConnections) {
     ck_assert_uint_eq(testUdpIntercept->openedListenConnections, 1);
     ck_assert_uint_eq(testUdpIntercept->openedSendConnections, 1);
@@ -2121,6 +2183,54 @@ START_TEST(MdnsQueryDetailsSendsSrvQueryForTxtOnly) {
 }
 END_TEST
 
+/* A driver that only listens has nothing to send. It starts without a send
+ * connection and registers the servers it receives. */
+START_TEST(MdnsListenOnlyStartsWithoutSendConnection) {
+    UA_Server *localServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(localServer, NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(localServer);
+    config->serversOnNetworkEnabled = true;
+    config->discoveryNotificationCallback = serverDiscoveryNotificationCallback;
+
+    UA_ConnectionManager *localCm = NULL;
+    TestUdpIntercept *localIntercept = NULL;
+    replaceUdpConnectionManagerFor(localServer, &localCm, &localIntercept);
+    UA_MdnsDriver *mdns =
+        addMdnsDriverWithQueries(localServer, true, false, false, false, 0);
+    ck_assert_uint_eq(UA_Server_run_startup(localServer), UA_STATUSCODE_GOOD);
+
+    /* The server does not report driver startup failures */
+    ck_assert_int_eq(mdns->drv.state, UA_LIFECYCLESTATE_STARTED);
+    ck_assert_uint_eq(localIntercept->openedListenConnections, 1);
+    ck_assert_uint_eq(localIntercept->openedSendConnections, 0);
+
+    char serviceInstance[128];
+    char expectedServerName[128];
+    char targetHost[64];
+    createInjectedServiceInstanceName(serviceInstance, sizeof(serviceInstance),
+                                      "ListenOnly", "remote-host");
+    createInjectedServerOnNetworkName(expectedServerName, sizeof(expectedServerName),
+                                      "ListenOnly", "remote-host");
+    createInjectedTargetName(targetHost, sizeof(targetHost), "remote-host");
+    UA_ByteString packet = UA_BYTESTRING_NULL;
+    buildInjectedMdnsPacket(serviceInstance, targetHost, 4840, "/", "NA",
+                            true, 600, true, 600, &packet);
+
+    resetDiscoveryCounters();
+    injectMdnsPacket(localCm, &packet);
+    ck_assert_uint_eq(discoveryCounters.serverOnNetworkAnnounceCalls, 1);
+    ck_assert_str_eq(discoveryCounters.lastServerName, expectedServerName);
+    ck_assert_str_eq(discoveryCounters.lastDiscoveryUrl,
+                     "opc.tcp://remote-host.local:4840");
+    ck_assert_uint_eq(localIntercept->sentMessages, 0);
+
+    UA_ByteString_clear(&packet);
+    UA_Server_run_shutdown(localServer);
+    UA_Server_delete(localServer);
+    clearTestUdpIntercept(&localIntercept);
+}
+END_TEST
+
 START_TEST(PublicApiFindServersOnNetworkListsRegisteredServers) {
 #ifndef DISCOVERY_TEST_AUTHENTICATED_REGISTER
     return; /* RegisterServer(2) needs an authenticated SecureChannel */
@@ -2287,6 +2397,113 @@ START_TEST(MdnsShutdownSendsSelfGoodbyeAndDrainsQueue) {
     UA_Server_delete(localServer);
     localTestCm = NULL;
     clearTestUdpIntercept(&localIntercept);
+}
+END_TEST
+
+/* A second server with an intercepted UDP connection manager and an mDNS
+ * driver. The suite fixture already listens on 4840; lwIP cannot share that
+ * listener with this server, even with SO_REUSEADDR. Each test uses its own
+ * port, so a failed test that keeps listening does not fail the next one. */
+static UA_Server *
+newLocalMdnsServer(const char *url, UA_Boolean announce,
+                   UA_ConnectionManager **outCm, TestUdpIntercept **outIntercept) {
+    UA_Server *localServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(localServer, NULL);
+    UA_ServerConfig *localConfig = UA_Server_getConfig(localServer);
+    localConfig->serversOnNetworkEnabled = true;
+    UA_String_clear(&localConfig->serverUrls[0]);
+    localConfig->serverUrls[0] = UA_STRING_ALLOC(url);
+    ck_assert_ptr_ne(localConfig->serverUrls[0].data, NULL);
+    replaceUdpConnectionManagerFor(localServer, outCm, outIntercept);
+    /* Without a send connection the driver does not start */
+    addMdnsDriverWithQueries(localServer, true, announce, !announce, false, 0);
+    return localServer;
+}
+
+/* The driver keeps its entries across a restart. It announces the local
+ * entries again, follows the changes made while it was stopped and does not
+ * announce removed entries. */
+START_TEST(MdnsRestartAnnouncesLocalEntriesAgain) {
+    UA_ConnectionManager *localTestCm = NULL;
+    TestUdpIntercept *localIntercept = NULL;
+    UA_Server *localServer =
+        newLocalMdnsServer("opc.tcp://:4842", true, &localTestCm, &localIntercept);
+    TestUdpIntercept *intercepts[] = {localIntercept};
+    const char *caps[] = {"NA"};
+    const char *url = "opc.tcp://localhost:4840";
+    MdnsMessageExpectation kept = {"Restart_kept", "/", "NA", 4840, true, 600, true};
+    MdnsMessageExpectation added = {"Restart_added", "/", "NA", 4840, true, 600, true};
+    MdnsMessageExpectation removed = {"Restart_removed", "/", "NA", 4840, true, 600, true};
+
+    ck_assert_uint_eq(UA_Server_run_startup(localServer), UA_STATUSCODE_GOOD);
+    registerServerOnNetwork(localServer, "Restart_kept", url, caps, 1);
+    registerServerOnNetwork(localServer, "Restart_removed", url, caps, 1);
+    UA_fakeSleep(1000);
+    UA_Server_run_iterate(localServer, false);
+    ck_assert_uint_eq(UA_Server_run_shutdown(localServer), UA_STATUSCODE_GOOD);
+
+    /* Changes while the driver is stopped */
+    deregisterServerOnNetwork(localServer, "Restart_removed", url);
+    registerServerOnNetwork(localServer, "Restart_added", url, caps, 1);
+
+    size_t beforeRestart = getMaxInterceptedMdnsSequenceFor(intercepts, 1);
+    ck_assert_uint_eq(UA_Server_run_startup(localServer), UA_STATUSCODE_GOOD);
+    waitForMdnsMessageAndAssert(intercepts, 1, beforeRestart, &kept);
+    waitForMdnsMessageAndAssert(intercepts, 1, beforeRestart, &added);
+    for(size_t i = 0; i < 5; i++) {
+        UA_fakeSleep(1000);
+        UA_Server_run_iterate(localServer, false);
+    }
+    ck_assert(!hasMdnsMessageMatching(intercepts, 1, beforeRestart, &removed));
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(localServer), UA_STATUSCODE_GOOD);
+    UA_Server_delete(localServer);
+    clearTestUdpIntercept(&localIntercept);
+}
+END_TEST
+
+/* A received entry expires after a restart if it is not announced again. The
+ * driver cannot receive while it is stopped, so the TTL starts over. */
+START_TEST(MdnsRestartExpiresReceivedEntries) {
+    UA_ConnectionManager *localTestCm = NULL;
+    TestUdpIntercept *localIntercept = NULL;
+    UA_Server *localServer =
+        newLocalMdnsServer("opc.tcp://:4843", false, &localTestCm, &localIntercept);
+    char serviceInstance[128];
+    char serverName[128];
+    char targetHost[64];
+    UA_ByteString announcePacket = UA_BYTESTRING_NULL;
+
+    createInjectedServiceInstanceName(serviceInstance, sizeof(serviceInstance),
+                                      "RestartRemote", "restart-host");
+    createInjectedServerOnNetworkName(serverName, sizeof(serverName),
+                                      "RestartRemote", "restart-host");
+    createInjectedTargetName(targetHost, sizeof(targetHost), "restart-host");
+    buildInjectedMdnsPacket(serviceInstance, targetHost, 4840, "/", "NA",
+                            true, 10, true, 10, &announcePacket);
+
+    ck_assert_uint_eq(UA_Server_run_startup(localServer), UA_STATUSCODE_GOOD);
+    injectMdnsPacket(localTestCm, &announcePacket);
+    ck_assert_uint_eq(countServersOnNetworkByName(localServer, serverName), 1);
+    ck_assert_uint_eq(UA_Server_run_shutdown(localServer), UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(localServer), UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 5; i++) {
+        UA_fakeSleep(1000);
+        UA_Server_run_iterate(localServer, false);
+    }
+    /* Not before the TTL has passed since the start */
+    ck_assert_uint_eq(countServersOnNetworkByName(localServer, serverName), 1);
+    for(size_t i = 0; i < 7; i++) {
+        UA_fakeSleep(1000);
+        UA_Server_run_iterate(localServer, false);
+    }
+    ck_assert_uint_eq(countServersOnNetworkByName(localServer, serverName), 0);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(localServer), UA_STATUSCODE_GOOD);
+    UA_Server_delete(localServer);
+    clearTestUdpIntercept(&localIntercept);
+    UA_ByteString_clear(&announcePacket);
 }
 END_TEST
 
@@ -3108,7 +3325,10 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_test(tc, MdnsStartupOpensReceiveAndSendConnections);
     tcase_add_test(tc, MdnsShortDatagramUsesParserSizedBuffer);
     tcase_add_test(tc, MdnsAnnouncesRegisteredRecordWithDefaultTtl);
+    tcase_add_test(tc, MdnsSrvTargetContainsLocalDomainOnce);
     tcase_add_test(tc, MdnsShutdownSendsSelfGoodbyeAndDrainsQueue);
+    tcase_add_test(tc, MdnsRestartAnnouncesLocalEntriesAgain);
+    tcase_add_test(tc, MdnsRestartExpiresReceivedEntries);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineTriggersSendPath);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineIsIdempotent);
     tcase_add_test(tc, PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath);
@@ -3128,6 +3348,7 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_test(tc_query, MdnsQueryDetailsSendsSrvTxtQueriesForPtr);
     tcase_add_test(tc_query, MdnsQueryDetailsSendsTxtQueryForSrvOnly);
     tcase_add_test(tc_query, MdnsQueryDetailsSendsSrvQueryForTxtOnly);
+    tcase_add_test(tc_query, MdnsListenOnlyStartsWithoutSendConnection);
     suite_add_tcase(s, tc_query);
 
     TCase *tc_config = tcase_create("Driver config mirroring");

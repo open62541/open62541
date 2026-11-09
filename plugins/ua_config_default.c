@@ -218,9 +218,9 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 /* Upper bound */
 #define SECURITY_POLICY_SIZE 14
 
-#define STRINGIFY(arg) #arg
+#define UA_STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
-    STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
+    UA_STRINGIFY(MAJOR) "." UA_STRINGIFY(MINOR) "." UA_STRINGIFY(PATCH) LABEL
 
 static UA_StatusCode
 addEndpoint(UA_ServerConfig *conf,

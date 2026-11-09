@@ -458,9 +458,9 @@ ENCODE_XML(Double) {
     size_t len;
     if(*src != *src)
         return xmlEncodeWriteChars(ctx, "NaN", 3);
-    if(*src == INFINITY)
+    if(*src == (UA_Double)INFINITY)
         return xmlEncodeWriteChars(ctx, "INF", 3);
-    if(*src == -INFINITY)
+    if(*src == -(UA_Double)INFINITY)
         return xmlEncodeWriteChars(ctx, "-INF", 4);
 
     len = dtoa(*src, buffer);
@@ -740,8 +740,49 @@ ENCODE_XML(Variant) {
     /* Set the array type in the encoding mask */
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
 
-    if(src->arrayDimensionsSize > 1)
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    if(src->arrayDimensionsSize > 1) {
+        if(!isArray || !src->arrayDimensions || src->arrayLength == 0 || !src->data)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        size_t elements = 1;
+        for(size_t i = 0; i < src->arrayDimensionsSize; i++) {
+            UA_UInt32 dimension = src->arrayDimensions[i];
+            if(dimension == 0 || dimension > UA_INT32_MAX || elements > SIZE_MAX / dimension)
+                return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+            elements *= dimension;
+        }
+        if(elements != src->arrayLength)
+            return UA_STATUSCODE_BADENCODINGERROR;
+
+        status ret = writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE);
+        ret |= writeXmlElemNameBegin(ctx, "Matrix");
+        ret |= writeXmlElemNameBegin(ctx, "Dimensions");
+        for(size_t i = 0; i < src->arrayDimensionsSize && ret == UA_STATUSCODE_GOOD; i++) {
+            UA_Int32 dimension = (UA_Int32)src->arrayDimensions[i];
+            ret |= writeXmlElement(ctx, "Int32", &dimension, &UA_TYPES[UA_TYPES_INT32]);
+        }
+        ret |= writeXmlElemNameEnd(ctx, "Dimensions");
+        ret |= writeXmlElemNameBegin(ctx, "Elements");
+        const UA_DataType *elementType = src->type;
+        const UA_Boolean wrap = elementType->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO &&
+                                elementType->typeKind != UA_DATATYPEKIND_ENUM;
+        if(elementType->typeKind == UA_DATATYPEKIND_ENUM)
+            elementType = &UA_TYPES[UA_TYPES_INT32];
+        for(size_t i = 0; i < src->arrayLength && ret == UA_STATUSCODE_GOOD; i++) {
+            const void *element = (const UA_Byte*)src->data + i * src->type->memSize;
+            if(wrap) {
+                UA_ExtensionObject object;
+                UA_ExtensionObject_setValue(&object, (void*)(uintptr_t)element, src->type);
+                ret |= writeXmlElement(ctx, "ExtensionObject", &object,
+                                       &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+            } else {
+                ret |= writeXmlElement(ctx, elementType->typeName, element, elementType);
+            }
+        }
+        ret |= writeXmlElemNameEnd(ctx, "Elements");
+        ret |= writeXmlElemNameEnd(ctx, "Matrix");
+        ret |= writeXmlElemNameEnd(ctx, UA_XML_VARIANT_VALUE);
+        return ret;
+    }
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     ret |= writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE);
@@ -1184,22 +1225,22 @@ DECODE_XML(Double) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     if(length == 3 && memcmp(data, "INF", 3) == 0) {
-        *dst = INFINITY;
+        *dst = (UA_Double)INFINITY;
         return UA_STATUSCODE_GOOD;
     }
 
     if(length == 4 && memcmp(data, "-INF", 4) == 0) {
-        *dst = -INFINITY;
+        *dst = -(UA_Double)INFINITY;
         return UA_STATUSCODE_GOOD;
     }
 
     if(length == 3 && memcmp(data, "NaN", 3) == 0) {
-        *dst = NAN;
+        *dst = (UA_Double)NAN;
         return UA_STATUSCODE_GOOD;
     }
 
-    if(length == 3 && memcmp(data, "-NaN", 3) == 0) {
-        *dst = NAN;
+    if(length == 4 && memcmp(data, "-NaN", 4) == 0) {
+        *dst = (UA_Double)NAN;
         return UA_STATUSCODE_GOOD;
     }
 

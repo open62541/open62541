@@ -26,7 +26,7 @@ static const UA_UInt32 bacnetDataTypeIds[] = {
     3046, 103002, 103039, 103040, 103032, 103034, 3068, 103031, 3050, 3051, 103017,
 };
 
-static const UA_UInt32 amlInheritedValueRankIds[] = {
+static const UA_UInt32 amlInvalidValueRankIds[] = {
     2, 3, 5, 6, 8, 9, 11, 12, 14, 15,
 };
 
@@ -156,20 +156,13 @@ START_TEST(loadAllNodesetsIntoOneServer) {
                                        &amlNamespace);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert(amlNamespace <= UA_UINT16_MAX);
-    for(size_t i = 0; i < sizeof(amlInheritedValueRankIds) / sizeof(amlInheritedValueRankIds[0]);
+    for(size_t i = 0; i < sizeof(amlInvalidValueRankIds) / sizeof(amlInvalidValueRankIds[0]);
         i++) {
-        UA_NodeId id = UA_NODEID_NUMERIC((UA_UInt16)amlNamespace, amlInheritedValueRankIds[i]);
-        UA_Int32 valueRank;
-        res = UA_Server_readValueRank(server, id, &valueRank);
-        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(valueRank, UA_VALUERANK_ANY);
-
-        UA_Variant value;
-        UA_Variant_init(&value);
-        res = UA_Server_readValue(server, id, &value);
-        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(value.arrayLength, 1);
-        UA_Variant_clear(&value);
+        UA_NodeId id = UA_NODEID_NUMERIC((UA_UInt16)amlNamespace, amlInvalidValueRankIds[i]);
+        /* Array values without ValueRank have the scalar schema default. */
+        UA_NodeClass nodeClass;
+        res = UA_Server_readNodeClass(server, id, &nodeClass);
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADNODEIDUNKNOWN);
     }
 
     for(size_t i = 0; i < sizeof(amlArgumentDescriptorIds) / sizeof(amlArgumentDescriptorIds[0]);

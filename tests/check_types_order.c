@@ -462,6 +462,58 @@ START_TEST(datetime_parse_with_fractional) {
     ck_assert(dt != 0);
 } END_TEST
 
+START_TEST(datetime_parse_epochBoundary) {
+    /* The overflow protection shifts sinceunix by one second towards zero
+     * before the conversion and undoes the shift at the very end. Reading the
+     * sign of sinceunix again at that point looked at the already-shifted
+     * value, and the shift moves 0 to 1 and 1 to 0 -- the only two instants
+     * whose sign it changes. They were off by +2 s and -2 s respectively,
+     * while their neighbours parsed correctly. */
+    UA_DateTime dt = 0;
+
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1969-12-31T23:59:58Z")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH - (2 * UA_DATETIME_SEC));
+
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1969-12-31T23:59:59Z")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH - UA_DATETIME_SEC);
+
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1970-01-01T00:00:00Z")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH);
+
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1970-01-01T00:00:01Z")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH + UA_DATETIME_SEC);
+
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1970-01-01T00:00:02Z")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH + (2 * UA_DATETIME_SEC));
+
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1970-01-01T00:00:03Z")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH + (3 * UA_DATETIME_SEC));
+
+    /* The fraction is added while the shift is still in place, so it has to
+     * survive the undo unchanged -- on both sides of the shift. */
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1970-01-01T00:00:00.5Z")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH + (UA_DATETIME_SEC / 2));
+
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1970-01-01T00:00:01.5Z")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH + UA_DATETIME_SEC +
+                     (UA_DATETIME_SEC / 2));
+
+    /* A zone offset is applied after the range guard, so this instant reaches
+     * the guard as 3601 s and was never affected. It pins the fix to the two
+     * instants that were wrong instead of changing the offset path. */
+    ck_assert_uint_eq(UA_DateTime_parse(&dt, UA_STRING("1970-01-01T01:00:01+01:00")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dt, UA_DATETIME_UNIX_EPOCH + UA_DATETIME_SEC);
+} END_TEST
+
 START_TEST(datetime_parse_empty) {
     UA_DateTime dt = 0;
     UA_StatusCode res = UA_DateTime_parse(&dt, UA_STRING(""));
@@ -529,6 +581,39 @@ START_TEST(datetime_parse_yearOverflow) {
     ck_assert(res != UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(datetime_parse_fiveDigitYear) {
+    /* These years are outside the DateTime range, but their lower 16 bits are
+     * a year inside of it: 67560 - 65536 = 2024, 40000 - 65536 = -25536 and
+     * -40000 + 65536 = 25536. The year must not be truncated before the range
+     * check. */
+    UA_DateTime dt = 0;
+    UA_StatusCode res = UA_DateTime_parse(&dt,
+        UA_STRING("67560-01-15T12:30:45Z"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+    res = UA_DateTime_parse(&dt, UA_STRING("40000-01-15T12:30:45Z"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+    res = UA_DateTime_parse(&dt, UA_STRING("-40000-01-15T12:30:45Z"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+
+    /* Five-digit years inside the range are parsed */
+    res = UA_DateTime_parse(&dt, UA_STRING("20000-01-15T12:30:45Z"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_DateTimeStruct dts = UA_DateTime_toStruct(dt);
+    ck_assert_int_eq(dts.year, 20000);
+    ck_assert_uint_eq(dts.month, 1);
+    ck_assert_uint_eq(dts.day, 15);
+    ck_assert_uint_eq(dts.hour, 12);
+    ck_assert_uint_eq(dts.min, 30);
+    ck_assert_uint_eq(dts.sec, 45);
+
+    res = UA_DateTime_parse(&dt, UA_STRING("-20000-01-15T12:30:45Z"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    dts = UA_DateTime_toStruct(dt);
+    ck_assert_int_eq(dts.year, -20000);
+    ck_assert_uint_eq(dts.month, 1);
+    ck_assert_uint_eq(dts.day, 15);
+} END_TEST
+
 START_TEST(datetime_toStruct_negativeFraction) {
     /* src/ua_types.c:487-491: if(frac < 0) { secSinceUnixEpoch--;
      *   frac += UA_DATETIME_SEC; }
@@ -538,18 +623,23 @@ START_TEST(datetime_toStruct_negativeFraction) {
     UA_DateTime base = 0;
     UA_StatusCode res = UA_DateTime_parse(&base, UA_STRING("1970-01-01T00:00:00Z"));
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert(base != 0);
+    ck_assert_int_eq(base, UA_DATETIME_UNIX_EPOCH);
 
-    /* Subtract 1 microsecond -> frac is negative, year stays at 1970 */
+    /* Subtract 100 ns -> the fraction goes negative and the instant falls back
+     * into the last second of 1969. These expectations used to read 1970-01-01
+     * and only held because UA_DateTime_parse placed the epoch two seconds too
+     * late; the branch under test is unchanged. */
     UA_DateTime negative = base - 1;
 
     UA_DateTimeStruct ts = UA_DateTime_toStruct(negative);
-    ck_assert_int_eq(ts.year, 1970);
-    ck_assert_int_eq(ts.month, 1);
-    ck_assert_int_eq(ts.day, 1);
-    /* hour, min, sec, milliSec, microSec may be at boundary values
-     * but the day must still be 1. */
-    ck_assert(ts.microSec == 999);
+    ck_assert_int_eq(ts.year, 1969);
+    ck_assert_int_eq(ts.month, 12);
+    ck_assert_int_eq(ts.day, 31);
+    ck_assert_int_eq(ts.hour, 23);
+    ck_assert_int_eq(ts.min, 59);
+    ck_assert_int_eq(ts.sec, 59);
+    ck_assert_int_eq(ts.milliSec, 999);
+    ck_assert_int_eq(ts.microSec, 999);
 } END_TEST
 
 START_TEST(datetime_fromStruct_roundTrip) {
@@ -768,6 +858,7 @@ static Suite *testSuite_types_order(void) {
 
     TCase *tc_datetime = tcase_create("DateTimeParse");
     tcase_add_test(tc_datetime, datetime_parse_valid);
+    tcase_add_test(tc_datetime, datetime_parse_epochBoundary);
     tcase_add_test(tc_datetime, datetime_parse_with_fractional);
     tcase_add_test(tc_datetime, datetime_parse_empty);
     tcase_add_test(tc_datetime, datetime_parse_invalid);
@@ -775,6 +866,7 @@ static Suite *testSuite_types_order(void) {
     tcase_add_test(tc_datetime, datetime_parse_truncatedYear);
     tcase_add_test(tc_datetime, datetime_parse_unterminatedTimezone);
     tcase_add_test(tc_datetime, datetime_parse_yearOverflow);
+    tcase_add_test(tc_datetime, datetime_parse_fiveDigitYear);
     tcase_add_test(tc_datetime, datetime_toStruct_negativeFraction);
     tcase_add_test(tc_datetime, datetime_fromStruct_roundTrip);
 

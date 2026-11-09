@@ -361,6 +361,33 @@ PARSE_JSON(StringArrayField) {
     UA_Array_delete(stringArray, stringArraySize, &UA_TYPES[UA_TYPES_STRING]);
     return retval;
 }
+/* Profile declarations require actual strings, not JSON null values. Decode
+ * into a temporary owned array so failures leave the old declaration intact. */
+PARSE_JSON(ServerProfileArrayField) {
+    cj5_token tok = nextToken(ctx);
+    if(tok.type != CJ5_TOKEN_ARRAY)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    size_t count = tok.size;
+    UA_String *profiles = (UA_String*)UA_Array_new(count, &UA_TYPES[UA_TYPES_STRING]);
+    if(!profiles)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    for(size_t i = 0; i < count; i++) {
+        UA_StatusCode res = UA_STATUSCODE_BADDECODINGERROR;
+        if(ctx->index + 1 < ctx->result.num_tokens &&
+           ctx->result.tokens[ctx->index + 1].type == CJ5_TOKEN_STRING)
+            res = StringField_parseJson(ctx, &profiles[i], NULL);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(profiles, count, &UA_TYPES[UA_TYPES_STRING]);
+            return res;
+        }
+    }
+    UA_String **field = (UA_String**)configField;
+    UA_Array_delete(*field, *configFieldSize, &UA_TYPES[UA_TYPES_STRING]);
+    *field = profiles;
+    *configFieldSize = count;
+    return UA_STATUSCODE_GOOD;
+}
+
 PARSE_JSON(DateTimeField) {
     cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -1129,6 +1156,9 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = RuleHandlingField_parseJson(&ctx, &config->allowUnattachedMethods, NULL);
                 else if(strcmp(field, "certificateEkuRule") == 0)
                     retval = RuleHandlingField_parseJson(&ctx, &config->certificateEkuRule, NULL);
+                else if(strcmp(field, "serverProfileArray") == 0)
+                    retval = ServerProfileArrayField_parseJson(&ctx, &config->serverProfileArray,
+                                                               &config->serverProfileArraySize);
                 else if(strcmp(field, "serverUrls") == 0)
                     retval = StringArrayField_parseJson(&ctx, &config->serverUrls, &config->serverUrlsSize);
                 else if(strcmp(field, "tcpEnabled") == 0)

@@ -6,7 +6,7 @@
 #include <check.h>
 #include <stdlib.h>
 
-#if defined(UA_ENABLE_MALLOC_SINGLETON) && defined(UA_TYPES_STRUCTUREDESCRIPTION)
+#ifdef UA_ENABLE_MALLOC_SINGLETON
 static size_t allocationIndex, failingAllocation, live;
 static void *owned[1024];
 
@@ -31,7 +31,7 @@ static void testFree(void *ptr) {
     for(size_t i = 0; i < 1024; i++) {
         if(owned[i] == ptr) { owned[i] = NULL; live--; free(ptr); return; }
     }
-    ck_abort_msg("attempt to free borrowed datatype storage");
+    ck_abort_msg("attempt to free borrowed storage");
 }
 static void *testRealloc(void *ptr, size_t size) {
     if(allocationIndex++ == failingAllocation) return NULL;
@@ -43,7 +43,7 @@ static void *testRealloc(void *ptr, size_t size) {
             return next;
         }
     }
-    ck_abort_msg("attempt to resize borrowed datatype storage");
+    ck_abort_msg("attempt to resize borrowed storage");
     return NULL;
 }
 static void setup(void) {
@@ -58,6 +58,74 @@ static void teardown(void) {
     for(size_t i = 0; i < 1024; i++) free(owned[i]);
 }
 
+/* Exercise all empty representations: null, sentinel and owned storage. */
+static UA_String
+emptyString(int mode) {
+    if(mode == 0)
+        return UA_STRING_NULL;
+    if(mode == 1) {
+        UA_String s = {0, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL};
+        return s;
+    }
+    return UA_STRING_ALLOC("");
+}
+
+START_TEST(stringAppendEmptyOwnership) {
+    UA_String s = emptyString(_i);
+    ck_assert_uint_eq(UA_String_append(&s, UA_STRING("abc")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(s.length, 3);
+    ck_assert_mem_eq(s.data, "abc", 4);
+    UA_String_clear(&s);
+    ck_assert_uint_eq(live, 0);
+} END_TEST
+
+START_TEST(stringFormatEmptyOwnership) {
+    UA_String s = emptyString(_i);
+    for(size_t i = 0; i < 3; i++) {
+        ck_assert_uint_eq(UA_String_format(&s, "%s", ""), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(s.length, 0);
+        ck_assert_ptr_nonnull(s.data);
+        ck_assert_uint_eq(s.data[0], 0);
+        ck_assert_uint_eq(live, 1);
+    }
+    ck_assert_uint_eq(UA_String_format(&s, "%s", "abc"), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(s.length, 3);
+    ck_assert_mem_eq(s.data, "abc", 4);
+    UA_String_clear(&s);
+    ck_assert_uint_eq(live, 0);
+} END_TEST
+
+START_TEST(stringAllocationFailure) {
+    failingAllocation = allocationIndex;
+    UA_String s = UA_STRING_ALLOC(_i ? "abc" : "");
+    ck_assert_uint_eq(s.length, 0);
+    ck_assert_ptr_null(s.data);
+    ck_assert_uint_eq(live, 0);
+
+    UA_String src = UA_STRING(_i ? "abc" : "");
+    failingAllocation = allocationIndex;
+    ck_assert_uint_eq(UA_String_copy(&src, &s), UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(s.length, 0);
+    ck_assert_ptr_null(s.data);
+    ck_assert_uint_eq(live, 0);
+} END_TEST
+
+START_TEST(stringMutationAllocationFailure) {
+    UA_String s = emptyString(_i % 3);
+    UA_Byte *original = s.data;
+    size_t originalLive = live;
+    failingAllocation = allocationIndex;
+    UA_StatusCode res = (_i < 3) ? UA_String_append(&s, UA_STRING("abc")) :
+        UA_String_format(&s, "%s", "abc");
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(s.length, 0);
+    ck_assert_ptr_eq(s.data, original);
+    ck_assert_uint_eq(live, originalLive);
+    UA_String_clear(&s);
+    ck_assert_uint_eq(live, 0);
+} END_TEST
+
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
 static UA_StatusCode
 operation(int mode) {
     typedef struct { UA_UInt32 number; UA_String text; } Record;
@@ -141,6 +209,7 @@ START_TEST(everyAllocationCanFail) {
     }
 } END_TEST
 #endif
+#endif
 
 int main(void) {
     Suite *s = suite_create("Datatype allocation failures");
@@ -150,6 +219,15 @@ int main(void) {
     tcase_add_loop_test(tc, everyAllocationCanFail, 0, 4);
 #endif
     suite_add_tcase(s, tc);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    TCase *strings = tcase_create("String ownership and allocation failures");
+    tcase_add_checked_fixture(strings, setup, teardown);
+    tcase_add_loop_test(strings, stringAppendEmptyOwnership, 0, 3);
+    tcase_add_loop_test(strings, stringFormatEmptyOwnership, 0, 3);
+    tcase_add_loop_test(strings, stringAllocationFailure, 0, 2);
+    tcase_add_loop_test(strings, stringMutationAllocationFailure, 0, 6);
+    suite_add_tcase(s, strings);
+#endif
     SRunner *runner = srunner_create(s);
     srunner_set_fork_status(runner, CK_NOFORK);
     srunner_run_all(runner, CK_NORMAL);

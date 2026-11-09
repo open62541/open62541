@@ -65,12 +65,18 @@ UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(wg->publishCallbackId != 0)
         return UA_STATUSCODE_GOOD;
 
+    const UA_DateTime *baseTime = (const UA_DateTime *)
+        UA_KeyValueMap_getScalar(&wg->config.groupProperties,
+                                 UA_QUALIFIEDNAME(0, "__publish-basetime"),
+                                 &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_TimerPolicy timerPolicy = baseTime ?
+        UA_TIMERPOLICY_BASETIME : UA_TIMERPOLICY_CURRENTTIME;
+
     /* Use EventLoop for cyclic callbacks */
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
     return el->addTimer(el, UA_WriterGroup_publishCallback,
                         psm, wg, wg->config.publishingInterval,
-                        NULL /* TODO: use basetime */,
-                        UA_TIMERPOLICY_CURRENTTIME,
+                        baseTime, timerPolicy,
                         &wg->publishCallbackId);
 }
 

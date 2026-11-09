@@ -2349,6 +2349,22 @@ struct UA_ServerConfig {
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
 
+    /* Profile URIs advertised in ServerCapabilities.ServerProfileArray. Declare
+     * only the Server Profiles and Facets that the server fully supports in its
+     * current configuration. The list is empty by default, and the server logs
+     * a warning at startup when it advertises an empty list. Empty entries are
+     * rejected.
+     *
+     * The config owns the array and its strings: allocate them with
+     * UA_Array_copy, UA_ServerConfig_clear frees them. Change the list only
+     * while the server is stopped. A nonempty list is written to the node on
+     * creation and before every startup, which fails if the node cannot take
+     * it. An empty list does not touch a read-only value source, nor (with
+     * MINIMAL or NONE namespace zero) a node supplied by the application or an
+     * external nodestore. */
+    size_t serverProfileArraySize;
+    UA_String *serverProfileArray;
+
     /* Server Lifecycle
      * ~~~~~~~~~~~~~~~~
      * Delay in ms from the shutdown signal (ctrl-c) until the actual shutdown.
@@ -3155,6 +3171,9 @@ UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
  * OPC UA services over HTTPS are disabled by default. When ``UA_ENABLE_LWS``
  * is compiled in, configure them with ``webSocketEnabled`` / ``webSocket`` and
  * ``httpEnabled`` / ``http`` respectively.
+ *
+ * The optional ``serverProfileArray`` property is an array of profile URI
+ * strings. It defaults to an empty list; ``[]`` clears any preceding declaration.
  *
  * The following functions require JSON encoding support
  * (``UA_ENABLE_JSON_ENCODING``). */

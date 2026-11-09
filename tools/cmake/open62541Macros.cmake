@@ -626,6 +626,10 @@ function(ua_generate_nodeset_and_datatypes)
     set(multiValueArgs DEPENDS IMPORT_BSD NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
+    if(UA_GEN_AUTOLOAD AND NOT UA_GEN_NAMESPACE_MAP)
+        set(UA_GEN_NAMESPACE_MAP ${UA_NODESETINJECTOR_NAMESPACE_MAP})
+    endif()
+
     # Argument checking
     set_default(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
     set_default(UA_GEN_TARGET_PREFIX "open62541-generator")

@@ -705,7 +705,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
-    UA_Float lifetime = (UA_Float)response.securityToken.revisedLifetime / 1000;
+    UA_Double lifetime = (UA_Double)response.securityToken.revisedLifetime / 1000;
     UA_Boolean renew = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
     if(renew) {
         UA_LOG_INFO_CHANNEL(client->config.logging, &client->channel, "SecureChannel "
@@ -1181,6 +1181,10 @@ static const UA_ClientTransport clientTransports[] = {
      4840, UA_SECURECHANNEL_TRANSPORT_UACP,
      UA_SECURECHANNEL_ENCODING_BINARY, false},
 #ifdef UA_ENABLE_LWS
+    {UA_STRING_STATIC("opc.ws:"), UA_STRING_STATIC("websocket"),
+     UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/ws-uasc-uabinary"),
+     80, UA_SECURECHANNEL_TRANSPORT_UACP,
+     UA_SECURECHANNEL_ENCODING_BINARY, false},
     {UA_STRING_STATIC("opc.wss:"), UA_STRING_STATIC("websocket"),
      UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary"),
      443, UA_SECURECHANNEL_TRANSPORT_UACP,

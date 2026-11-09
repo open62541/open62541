@@ -452,6 +452,74 @@ START_TEST(get_trustlist) {
 }
 END_TEST
 
+START_TEST(get_trustlist_with_mask) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_ByteString rootCa = {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA};
+    UA_ByteString rootCaCrl = {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA};
+    UA_ByteString intermediateCa = {INTERMEDIATE_CERT_DER_LENGTH,
+                                    INTERMEDIATE_CERT_DER_DATA};
+    UA_ByteString intermediateCaCrl = {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH,
+                                       INTERMEDIATE_EMPTY_CRL_PEM_DATA};
+
+    UA_TrustListDataType all;
+    UA_TrustListDataType_init(&all);
+    all.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    all.trustedCertificates = &rootCa;
+    all.trustedCertificatesSize = 1;
+    all.trustedCrls = &rootCaCrl;
+    all.trustedCrlsSize = 1;
+    all.issuerCertificates = &intermediateCa;
+    all.issuerCertificatesSize = 1;
+    all.issuerCrls = &intermediateCaCrl;
+    all.issuerCrlsSize = 1;
+
+    UA_StatusCode retval =
+        config->secureChannelPKI.setTrustList(&config->secureChannelPKI, &all);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    for(UA_UInt32 mask = 0; mask <= UA_TRUSTLISTMASKS_ALL; mask++) {
+        UA_TrustListDataType trustList;
+        UA_TrustListDataType_init(&trustList);
+        trustList.specifiedLists = mask;
+        retval = config->secureChannelPKI.getTrustList(&config->secureChannelPKI,
+                                                       &trustList);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(trustList.specifiedLists, mask);
+
+        UA_Boolean trusted = (mask & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) != 0;
+        UA_Boolean trustedCrls = (mask & UA_TRUSTLISTMASKS_TRUSTEDCRLS) != 0;
+        UA_Boolean issuer = (mask & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) != 0;
+        UA_Boolean issuerCrls = (mask & UA_TRUSTLISTMASKS_ISSUERCRLS) != 0;
+        ck_assert_uint_eq(trustList.trustedCertificatesSize, trusted ? 1 : 0);
+        ck_assert_uint_eq(trustList.trustedCrlsSize, trustedCrls ? 1 : 0);
+        ck_assert_uint_eq(trustList.issuerCertificatesSize, issuer ? 1 : 0);
+        ck_assert_uint_eq(trustList.issuerCrlsSize, issuerCrls ? 1 : 0);
+        if(trusted)
+            ck_assert(UA_ByteString_equal(&rootCa, &trustList.trustedCertificates[0]));
+        if(trustedCrls)
+            ck_assert(UA_ByteString_equal(&rootCaCrl, &trustList.trustedCrls[0]));
+        if(issuer)
+            ck_assert(UA_ByteString_equal(&intermediateCa,
+                                          &trustList.issuerCertificates[0]));
+        if(issuerCrls)
+            ck_assert(UA_ByteString_equal(&intermediateCaCrl, &trustList.issuerCrls[0]));
+
+        UA_TrustListDataType_clear(&trustList);
+    }
+
+    /* Bits outside of the defined lists are not returned */
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = 0xFFFFFFFF;
+    retval = config->secureChannelPKI.getTrustList(&config->secureChannelPKI,
+                                                   &trustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(trustList.specifiedLists, UA_TRUSTLISTMASKS_ALL);
+    UA_TrustListDataType_clear(&trustList);
+}
+END_TEST
+
 START_TEST(remove_from_trustlist) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -741,6 +809,7 @@ START_TEST(memorystore_trust_updates_are_transactional) {
 
     UA_TrustListDataType retainedTrustList;
     UA_TrustListDataType_init(&retainedTrustList);
+    retainedTrustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
     retval = group.getTrustList(&group, &retainedTrustList);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(retainedTrustList.trustedCertificatesSize, 1);
@@ -794,6 +863,7 @@ START_TEST(memorystore_limits_final_trust_list) {
 
     UA_TrustListDataType retainedTrustList;
     UA_TrustListDataType_init(&retainedTrustList);
+    retainedTrustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
     retval = group.getTrustList(&group, &retainedTrustList);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(retainedTrustList.trustedCertificatesSize, 1);
@@ -812,6 +882,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_checked_fixture(tc_encryption_memorystore, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption_memorystore, get_trustlist);
+    tcase_add_test(tc_encryption_memorystore, get_trustlist_with_mask);
     tcase_add_test(tc_encryption_memorystore, set_trustlist);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist_with_email);
@@ -845,6 +916,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_checked_fixture(tc_encryption_filestore, setup2, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption_filestore, get_trustlist);
+    tcase_add_test(tc_encryption_filestore, get_trustlist_with_mask);
     tcase_add_test(tc_encryption_filestore, set_trustlist);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist_with_email);

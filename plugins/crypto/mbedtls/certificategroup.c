@@ -83,7 +83,25 @@ MemoryCertStore_getTrustList(UA_CertificateGroup *certGroup, UA_TrustListDataTyp
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
-    return UA_TrustListDataType_copy(&context->trustList, trustList);
+    UA_TrustListDataType masked = context->trustList;
+    masked.specifiedLists = trustList->specifiedLists & UA_TRUSTLISTMASKS_ALL;
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES)) {
+        masked.trustedCertificatesSize = 0;
+        masked.trustedCertificates = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS)) {
+        masked.trustedCrlsSize = 0;
+        masked.trustedCrls = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES)) {
+        masked.issuerCertificatesSize = 0;
+        masked.issuerCertificates = NULL;
+    }
+    if(!(masked.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS)) {
+        masked.issuerCrlsSize = 0;
+        masked.issuerCrls = NULL;
+    }
+    return UA_TrustListDataType_copy(&masked, trustList);
 }
 
 static UA_StatusCode
@@ -486,8 +504,21 @@ mbedtlsFindNextIssuer(MemoryCertStore *ctx, mbedtls_x509_crt *stack,
     return NULL;
 }
 
+/* A revocation list is only used if it is signed by the issuer (RFC 5280,
+ * 6.3.3). Otherwise it counts as not available. */
+static UA_Boolean
+mbedtlsCrlUsable(UA_CertificateGroup *cg, mbedtls_x509_crl *crl,
+                 mbedtls_x509_crt *issuer) {
+    if(UA_mbedTLS_compat_verifyCrlSignature(crl, issuer))
+        return true;
+    UA_LOG_WARNING(cg->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "Ignoring a revocation list that is not signed by the issuer");
+    return false;
+}
+
 static UA_StatusCode
-mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_crt *cert) {
+mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx,
+                    mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
     /* Parse the Issuer Name */
     char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
     int nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &cert->issuer);
@@ -507,7 +538,8 @@ mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_
     for(mbedtls_x509_crl *crl = &ctx->trustedCrls; crl; crl = crl->next) {
         /* Is the CRL for certificates from the cert issuer?
          * Is the serial number of the certificate contained in the CRL? */
-        if(mbedtlsSameName(issuerName, &crl->issuer)) {
+        if(mbedtlsSameName(issuerName, &crl->issuer) &&
+           mbedtlsCrlUsable(cg, crl, issuer)) {
             if(mbedtls_x509_crt_is_revoked(cert, crl) != 0)
                 return UA_STATUSCODE_BADCERTIFICATEREVOKED;
             res = UA_STATUSCODE_GOOD; /* There was at least one crl that did not revoke (so far) */
@@ -516,7 +548,8 @@ mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_
 
     /* Loop over the issuer crls separately */
     for(mbedtls_x509_crl *crl = &ctx->issuerCrls; crl; crl = crl->next) {
-        if(mbedtlsSameName(issuerName, &crl->issuer)) {
+        if(mbedtlsSameName(issuerName, &crl->issuer) &&
+           mbedtlsCrlUsable(cg, crl, issuer)) {
             if(mbedtls_x509_crt_is_revoked(cert, crl) != 0)
                 return UA_STATUSCODE_BADCERTIFICATEREVOKED;
             res = UA_STATUSCODE_GOOD;
@@ -574,7 +607,7 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
         }
 
         /* Verification Step: Revocation Check */
-        ret = mbedtlsCheckRevoked(cg, ctx, cert);
+        ret = mbedtlsCheckRevoked(cg, ctx, cert, issuer);
         if(depth > 0) {
             if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
                 ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
@@ -621,7 +654,8 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
 /* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
  * It defines a sequence of steps for certificate verification. */
 static UA_StatusCode
-verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                  UA_Boolean allowCa) {
     /* Check parameter */
     if(!certGroup || !certGroup->context || !certificate ||
        (certificate->length > 0 && !certificate->data))
@@ -631,10 +665,14 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
 
     /* Verification Step: Certificate Structure
      * This parses the entire certificate chain contained in the bytestring. */
+    UA_ByteString data = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_mbedTLS_CopyDataFormatAware(certificate, &data);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
-    int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data,
-                                         certificate->length);
+    int mbedErr = mbedtls_x509_crt_parse(&cert, data.data, data.length);
+    UA_ByteString_clear(&data);
     if(mbedErr) {
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
@@ -643,8 +681,9 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
      * Refer the test case CTT/Security/Security Certificate Validation/029.js
-     * for more details. */
-    if(mbedtlsCheckCA(&cert)) {
+     * for more details. Only the certificates of a TrustList can be CA
+     * certificates. */
+    if(!allowCa && mbedtlsCheckCA(&cert)) {
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
@@ -671,7 +710,7 @@ MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = verifyCertificate(certGroup, certificate);
+    UA_StatusCode retval = verifyCertificate(certGroup, certificate, false);
     if(retval != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -1173,6 +1212,123 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
 cleanup:
     mbedtls_x509_crt_free(&cert);
 
+    return retval;
+}
+
+/* Is the KeyUsage extension marked critical? mbedTLS does not keep the
+ * criticality of the extensions it parses. The extensions follow the
+ * SubjectPublicKeyInfo and the optional unique identifiers in the
+ * TBSCertificate. */
+static UA_Boolean
+mbedtlsKeyUsageCritical(const mbedtls_x509_crt *cert) {
+    static const unsigned char keyUsageOid[3] = {0x55, 0x1d, 0x0f}; /* 2.5.29.15 */
+    const int extensionsTag =
+        MBEDTLS_ASN1_CONTEXT_SPECIFIC | MBEDTLS_ASN1_CONSTRUCTED | 3;
+    unsigned char *p = cert->pk_raw.p + cert->pk_raw.len;
+    const unsigned char *end = cert->tbs.p + cert->tbs.len;
+    size_t len;
+
+    /* Skip the issuerUniqueID [1] and the subjectUniqueID [2] */
+    while(p < end && *p != extensionsTag) {
+        if(mbedtls_asn1_get_tag(&p, end, &len, *p) != 0)
+            return false;
+        p += len;
+    }
+
+    /* Extensions ::= SEQUENCE OF Extension */
+    if(mbedtls_asn1_get_tag(&p, end, &len, extensionsTag) != 0 ||
+       mbedtls_asn1_get_tag(&p, end, &len,
+                            MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
+        return false;
+    end = p + len;
+
+    while(p < end) {
+        /* Extension ::= SEQUENCE { extnID OID, critical BOOLEAN DEFAULT FALSE,
+         *                          extnValue OCTET STRING } */
+        if(mbedtls_asn1_get_tag(&p, end, &len,
+                                MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
+            return false;
+        unsigned char *entryEnd = p + len;
+        if(mbedtls_asn1_get_tag(&p, entryEnd, &len, MBEDTLS_ASN1_OID) != 0)
+            return false;
+        UA_Boolean keyUsage = (len == sizeof(keyUsageOid) &&
+                               memcmp(p, keyUsageOid, len) == 0);
+        p += len;
+        int critical = 0;
+        if(p < entryEnd && *p == MBEDTLS_ASN1_BOOLEAN &&
+           mbedtls_asn1_get_bool(&p, entryEnd, &critical) != 0)
+            return false;
+        if(keyUsage)
+            return (critical != 0);
+        p = entryEnd;
+    }
+    return false;
+}
+
+/* Checks for a certificate of a TrustList that are not part of the validation
+ * of a SecureChannel. Application and CA certificates are X.509 v3 (Part 6,
+ * 6.2.2). The KeyUsage of an application certificate includes
+ * digitalSignature, and nonRepudiation, keyEncipherment and dataEncipherment
+ * for RSA keys. The Certificate Usage error is suppressible, unless the
+ * KeyUsage is critical (Part 4, 6.1.3). */
+static UA_StatusCode
+mbedtlsCheckTrustListCertificate(const UA_ByteString *certificate) {
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    if(cert.version != 3) {
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        goto cleanup;
+    }
+
+    UA_Boolean isCa =
+        mbedtls_x509_crt_has_ext_type(&cert, MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) &&
+        mbedtls_x509_crt_get_ca_istrue(&cert);
+    if(isCa || !mbedtls_x509_crt_has_ext_type(&cert, MBEDTLS_X509_EXT_KEY_USAGE))
+        goto cleanup;
+    unsigned int required = MBEDTLS_X509_KU_DIGITAL_SIGNATURE;
+    if(UA_mbedTLS_compat_isRsaKey(&cert.pk))
+        required |= MBEDTLS_X509_KU_NON_REPUDIATION |
+            MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT;
+    if(mbedtls_x509_crt_check_key_usage(&cert, required) != 0 &&
+       mbedtlsKeyUsageCritical(&cert))
+        retval = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+
+cleanup:
+    mbedtls_x509_crt_free(&cert);
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trustList,
+                                               const UA_ByteString *certificate,
+                                               const UA_Logger *logger) {
+    if(!trustList || !certificateGroupValidByteString(certificate))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retval = mbedtlsCheckTrustListCertificate(certificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Load the TrustList into a temporary Memorystore without a size limit */
+    UA_UInt32 maxTrustListSize = 0;
+    UA_KeyValuePair param;
+    param.key = MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE].name;
+    UA_Variant_setScalar(&param.value, &maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap params = {1, &param};
+    UA_NodeId certificateGroupId = UA_NODEID_NULL;
+    UA_CertificateGroup certGroup;
+    memset(&certGroup, 0, sizeof(UA_CertificateGroup));
+    retval = UA_CertificateGroup_Memorystore(&certGroup, &certificateGroupId,
+                                             trustList, logger, &params);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = verifyCertificate(&certGroup, certificate, true);
+    certGroup.clear(&certGroup);
     return retval;
 }
 

@@ -201,11 +201,14 @@ UA_EXPORT UA_Boolean UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2);
 /**
  * String
  * ^^^^^^
- * A sequence of Unicode characters. Strings are just an array of UA_Byte. */
+ * A sequence of Unicode characters. Strings are just an array of UA_Byte. The
+ * data might not be null-terminated, but can be. Owned strings can have an
+ * allocated buffer even when .length == 0 and must be cleared when they go out
+ * of scope, regardless of their length. */
 
 typedef struct UA_String {
     size_t length; /* The length of the string */
-    UA_Byte *data; /* The content (not null-terminated) */
+    UA_Byte *data; /* The content (not necessarily null-terminated) */
 } UA_String;
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;

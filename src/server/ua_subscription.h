@@ -410,6 +410,11 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 #define UA_EVENTFILTER_MAXOPERANDS 64 /* Max operands per operator */
 #define UA_EVENTFILTER_MAXSELECT   64 /* Max select clauses */
 
+/* Validate a complete event filter. filterResult may be NULL. */
+UA_StatusCode
+UA_EventFilterValidation(UA_Server *server, const UA_EventFilter *eventFilter,
+                         UA_ExtensionObject *filterResult);
+
 /* Static validation when the filter is registered */
 UA_StatusCode
 UA_SimpleAttributeOperandValidation(UA_Server *server,

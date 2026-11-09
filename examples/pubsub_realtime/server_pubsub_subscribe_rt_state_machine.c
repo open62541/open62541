@@ -374,6 +374,9 @@ int main(int argc, char **argv) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     server = UA_Server_new();
 
+    /* Use a different TCP port from the publisher running on the same host. */
+    UA_ServerConfig_setMinimal(UA_Server_getConfig(server), 4841, NULL);
+
     addPubSubConnection(server);
     addReaderGroup(server);
     addDataSetReader(server);
