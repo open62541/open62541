@@ -686,7 +686,9 @@ getTargetFallback(UA_PubSubManager *psm, UA_DataSetReader *dsr, size_t index,
         UA_StatusCode res = readTargetValue(psm, &tv->targetNodeId, value);
         if(res != UA_STATUSCODE_GOOD)
             return res;
-        /* Retain the complete target Value with timeout quality. */
+        /* Retain the whole Value and change its quality. Ranged writes reject
+         * status changes in writeInternalValueAttribute, and the payload here
+         * is the complete target, not the configured slice. */
         wv->indexRange = UA_STRING_NULL;
     }
     value->hasStatus = true;
@@ -749,6 +751,69 @@ getTargetFallback(UA_PubSubManager *psm, UA_DataSetReader *dsr, size_t index,
 }
 
 static UA_StatusCode
+writeTargetValue(UA_PubSubManager *psm, UA_WriteValue *wv) {
+    UA_Server *server = psm->drv.server;
+    UA_StatusCode res;
+    Operation_Write(server, &server->adminSession, wv, &res);
+    if(res != UA_STATUSCODE_BADINDEXRANGEINVALID ||
+       wv->attributeId != UA_ATTRIBUTEID_VALUE ||
+       wv->indexRange.length == 0 || !wv->value.hasValue)
+        return res;
+
+    /* Callback backends manage their own range and quality semantics. Do not
+     * introduce reads or retry their rejected writes. */
+    const UA_Node *node = UA_NODESTORE_GET(server, &wv->nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    UA_Boolean storedValue =
+        (node->head.nodeClass == UA_NODECLASS_VARIABLE ||
+         node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) &&
+        node->variableNode.valueSourceType != UA_VALUESOURCETYPE_CALLBACK;
+    UA_NODESTORE_RELEASE(server, node);
+    if(!storedValue)
+        return res;
+
+    UA_DataValue current;
+    UA_DataValue_init(&current);
+    res = readTargetValue(psm, &wv->nodeId, &current);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    if(current.status == wv->value.status) {
+        res = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        goto cleanup;
+    }
+    if(!current.value.type || !wv->value.value.type ||
+       !UA_NodeId_equal(&current.value.type->typeId,
+                        &wv->value.value.type->typeId)) {
+        res = UA_STATUSCODE_BADTYPEMISMATCH;
+        goto cleanup;
+    }
+    UA_NumericRange range;
+    memset(&range, 0, sizeof(range));
+    res = UA_NumericRange_parse(&range, wv->indexRange);
+    if(res == UA_STATUSCODE_GOOD) {
+        size_t count = UA_Variant_isScalar(&wv->value.value) ?
+            1 : wv->value.value.arrayLength;
+        res = UA_Variant_setRangeCopy(&current.value, wv->value.value.data,
+                                      count, range);
+    }
+    UA_free(range.dimensions);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    /* A ranged write cannot change quality. Merge the selected fields into an
+     * owned full Value first, preserving all other elements. This also handles
+     * the BadTimeout-to-Good recovery transition. */
+    UA_WriteValue fullWrite = *wv;
+    fullWrite.value.value = current.value;
+    fullWrite.indexRange = UA_STRING_NULL;
+    Operation_Write(server, &server->adminSession, &fullWrite, &res);
+
+ cleanup:
+    UA_DataValue_clear(&current);
+    return res;
+}
+
+static UA_StatusCode
 updateTargetValues(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                     UA_StatusCode badStatus) {
     UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;
@@ -760,7 +825,7 @@ updateTargetValues(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_WriteValue wv;
         UA_StatusCode res = getTargetFallback(psm, dsr, i, badStatus, &wv);
         if(res == UA_STATUSCODE_GOOD)
-            Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &wv, &res);
+            res = writeTargetValue(psm, &wv);
         UA_DataValue_clear(&wv.value);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
@@ -1164,7 +1229,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         writeVal.indexRange = writeIndexRange;
         writeVal.nodeId = tv->targetNodeId;
         writeVal.value = writeValue;
-        Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &writeVal, &res);
+        res = writeTargetValue(psm, &writeVal);
         if(res != UA_STATUSCODE_GOOD) {
             writeFailed = true;
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
