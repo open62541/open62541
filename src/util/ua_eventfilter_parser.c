@@ -127,12 +127,14 @@ create_operator(EFParseContext *ctx, UA_FilterOperator fo) {
 }
 
 void
-append_operand(Operand *op, Operand *on) {
+append_operand(EFParseContext *ctx, Operand *op, Operand *on) {
     Operator *optr = &op->operand.op;
     Operand **children_tmp = (Operand **)
         UA_realloc(optr->children, (optr->childrenSize + 1) * sizeof(Operand*));
-    if(!children_tmp)
+    if(!children_tmp) {
+        ctx->error = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
+    }
     optr->children = children_tmp;
     optr->children[optr->childrenSize] = on;
     optr->childrenSize++;
