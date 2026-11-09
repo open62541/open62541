@@ -69,6 +69,7 @@ struct UA_CertificateGroup {
                                         UA_ByteString **crls,
                                         size_t *crlsSize);
 
+    /* NULL accepts all certificates (see UA_CertificateGroup_AcceptAll) */
     UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup,
                                        const UA_ByteString *certificate);
 
