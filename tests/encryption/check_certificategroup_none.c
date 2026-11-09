@@ -24,16 +24,9 @@ START_TEST(AcceptAll_InitFromZeroAcceptsAnyCertificate) {
     ck_assert(g.getRejectedList == NULL);
     ck_assert(g.getCertificateCrls == NULL);
 
-    /* verifyCertificate must accept any (including empty/garbage) cert */
-    ck_assert(g.verifyCertificate != NULL);
-    UA_ByteString empty = UA_BYTESTRING_NULL;
-    UA_StatusCode rv = g.verifyCertificate(&g, &empty);
-    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
-
-    UA_Byte rawData[] = { 0xde, 0xad, 0xbe, 0xef };
-    UA_ByteString junk = { sizeof(rawData), rawData };
-    rv = g.verifyCertificate(&g, &junk);
-    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    /* Without verifyCertificate, the server and the client accept any
+     * certificate */
+    ck_assert(g.verifyCertificate == NULL);
 
     /* clear must be safe to call */
     ck_assert(g.clear != NULL);
@@ -62,9 +55,7 @@ START_TEST(AcceptAll_ReinitializeOverridesPriorClear) {
     g.logging = UA_Log_Stdout;
     UA_CertificateGroup_AcceptAll(&g);
     UA_CertificateGroup_AcceptAll(&g);
-    UA_ByteString empty = UA_BYTESTRING_NULL;
-    UA_StatusCode rv = g.verifyCertificate(&g, &empty);
-    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert(g.verifyCertificate == NULL);
     g.clear(&g);
 }
 END_TEST

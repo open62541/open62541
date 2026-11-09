@@ -1121,11 +1121,12 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
         }
     }
 
+    /* A CertificateGroup without verification accepts all certificates */
     if(!cg->verifyCertificate) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "%s: Could not validate the certificate "
-                     "as the CertificateGroup is not configured", logPrefix);
-        res = UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "%s: No certificate store configured. "
+                       "Accepting the certificate.", logPrefix);
+        res = UA_STATUSCODE_GOOD;
         goto errout;
     }
 
