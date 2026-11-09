@@ -1,0 +1,6 @@
+LogRecord
+LogRecordsDataType
+SpanContextDataType
+TraceContextDataType
+NameValuePair
+LogRecordMask

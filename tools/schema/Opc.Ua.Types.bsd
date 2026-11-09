@@ -3350,4 +3350,54 @@
     <opc:EnumeratedValue Name="Unknown" Value="4" />
   </opc:EnumeratedType>
 
+  <!-- OPC UA Part 26: LogObject Model -->
+  <opc:StructuredType Name="NameValuePair" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Name" TypeName="opc:String" />
+    <opc:Field Name="Value" TypeName="ua:Variant" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="SpanContextDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="TraceId" TypeName="opc:Guid" />
+    <opc:Field Name="SpanId" TypeName="opc:UInt64" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="TraceContextDataType" BaseType="tns:SpanContextDataType">
+    <opc:Field Name="TraceId" TypeName="opc:Guid" SourceType="tns:SpanContextDataType" />
+    <opc:Field Name="SpanId" TypeName="opc:UInt64" SourceType="tns:SpanContextDataType" />
+    <opc:Field Name="ParentSpanId" TypeName="opc:UInt64" />
+    <opc:Field Name="ParentIdentifier" TypeName="opc:String" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="LogRecord" BaseType="ua:ExtensionObject">
+    <opc:Field Name="EventTypeSpecified" TypeName="opc:Bit" />
+    <opc:Field Name="SourceNodeSpecified" TypeName="opc:Bit" />
+    <opc:Field Name="SourceNameSpecified" TypeName="opc:Bit" />
+    <opc:Field Name="TraceContextSpecified" TypeName="opc:Bit" />
+    <opc:Field Name="AdditionalDataSpecified" TypeName="opc:Bit" />
+    <opc:Field Name="Reserved1" TypeName="opc:Bit" Length="27" />
+    <opc:Field Name="Time" TypeName="opc:DateTime" />
+    <opc:Field Name="Severity" TypeName="opc:UInt16" />
+    <opc:Field Name="EventType" TypeName="ua:NodeId" SwitchField="EventTypeSpecified" />
+    <opc:Field Name="SourceNode" TypeName="ua:NodeId" SwitchField="SourceNodeSpecified" />
+    <opc:Field Name="SourceName" TypeName="opc:String" SwitchField="SourceNameSpecified" />
+    <opc:Field Name="Message" TypeName="ua:LocalizedText" />
+    <opc:Field Name="TraceContext" TypeName="tns:TraceContextDataType" SwitchField="TraceContextSpecified" />
+    <opc:Field Name="NoOfAdditionalData" TypeName="opc:Int32" SwitchField="AdditionalDataSpecified" />
+    <opc:Field Name="AdditionalData" TypeName="tns:NameValuePair" LengthField="NoOfAdditionalData" SwitchField="AdditionalDataSpecified" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="LogRecordsDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="NoOfLogRecordArray" TypeName="opc:Int32" />
+    <opc:Field Name="LogRecordArray" TypeName="tns:LogRecord" LengthField="NoOfLogRecordArray" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="LogRecordMask" LengthInBits="32" IsOptionSet="true">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="EventType" Value="1" />
+    <opc:EnumeratedValue Name="SourceNode" Value="2" />
+    <opc:EnumeratedValue Name="SourceName" Value="4" />
+    <opc:EnumeratedValue Name="TraceContext" Value="8" />
+    <opc:EnumeratedValue Name="AdditionalData" Value="16" />
+  </opc:EnumeratedType>
+
 </opc:TypeDictionary>
