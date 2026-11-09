@@ -668,15 +668,27 @@ readTargetValue(UA_PubSubManager *psm, const UA_NodeId *nodeId, UA_DataValue *va
         value->status : UA_STATUSCODE_BADNODATAAVAILABLE;
 }
 
-/* Build an owned fallback value. LastUsableValue starts with the metadata's
+/* Build a fallback write with an owned value and borrowed target identifiers.
+ * LastUsableValue starts with the metadata's
  * default value, not the separately configured OverrideValue (Part 14 Table 80). */
 static UA_StatusCode
 getTargetFallback(UA_PubSubManager *psm, UA_DataSetReader *dsr, size_t index,
-                   UA_StatusCode badStatus, UA_DataValue *value) {
-    /* Start with Null and the supplied Bad status. Disabled override handling
-     * uses this value without retaining any received payload. */
+                   UA_StatusCode badStatus, UA_WriteValue *wv) {
     UA_FieldTargetDataType *tv = &dsr->config.subscribedDataSet.target.targetVariables[index];
-    UA_DataValue_init(value);
+    UA_WriteValue_init(wv);
+    wv->nodeId = tv->targetNodeId;
+    wv->attributeId = tv->attributeId;
+    wv->indexRange = tv->writeIndexRange;
+    UA_DataValue *value = &wv->value;
+    if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED &&
+       badStatus == UA_STATUSCODE_BADTIMEOUT &&
+       tv->attributeId == UA_ATTRIBUTEID_VALUE) {
+        UA_StatusCode res = readTargetValue(psm, &tv->targetNodeId, value);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        /* Retain the complete target Value with timeout quality. */
+        wv->indexRange = UA_STRING_NULL;
+    }
     value->hasStatus = true;
     value->status = badStatus;
     if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED)
@@ -746,30 +758,9 @@ updateTargetValues(UA_PubSubManager *psm, UA_DataSetReader *dsr,
      * temporary values and continue with other targets if a write fails. */
     for(size_t i = 0; i < tvs->targetVariablesSize; i++) {
         UA_WriteValue wv;
-        UA_WriteValue_init(&wv);
-        UA_StatusCode res;
-        if(badStatus == UA_STATUSCODE_BADTIMEOUT &&
-           tvs->targetVariables[i].overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED &&
-           tvs->targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
-            /* With no configured override, retain the sample but mark its
-             * quality as timed out, including targets with an index range. */
-            res = readTargetValue(psm, &tvs->targetVariables[i].targetNodeId,
-                                   &wv.value);
-            wv.value.hasStatus = true;
-            wv.value.status = UA_STATUSCODE_BADTIMEOUT;
-        } else {
-            res = getTargetFallback(psm, dsr, i, badStatus, &wv.value);
-        }
-        if(res == UA_STATUSCODE_GOOD) {
-            wv.nodeId = tvs->targetVariables[i].targetNodeId;
-            wv.attributeId = tvs->targetVariables[i].attributeId;
-            wv.indexRange = tvs->targetVariables[i].writeIndexRange;
-            if(badStatus == UA_STATUSCODE_BADTIMEOUT &&
-               tvs->targetVariables[i].overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED &&
-               wv.attributeId == UA_ATTRIBUTEID_VALUE)
-                wv.indexRange = UA_STRING_NULL;
+        UA_StatusCode res = getTargetFallback(psm, dsr, i, badStatus, &wv);
+        if(res == UA_STATUSCODE_GOOD)
             Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &wv, &res);
-        }
         UA_DataValue_clear(&wv.value);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
@@ -1120,22 +1111,24 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         /* Replace missing or Bad input with an owned fallback value. Keep
          * usable received values, including Uncertain values, borrowed. */
         UA_DataValue writeValue = *field;
+        UA_String writeIndexRange = tv->writeIndexRange;
         UA_Boolean bad = !field->hasValue ||
             (field->hasStatus && UA_StatusCode_isBad(field->status));
         UA_Boolean fromReceivedValue = !bad;
-        UA_DataValue fallback;
-        UA_DataValue_init(&fallback);
+        UA_WriteValue fallback;
+        UA_WriteValue_init(&fallback);
         if(bad) {
             UA_StatusCode badStatus = (field->hasStatus &&
                 UA_StatusCode_isBad(field->status)) ? field->status :
                 UA_STATUSCODE_BADNODATAAVAILABLE;
             res = getTargetFallback(psm, dsr, targetIndex, badStatus, &fallback);
             if(res != UA_STATUSCODE_GOOD) {
-                UA_DataValue_clear(&fallback);
+                UA_DataValue_clear(&fallback.value);
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
                 return false;
             }
-            writeValue = fallback;
+            writeValue = fallback.value;
+            writeIndexRange = fallback.indexRange;
         }
 
         /* ReceiverIndexRange selects from the received value before the
@@ -1154,7 +1147,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                    "Invalid ReceiverIndexRange for field %u: %s",
                                    (unsigned)targetIndex, UA_StatusCode_name(res));
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
-                UA_DataValue_clear(&fallback);
+                UA_DataValue_clear(&fallback.value);
                 UA_Variant_clear(&rangedValue);
                 return false;
             }
@@ -1168,7 +1161,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_WriteValue writeVal;
         UA_WriteValue_init(&writeVal);
         writeVal.attributeId = tv->attributeId;
-        writeVal.indexRange = tv->writeIndexRange;
+        writeVal.indexRange = writeIndexRange;
         writeVal.nodeId = tv->targetNodeId;
         writeVal.value = writeValue;
         Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &writeVal, &res);
@@ -1177,7 +1170,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",
                                (unsigned)targetIndex, UA_StatusCode_name(res));
-            UA_DataValue_clear(&fallback);
+            UA_DataValue_clear(&fallback.value);
             UA_Variant_clear(&rangedValue);
             /* A target-specific write rejection must not disable the complete
              * reader. Later messages (or other targets in this message) may
@@ -1191,13 +1184,13 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             res = UA_DataValue_copy(&writeValue,
                                     &dsr->lastUsableValues[targetIndex]);
             if(res != UA_STATUSCODE_GOOD) {
-                UA_DataValue_clear(&fallback);
+                UA_DataValue_clear(&fallback.value);
                 UA_Variant_clear(&rangedValue);
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
                 return false;
             }
         }
-        UA_DataValue_clear(&fallback);
+        UA_DataValue_clear(&fallback.value);
         UA_Variant_clear(&rangedValue);
     }
     if(recovering) {
