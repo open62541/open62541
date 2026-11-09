@@ -535,11 +535,9 @@ START_TEST(accept_all_verify) {
     cg.logging = UA_Log_Stdout;
     UA_CertificateGroup_AcceptAll(&cg);
 
-    UA_ByteString cert;
-    cert.length = CERT_DER_LENGTH;
-    cert.data = CERT_DER_DATA;
-    UA_StatusCode retval = cg.verifyCertificate(&cg, &cert);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* The server and the client accept all certificates without
+     * verifyCertificate */
+    ck_assert(cg.verifyCertificate == NULL);
 
     /* All other function pointers should be NULL */
     ck_assert(cg.getTrustList == NULL);
@@ -563,12 +561,7 @@ START_TEST(accept_all_reinit) {
 
     /* Call again — should clear and re-init */
     UA_CertificateGroup_AcceptAll(&cg);
-
-    UA_ByteString cert;
-    cert.length = CERT_DER_LENGTH;
-    cert.data = CERT_DER_DATA;
-    UA_StatusCode retval = cg.verifyCertificate(&cg, &cert);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(cg.verifyCertificate == NULL);
 
     cg.clear(&cg);
 }

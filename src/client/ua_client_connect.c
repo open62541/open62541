@@ -2126,14 +2126,20 @@ initSecurityPolicy(UA_Client *client, const UA_ClientTransport *transport) {
     /* Verify the remote server certificate */
     UA_StatusCode res;
     if(client->endpoint.serverCertificate.length > 0) {
-        res = client->config.certificateVerification.
-            verifyCertificate(&client->config.certificateVerification,
-                              &client->endpoint.serverCertificate);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "Cannot validate the server certificate "
-                         "defined for the selected endpoint");
-            return res;
+        /* A CertificateGroup without verification accepts all certificates */
+        UA_CertificateGroup *cv = &client->config.certificateVerification;
+        if(cv->verifyCertificate) {
+            res = cv->verifyCertificate(cv, &client->endpoint.serverCertificate);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                             "Cannot validate the server certificate "
+                             "defined for the selected endpoint");
+                return res;
+            }
+        } else {
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                           "No certificate store configured. "
+                           "Accepting the server certificate.");
         }
 
         res = verifyServerCertificateEku(&client->config, sp,

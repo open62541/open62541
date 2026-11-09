@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### A CertificateGroup without verifyCertificate accepts all certificates
+
+`UA_CertificateGroup_AcceptAll` now leaves `verifyCertificate` NULL, and the
+server and the client accept every certificate of a CertificateGroup without
+`verifyCertificate`, with a warning per verification. Before, the server
+rejected the certificates of a CertificateGroup that was not configured. The
+default AccessControl always offers x509 user tokens.
+
 ### Default ValueRank is scalar
 
 The default `ValueRank` for `UA_VariableAttributes` and
