@@ -874,6 +874,112 @@ START_TEST(Test_add_remove) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_add_remove\n\n");
 } END_TEST
 
+static const UA_OverrideValueHandling fallbackModes[] = {
+    UA_OVERRIDEVALUEHANDLING_DISABLED,
+    UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE,
+    UA_OVERRIDEVALUEHANDLING_OVERRIDEVALUE
+};
+
+static UA_StatusCode
+customReaderWithFallback(UA_Server *s, UA_NodeId id, void *context,
+                          UA_PubSubState *state, UA_PubSubState targetState) {
+    *state = targetState;
+    return UA_Server_updateDataSetReaderTargetValues(s, id, *(UA_StatusCode*)context);
+}
+
+START_TEST(Test_custom_target_fallback) {
+    UA_NodeId connection, group, readerId, target;
+    AddConnection("CustomFallback", 1, &connection);
+    AddReaderGroup(&connection, "CustomFallback", &group);
+    AddDataSetReader(&group, "CustomFallback", 1, 1, 1, 0, &target, &readerId);
+
+    UA_Int32 override = 99;
+    UA_FieldTargetDataType tv;
+    UA_FieldTargetDataType_init(&tv);
+    tv.targetNodeId = target;
+    tv.attributeId = UA_ATTRIBUTEID_VALUE;
+    tv.overrideValueHandling = fallbackModes[_i];
+    UA_Variant_setScalar(&tv.overrideValue, &override, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_Server_setDataSetReaderTargetVariables(server, readerId, 1, &tv),
+                      UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *reader = UA_DataSetReader_find(psm, readerId);
+    ck_assert_ptr_ne(reader, NULL);
+    UA_Int32 input = 42;
+    UA_DataValue field;
+    UA_DataValue_init(&field);
+    field.hasValue = true;
+    UA_Variant_setScalar(&field.value, &input, &UA_TYPES[UA_TYPES_INT32]);
+    UA_DataSetMessage msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.header.dataSetMessageValid = true;
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    msg.fieldCount = 1;
+    msg.data.keyFrameFields = &field;
+
+    lockServer(server);
+    reader->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    ck_assert(UA_DataSetReader_process(psm, reader, &msg));
+    UA_StatusCode reason = UA_STATUSCODE_BADTIMEOUT;
+    reader->config.customStateMachine = customReaderWithFallback;
+    reader->config.context = &reason;
+    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_ERROR, reason), UA_STATUSCODE_GOOD);
+    ck_assert(!UA_DataSetReader_canRecover(reader));
+    ck_assert(!UA_DataSetReader_process(psm, reader, &msg));
+    ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
+    reader->config.customStateMachine = NULL;
+    reader->config.context = NULL;
+    unlockServer(server);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = target;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue value = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(value.hasValue);
+    ck_assert_int_eq(*(UA_Int32*)value.value.data,
+        fallbackModes[_i] == UA_OVERRIDEVALUEHANDLING_OVERRIDEVALUE ? 99 : 42);
+    UA_StatusCode expectedStatus =
+        fallbackModes[_i] == UA_OVERRIDEVALUEHANDLING_DISABLED ? UA_STATUSCODE_BADTIMEOUT :
+        (fallbackModes[_i] == UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE ?
+         UA_STATUSCODE_UNCERTAINLASTUSABLEVALUE : UA_STATUSCODE_GOODLOCALOVERRIDE);
+    ck_assert_uint_eq(value.status, expectedStatus);
+    UA_DataValue_clear(&value);
+
+    ck_assert_uint_eq(UA_Server_updateDataSetReaderTargetValues(NULL, readerId, reason),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_Server_updateDataSetReaderTargetValues(server,
+        UA_NODEID_NUMERIC(1, 999999), reason), UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(UA_Server_updateDataSetReaderTargetValues(server,
+        readerId, UA_STATUSCODE_GOOD), UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_FieldTargetDataType targets[2];
+    UA_FieldTargetDataType_init(&targets[0]);
+    UA_FieldTargetDataType_init(&targets[1]);
+    targets[0].targetNodeId = UA_NODEID_NUMERIC(1, 999999);
+    targets[1].targetNodeId = target;
+    targets[0].attributeId = targets[1].attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_setDataSetReaderTargetVariables(server, readerId, 2, targets),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_updateDataSetReaderTargetValues(server, readerId, reason),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_int_eq(reader->head.state, UA_PUBSUBSTATE_ERROR);
+    ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
+    value = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(value.hasValue);
+    ck_assert_uint_eq(value.status, UA_STATUSCODE_BADTIMEOUT);
+    UA_DataValue_clear(&value);
+
+    ck_assert_uint_eq(UA_Server_updateDataSetReaderTargetValues(server, readerId,
+        UA_STATUSCODE_BADNOCOMMUNICATION), UA_STATUSCODE_BADNODEIDUNKNOWN);
+    value = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(UA_Variant_isEmpty(&value.value));
+    ck_assert_uint_eq(value.status, UA_STATUSCODE_BADNOCOMMUNICATION);
+    UA_DataValue_clear(&value);
+} END_TEST
+
 int main(void) {
     TCase *tc_basic = tcase_create("Message Receive Timeout");
     tcase_add_checked_fixture(tc_basic, setup, teardown);
@@ -905,6 +1011,7 @@ int main(void) {
     */
     tcase_add_test(tc_basic, Test_update_config);
     tcase_add_test(tc_basic, Test_timeout_recovery_validation);
+    tcase_add_loop_test(tc_basic, Test_custom_target_fallback, 0, 3);
 
     /* test case description:
         - add and remove a reader without any operation -> check for memory leaks

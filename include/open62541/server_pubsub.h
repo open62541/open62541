@@ -864,6 +864,19 @@ UA_Server_setDataSetReaderTargetVariables(
     size_t targetVariablesSize,
     const UA_FieldTargetDataType *targetVariables);
 
+/* Apply the configured OverrideValueHandling to all targets for a Bad status.
+ * With disabled override handling, BadTimeout retains the current target Value;
+ * other Bad statuses write a Null value. LastUsableValue and OverrideValue use
+ * their configured fallback with UncertainLastUsableValue and GoodLocalOverride
+ * quality, respectively. All targets are attempted; a target update failure is
+ * returned to the caller.
+ *
+ * Custom state machines can call this helper from their callbacks. It does not
+ * change the reader state, manage timers, or enable automatic recovery. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updateDataSetReaderTargetValues(UA_Server *server, const UA_NodeId dsrId,
+                                          UA_StatusCode badStatus);
+
 /* Legacy API */
 #define UA_Server_DataSetReader_getConfig(server, dsrId, config) \
     UA_Server_getDataSetReaderConfig(server, dsrId, config)

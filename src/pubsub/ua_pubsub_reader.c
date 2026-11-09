@@ -654,6 +654,20 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     memset(cfg, 0, sizeof(UA_DataSetReaderConfig));
 }
 
+static UA_StatusCode
+readTargetValue(UA_PubSubManager *psm, const UA_NodeId *nodeId, UA_DataValue *value) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = *nodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    *value = readWithSession(psm->drv.server, &psm->drv.server->adminSession,
+                             &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+    if(value->hasValue)
+        return UA_STATUSCODE_GOOD;
+    return (value->hasStatus && UA_StatusCode_isBad(value->status)) ?
+        value->status : UA_STATUSCODE_BADNODATAAVAILABLE;
+}
+
 /* Build an owned fallback value. LastUsableValue starts with the metadata's
  * default value, not the separately configured OverrideValue (Part 14 Table 80). */
 static UA_StatusCode
@@ -723,11 +737,8 @@ getTargetFallback(UA_PubSubManager *psm, UA_DataSetReader *dsr, size_t index,
 }
 
 static UA_StatusCode
-updateTargetsForState(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
-    /* Translate the inactive reader state into target quality: communication
-     * failure for Error, and out of service for Disabled or Paused. */
-    UA_StatusCode badStatus = dsr->head.state == UA_PUBSUBSTATE_ERROR ?
-        UA_STATUSCODE_BADNOCOMMUNICATION : UA_STATUSCODE_BADOUTOFSERVICE;
+updateTargetValues(UA_PubSubManager *psm, UA_DataSetReader *dsr,
+                    UA_StatusCode badStatus) {
     UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;
     UA_StatusCode result = UA_STATUSCODE_GOOD;
 
@@ -737,18 +748,13 @@ updateTargetsForState(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
         UA_WriteValue wv;
         UA_WriteValue_init(&wv);
         UA_StatusCode res;
-        if(dsr->msgRcvTimedOut &&
+        if(badStatus == UA_STATUSCODE_BADTIMEOUT &&
            tvs->targetVariables[i].overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED &&
            tvs->targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
             /* With no configured override, retain the sample but mark its
              * quality as timed out, including targets with an index range. */
-            UA_ReadValueId rvi;
-            UA_ReadValueId_init(&rvi);
-            rvi.nodeId = tvs->targetVariables[i].targetNodeId;
-            rvi.attributeId = UA_ATTRIBUTEID_VALUE;
-            wv.value = readWithSession(psm->drv.server, &psm->drv.server->adminSession,
-                                       &rvi, UA_TIMESTAMPSTORETURN_BOTH);
-            res = UA_STATUSCODE_GOOD;
+            res = readTargetValue(psm, &tvs->targetVariables[i].targetNodeId,
+                                   &wv.value);
             wv.value.hasStatus = true;
             wv.value.status = UA_STATUSCODE_BADTIMEOUT;
         } else {
@@ -758,7 +764,7 @@ updateTargetsForState(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
             wv.nodeId = tvs->targetVariables[i].targetNodeId;
             wv.attributeId = tvs->targetVariables[i].attributeId;
             wv.indexRange = tvs->targetVariables[i].writeIndexRange;
-            if(dsr->msgRcvTimedOut &&
+            if(badStatus == UA_STATUSCODE_BADTIMEOUT &&
                tvs->targetVariables[i].overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED &&
                wv.attributeId == UA_ATTRIBUTEID_VALUE)
                 wv.indexRange = UA_STRING_NULL;
@@ -879,7 +885,10 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
        (dsr->head.state == UA_PUBSUBSTATE_DISABLED ||
         dsr->head.state == UA_PUBSUBSTATE_PAUSED ||
         dsr->head.state == UA_PUBSUBSTATE_ERROR)) {
-        UA_StatusCode targetResult = updateTargetsForState(psm, dsr);
+        UA_StatusCode badStatus = dsr->head.state == UA_PUBSUBSTATE_ERROR ?
+            (dsr->msgRcvTimedOut ? UA_STATUSCODE_BADTIMEOUT :
+             UA_STATUSCODE_BADNOCOMMUNICATION) : UA_STATUSCODE_BADOUTOFSERVICE;
+        UA_StatusCode targetResult = updateTargetValues(psm, dsr, badStatus);
         if(targetResult != UA_STATUSCODE_GOOD)
             res = targetResult;
     }
@@ -1312,6 +1321,28 @@ UA_Server_setDataSetReaderTargetVariables(UA_Server *server, const UA_NodeId dsr
     UA_StatusCode res = (dsr) ?
         DataSetReader_createTargetVariables(psm, dsr, targetVariablesSize,
                                             targetVariables) : UA_STATUSCODE_BADNOTFOUND;
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updateDataSetReaderTargetValues(UA_Server *server, const UA_NodeId dsrId,
+                                          UA_StatusCode badStatus) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(dsr) {
+        if(UA_StatusCode_isBad(badStatus)) {
+            res = updateTargetValues(psm, dsr, badStatus);
+        } else {
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                  "Target fallback updates require a Bad status");
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
     unlockServer(server);
     return res;
 }
