@@ -86,7 +86,7 @@ void EFParseContext_clear(EFParseContext *ctx);
 char * save_string(char *str);
 Operand * create_operand(EFParseContext *ctx, OperandType ot);
 Operand * create_operator(EFParseContext *ctx, UA_FilterOperator fo);
-void append_operand(Operand *op, Operand *on);
+void append_operand(EFParseContext *ctx, Operand *op, Operand *on);
 void append_select(EFParseContext *ctx, Operand *on);
 UA_StatusCode create_filter(EFParseContext *ctx, UA_EventFilter *filter);
 

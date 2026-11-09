@@ -55,13 +55,13 @@ operand(OP) ::= LITERAL(LIT) .              { OP = LIT; }
 operand(OP) ::= NAMEDOPERAND(NO) .          { OP = NO; }
 operand(OP) ::= LPAREN operand(O1) RPAREN . { OP = O1; }
 
-operator(OP) ::= NOT(F) operand(O1) .                   { OP = F; append_operand(OP, O1); }
-operator(OP) ::= UNARY_OP(F) operand(O1) .              { OP = F; append_operand(OP, O1); }
-operator(OP) ::= operand(O1) OR(F) operand(O2) .        { OP = F; append_operand(OP, O1), append_operand(OP, O2); }
-operator(OP) ::= operand(O1) AND(F) operand(O2) .       { OP = F; append_operand(OP, O1), append_operand(OP, O2); }
-operator(OP) ::= operand(O1) BINARY_OP(F) operand(O2) . { OP = F; append_operand(OP, O1), append_operand(OP, O2); }
-operator(OP) ::= operand(O1) INLIST(F) LBRACKET operandList(OL) RBRACKET .                { OP = F; append_operand(OP, O1); while(OL) { append_operand(OP, OL); OL = OL->next; } }
-operator(OP) ::= operand(O1) BETWEEN(F) LBRACKET operand(O2) COMMA operand(O3) RBRACKET . { OP = F; append_operand(OP, O1); append_operand(OP, O2); append_operand(OP, O3); }
+operator(OP) ::= NOT(F) operand(O1) .                   { OP = F; append_operand(ctx, OP, O1); }
+operator(OP) ::= UNARY_OP(F) operand(O1) .              { OP = F; append_operand(ctx, OP, O1); }
+operator(OP) ::= operand(O1) OR(F) operand(O2) .        { OP = F; append_operand(ctx, OP, O1), append_operand(ctx, OP, O2); }
+operator(OP) ::= operand(O1) AND(F) operand(O2) .       { OP = F; append_operand(ctx, OP, O1), append_operand(ctx, OP, O2); }
+operator(OP) ::= operand(O1) BINARY_OP(F) operand(O2) . { OP = F; append_operand(ctx, OP, O1), append_operand(ctx, OP, O2); }
+operator(OP) ::= operand(O1) INLIST(F) LBRACKET operandList(OL) RBRACKET .                { OP = F; append_operand(ctx, OP, O1); while(OL) { append_operand(ctx, OP, OL); OL = OL->next; } }
+operator(OP) ::= operand(O1) BETWEEN(F) LBRACKET operand(O2) COMMA operand(O3) RBRACKET . { OP = F; append_operand(ctx, OP, O1); append_operand(ctx, OP, O2); append_operand(ctx, OP, O3); }
 
 operandList(OL) ::= operand(O1) .                         { OL = O1; }
 operandList(OL) ::= operand(O1) COMMA operandList(LIST) . { OL = O1; O1->next = LIST; }
@@ -71,7 +71,7 @@ forClause ::= FOR namedOperandAssignmentList .
 
 namedOperandAssignmentList ::= namedOperandAssignment .
 namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment .
-namedOperandAssignment ::= NAMEDOPERAND(NAME) COLONEQUAL operand(OP) . { OP->ref = save_string(NAME->operand.ref); }
+namedOperandAssignment ::= NAMEDOPERAND(NAME) COLONEQUAL operand(OP) . { OP->ref = save_string(NAME->operand.ref); if(!OP->ref) ctx->error = UA_STATUSCODE_BADOUTOFMEMORY; }
 
 %code {
 
