@@ -324,6 +324,7 @@ ua_add_test(server/check_subscription_publishqueue.c)
         ua_add_test(server/check_subscription_events.c)
         ua_add_test(server/check_subscription_events_local.c)
         ua_add_test(server/check_subscription_event_filter.c)
+        ua_add_test(server/check_subscription_event_filter_cast.c)
     endif()
 endif()
 
