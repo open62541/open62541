@@ -1513,7 +1513,7 @@ UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
     if(readStagedKey && *readStagedKey) {
         if(!newPrivateKey || newPrivateKey->length > 0)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(mbedtls_pk_get_type(&pc->csrLocalPrivateKey) == MBEDTLS_PK_NONE)
+        if(!UA_mbedTLS_compat_hasKey(&pc->csrLocalPrivateKey))
             return UA_STATUSCODE_GOOD;
         return mbedtls_writePrivateKeyDer(&pc->csrLocalPrivateKey, newPrivateKey);
     }

@@ -19,6 +19,10 @@ UA_mbedTLS_compat_parsePrivateKey(mbedtls_pk_context *target,
                                   const unsigned char *password,
                                   size_t passwordLength);
 
+/* True if the context holds any key (public or key pair) */
+UA_Boolean
+UA_mbedTLS_compat_hasKey(const mbedtls_pk_context *key);
+
 UA_Boolean
 UA_mbedTLS_compat_isEccKeyPair(const mbedtls_pk_context *key);
 
