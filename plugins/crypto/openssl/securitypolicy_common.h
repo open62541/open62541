@@ -52,6 +52,15 @@ _UA_BEGIN_DECLS
 #define get_error_line_data(pFile, pLine, pData, pFlags) ERR_get_error_all(pFile, pLine, NULL, pData, pFlags)
 #endif
 
+/* The object fetched once per process for a constant such as
+ * EVP_aes_128_gcm(). Before OpenSSL 3.0 there is nothing to fetch. */
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+const EVP_CIPHER *
+UA_OpenSSL_fetchedCipher(const EVP_CIPHER *cipher);
+#else
+#define UA_OpenSSL_fetchedCipher(cipher) (cipher)
+#endif
+
 typedef struct {
     UA_ByteString localSymSigningKey;
     UA_ByteString localSymEncryptingKey;

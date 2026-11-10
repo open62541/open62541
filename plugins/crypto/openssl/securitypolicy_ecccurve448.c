@@ -350,7 +350,7 @@ UA_SymSig_EccCurve448_sign(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+    if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()), NULL, NULL, NULL) != 1)
         goto errout;
     if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
         goto errout;
@@ -405,7 +405,7 @@ UA_SymSig_EccCurve448_verify(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+    if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()), NULL, NULL, NULL) != 1)
         goto errout;
     if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
         goto errout;

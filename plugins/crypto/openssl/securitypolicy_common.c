@@ -31,6 +31,7 @@
 
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
 #include <openssl/core_names.h>
+#include <openssl/params.h>
 #endif
 
 #include "securitypolicy_common.h"
@@ -81,6 +82,171 @@ UA_Openssl_Init(void) {
 #endif
     bInit = 1;
 #endif
+}
+
+#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
+/* Algorithms used per message or per key are fetched once per process and
+ * passed to the operations */
+static CRYPTO_ONCE fetchedOnce = CRYPTO_ONCE_STATIC_INIT;
+static EVP_CIPHER *fetchedAes128Cbc;
+static EVP_CIPHER *fetchedAes256Cbc;
+static EVP_CIPHER *fetchedAes128Gcm;
+static EVP_CIPHER *fetchedChaCha20Poly1305;
+static EVP_KDF *fetchedHkdf;
+static EVP_MD *fetchedSha1;
+/* HMAC with the digest set but no key */
+static EVP_MAC_CTX *fetchedHmacSha1;
+static EVP_MAC_CTX *fetchedHmacSha256;
+static EVP_MAC_CTX *fetchedHmacSha384;
+
+static void
+freeFetchedAlgorithms(void) {
+    EVP_CIPHER_free(fetchedAes128Cbc);
+    EVP_CIPHER_free(fetchedAes256Cbc);
+    EVP_CIPHER_free(fetchedAes128Gcm);
+    EVP_CIPHER_free(fetchedChaCha20Poly1305);
+    EVP_KDF_free(fetchedHkdf);
+    EVP_MD_free(fetchedSha1);
+    EVP_MAC_CTX_free(fetchedHmacSha1);
+    EVP_MAC_CTX_free(fetchedHmacSha256);
+    EVP_MAC_CTX_free(fetchedHmacSha384);
+}
+
+static EVP_MAC_CTX *
+newHmacCtx(EVP_MAC *mac, const char *digest) {
+    EVP_MAC_CTX *ctx = EVP_MAC_CTX_new(mac);
+    OSSL_PARAM params[2];
+    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST,
+                                                 (char *)(uintptr_t)digest, 0);
+    params[1] = OSSL_PARAM_construct_end();
+    if(ctx && EVP_MAC_CTX_set_params(ctx, params) != 1) {
+        EVP_MAC_CTX_free(ctx);
+        ctx = NULL;
+    }
+    return ctx;
+}
+
+static void
+fetchAlgorithms(void) {
+    if(OPENSSL_atexit(freeFetchedAlgorithms) != 1)
+        return;
+    /* On a failed fetch, the callers fall back to the constant */
+    fetchedAes128Cbc = EVP_CIPHER_fetch(NULL, "AES-128-CBC", NULL);
+    fetchedAes256Cbc = EVP_CIPHER_fetch(NULL, "AES-256-CBC", NULL);
+    fetchedAes128Gcm = EVP_CIPHER_fetch(NULL, "AES-128-GCM", NULL);
+    fetchedChaCha20Poly1305 = EVP_CIPHER_fetch(NULL, "ChaCha20-Poly1305", NULL);
+    fetchedHkdf = EVP_KDF_fetch(NULL, "HKDF", NULL);
+    fetchedSha1 = EVP_MD_fetch(NULL, "SHA1", NULL);
+    EVP_MAC *mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
+    if(!mac)
+        return;
+    fetchedHmacSha1 = newHmacCtx(mac, "SHA1");
+    fetchedHmacSha256 = newHmacCtx(mac, "SHA256");
+    fetchedHmacSha384 = newHmacCtx(mac, "SHA384");
+    EVP_MAC_free(mac);
+}
+
+const EVP_CIPHER *
+UA_OpenSSL_fetchedCipher(const EVP_CIPHER *cipher) {
+    if(CRYPTO_THREAD_run_once(&fetchedOnce, fetchAlgorithms) != 1)
+        return cipher;
+    const EVP_CIPHER *fetched = NULL;
+    if(cipher == EVP_aes_128_cbc())
+        fetched = fetchedAes128Cbc;
+    else if(cipher == EVP_aes_256_cbc())
+        fetched = fetchedAes256Cbc;
+    else if(cipher == EVP_aes_128_gcm())
+        fetched = fetchedAes128Gcm;
+    else if(cipher == EVP_chacha20_poly1305())
+        fetched = fetchedChaCha20Poly1305;
+    return fetched ? fetched : cipher;
+}
+
+static const EVP_MAC_CTX *
+fetchedHmac(const EVP_MD *md) {
+    if(CRYPTO_THREAD_run_once(&fetchedOnce, fetchAlgorithms) != 1)
+        return NULL;
+    if(md == EVP_sha1())
+        return fetchedHmacSha1;
+    if(md == EVP_sha256())
+        return fetchedHmacSha256;
+    if(md == EVP_sha384())
+        return fetchedHmacSha384;
+    return NULL;
+}
+
+static const EVP_MD *
+fetchedDigest(const EVP_MD *md) {
+    if(CRYPTO_THREAD_run_once(&fetchedOnce, fetchAlgorithms) != 1)
+        return md;
+    if(md == EVP_sha1() && fetchedSha1)
+        return fetchedSha1;
+    return md;
+}
+
+static EVP_KDF *
+fetchedKdfHkdf(void) {
+    if(CRYPTO_THREAD_run_once(&fetchedOnce, fetchAlgorithms) != 1)
+        return NULL;
+    return fetchedHkdf;
+}
+
+/* HMAC context without a key, duplicated from the prefetched template */
+static EVP_MAC_CTX *
+newHmacCtxForDigest(const EVP_MD *md) {
+    const EVP_MAC_CTX *prepared = fetchedHmac(md);
+    if(prepared)
+        return EVP_MAC_CTX_dup(prepared);
+    EVP_MAC *mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
+    if(!mac)
+        return NULL;
+    EVP_MAC_CTX *ctx = newHmacCtx(mac, EVP_MD_get0_name(md));
+    EVP_MAC_free(mac); /* the context holds its own reference */
+    return ctx;
+}
+
+/* EVP_MAC_init treats a NULL key as "keep the current key", so an empty key
+ * needs a valid pointer */
+static const unsigned char *
+macKeyPointer(const UA_ByteString *key) {
+    static const unsigned char emptyKey = 0;
+    return key->length > 0 ? key->data : &emptyKey;
+}
+#else
+#define fetchedDigest(md) (md)
+#endif
+
+static UA_StatusCode
+UA_OpenSSL_HMAC(const EVP_MD *md, const UA_ByteString *key,
+                const UA_ByteString *message, UA_ByteString *signature) {
+#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    EVP_MAC_CTX *ctx = newHmacCtxForDigest(md);
+    if(ctx &&
+       EVP_MAC_init(ctx, macKeyPointer(key), key->length, NULL) == 1 &&
+       EVP_MAC_update(ctx, message->data, message->length) == 1 &&
+       EVP_MAC_final(ctx, signature->data, &signature->length,
+                     signature->length) == 1)
+        res = UA_STATUSCODE_GOOD;
+    EVP_MAC_CTX_free(ctx);
+    return res;
+#else
+    if(HMAC(md, key->data, (int)key->length, message->data, message->length,
+            signature->data, (unsigned int *)&signature->length) == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#endif
+}
+
+/* HMAC over raw buffers, for the P_SHA key derivation. out may equal msg. */
+static UA_StatusCode
+UA_OpenSSL_HMAC_raw(const EVP_MD *md, const UA_Byte *key, size_t keyLength,
+                    const UA_Byte *msg, size_t msgLength,
+                    UA_Byte *out, size_t outLength) {
+    UA_ByteString k = {keyLength, (UA_Byte *)(uintptr_t)key};
+    UA_ByteString m = {msgLength, (UA_Byte *)(uintptr_t)msg};
+    UA_ByteString o = {outLength, out};
+    return UA_OpenSSL_HMAC(md, &k, &m, &o);
 }
 
 static int UA_OpenSSL_RSA_Key_Size(EVP_PKEY * key){
@@ -207,7 +373,8 @@ UA_Openssl_X509_GetCertificateThumbprint(const UA_ByteString *certficate,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(X509_digest(x509Certificate, EVP_sha1(), pThumbprint->data, NULL) != 1) {
+    if(X509_digest(x509Certificate, fetchedDigest(EVP_sha1()),
+                   pThumbprint->data, NULL) != 1) {
         if(bThumbPrint)
             UA_ByteString_clear(pThumbprint);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -541,8 +708,9 @@ P_SHA256_Ctx_Create(const UA_ByteString *secret,
     /* A(0) = seed
        A(n) = HMAC_HASH(secret, A(n-1)) */
 
-    if(HMAC(EVP_sha256(), secret->data, (int) secret->length, seed->data,
-            seed->length, ctx->A, NULL) == NULL) {
+    if(UA_OpenSSL_HMAC_raw(EVP_sha256(), secret->data, secret->length,
+                           seed->data, seed->length,
+                           ctx->A, sizeof(ctx->A)) != UA_STATUSCODE_GOOD) {
         P_SHA256_Ctx_Free(ctx);
         return NULL;
     }
@@ -554,14 +722,16 @@ static UA_StatusCode
 P_SHA256_Hash_Generate(UA_Openssl_P_SHA256_Ctx *ctx,
                        UA_Byte *pHas) {
     /* Calculate P_SHA256(n) = HMAC_SHA256(secret, A(n)+seed) */
-    if(HMAC(EVP_sha256(),UA_Openssl_P_SHA256_SECRET(ctx), (int) ctx->secretLen,
-             ctx->A, sizeof(ctx->A) + ctx->seedLen, pHas, NULL) == NULL) {
+    if(UA_OpenSSL_HMAC_raw(EVP_sha256(), UA_Openssl_P_SHA256_SECRET(ctx),
+                           ctx->secretLen, ctx->A, sizeof(ctx->A) + ctx->seedLen,
+                           pHas, SHA256_DIGEST_LENGTH) != UA_STATUSCODE_GOOD) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Calculate A(n) = HMAC_SHA256(secret, A(n-1)) */
-    if(HMAC(EVP_sha256(),UA_Openssl_P_SHA256_SECRET(ctx), (int) ctx->secretLen,
-            ctx->A, sizeof (ctx->A), ctx->A, NULL) == NULL) {
+    if(UA_OpenSSL_HMAC_raw(EVP_sha256(), UA_Openssl_P_SHA256_SECRET(ctx),
+                           ctx->secretLen, ctx->A, sizeof(ctx->A),
+                           ctx->A, sizeof(ctx->A)) != UA_STATUSCODE_GOOD) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
@@ -708,10 +878,8 @@ UA_OpenSSL_HMAC_SHA256_Verify(const UA_ByteString *message,
     unsigned char buf[SHA256_DIGEST_LENGTH] = {0};
     UA_ByteString mac = {SHA256_DIGEST_LENGTH, buf};
 
-    if(HMAC(EVP_sha256(), key->data, (int) key->length, message->data, message->length,
-            mac.data, (unsigned int *) &mac.length) == NULL) {
+    if(UA_OpenSSL_HMAC(EVP_sha256(), key, message, &mac) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     if(signature->length != mac.length ||
        !UA_constantTimeEqual(signature->data, mac.data, mac.length))
@@ -723,11 +891,7 @@ UA_StatusCode
 UA_OpenSSL_HMAC_SHA256_Sign(const UA_ByteString *message,
                             const UA_ByteString *key,
                             UA_ByteString *signature) {
-    if(HMAC(EVP_sha256(), key->data, (int)key->length, message->data, message->length,
-            signature->data, (unsigned int *) &(signature->length)) == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
+    return UA_OpenSSL_HMAC(EVP_sha256(), key, message, signature);
 }
 
 static UA_StatusCode
@@ -760,7 +924,8 @@ UA_OpenSSL_Decrypt(const UA_ByteString *iv,
     }
 
     /* call EVP_* to decrypt */
-    opensslRet = EVP_DecryptInit_ex(ctx, cipherAlg, NULL, key->data, ivCopy.data);
+    opensslRet = EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(cipherAlg), NULL,
+                                    key->data, ivCopy.data);
     if(opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -824,7 +989,8 @@ UA_OpenSSL_Encrypt(const UA_ByteString * iv,
 
     /* call EVP_* to encrypt */
 
-    opensslRet = EVP_EncryptInit_ex(ctx, cipherAlg, NULL, key->data, ivCopy.data);
+    opensslRet = EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(cipherAlg), NULL,
+                                    key->data, ivCopy.data);
     if(opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -938,8 +1104,9 @@ P_SHA1_Ctx_Create(const UA_ByteString *  secret,
     /* A(0) = seed
        A(n) = HMAC_HASH(secret, A(n-1)) */
 
-    if(HMAC(EVP_sha1(), secret->data, (int) secret->length, seed->data,
-            seed->length, ctx->A, NULL) == NULL) {
+    if(UA_OpenSSL_HMAC_raw(EVP_sha1(), secret->data, secret->length,
+                           seed->data, seed->length,
+                           ctx->A, sizeof(ctx->A)) != UA_STATUSCODE_GOOD) {
         P_SHA1_Ctx_Free(ctx);
         return NULL;
     }
@@ -951,14 +1118,16 @@ static UA_StatusCode
 P_SHA1_Hash_Generate(UA_Openssl_P_SHA1_Ctx * ctx,
                      UA_Byte *               pHas) {
     /* Calculate P_SHA1(n) = HMAC_SHA1(secret, A(n)+seed) */
-    if(HMAC(EVP_sha1 (), UA_Openssl_P_SHA1_SECRET(ctx), (int) ctx->secretLen,
-            ctx->A, sizeof (ctx->A) + ctx->seedLen, pHas, NULL) == NULL) {
+    if(UA_OpenSSL_HMAC_raw(EVP_sha1(), UA_Openssl_P_SHA1_SECRET(ctx),
+                           ctx->secretLen, ctx->A, sizeof(ctx->A) + ctx->seedLen,
+                           pHas, SHA1_DIGEST_LENGTH) != UA_STATUSCODE_GOOD) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Calculate A(n) = HMAC_SHA1(secret, A(n-1)) */
-   if(HMAC(EVP_sha1(), UA_Openssl_P_SHA1_SECRET(ctx), (int) ctx->secretLen,
-           ctx->A, sizeof (ctx->A), ctx->A, NULL) == NULL) {
+   if(UA_OpenSSL_HMAC_raw(EVP_sha1(), UA_Openssl_P_SHA1_SECRET(ctx),
+                          ctx->secretLen, ctx->A, sizeof(ctx->A),
+                          ctx->A, sizeof(ctx->A)) != UA_STATUSCODE_GOOD) {
        return UA_STATUSCODE_BADINTERNALERROR;
    }
     return UA_STATUSCODE_GOOD;
@@ -1007,8 +1176,7 @@ UA_OpenSSL_HMAC_SHA1_Verify(const UA_ByteString *message,
     unsigned char buf[SHA1_DIGEST_LENGTH] = {0};
     UA_ByteString mac = {SHA1_DIGEST_LENGTH, buf};
 
-    if(HMAC(EVP_sha1(), key->data, (int) key->length, message->data, message->length,
-            mac.data, (unsigned int *) &mac.length) == NULL) {
+    if(UA_OpenSSL_HMAC(EVP_sha1(), key, message, &mac) != UA_STATUSCODE_GOOD) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1022,8 +1190,7 @@ UA_StatusCode
 UA_OpenSSL_HMAC_SHA1_Sign(const UA_ByteString *     message,
                           const UA_ByteString *     key,
                           UA_ByteString *           signature) {
-    if(HMAC(EVP_sha1(), key->data, (int)key->length, message->data, message->length,
-            signature->data, (unsigned int *) &(signature->length)) == NULL) {
+    if(UA_OpenSSL_HMAC(EVP_sha1(), key, message, signature) != UA_STATUSCODE_GOOD) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
@@ -1910,12 +2077,12 @@ UA_OpenSSL_HKDF(char * hashAlgorithm,
                 const UA_ByteString * info,
                 UA_ByteString * out) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    EVP_KDF * kdf = NULL;
+    EVP_KDF * kdf = NULL; /* prefetched, not freed here */
     EVP_KDF_CTX * kctx = NULL;
     OSSL_PARAM params[5];
     OSSL_PARAM * p = params;
 
-    kdf = EVP_KDF_fetch(NULL, "HKDF", NULL);
+    kdf = fetchedKdfHkdf();
     if(kdf == NULL) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -1940,7 +2107,6 @@ UA_OpenSSL_HKDF(char * hashAlgorithm,
     }
 
 errout:
-    EVP_KDF_free(kdf);
     EVP_KDF_CTX_free(kctx);
 
     return ret;
@@ -2500,10 +2666,8 @@ UA_OpenSSL_HMAC_SHA384_Verify(const UA_ByteString *message,
     unsigned char buf[SHA384_DIGEST_LENGTH] = {0};
     UA_ByteString mac = {SHA384_DIGEST_LENGTH, buf};
 
-    if(HMAC(EVP_sha384(), key->data, (int) key->length, message->data, message->length,
-            mac.data, (unsigned int *) &mac.length) == NULL) {
+    if(UA_OpenSSL_HMAC(EVP_sha384(), key, message, &mac) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     if(signature->length != mac.length ||
        !UA_constantTimeEqual(signature->data, mac.data, mac.length))
@@ -2515,11 +2679,7 @@ UA_StatusCode
 UA_OpenSSL_HMAC_SHA384_Sign(const UA_ByteString *message,
                             const UA_ByteString *key,
                             UA_ByteString *signature) {
-    if(HMAC(EVP_sha384(), key->data, (int)key->length, message->data, message->length,
-            signature->data, (unsigned int *) &(signature->length)) == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
+    return UA_OpenSSL_HMAC(EVP_sha384(), key, message, signature);
 }
 
 /* EdDSA Ed25519 Sign/Verify */
@@ -2873,7 +3033,7 @@ UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(),
+        if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()),
                               NULL, NULL, NULL) != 1)
             goto so_errout;
         if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
@@ -2913,7 +3073,8 @@ UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+    if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()),
+                          NULL, NULL, NULL) != 1)
         goto errout;
 
     /* Set IV length to 12 */
@@ -2974,7 +3135,7 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(),
+        if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()),
                               NULL, NULL, NULL) != 1)
             goto vo_errout;
         if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
@@ -3021,7 +3182,8 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+    if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()),
+                          NULL, NULL, NULL) != 1)
         goto d_errout;
 
     if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
@@ -3086,7 +3248,7 @@ UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(),
+        if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_aes_128_gcm()),
                               NULL, NULL, NULL) != 1)
             goto so_errout;
         if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
@@ -3126,7 +3288,8 @@ UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1)
+    if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_aes_128_gcm()),
+                          NULL, NULL, NULL) != 1)
         goto errout;
 
     /* Set IV length to 12 (the GCM spec default; explicit for clarity) */
@@ -3187,7 +3350,7 @@ UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(),
+        if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_aes_128_gcm()),
                               NULL, NULL, NULL) != 1)
             goto vo_errout;
         if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
@@ -3234,7 +3397,8 @@ UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1)
+    if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_aes_128_gcm()),
+                          NULL, NULL, NULL) != 1)
         goto d_errout;
 
     if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
