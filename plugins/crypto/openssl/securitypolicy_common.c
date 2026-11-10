@@ -1041,34 +1041,39 @@ UA_OpenSSL_SymContexts_init(UA_OpenSSL_SymContexts *sym) {
     memset(sym, 0, sizeof(*sym));
 }
 
-/* Frees a prepared context, e.g. when its key is replaced. It is rebuilt
- * with the new key on the next use. */
 static void
-dropMacCtx(UA_OpenSSL_SymContexts *sym, UA_Boolean local) {
-#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
-    EVP_MAC_CTX **ctx = local ? &sym->localMac : &sym->remoteMac;
-    EVP_MAC_CTX_free(*ctx);
-    *ctx = NULL;
-#else
-    (void)sym;
-    (void)local;
-#endif
-}
-
-static void
-dropCipherCtx(UA_OpenSSL_SymContexts *sym, UA_Boolean local) {
-    EVP_CIPHER_CTX **ctx = local ? &sym->localCipher : &sym->remoteCipher;
+freeCipherCtx(EVP_CIPHER_CTX **ctx) {
     EVP_CIPHER_CTX_free(*ctx);
     *ctx = NULL;
 }
 
-/* TODO: confirm that freeing the contexts clears their key material */
+/* The contexts are rebuilt with the new key on the next use */
+void
+UA_OpenSSL_SymContexts_signingKeyChanged(UA_OpenSSL_SymContexts *sym,
+                                         UA_Boolean local) {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    EVP_MAC_CTX **mac = local ? &sym->localMac : &sym->remoteMac;
+    EVP_MAC_CTX_free(*mac);
+    *mac = NULL;
+#endif
+    freeCipherCtx(local ? &sym->localTag : &sym->remoteTag);
+}
+
+void
+UA_OpenSSL_SymContexts_encryptingKeyChanged(UA_OpenSSL_SymContexts *sym,
+                                            UA_Boolean local) {
+    freeCipherCtx(local ? &sym->localCipher : &sym->remoteCipher);
+    /* Some AEAD policies compute the tags with the encrypting key */
+    freeCipherCtx(local ? &sym->localTag : &sym->remoteTag);
+}
+
+/* OpenSSL clears the key material of the contexts when freeing them */
 void
 UA_OpenSSL_SymContexts_clear(UA_OpenSSL_SymContexts *sym) {
-    dropMacCtx(sym, true);
-    dropMacCtx(sym, false);
-    dropCipherCtx(sym, true);
-    dropCipherCtx(sym, false);
+    UA_OpenSSL_SymContexts_signingKeyChanged(sym, true);
+    UA_OpenSSL_SymContexts_signingKeyChanged(sym, false);
+    UA_OpenSSL_SymContexts_encryptingKeyChanged(sym, true);
+    UA_OpenSSL_SymContexts_encryptingKeyChanged(sym, false);
 }
 
 /* Takes a prepared context if no other thread uses it */
@@ -1227,20 +1232,6 @@ UA_OpenSSL_Sym_decrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
     UA_StatusCode res = symCrypt(&sym->remoteCipher, cipher, key, iv, data, 0);
     releaseCtx(&sym->remoteCipherBusy);
     return res;
-}
-
-UA_StatusCode
-UA_OpenSSL_AES_256_CBC_Decrypt(const UA_ByteString * iv,
-                               const UA_ByteString * key,
-                               UA_ByteString *       data  /* [in/out]*/) {
-    return UA_OpenSSL_Decrypt(iv, key, EVP_aes_256_cbc(), data);
-}
-
-UA_StatusCode
-UA_OpenSSL_AES_256_CBC_Encrypt(const UA_ByteString * iv,
-                               const UA_ByteString * key,
-                               UA_ByteString *       data  /* [in/out]*/) {
-    return UA_OpenSSL_Encrypt(iv, key, EVP_aes_256_cbc(), data);
 }
 
 UA_StatusCode
@@ -1411,20 +1402,6 @@ UA_Openssl_RSA_PKCS1_V15_Encrypt(UA_ByteString * data,
                                         paddingSize, data, false);
     UA_ByteString_clear(&message);
     return ret;
-}
-
-UA_StatusCode
-UA_OpenSSL_AES_128_CBC_Decrypt(const UA_ByteString * iv,
-                               const UA_ByteString * key,
-                               UA_ByteString *       data  /* [in/out]*/) {
-    return UA_OpenSSL_Decrypt(iv, key, EVP_aes_128_cbc(), data);
-}
-
-UA_StatusCode
-UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString * iv,
-                               const UA_ByteString * key,
-                               UA_ByteString *       data  /* [in/out]*/) {
-    return UA_OpenSSL_Encrypt(iv, key, EVP_aes_128_cbc(), data);
 }
 
 #ifdef _WIN32
@@ -1911,7 +1888,7 @@ UA_OpenSSL_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    dropMacCtx(&cc->sym, true);
+    UA_OpenSSL_SymContexts_signingKeyChanged(&cc->sym, true);
     UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
@@ -1923,7 +1900,7 @@ UA_OpenSSL_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    dropCipherCtx(&cc->sym, true);
+    UA_OpenSSL_SymContexts_encryptingKeyChanged(&cc->sym, true);
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
@@ -1946,7 +1923,7 @@ UA_OpenSSL_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    dropMacCtx(&cc->sym, false);
+    UA_OpenSSL_SymContexts_signingKeyChanged(&cc->sym, false);
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
@@ -1958,7 +1935,7 @@ UA_OpenSSL_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    dropCipherCtx(&cc->sym, false);
+    UA_OpenSSL_SymContexts_encryptingKeyChanged(&cc->sym, false);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
@@ -3267,6 +3244,28 @@ aeadTemporary(const EVP_CIPHER *cipher, const UA_ByteString *key, int seal,
     return res;
 }
 
+/* The prepared context, or a temporary one while another thread uses it */
+static UA_StatusCode
+aeadPrepared(EVP_CIPHER_CTX **slot, UA_atomic(uintptr_t) *busy,
+             const EVP_CIPHER *cipher, const UA_ByteString *key, int seal,
+             const UA_ByteString *iv, const UA_ByteString *aad,
+             UA_Byte *data, size_t length, UA_Boolean crypt, UA_Byte *tag) {
+    if(iv->length != UA_OPENSSL_AEAD_IV_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!tryAcquireCtx(busy))
+        return aeadTemporary(cipher, key, seal, iv->data, aad, data, length,
+                             crypt, tag);
+    if(!*slot)
+        *slot = newAeadCtx(cipher, key, seal);
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    if(*slot)
+        res = aeadRun(*slot, seal, iv->data, aad, data, length, crypt, tag);
+    if(res == UA_STATUSCODE_BADINTERNALERROR)
+        freeCipherCtx(slot); /* rebuilt on the next use */
+    releaseCtx(busy);
+    return res;
+}
+
 /* data ends with the tag */
 static UA_StatusCode
 aeadOneShot(const EVP_CIPHER *cipher, int seal, const UA_ByteString *iv,
@@ -3322,6 +3321,70 @@ UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
     return aeadOneShot(EVP_aes_128_gcm(), 0, iv, key, aad, data, decryptData);
 }
 
+UA_StatusCode
+UA_OpenSSL_aeadMessageIv(const UA_ByteString *baseIv, UA_UInt32 tokenId,
+                         UA_UInt32 previousSequenceNumber, UA_Byte iv[12]) {
+    if(baseIv->length < UA_OPENSSL_AEAD_IV_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    memcpy(iv, baseIv->data, UA_OPENSSL_AEAD_IV_LENGTH);
+    for(size_t i = 0; i < 4; i++) {
+        iv[i] ^= (UA_Byte)(tokenId >> (8 * i));
+        iv[4 + i] ^= (UA_Byte)(previousSequenceNumber >> (8 * i));
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadEncrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                           const UA_ByteString *key, const UA_ByteString *iv,
+                           const UA_ByteString *aad, UA_ByteString *data) {
+    if(data->length < UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t length = data->length - UA_OPENSSL_AEAD_TAG_LENGTH;
+    return aeadPrepared(&sym->localCipher, &sym->localCipherBusy, cipher, key,
+                        1, iv, aad, data->data, length, true,
+                        data->data + length);
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadDecrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                           const UA_ByteString *key, const UA_ByteString *iv,
+                           const UA_ByteString *aad, UA_ByteString *data) {
+    if(data->length < UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t length = data->length - UA_OPENSSL_AEAD_TAG_LENGTH;
+    UA_StatusCode res =
+        aeadPrepared(&sym->remoteCipher, &sym->remoteCipherBusy, cipher, key,
+                     0, iv, aad, data->data, length, true, data->data + length);
+    if(res == UA_STATUSCODE_GOOD)
+        data->length = length;
+    return res;
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadSign(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                        const UA_ByteString *key, const UA_ByteString *iv,
+                        const UA_ByteString *message, UA_ByteString *signature) {
+    if(signature->length < UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode res =
+        aeadPrepared(&sym->localTag, &sym->localTagBusy, cipher, key, 1, iv,
+                     message, NULL, 0, false, signature->data);
+    if(res == UA_STATUSCODE_GOOD)
+        signature->length = UA_OPENSSL_AEAD_TAG_LENGTH;
+    return res;
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadVerify(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                          const UA_ByteString *key, const UA_ByteString *iv,
+                          const UA_ByteString *message,
+                          const UA_ByteString *signature) {
+    if(signature->length < UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    return aeadPrepared(&sym->remoteTag, &sym->remoteTagBusy, cipher, key, 0,
+                        iv, message, NULL, 0, false, signature->data);
+}
 
 
 #endif

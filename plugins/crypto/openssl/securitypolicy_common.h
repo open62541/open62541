@@ -72,10 +72,14 @@ typedef struct {
     UA_atomic(uintptr_t) localMacBusy;
     UA_atomic(uintptr_t) remoteMacBusy;
 #endif
-    EVP_CIPHER_CTX *localCipher;
+    EVP_CIPHER_CTX *localCipher; /* CBC, or AEAD with the encrypting key */
     EVP_CIPHER_CTX *remoteCipher;
     UA_atomic(uintptr_t) localCipherBusy;
     UA_atomic(uintptr_t) remoteCipherBusy;
+    EVP_CIPHER_CTX *localTag; /* AEAD sign-only tags */
+    EVP_CIPHER_CTX *remoteTag;
+    UA_atomic(uintptr_t) localTagBusy;
+    UA_atomic(uintptr_t) remoteTagBusy;
 } UA_OpenSSL_SymContexts;
 
 void
@@ -83,6 +87,15 @@ UA_OpenSSL_SymContexts_init(UA_OpenSSL_SymContexts *sym);
 
 void
 UA_OpenSSL_SymContexts_clear(UA_OpenSSL_SymContexts *sym);
+
+/* Call from the key setters: frees the contexts built with the old key */
+void
+UA_OpenSSL_SymContexts_signingKeyChanged(UA_OpenSSL_SymContexts *sym,
+                                         UA_Boolean local);
+
+void
+UA_OpenSSL_SymContexts_encryptingKeyChanged(UA_OpenSSL_SymContexts *sym,
+                                            UA_Boolean local);
 
 typedef struct {
     UA_ByteString localSymSigningKey;
@@ -222,16 +235,6 @@ UA_OpenSSL_HMAC_SHA256_Sign(const UA_ByteString *message,
                             UA_ByteString *signature);
 
 UA_StatusCode
-UA_OpenSSL_AES_256_CBC_Decrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key,
-                               UA_ByteString *data  /* [in/out]*/);
-
-UA_StatusCode
-UA_OpenSSL_AES_256_CBC_Encrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key,
-                               UA_ByteString *data  /* [in/out]*/);
-
-UA_StatusCode
 UA_OpenSSL_X509_compare(const UA_ByteString *cert, const X509 *b);
 
 UA_StatusCode
@@ -269,16 +272,6 @@ UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_Encrypt(UA_ByteString *data,
                                  size_t paddingSize,
                                  X509 *publicX509);
-
-UA_StatusCode
-UA_OpenSSL_AES_128_CBC_Decrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key,
-                               UA_ByteString *data  /* [in/out]*/);
-
-UA_StatusCode
-UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key,
-                               UA_ByteString *data  /* [in/out]*/);
 
 UA_StatusCode
 UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
@@ -469,6 +462,36 @@ UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
                                const UA_ByteString *aad,
                                UA_ByteString *data,
                                UA_Boolean decryptData);
+
+/* The per-message AEAD IV: the base IV XORed with the TokenId and the
+ * previous SequenceNumber */
+UA_StatusCode
+UA_OpenSSL_aeadMessageIv(const UA_ByteString *baseIv, UA_UInt32 tokenId,
+                         UA_UInt32 previousSequenceNumber, UA_Byte iv[12]);
+
+/* AEAD with the per-channel contexts. Encrypt and decrypt use the last 16
+ * bytes of data for the tag. Sign and verify compute a tag over the message
+ * without encrypting it. */
+UA_StatusCode
+UA_OpenSSL_Sym_aeadEncrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                           const UA_ByteString *key, const UA_ByteString *iv,
+                           const UA_ByteString *aad, UA_ByteString *data);
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadDecrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                           const UA_ByteString *key, const UA_ByteString *iv,
+                           const UA_ByteString *aad, UA_ByteString *data);
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadSign(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                        const UA_ByteString *key, const UA_ByteString *iv,
+                        const UA_ByteString *message, UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadVerify(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                          const UA_ByteString *key, const UA_ByteString *iv,
+                          const UA_ByteString *message,
+                          const UA_ByteString *signature);
 
 
 /* EdDSA Ed448 signing and verification */

@@ -63,25 +63,14 @@ typedef struct Channel_Context_EccNistP256ChaChaPoly {
     UA_UInt32 tokenId;
     UA_UInt32 previousSequenceNumber;
     UA_ByteString additionalAuthData;
+
+    UA_OpenSSL_SymContexts sym;
 } Channel_Context_EccNistP256ChaChaPoly;
 
 /* Compute the per-message ChaCha20-Poly1305 nonce.
  * For GCM, the 12-byte IV is formed by XORing the tokenId into the first
  * 4 bytes and the previous sequence number into the next 4 bytes of the
  * base (local/remote) Sym IV. The last 4 bytes are unchanged. */
-static void
-computeMaskedIvChaChaPoly(UA_Byte *iv_out, const UA_ByteString *base_iv,
-                      UA_UInt32 tokenId, UA_UInt32 seqNo) {
-    memcpy(iv_out, base_iv->data, 12);
-    iv_out[0] ^= (UA_Byte)(tokenId & 0xFF);
-    iv_out[1] ^= (UA_Byte)((tokenId >> 8) & 0xFF);
-    iv_out[2] ^= (UA_Byte)((tokenId >> 16) & 0xFF);
-    iv_out[3] ^= (UA_Byte)((tokenId >> 24) & 0xFF);
-    iv_out[4] ^= (UA_Byte)(seqNo & 0xFF);
-    iv_out[5] ^= (UA_Byte)((seqNo >> 8) & 0xFF);
-    iv_out[6] ^= (UA_Byte)((seqNo >> 16) & 0xFF);
-    iv_out[7] ^= (UA_Byte)((seqNo >> 24) & 0xFF);
-}
 
 /* --- Policy Context --- */
 
@@ -211,6 +200,7 @@ EccNistP256ChaChaPoly_New_Context(const UA_SecurityPolicy *securityPolicy,
         UA_calloc(1, sizeof(Channel_Context_EccNistP256ChaChaPoly));
     if(!newContext)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_OpenSSL_SymContexts_init(&newContext->sym);
 
     UA_StatusCode retval =
         UA_copyCertificate(&newContext->remoteCertificate, remoteCertificate);
@@ -251,6 +241,7 @@ EccNistP256ChaChaPoly_Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymIv);
     UA_ByteString_clear(&cc->additionalAuthData);
     EVP_PKEY_free(cc->localEphemeralKeyPair);
+    UA_OpenSSL_SymContexts_clear(&cc->sym);
     UA_free(cc);
 }
 
@@ -392,6 +383,7 @@ EccNistP256ChaChaPoly_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP256ChaChaPoly *cc =
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_OpenSSL_SymContexts_signingKeyChanged(&cc->sym, true);
     UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
@@ -404,6 +396,7 @@ EccNistP256ChaChaPoly_setLocalSymEncryptingKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP256ChaChaPoly *cc =
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_OpenSSL_SymContexts_encryptingKeyChanged(&cc->sym, true);
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
@@ -455,6 +448,7 @@ EccNistP256ChaChaPoly_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP256ChaChaPoly *cc =
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_OpenSSL_SymContexts_signingKeyChanged(&cc->sym, false);
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
@@ -467,6 +461,7 @@ EccNistP256ChaChaPoly_setRemoteSymEncryptingKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP256ChaChaPoly *cc =
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_OpenSSL_SymContexts_encryptingKeyChanged(&cc->sym, false);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
@@ -523,120 +518,50 @@ UA_SymSig_EccNistP256ChaChaPoly_getRemoteSignatureSize(const UA_SecurityPolicy *
 }
 
 static UA_StatusCode
-UA_SymSig_EccNistP256ChaChaPoly_verify(const UA_SecurityPolicy *policy, void *channelContext,
-                                   const UA_ByteString *message, const UA_ByteString *signature) {
-    if(channelContext == NULL || message == NULL || signature == NULL)
+UA_SymSig_EccNistP256ChaChaPoly_verify(const UA_SecurityPolicy *policy,
+                                       void *channelContext,
+                                       const UA_ByteString *message,
+                                       const UA_ByteString *signature) {
+    if(!channelContext || !message || !signature)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(signature->length < UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
     Channel_Context_EccNistP256ChaChaPoly *cc =
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
-
-    /* Compute masked IV using the remote IV */
-    UA_Byte maskedIv[12];
-    computeMaskedIvChaChaPoly(maskedIv, &cc->remoteSymIv,
-                          cc->tokenId, cc->previousSequenceNumber);
-
-    /* Use ChaCha20-Poly1305 AEAD to verify the Poly1305 tag.
-     * Treat the entire message as AAD (sign-only). The AEAD tag is
-     * produced/verified with the encryption key (no separate signing
-     * key for AEAD policies). */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()), NULL, NULL, NULL) != 1)
-        goto errout;
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto errout;
-    if(EVP_DecryptInit_ex(ctx, NULL, NULL,
-                          cc->remoteSymEncryptingKey.data, maskedIv) != 1)
-        goto errout;
-
-    /* Set the expected tag for verification */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
-                           UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH,
-                           (void*)(uintptr_t)signature->data) != 1)
-        goto errout;
-
-    /* Process the entire message as AAD */
-    int outl = 0;
-    if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                         message->data, (int)message->length) != 1)
-        goto errout;
-
-    /* Finalize triggers tag verification */
-    UA_Byte dummy;
-    if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
-        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto errout;
-    }
-    ret = UA_STATUSCODE_GOOD;
-
-errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    UA_Byte ivData[12];
+    UA_ByteString iv = {12, ivData};
+    UA_StatusCode res =
+        UA_OpenSSL_aeadMessageIv(&cc->remoteSymIv, cc->tokenId,
+                                 cc->previousSequenceNumber, ivData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_OpenSSL_Sym_aeadVerify(&cc->sym, EVP_chacha20_poly1305(),
+                                     &cc->remoteSymEncryptingKey, &iv, message,
+                                     signature);
 }
+
+
 
 static UA_StatusCode
 UA_SymSig_EccNistP256ChaChaPoly_sign(const UA_SecurityPolicy *policy,
-                                 void *channelContext, const UA_ByteString *message,
-                                 UA_ByteString *signature) {
-    if(channelContext == NULL || message == NULL || signature == NULL)
+                                     void *channelContext,
+                                     const UA_ByteString *message,
+                                     UA_ByteString *signature) {
+    if(!channelContext || !message || !signature)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(signature->length < UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     Channel_Context_EccNistP256ChaChaPoly *cc =
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
-
-    /* Compute masked IV (same nonce derivation as encrypt mode) */
-    UA_Byte maskedIv[12];
-    computeMaskedIvChaChaPoly(maskedIv, &cc->localSymIv,
-                          cc->tokenId, cc->previousSequenceNumber);
-
-    /* Use ChaCha20-Poly1305 AEAD to compute the Poly1305 tag.
-     * For sign-only: treat the entire message as AAD (no encryption).
-     * The AEAD tag is produced with the encryption key (no separate
-     * signing key for AEAD policies). */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()), NULL, NULL, NULL) != 1)
-        goto errout;
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto errout;
-    if(EVP_EncryptInit_ex(ctx, NULL, NULL,
-                          cc->localSymEncryptingKey.data, maskedIv) != 1)
-        goto errout;
-
-    /* Process the entire message as AAD (authenticated, not encrypted) */
-    int outl = 0;
-    if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                         message->data, (int)message->length) != 1)
-        goto errout;
-
-    /* Finalize with no plaintext */
-    UA_Byte dummy;
-    if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
-        goto errout;
-
-    /* Get the 16-byte GCM authentication tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG,
-                           UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH,
-                           signature->data) != 1)
-        goto errout;
-    signature->length = UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH;
-    ret = UA_STATUSCODE_GOOD;
-
-errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    UA_Byte ivData[12];
+    UA_ByteString iv = {12, ivData};
+    UA_StatusCode res =
+        UA_OpenSSL_aeadMessageIv(&cc->localSymIv, cc->tokenId,
+                                 cc->previousSequenceNumber, ivData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_OpenSSL_Sym_aeadSign(&cc->sym, EVP_chacha20_poly1305(),
+                                   &cc->localSymEncryptingKey, &iv, message,
+                                   signature);
 }
+
+
 
 static size_t
 UA_SymSig_EccNistP256ChaChaPoly_getLocalSignatureSize(const UA_SecurityPolicy *policy,
@@ -648,39 +573,47 @@ UA_SymSig_EccNistP256ChaChaPoly_getLocalSignatureSize(const UA_SecurityPolicy *p
 
 static UA_StatusCode
 UA_SymEn_EccNistP256ChaChaPoly_decrypt(const UA_SecurityPolicy *policy,
-                                   void *channelContext, UA_ByteString *data) {
-    if(channelContext == NULL || data == NULL)
+                                       void *channelContext,
+                                       UA_ByteString *data) {
+    if(!channelContext || !data)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP256ChaChaPoly *cc =
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
-
-    UA_Byte maskedIv[12];
-    computeMaskedIvChaChaPoly(maskedIv, &cc->remoteSymIv,
-                          cc->tokenId, cc->previousSequenceNumber);
-    UA_ByteString ivBs = {12, maskedIv};
-
-    return UA_OpenSSL_ChaCha20Poly1305_Decrypt(
-        &ivBs, &cc->remoteSymEncryptingKey, &cc->additionalAuthData,
-        data, true);
+    UA_Byte ivData[12];
+    UA_ByteString iv = {12, ivData};
+    UA_StatusCode res =
+        UA_OpenSSL_aeadMessageIv(&cc->remoteSymIv, cc->tokenId,
+                                 cc->previousSequenceNumber, ivData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_OpenSSL_Sym_aeadDecrypt(&cc->sym, EVP_chacha20_poly1305(),
+                                      &cc->remoteSymEncryptingKey, &iv,
+                                      &cc->additionalAuthData, data);
 }
+
+
 
 static UA_StatusCode
 UA_SymEn_EccNistP256ChaChaPoly_encrypt(const UA_SecurityPolicy *policy,
-                                   void *channelContext, UA_ByteString *data) {
-    if(channelContext == NULL || data == NULL)
+                                       void *channelContext,
+                                       UA_ByteString *data) {
+    if(!channelContext || !data)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP256ChaChaPoly *cc =
         (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
-
-    UA_Byte maskedIv[12];
-    computeMaskedIvChaChaPoly(maskedIv, &cc->localSymIv,
-                          cc->tokenId, cc->previousSequenceNumber);
-    UA_ByteString ivBs = {12, maskedIv};
-
-    return UA_OpenSSL_ChaCha20Poly1305_Encrypt(
-        &ivBs, &cc->localSymEncryptingKey, &cc->additionalAuthData,
-        data, true);
+    UA_Byte ivData[12];
+    UA_ByteString iv = {12, ivData};
+    UA_StatusCode res =
+        UA_OpenSSL_aeadMessageIv(&cc->localSymIv, cc->tokenId,
+                                 cc->previousSequenceNumber, ivData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_OpenSSL_Sym_aeadEncrypt(&cc->sym, EVP_chacha20_poly1305(),
+                                      &cc->localSymEncryptingKey, &iv,
+                                      &cc->additionalAuthData, data);
 }
+
+
 
 static UA_StatusCode
 EccNistP256ChaChaPoly_compareCertificate(const UA_SecurityPolicy *policy,
