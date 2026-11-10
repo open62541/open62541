@@ -13,6 +13,69 @@
 #include "check.h"
 #include <stdlib.h>
 
+static void
+checkEmptyHeartbeat(UA_FieldEncoding encoding, unsigned int testCase) {
+    UA_DataSetMessage messages[2];
+    memset(messages, 0, sizeof(messages));
+    for(size_t i = 0; i < 2; i++) {
+        messages[i].header.dataSetMessageValid = true;
+        messages[i].header.fieldEncoding = encoding;
+        messages[i].header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    }
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    m.version = 1;
+    m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    m.payloadHeaderEnabled = (testCase & 1) != 0;
+    m.messageCount = m.payloadHeaderEnabled ? 2 : 1;
+    m.dataSetWriterIds[0] = 1;
+    m.dataSetWriterIds[1] = 2;
+    m.payload.dataSetMessages = messages;
+
+    /* Each heartbeat contains a flags byte and a two-byte zero FieldCount.
+     * Two messages additionally need the payload header and DSM sizes. */
+    size_t expectedSize = m.payloadHeaderEnabled ? 16 : 4;
+    size_t calculatedSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    ck_assert_uint_eq(calculatedSize, expectedSize);
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    if(testCase & 2) {
+        UA_StatusCode res = UA_ByteString_allocBuffer(&buffer, calculatedSize);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+    UA_StatusCode res = UA_NetworkMessage_encodeBinary(&m, &buffer, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(buffer.length, calculatedSize);
+
+    UA_NetworkMessage decoded;
+    res = UA_NetworkMessage_decodeBinary(&buffer, &decoded, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.messageCount, m.messageCount);
+    for(size_t i = 0; i < decoded.messageCount; i++) {
+        const UA_DataSetMessage *dsm = &decoded.payload.dataSetMessages[i];
+        ck_assert(dsm->header.dataSetMessageValid);
+        ck_assert_int_eq(dsm->header.dataSetMessageType, UA_DATASETMESSAGE_DATAKEYFRAME);
+        ck_assert_int_eq(dsm->header.fieldEncoding, encoding);
+        ck_assert_uint_eq(dsm->fieldCount, 0);
+        ck_assert_ptr_eq(dsm->data.keyFrameFields, NULL);
+        if(m.payloadHeaderEnabled)
+            ck_assert_uint_eq(decoded.dataSetWriterIds[i], m.dataSetWriterIds[i]);
+    }
+    UA_NetworkMessage_clear(&decoded);
+    UA_ByteString_clear(&buffer);
+}
+
+START_TEST(UA_PubSub_EnDecode_EmptyVariantHeartbeat) {
+    checkEmptyHeartbeat(UA_FIELDENCODING_VARIANT, (unsigned int)_i);
+}
+END_TEST
+
+START_TEST(UA_PubSub_EnDecode_EmptyDataValueHeartbeat) {
+    checkEmptyHeartbeat(UA_FIELDENCODING_DATAVALUE, (unsigned int)_i);
+}
+END_TEST
+
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
@@ -2275,6 +2338,8 @@ START_TEST(UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored) {
 
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
+    tcase_add_loop_test(tc_encode, UA_PubSub_EnDecode_EmptyVariantHeartbeat, 0, 4);
+    tcase_add_loop_test(tc_encode, UA_PubSub_EnDecode_EmptyDataValueHeartbeat, 0, 4);
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
 
     TCase *tc_decode = tcase_create("decode");

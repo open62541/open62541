@@ -335,8 +335,10 @@ resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
 /* Ternary Logic
  * -------------
  * Similar to SQL, OPC UA Queries use the K3 - Strong Kleene Logic that
- * considers ternary values true/false/null (unknown). Most operators resolve to
- * a ternary value. Some operators can resolve to a literal value (e.g. CAST). */
+ * considers ternary values true/false/null (unknown). Every operator result
+ * (Variant) can be cast to a ternary truth value. See the v2t method below.
+ * We cast all operands to a ternary truth value before a logical operator is
+ * applied. */
 
 typedef enum {
     UA_TERNARY_FALSE = -1,
@@ -369,13 +371,6 @@ UA_Ternary_not(UA_Ternary v) {
     return (UA_Ternary)((int)v * -1);
 }
 
-static UA_Ternary v2t(const UA_Variant *v) {
-    if(UA_Variant_isEmpty(v) || !UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_BOOLEAN]))
-        return UA_TERNARY_NULL;
-    UA_Boolean b = *(UA_Boolean*)v->data;
-    return (b) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE;
-}
-
 static const UA_Boolean bFalse = false;
 static const UA_Boolean bTrue  = true;
 
@@ -394,6 +389,34 @@ static UA_Variant t2v(UA_Ternary t) {
     }
     v.storageType = UA_VARIANT_DATA_NODELETE;
     return v;
+}
+
+/* Forward declarations */
+static void
+castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out);
+static UA_StatusCode
+castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out);
+
+/* For translating to a ternary truth-value we apply the rules for the "explicit
+ * casting" to a Boolean. Because implicit casting from numerical to Boolean is
+ * not possible as per Table 125 in the standard. */
+static UA_Ternary v2t(const UA_Variant *v) {
+    /* Empty -> NULL, Arrays are undefined in the standard */
+    if(UA_Variant_isEmpty(v) || !UA_Variant_isScalar(v))
+        return UA_TERNARY_NULL;
+
+    /* Try to cast to Boolean. The variant remains empty if this fails.
+     * Otherwise the bTrue/bFalse singletons are set. */
+    UA_Variant vBool;
+    UA_Variant_init(&vBool);
+    if(v->type != &UA_TYPES[UA_TYPES_STRING])
+        castNumerical(v, &UA_TYPES[UA_TYPES_BOOLEAN], &vBool);
+    else
+        castImplicitFromString(v, &UA_TYPES[UA_TYPES_BOOLEAN], &vBool);
+
+    if(!vBool.type)
+        return UA_TERNARY_NULL;
+    return (vBool.data == &bTrue) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE;
 }
 
 /* Type Casting Rules
@@ -446,7 +469,9 @@ static UA_Byte convertLookupIndex[UA_DATATYPEKINDS] = {
  * is possible */
 static const UA_DataType *
 implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
-    if(!t1 || t1 == t2)
+    if(!t1 || !t2)
+        return NULL;
+    if(t1 == t2)
         return t1;
 
     /* Get the type precedence. Return if no implicit casting is possible. */
@@ -514,7 +539,7 @@ implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
 static void
 castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     UA_assert(UA_Variant_isScalar(in));
-    UA_Variant_init(out); /* Set to null value */
+    UA_assert(UA_Variant_isEmpty(out));
 
     UA_Int64  i = 0;
     UA_UInt64 u = 0;
@@ -537,6 +562,17 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     default: return;
     }
 
+    /* Boolean is true if the numerical input is nonzero */
+    if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+        const UA_Boolean *b = &bFalse;
+        if(i != 0 || u != 0 || f != 0.0)
+            b = &bTrue;
+        UA_Variant_setScalar(out, (void*)(uintptr_t)b, type);
+        out->storageType = UA_VARIANT_DATA_NODELETE;
+        return;
+    }
+
+    /* Allocate the output data. Return NULL value if malloc fails. */
     void *data = UA_new(type);
     if(!data)
         return;
@@ -559,7 +595,8 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
             UA_free(data);
             return;
         }
-    } else if(ink == UA_DATATYPEKIND_BYTE   || ink == UA_DATATYPEKIND_UINT16 ||
+    } else if(ink == UA_DATATYPEKIND_BOOLEAN || ink == UA_DATATYPEKIND_STATUSCODE ||
+              ink == UA_DATATYPEKIND_BYTE || ink == UA_DATATYPEKIND_UINT16 ||
               ink == UA_DATATYPEKIND_UINT32 || ink == UA_DATATYPEKIND_UINT64) {
         /* Cast from unsigned */
         switch(type->typeKind) {
@@ -607,7 +644,7 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
 /* Implicit Casting
  * ---------------- */
 
-static UA_INLINE UA_Byte uppercase(UA_Byte in) { return in | 32; }
+static UA_INLINE UA_Byte uppercase(UA_Byte in) { return in & (UA_Byte)~32; }
 
 static UA_StatusCode
 castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
@@ -619,24 +656,26 @@ castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Vari
          * Part 4 says: String values containing "true", "false", "1" or "0"
          * can be converted to Boolean values. Other string values cause a
          * conversion error. In this case Strings are case-insensitive. */
-        UA_Boolean b;
+        const UA_Boolean *b;
         const UA_String *inStr = (const UA_String*)in->data;
         if(inStr->length == 1 && inStr->data[0] == '0') {
-            b = false;
+            b = &bFalse;
         } else if(inStr->length == 1 && inStr->data[0] == '1') {
-            b = true;
+            b = &bTrue;
         } else if(inStr->length == 4 &&
                   uppercase(inStr->data[0])== 'T' && uppercase(inStr->data[1])== 'R' &&
                   uppercase(inStr->data[2])== 'U' && uppercase(inStr->data[3])== 'E') {
-            b = true;
+            b = &bTrue;
         } else if(inStr->length == 5              && uppercase(inStr->data[0])== 'F' &&
                   uppercase(inStr->data[1])== 'A' && uppercase(inStr->data[2])== 'L' &&
                   uppercase(inStr->data[3])== 'S' && uppercase(inStr->data[4])== 'E') {
-            b = false;
+            b = &bFalse;
         } else {
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
-        return UA_Variant_setScalarCopy(out, &b, outType);
+        UA_Variant_setScalar(out, (void*)(uintptr_t)b, outType);
+        out->storageType = UA_VARIANT_DATA_NODELETE;
+        return UA_STATUSCODE_GOOD;
     } else if(outType == &UA_TYPES[UA_TYPES_GUID]) {
         /* String -> Guid */
         UA_Guid guid;
@@ -669,10 +708,8 @@ castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Vari
 static UA_StatusCode
 castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
     /* Of the input is empty, casting results in a NULL value */
-    if(UA_Variant_isEmpty(in)) {
-        UA_Variant_init(out);
+    if(UA_Variant_isEmpty(in))
         return UA_STATUSCODE_GOOD;
-    }
 
     /* TODO: We only support scalar values for now */
     if(!UA_Variant_isScalar(in))
@@ -759,6 +796,12 @@ castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) 
     }
 
     default:
+        /* Implicit casting from a numerical value to Boolean is not possible.
+         * Explicit casting is possible and evaluates to true if the value is
+         * non-null. */
+        if(outType == &UA_TYPES[UA_TYPES_BOOLEAN])
+            return res;
+
         /* Try casting between numericals (also works for Boolean and StatusCode
          * input). The conversion can fail if the limits of the output type are
          * exceeded and then results in a NULL value. */
@@ -770,6 +813,14 @@ castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) 
 
 /* Filter Evaluation
  * ----------------- */
+
+/* Initialize every pushed operand so cleanup is safe even if resolution fails. */
+static UA_Variant *
+pushOperand(UA_FilterEvalContext *ctx) {
+    UA_Variant *v = &ctx->operandStack[ctx->top++];
+    UA_Variant_init(v);
+    return v;
+}
 
 static UA_StatusCode
 resolveOperand(UA_FilterEvalContext *ctx, UA_ExtensionObject *op, UA_Variant *out) {
@@ -809,7 +860,7 @@ ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
     UA_assert(elm->filterOperandsSize == 1);
 
     /* Get the operand. Must be a literal NodeId */
-    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     if(res != UA_STATUSCODE_GOOD || !UA_Variant_hasScalarType(op0, &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADFILTEROPERANDINVALID;
@@ -845,10 +896,10 @@ static UA_StatusCode
 andOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 2);
-    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    UA_Variant *op1 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op1 = pushOperand(ctx);
     res = resolveOperand(ctx, &elm->filterOperands[1], op1);
     UA_CHECK_STATUS(res, return res);
     ctx->operatorResults[index] = t2v(UA_Ternary_and(v2t(op0), v2t(op1)));
@@ -859,10 +910,10 @@ static UA_StatusCode
 orOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 2);
-    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    UA_Variant *op1 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op1 = pushOperand(ctx);
     res = resolveOperand(ctx, &elm->filterOperands[1], op1);
     UA_CHECK_STATUS(res, return res);
     ctx->operatorResults[index] = t2v(UA_Ternary_or(v2t(op0), v2t(op1)));
@@ -873,7 +924,7 @@ static UA_StatusCode
 notOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 1);
-    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
     ctx->operatorResults[index] = t2v(UA_Ternary_not(v2t(op0)));
@@ -893,7 +944,7 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
     UA_assert(ctx->top == 0); /* Assume the operand stack is empty */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < elm->filterOperandsSize; i++) {
-        res = resolveOperand(ctx, &elm->filterOperands[i], &ctx->operandStack[ctx->top++]);
+        res = resolveOperand(ctx, &elm->filterOperands[i], pushOperand(ctx));
         UA_CHECK_STATUS(res, return res);
     }
     UA_assert(ctx->top > 0); /* Assume the operand stack is no longer empty */
@@ -910,9 +961,8 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
     /* Cast the operands. Put the result in the same location on the operand stack. */
     for(size_t pos = 0; pos < ctx->top; pos++) {
         UA_Variant orig = ctx->operandStack[pos];
+        UA_Variant_init(&ctx->operandStack[pos]);
         res = castImplicit(&orig, targetType, &ctx->operandStack[pos]);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
         if(ctx->operandStack[pos].data == orig.data) {
             /* Reuse the storage type of the original data if the variant is
              * identical or only the type has changed */
@@ -920,6 +970,8 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
         } else {
             UA_Variant_clear(&orig); /* Fresh allocation of the cast variant. Clean up. */
         }
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     return UA_STATUSCODE_GOOD;
@@ -1083,8 +1135,8 @@ inListOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize >= 2);
     UA_Boolean found = false;
-    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
-    UA_Variant *op1 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
+    UA_Variant *op1 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
     for(size_t i = 1; i < elm->filterOperandsSize && !found; i++) {
@@ -1103,7 +1155,7 @@ static UA_StatusCode
 isNullOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 1);
-    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op0 = pushOperand(ctx);
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
     ctx->operatorResults[index] =

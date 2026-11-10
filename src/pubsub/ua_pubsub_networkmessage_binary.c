@@ -1956,9 +1956,9 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
     if(p->header.configVersionMinorVersionEnabled)
         size += 4; /* UA_UInt32_calcSizeBinary(&p->header.configVersionMinorVersion) */
 
-    /* Keyframe with no fields is a heartbeat */
-    if(p->header.dataSetMessageType == UA_DATASETMESSAGE_KEEPALIVE ||
-       (p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME && p->fieldCount == 0))
+    /* KeepAlive messages have no payload. Empty keyframe heartbeats still
+     * contain a FieldCount for Variant and DataValue encoding. */
+    if(p->header.dataSetMessageType == UA_DATASETMESSAGE_KEEPALIVE)
         return size;
 
     if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {

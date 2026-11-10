@@ -14,6 +14,80 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(__unix__) || defined(__APPLE__)
+# include <pthread.h>
+#endif
+
+#if defined(__unix__) || defined(__APPLE__)
+typedef struct {
+    UA_NetworkMessage *message;
+    UA_NetworkMessage_EncodingOptions *options;
+    size_t encodedSize;
+} JsonSizeContext;
+
+static void *
+calcJsonSizeOnSmallStack(void *data) {
+    JsonSizeContext *ctx = (JsonSizeContext*)data;
+    ctx->encodedSize = UA_NetworkMessage_calcSizeJson(
+        ctx->message, ctx->options, NULL);
+    return NULL;
+}
+#endif
+
+START_TEST(UA_NetworkMessage_largeFieldName_json_encode) {
+#if defined(__unix__) || defined(__APPLE__)
+    UA_UInt32 value = 42;
+    UA_DataValue dataValue;
+    UA_DataValue_init(&dataValue);
+    UA_Variant_setScalar(&dataValue.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
+    dataValue.hasValue = true;
+
+    UA_String fieldName;
+    fieldName.length = 256 * 1024;
+    fieldName.data = (UA_Byte*)UA_malloc(fieldName.length);
+    ck_assert_ptr_ne(fieldName.data, NULL);
+    memset(fieldName.data, 'a', fieldName.length);
+
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.fieldEncoding = UA_FIELDENCODING_VARIANT;
+    dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    dsm.fieldCount = 1;
+    dsm.data.keyFrameFields = &dataValue;
+
+    UA_UInt16 writerId = 1;
+    UA_NetworkMessage message;
+    memset(&message, 0, sizeof(message));
+    message.version = 1;
+    message.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    message.payloadHeaderEnabled = true;
+    message.messageCount = 1;
+    message.dataSetWriterIds[0] = writerId;
+    message.payload.dataSetMessages = &dsm;
+
+    UA_FieldMetaData field = {0};
+    field.name = fieldName;
+    UA_DataSetMessage_EncodingMetaData metadata = {0};
+    metadata.dataSetWriterId = writerId;
+    metadata.fieldsSize = 1;
+    metadata.fields = &field;
+    UA_NetworkMessage_EncodingOptions options = {1, &metadata};
+    JsonSizeContext ctx = {&message, &options, 0};
+    pthread_attr_t attr;
+    ck_assert_int_eq(pthread_attr_init(&attr), 0);
+    ck_assert_int_eq(pthread_attr_setstacksize(&attr, 128 * 1024), 0);
+    pthread_t worker;
+    ck_assert_int_eq(pthread_create(&worker, &attr,
+                                    calcJsonSizeOnSmallStack, &ctx), 0);
+    ck_assert_int_eq(pthread_attr_destroy(&attr), 0);
+    ck_assert_int_eq(pthread_join(worker, NULL), 0);
+    ck_assert_uint_gt(ctx.encodedSize, fieldName.length);
+    UA_String_clear(&fieldName);
+#endif
+}
+END_TEST
+
 START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     UA_UInt16 dsWriter1 = 12345;
 
@@ -610,6 +684,7 @@ static Suite *testSuite_networkmessage(void) {
                    UA_Networkmessage_json_uint32_and_datavalue_roundtrip);
     tcase_add_test(tc_json_networkmessage,
                    UA_Networkmessage_json_publisherid_roundtrip);
+    tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_largeFieldName_json_encode);
 
     suite_add_tcase(s, tc_json_networkmessage);
     return s;
