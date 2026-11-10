@@ -3204,7 +3204,85 @@ errout:
     return ret;
 }
 
-/* ChaCha20-Poly1305 AEAD Encrypt */
+#define UA_OPENSSL_AEAD_IV_LENGTH 12
+#define UA_OPENSSL_AEAD_TAG_LENGTH 16
+
+/* A context with the key set up. A message only sets the IV. */
+static EVP_CIPHER_CTX *
+newAeadCtx(const EVP_CIPHER *cipher, const UA_ByteString *key, int seal) {
+    const EVP_CIPHER *fetched = UA_OpenSSL_fetchedCipher(cipher);
+    if(key->length != (size_t)EVP_CIPHER_key_length(fetched))
+        return NULL;
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return NULL;
+    if(EVP_CipherInit_ex(ctx, fetched, NULL, NULL, NULL, seal) != 1 ||
+       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN,
+                           UA_OPENSSL_AEAD_IV_LENGTH, NULL) != 1 ||
+       EVP_CipherInit_ex(ctx, NULL, NULL, key->data, NULL, seal) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+/* The tag covers aad and data. data is encrypted or decrypted in place only
+ * with crypt; otherwise it is authenticated like aad. */
+static UA_StatusCode
+aeadRun(EVP_CIPHER_CTX *ctx, int seal, const UA_Byte *iv,
+        const UA_ByteString *aad, UA_Byte *data, size_t length,
+        UA_Boolean crypt, UA_Byte *tag) {
+    if((aad && aad->length > INT_MAX) || length > INT_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    int outLength = 0;
+    UA_Byte finalOut[EVP_MAX_BLOCK_LENGTH];
+    if(EVP_CipherInit_ex(ctx, NULL, NULL, NULL, iv, seal) != 1 ||
+       (!seal && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
+                                     UA_OPENSSL_AEAD_TAG_LENGTH, tag) != 1) ||
+       (aad && aad->length > 0 &&
+        EVP_CipherUpdate(ctx, NULL, &outLength,
+                         aad->data, (int)aad->length) != 1) ||
+       (length > 0 &&
+        EVP_CipherUpdate(ctx, crypt ? data : NULL, &outLength,
+                         data, (int)length) != 1))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_CipherFinal_ex(ctx, finalOut, &outLength) != 1)
+        return seal ? UA_STATUSCODE_BADINTERNALERROR
+                    : UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    if(seal && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG,
+                                   UA_OPENSSL_AEAD_TAG_LENGTH, tag) != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+aeadTemporary(const EVP_CIPHER *cipher, const UA_ByteString *key, int seal,
+              const UA_Byte *iv, const UA_ByteString *aad, UA_Byte *data,
+              size_t length, UA_Boolean crypt, UA_Byte *tag) {
+    EVP_CIPHER_CTX *ctx = newAeadCtx(cipher, key, seal);
+    if(!ctx)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode res = aeadRun(ctx, seal, iv, aad, data, length, crypt, tag);
+    EVP_CIPHER_CTX_free(ctx);
+    return res;
+}
+
+/* data ends with the tag */
+static UA_StatusCode
+aeadOneShot(const EVP_CIPHER *cipher, int seal, const UA_ByteString *iv,
+            const UA_ByteString *key, const UA_ByteString *aad,
+            UA_ByteString *data, UA_Boolean crypt) {
+    if(iv->length != UA_OPENSSL_AEAD_IV_LENGTH ||
+       data->length < UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t length = data->length - UA_OPENSSL_AEAD_TAG_LENGTH;
+    UA_StatusCode res = aeadTemporary(cipher, key, seal, iv->data, aad,
+                                      data->data, length, crypt,
+                                      data->data + length);
+    if(res == UA_STATUSCODE_GOOD && !seal)
+        data->length = length;
+    return res;
+}
 
 UA_StatusCode
 UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
@@ -3212,103 +3290,9 @@ UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
                                     const UA_ByteString *aad,
                                     UA_ByteString *data,
                                     UA_Boolean encryptData) {
-    if(iv->length != 12 || key->length != 32)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* The last 16 bytes of data are reserved for the Poly1305 tag */
-    if(data->length < 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    size_t plainLen = data->length - 16;
-    UA_Byte *tagPos = data->data + plainLen;
-
-    if(!encryptData) {
-        /* Sign-only mode: use ChaCha20-Poly1305 AEAD to compute the
-         * Poly1305 tag. Treat all data (AAD + plaintext) as AAD so
-         * nothing is encrypted, but the AEAD derives a proper one-time
-         * Poly1305 key from the ChaCha20 keystream with the nonce. */
-        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        if(!ctx)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()),
-                              NULL, NULL, NULL) != 1)
-            goto so_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-            goto so_errout;
-        if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-            goto so_errout;
-
-        int outl = 0;
-        /* Include AAD header */
-        if(aad && aad->length > 0) {
-            if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                                 aad->data, (int)aad->length) != 1)
-                goto so_errout;
-        }
-        /* Include plaintext as additional AAD (not encrypted) */
-        if(plainLen > 0) {
-            if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                                 data->data, (int)plainLen) != 1)
-                goto so_errout;
-        }
-
-        UA_Byte dummy;
-        if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
-            goto so_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
-            goto so_errout;
-
-        ret = UA_STATUSCODE_GOOD;
-    so_errout:
-        EVP_CIPHER_CTX_free(ctx);
-        return ret;
-    }
-
-    /* SignAndEncrypt mode: full ChaCha20-Poly1305 AEAD */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()),
-                          NULL, NULL, NULL) != 1)
-        goto errout;
-
-    /* Set IV length to 12 */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto errout;
-
-    if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-        goto errout;
-
-    /* Process AAD */
-    int outl = 0;
-    if(aad && aad->length > 0) {
-        if(EVP_EncryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
-            goto errout;
-    }
-
-    /* Encrypt the plaintext in-place */
-    if(EVP_EncryptUpdate(ctx, data->data, &outl, data->data, (int)plainLen) != 1)
-        goto errout;
-
-    int tmpLen = 0;
-    if(EVP_EncryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1)
-        goto errout;
-
-    /* Get the 16-byte authentication tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
-        goto errout;
-
-    ret = UA_STATUSCODE_GOOD;
-errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    return aeadOneShot(EVP_chacha20_poly1305(), 1, iv, key, aad, data,
+                       encryptData);
 }
-
-/* ChaCha20-Poly1305 AEAD Decrypt */
 
 UA_StatusCode
 UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
@@ -3316,111 +3300,9 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
                                     const UA_ByteString *aad,
                                     UA_ByteString *data,
                                     UA_Boolean decryptData) {
-    if(iv->length != 12 || key->length != 32)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* The last 16 bytes are the Poly1305 tag */
-    if(data->length < 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    size_t cipherLen = data->length - 16;
-    UA_Byte *tagPos = data->data + cipherLen;
-
-    if(!decryptData) {
-        /* Verify-only mode: use ChaCha20-Poly1305 AEAD to verify the
-         * Poly1305 tag. All data is treated as AAD (not decrypted). */
-        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        if(!ctx)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()),
-                              NULL, NULL, NULL) != 1)
-            goto vo_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-            goto vo_errout;
-        if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-            goto vo_errout;
-
-        /* Set the expected tag for verification */
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
-            goto vo_errout;
-
-        int outl = 0;
-        /* Include AAD header */
-        if(aad && aad->length > 0) {
-            if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                                 aad->data, (int)aad->length) != 1)
-                goto vo_errout;
-        }
-        /* Include data as additional AAD (not decrypted) */
-        if(cipherLen > 0) {
-            if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                                 data->data, (int)cipherLen) != 1)
-                goto vo_errout;
-        }
-
-        /* Finalize triggers tag verification */
-        UA_Byte dummy;
-        if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
-            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-            goto vo_errout;
-        }
-
-        /* Strip the tag from the output */
-        data->length = cipherLen;
-        ret = UA_STATUSCODE_GOOD;
-    vo_errout:
-        EVP_CIPHER_CTX_free(ctx);
-        return ret;
-    }
-
-    /* SignAndEncrypt mode: full ChaCha20-Poly1305 AEAD decrypt */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_chacha20_poly1305()),
-                          NULL, NULL, NULL) != 1)
-        goto d_errout;
-
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto d_errout;
-
-    if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-        goto d_errout;
-
-    /* Set the expected tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
-        goto d_errout;
-
-    /* Process AAD */
-    int outl = 0;
-    if(aad && aad->length > 0) {
-        if(EVP_DecryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
-            goto d_errout;
-    }
-
-    /* Decrypt in-place */
-    if(EVP_DecryptUpdate(ctx, data->data, &outl, data->data, (int)cipherLen) != 1)
-        goto d_errout;
-
-    int tmpLen = 0;
-    if(EVP_DecryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1) {
-        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto d_errout;
-    }
-
-    /* Strip the tag from the output length */
-    data->length = cipherLen;
-    ret = UA_STATUSCODE_GOOD;
-d_errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    return aeadOneShot(EVP_chacha20_poly1305(), 0, iv, key, aad, data,
+                       decryptData);
 }
-
-/* AES-128-GCM AEAD Encrypt */
 
 UA_StatusCode
 UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
@@ -3428,102 +3310,8 @@ UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
                                const UA_ByteString *aad,
                                UA_ByteString *data,
                                UA_Boolean encryptData) {
-    if(iv->length != 12 || key->length != 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* The last 16 bytes of data are reserved for the GCM tag */
-    if(data->length < 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    size_t plainLen = data->length - 16;
-    UA_Byte *tagPos = data->data + plainLen;
-
-    if(!encryptData) {
-        /* Sign-only mode: use AES-128-GCM AEAD to compute the GCM tag.
-         * Treat all data (AAD + plaintext) as AAD so nothing is encrypted,
-         * but the AEAD still produces a proper authentication tag. */
-        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        if(!ctx)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_aes_128_gcm()),
-                              NULL, NULL, NULL) != 1)
-            goto so_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-            goto so_errout;
-        if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-            goto so_errout;
-
-        int outl = 0;
-        /* Include AAD header */
-        if(aad && aad->length > 0) {
-            if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                                 aad->data, (int)aad->length) != 1)
-                goto so_errout;
-        }
-        /* Include plaintext as additional AAD (not encrypted) */
-        if(plainLen > 0) {
-            if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                                 data->data, (int)plainLen) != 1)
-                goto so_errout;
-        }
-
-        UA_Byte dummy;
-        if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
-            goto so_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
-            goto so_errout;
-
-        ret = UA_STATUSCODE_GOOD;
-    so_errout:
-        EVP_CIPHER_CTX_free(ctx);
-        return ret;
-    }
-
-    /* SignAndEncrypt mode: full AES-128-GCM AEAD */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_aes_128_gcm()),
-                          NULL, NULL, NULL) != 1)
-        goto errout;
-
-    /* Set IV length to 12 (the GCM spec default; explicit for clarity) */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto errout;
-
-    if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-        goto errout;
-
-    /* Process AAD */
-    int outl = 0;
-    if(aad && aad->length > 0) {
-        if(EVP_EncryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
-            goto errout;
-    }
-
-    /* Encrypt the plaintext in-place */
-    if(EVP_EncryptUpdate(ctx, data->data, &outl, data->data, (int)plainLen) != 1)
-        goto errout;
-
-    int tmpLen = 0;
-    if(EVP_EncryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1)
-        goto errout;
-
-    /* Get the 16-byte authentication tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
-        goto errout;
-
-    ret = UA_STATUSCODE_GOOD;
-errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    return aeadOneShot(EVP_aes_128_gcm(), 1, iv, key, aad, data, encryptData);
 }
-
-/* AES-128-GCM AEAD Decrypt */
 
 UA_StatusCode
 UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
@@ -3531,109 +3319,9 @@ UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
                                const UA_ByteString *aad,
                                UA_ByteString *data,
                                UA_Boolean decryptData) {
-    if(iv->length != 12 || key->length != 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* The last 16 bytes are the GCM tag */
-    if(data->length < 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    size_t cipherLen = data->length - 16;
-    UA_Byte *tagPos = data->data + cipherLen;
-
-    if(!decryptData) {
-        /* Verify-only mode: use AES-128-GCM AEAD to verify the GCM tag.
-         * All data is treated as AAD (not decrypted). */
-        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        if(!ctx)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_aes_128_gcm()),
-                              NULL, NULL, NULL) != 1)
-            goto vo_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-            goto vo_errout;
-        if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-            goto vo_errout;
-
-        /* Set the expected tag for verification */
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
-            goto vo_errout;
-
-        int outl = 0;
-        /* Include AAD header */
-        if(aad && aad->length > 0) {
-            if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                                 aad->data, (int)aad->length) != 1)
-                goto vo_errout;
-        }
-        /* Include data as additional AAD (not decrypted) */
-        if(cipherLen > 0) {
-            if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                                 data->data, (int)cipherLen) != 1)
-                goto vo_errout;
-        }
-
-        /* Finalize triggers tag verification */
-        UA_Byte dummy;
-        if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
-            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-            goto vo_errout;
-        }
-
-        /* Strip the tag from the output */
-        data->length = cipherLen;
-        ret = UA_STATUSCODE_GOOD;
-    vo_errout:
-        EVP_CIPHER_CTX_free(ctx);
-        return ret;
-    }
-
-    /* SignAndEncrypt mode: full AES-128-GCM AEAD decrypt */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, UA_OpenSSL_fetchedCipher(EVP_aes_128_gcm()),
-                          NULL, NULL, NULL) != 1)
-        goto d_errout;
-
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto d_errout;
-
-    if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-        goto d_errout;
-
-    /* Set the expected tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
-        goto d_errout;
-
-    /* Process AAD */
-    int outl = 0;
-    if(aad && aad->length > 0) {
-        if(EVP_DecryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
-            goto d_errout;
-    }
-
-    /* Decrypt in-place */
-    if(EVP_DecryptUpdate(ctx, data->data, &outl, data->data, (int)cipherLen) != 1)
-        goto d_errout;
-
-    int tmpLen = 0;
-    if(EVP_DecryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1) {
-        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto d_errout;
-    }
-
-    /* Strip the tag from the output length */
-    data->length = cipherLen;
-    ret = UA_STATUSCODE_GOOD;
-d_errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    return aeadOneShot(EVP_aes_128_gcm(), 0, iv, key, aad, data, decryptData);
 }
+
 
 
 #endif
