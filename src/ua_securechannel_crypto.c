@@ -703,24 +703,22 @@ signAndEncryptSym(UA_MessageContext *messageContext,
      * both authentication and encryption. */
     if(UA_SecurityPolicy_isAead(sp)) {
         /* Set AEAD parameters: tokenId, previous seqNo, AAD */
-        if(sp->setMessageSecurityParameters) {
-            UA_ByteString aad;
-            aad.data = messageContext->messageBuffer.data;
-            aad.length = UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
-                         UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
-            /* The AEAD nonce is masked with the PREVIOUS sequence number: the
-             * receiver masks with its receiveSequenceNumber, which is still the
-             * prior chunk's number at decrypt time (incremented only after
-             * decryption). sendSequenceNumber is the post-increment counter, so
-             * the value just emitted is (sendSequenceNumber - 1) and the
-             * previous one is (sendSequenceNumber - 2). ECC_AEAD always uses the
-             * non-legacy counter (first emitted number is 0). */
-            UA_UInt32 prevSeqNo = channel->sendSequenceNumber >= 2 ?
-                (UA_UInt32)(channel->sendSequenceNumber - 2) : 0;
-            UA_StatusCode res = sp->setMessageSecurityParameters(
-                sp, cc, channel->securityToken.tokenId, prevSeqNo, &aad);
-            UA_CHECK_STATUS(res, return res);
-        }
+        UA_ByteString aad;
+        aad.data = messageContext->messageBuffer.data;
+        aad.length = UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+                     UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
+        /* The AEAD nonce is masked with the PREVIOUS sequence number: the
+         * receiver masks with its receiveSequenceNumber, which is still the
+         * prior chunk's number at decrypt time (incremented only after
+         * decryption). sendSequenceNumber is the post-increment counter, so
+         * the value just emitted is (sendSequenceNumber - 1) and the
+         * previous one is (sendSequenceNumber - 2). ECC_AEAD always uses the
+         * non-legacy counter (first emitted number is 0). */
+        UA_UInt32 prevSeqNo = channel->sendSequenceNumber >= 2 ?
+            (UA_UInt32)(channel->sendSequenceNumber - 2) : 0;
+        UA_StatusCode res = sp->setMessageSecurityParameters(
+            sp, cc, channel->securityToken.tokenId, prevSeqNo, &aad);
+        UA_CHECK_STATUS(res, return res);
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
             /* Full AEAD: encrypt + compute auth tag. Data includes
@@ -878,17 +876,15 @@ decryptAndVerifyChunk(UA_SecureChannel *channel,
          * still secure messages with the old token (Part 4 §5.5.2) while the
          * channel already holds the new token. Using the wrong TokenId here
          * makes the AEAD tag verification fail. */
-        if(sp->setMessageSecurityParameters) {
-            UA_ByteString aad = {offset, chunk->data};
-            size_t tokenOffset = UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
-            UA_UInt32 msgTokenId = channel->securityToken.tokenId;
-            if(offset >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH)
-                UA_UInt32_decodeBinary(chunk, &tokenOffset, &msgTokenId);
-            res = sp->setMessageSecurityParameters(
-                sp, cc, msgTokenId,
-                channel->receiveSequenceNumber, &aad);
-            UA_CHECK_STATUS(res, return res);
-        }
+        UA_ByteString aad = {offset, chunk->data};
+        size_t tokenOffset = UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
+        UA_UInt32 msgTokenId = channel->securityToken.tokenId;
+        if(offset >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH)
+            UA_UInt32_decodeBinary(chunk, &tokenOffset, &msgTokenId);
+        res = sp->setMessageSecurityParameters(
+            sp, cc, msgTokenId,
+            channel->receiveSequenceNumber, &aad);
+        UA_CHECK_STATUS(res, return res);
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
             /* Full AEAD decrypt + verify. The decrypt callback processes

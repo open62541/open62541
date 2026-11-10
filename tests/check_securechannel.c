@@ -602,6 +602,19 @@ stripTestAeadTag(const UA_SecurityPolicy *policy, void *context, UA_ByteString *
     return UA_STATUSCODE_GOOD;
 }
 
+/* Mandatory for AEAD policies. The core calls it unconditionally. */
+static UA_StatusCode
+setTestAeadParameters(const UA_SecurityPolicy *policy, void *context,
+                      UA_UInt32 tokenId, UA_UInt32 previousSequenceNumber,
+                      const UA_ByteString *additionalAuthData) {
+    (void)policy;
+    (void)context;
+    (void)tokenId;
+    (void)previousSequenceNumber;
+    (void)additionalAuthData;
+    return UA_STATUSCODE_GOOD;
+}
+
 START_TEST(SecureChannel_receiveSymmetricMessage_minimumPayload) {
     size_t payloadSize = (size_t)(_i % 3);
     UA_Boolean encrypted = (_i % 6 >= 3);
@@ -614,6 +627,7 @@ START_TEST(SecureChannel_receiveSymmetricMessage_minimumPayload) {
     if(aead) {
         dummyPolicy.policyType = UA_SECURITYPOLICYTYPE_ECC_AEAD;
         dummyPolicy.symEncryptionAlgorithm.decrypt = stripTestAeadTag;
+        dummyPolicy.setMessageSecurityParameters = setTestAeadParameters;
     }
 
     UA_Byte raw[64] = {0};
