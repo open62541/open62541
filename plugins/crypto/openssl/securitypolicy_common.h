@@ -61,6 +61,29 @@ UA_OpenSSL_fetchedCipher(const EVP_CIPHER *cipher);
 #define UA_OpenSSL_fetchedCipher(cipher) (cipher)
 #endif
 
+/* Contexts that hold the key setup, so a message only resets them. Built on
+ * first use (NULL until then), freed when the key is replaced. Local ones
+ * serve sign/encrypt, remote ones verify/decrypt. A busy flag marks a context
+ * in use; another thread then takes a temporary context instead of waiting. */
+typedef struct {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    EVP_MAC_CTX *localMac;
+    EVP_MAC_CTX *remoteMac;
+    UA_atomic(uintptr_t) localMacBusy;
+    UA_atomic(uintptr_t) remoteMacBusy;
+#endif
+    EVP_CIPHER_CTX *localCipher;
+    EVP_CIPHER_CTX *remoteCipher;
+    UA_atomic(uintptr_t) localCipherBusy;
+    UA_atomic(uintptr_t) remoteCipherBusy;
+} UA_OpenSSL_SymContexts;
+
+void
+UA_OpenSSL_SymContexts_init(UA_OpenSSL_SymContexts *sym);
+
+void
+UA_OpenSSL_SymContexts_clear(UA_OpenSSL_SymContexts *sym);
+
 typedef struct {
     UA_ByteString localSymSigningKey;
     UA_ByteString localSymEncryptingKey;
@@ -71,7 +94,29 @@ typedef struct {
 
     UA_ByteString remoteCertificate;
     X509 *remoteCertificateX509; /* X509 */
+
+    UA_OpenSSL_SymContexts sym;
 } openssl_ChannelContext;
+
+UA_StatusCode
+UA_OpenSSL_Sym_sign(UA_OpenSSL_SymContexts *sym, const EVP_MD *md,
+                    const UA_ByteString *key, const UA_ByteString *message,
+                    UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_Sym_verify(UA_OpenSSL_SymContexts *sym, const EVP_MD *md,
+                      const UA_ByteString *key, const UA_ByteString *message,
+                      const UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_Sym_encrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                       const UA_ByteString *key, const UA_ByteString *iv,
+                       UA_ByteString *data);
+
+UA_StatusCode
+UA_OpenSSL_Sym_decrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                       const UA_ByteString *key, const UA_ByteString *iv,
+                       UA_ByteString *data);
 
 typedef struct {
     EVP_PKEY *localPrivateKey;

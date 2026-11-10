@@ -36,6 +36,8 @@
 
 #include "securitypolicy_common.h"
 
+#include <limits.h>
+
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 #define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
 
@@ -1034,6 +1036,199 @@ errout:
     return ret;
 }
 
+void
+UA_OpenSSL_SymContexts_init(UA_OpenSSL_SymContexts *sym) {
+    memset(sym, 0, sizeof(*sym));
+}
+
+/* Frees a prepared context, e.g. when its key is replaced. It is rebuilt
+ * with the new key on the next use. */
+static void
+dropMacCtx(UA_OpenSSL_SymContexts *sym, UA_Boolean local) {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    EVP_MAC_CTX **ctx = local ? &sym->localMac : &sym->remoteMac;
+    EVP_MAC_CTX_free(*ctx);
+    *ctx = NULL;
+#else
+    (void)sym;
+    (void)local;
+#endif
+}
+
+static void
+dropCipherCtx(UA_OpenSSL_SymContexts *sym, UA_Boolean local) {
+    EVP_CIPHER_CTX **ctx = local ? &sym->localCipher : &sym->remoteCipher;
+    EVP_CIPHER_CTX_free(*ctx);
+    *ctx = NULL;
+}
+
+/* TODO: confirm that freeing the contexts clears their key material */
+void
+UA_OpenSSL_SymContexts_clear(UA_OpenSSL_SymContexts *sym) {
+    dropMacCtx(sym, true);
+    dropMacCtx(sym, false);
+    dropCipherCtx(sym, true);
+    dropCipherCtx(sym, false);
+}
+
+/* Takes a prepared context if no other thread uses it */
+static UA_Boolean
+tryAcquireCtx(UA_atomic(uintptr_t) *busy) {
+    uintptr_t wasBusy = 1;
+    UA_atomic_xchg(busy, (uintptr_t)1, &wasBusy);
+    return wasBusy == 0;
+}
+
+static void
+releaseCtx(UA_atomic(uintptr_t) *busy) {
+    UA_atomic_store(busy, (uintptr_t)0);
+}
+
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+/* The context absorbs the key once. Every later message only resets it. */
+static UA_StatusCode
+keyedHmac(EVP_MAC_CTX **slot, const EVP_MD *md, const UA_ByteString *key,
+          const UA_ByteString *message, unsigned char *out, size_t outSize,
+          size_t *outLength) {
+    EVP_MAC_CTX *ctx = *slot;
+    int ok;
+    if(!ctx) {
+        ctx = newHmacCtxForDigest(md);
+        if(!ctx)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        *slot = ctx;
+        ok = EVP_MAC_init(ctx, macKeyPointer(key), key->length, NULL);
+    } else {
+        ok = EVP_MAC_init(ctx, NULL, 0, NULL);
+    }
+    if(ok == 1)
+        ok = EVP_MAC_update(ctx, message->data, message->length);
+    if(ok == 1)
+        ok = EVP_MAC_final(ctx, out, outLength, outSize);
+    if(ok != 1) {
+        EVP_MAC_CTX_free(ctx);
+        *slot = NULL;
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
+UA_StatusCode
+UA_OpenSSL_Sym_sign(UA_OpenSSL_SymContexts *sym, const EVP_MD *md,
+                    const UA_ByteString *key, const UA_ByteString *message,
+                    UA_ByteString *signature) {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    if(!tryAcquireCtx(&sym->localMacBusy))
+        return UA_OpenSSL_HMAC(md, key, message, signature);
+    size_t outLength = 0;
+    UA_StatusCode res = keyedHmac(&sym->localMac, md, key, message,
+                                  signature->data, signature->length,
+                                  &outLength);
+    releaseCtx(&sym->localMacBusy);
+    if(res == UA_STATUSCODE_GOOD)
+        signature->length = outLength;
+    return res;
+#else
+    (void)sym;
+    return UA_OpenSSL_HMAC(md, key, message, signature);
+#endif
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_verify(UA_OpenSSL_SymContexts *sym, const EVP_MD *md,
+                      const UA_ByteString *key, const UA_ByteString *message,
+                      const UA_ByteString *signature) {
+    unsigned char buf[EVP_MAX_MD_SIZE];
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    size_t macLength = 0;
+    UA_Boolean prepared = false;
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    prepared = tryAcquireCtx(&sym->remoteMacBusy);
+    if(prepared) {
+        res = keyedHmac(&sym->remoteMac, md, key, message,
+                        buf, sizeof(buf), &macLength);
+        releaseCtx(&sym->remoteMacBusy);
+    }
+#else
+    (void)sym;
+#endif
+    if(!prepared) {
+        UA_ByteString mac = {sizeof(buf), buf};
+        res = UA_OpenSSL_HMAC(md, key, message, &mac);
+        macLength = mac.length;
+    }
+    if(res == UA_STATUSCODE_GOOD &&
+       (signature->length != macLength ||
+        !UA_constantTimeEqual(signature->data, buf, macLength)))
+        res = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    OPENSSL_cleanse(buf, sizeof(buf));
+    return res;
+}
+
+/* The context keeps the key schedule. Every message only sets the IV and
+ * runs in place (OpenSSL allows identical input and output buffers). */
+static UA_StatusCode
+symCrypt(EVP_CIPHER_CTX **slot, const EVP_CIPHER *cipher,
+         const UA_ByteString *key, const UA_ByteString *iv,
+         UA_ByteString *data, int encrypt) {
+    /* EVP reads exactly the IV length and key length from the pointers */
+    if(iv->length != (size_t)EVP_CIPHER_iv_length(cipher) ||
+       data->length > INT_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    EVP_CIPHER_CTX *ctx = *slot;
+    if(!ctx) {
+        if(key->length != (size_t)EVP_CIPHER_key_length(cipher))
+            return UA_STATUSCODE_BADINTERNALERROR;
+        ctx = EVP_CIPHER_CTX_new();
+        if(!ctx)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        if(EVP_CipherInit_ex(ctx, UA_OpenSSL_fetchedCipher(cipher), NULL,
+                             key->data, NULL, encrypt) != 1 ||
+           EVP_CIPHER_CTX_set_padding(ctx, 0) != 1) {
+            EVP_CIPHER_CTX_free(ctx);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        *slot = ctx;
+    }
+
+    int outLength = 0;
+    int finalLength = 0;
+    if(EVP_CipherInit_ex(ctx, NULL, NULL, NULL, iv->data, encrypt) != 1 ||
+       EVP_CipherUpdate(ctx, data->data, &outLength,
+                        data->data, (int)data->length) != 1 ||
+       EVP_CipherFinal_ex(ctx, data->data + outLength, &finalLength) != 1 ||
+       (size_t)outLength + (size_t)finalLength != data->length) {
+        EVP_CIPHER_CTX_free(ctx);
+        *slot = NULL;
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_encrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                       const UA_ByteString *key, const UA_ByteString *iv,
+                       UA_ByteString *data) {
+    if(!tryAcquireCtx(&sym->localCipherBusy))
+        return UA_OpenSSL_Encrypt(iv, key, cipher, data);
+    UA_StatusCode res = symCrypt(&sym->localCipher, cipher, key, iv, data, 1);
+    releaseCtx(&sym->localCipherBusy);
+    return res;
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_decrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                       const UA_ByteString *key, const UA_ByteString *iv,
+                       UA_ByteString *data) {
+    if(!tryAcquireCtx(&sym->remoteCipherBusy))
+        return UA_OpenSSL_Decrypt(iv, key, cipher, data);
+    UA_StatusCode res = symCrypt(&sym->remoteCipher, cipher, key, iv, data, 0);
+    releaseCtx(&sym->remoteCipherBusy);
+    return res;
+}
+
 UA_StatusCode
 UA_OpenSSL_AES_256_CBC_Decrypt(const UA_ByteString * iv,
                                const UA_ByteString * key,
@@ -1716,6 +1911,7 @@ UA_OpenSSL_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    dropMacCtx(&cc->sym, true);
     UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
@@ -1727,6 +1923,7 @@ UA_OpenSSL_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    dropCipherCtx(&cc->sym, true);
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
@@ -1749,6 +1946,7 @@ UA_OpenSSL_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    dropMacCtx(&cc->sym, false);
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
@@ -1760,6 +1958,7 @@ UA_OpenSSL_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    dropCipherCtx(&cc->sym, false);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
