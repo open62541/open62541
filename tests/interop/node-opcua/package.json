@@ -7,7 +7,7 @@
     "start": "node server.mjs"
   },
   "dependencies": {
-    "node-opcua": "2.175.6",
+    "node-opcua": "2.180.0",
     "ws": "8.21.1"
   },
   "overrides": {
