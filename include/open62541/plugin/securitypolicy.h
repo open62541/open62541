@@ -281,7 +281,8 @@ struct UA_SecurityPolicy {
 
     /* Sets the message security parameters for AEAD nonce derivation.
      * Called before each symmetric encrypt/decrypt for ECC_AEAD policies.
-     * NULL for non-AEAD policies.
+     * Mandatory for ECC_AEAD policies (called without a NULL check). NULL for
+     * non-AEAD policies.
      *
      * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to work on.
