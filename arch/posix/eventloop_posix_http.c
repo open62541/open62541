@@ -542,7 +542,8 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
          config->privateKey->length > UINT_MAX)) ||
        (config->caCertificate && (config->caCertificate->length == 0 ||
                                   config->caCertificate->length > UINT_MAX)) ||
-       ((config->certificate || config->caCertificate) && !config->useSSL) ||
+       (config->listener && !config->useSSL &&
+        (config->certificate || config->caCertificate)) ||
        (config->listener && config->useSSL && !config->certificate))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 #ifndef LWS_WITH_TLS
@@ -572,7 +573,8 @@ createLwsVhost(HTTPConnection *connection, struct lws_context *context,
     memset(&info, 0, sizeof(info));
     UA_LWS_useContextLogger(&info, context);
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
-    if(connection->useSSL)
+    /* Plain HTTP clients also need TLS when redirected to HTTPS. */
+    if(connection->useSSL || !connection->listener)
         info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = connection->listener ? config->port : CONTEXT_PORT_NO_LISTEN;
     info.iface = connection->listener && interfaceName[0] ? interfaceName : NULL;
@@ -615,11 +617,13 @@ createLwsVhost(HTTPConnection *connection, struct lws_context *context,
 #endif
 
     struct lws_vhost *vhost = lws_create_vhost(context, &info);
-    if(vhost && connection->useSSL && !connection->listener &&
+#ifdef LWS_WITH_TLS
+    if(vhost && !connection->listener &&
        lws_init_vhost_client_ssl(&info, vhost)) {
         lws_vhost_destroy(vhost);
         vhost = NULL;
     }
+#endif
     UA_LWS_clearActiveLogger();
     UA_free(interfaceName);
     UA_free(password);

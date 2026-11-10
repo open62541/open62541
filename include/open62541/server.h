@@ -74,20 +74,19 @@ _UA_BEGIN_DECLS
  * for more detailed options.
  *
  * The default configuration can be used as the starting point to adjust the
- * server configuration to individual needs. UA_Server_new is implemented in the
- * /plugins folder under the CC0 license. Furthermore the server configuration
- * only uses the public server API.
+ * server configuration to individual needs.
  *
  * Returns the configured server or NULL if an error occurs. */
 UA_EXPORT UA_Server *
 UA_Server_new(void);
 
-/* Creates a new server. Moves the config into the server with a shallow copy.
- * The config content is cleared together with the server. */
+/* Create a server, taking ownership of the configuration contents and clearing
+ * config. The configuration contents are freed when the server is deleted. */
 UA_EXPORT UA_Server *
 UA_Server_newWithConfig(UA_ServerConfig *config);
 
-/* Delete the server and its configuration */
+/* Delete the server and its configuration. Requires a fully stopped server;
+ * otherwise, return an error without deleting it. See the shutdown APIs below. */
 UA_EXPORT UA_StatusCode
 UA_Server_delete(UA_Server *server);
 
@@ -100,7 +99,7 @@ UA_Server_getConfig(UA_Server *server);
 UA_EXPORT UA_LifecycleState
 UA_Server_getLifecycleState(UA_Server *server);
 
-/* Runs the server until until "running" is set to false. The logical sequence
+/* Runs the server until "running" is set to false. The logical sequence
  * is as follows:
  *
  * - UA_Server_run_startup
@@ -117,16 +116,12 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running);
  * - UA_Server_run_startup
  * - Loop until interrupt: UA_Server_run_iterate
  * - UA_Server_run_shutdown
- * - Deregister the interrupt
- *
- * Attention! This method is implemented individually for the different
- * platforms (POSIX/Win32/etc.). The default implementation is in
- * /plugins/ua_config_default.c under the CC0 license. Adjust as needed. */
+ * - Deregister the interrupt */
 UA_EXPORT UA_StatusCode
 UA_Server_runUntilInterrupt(UA_Server *server);
 
-/* The prologue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt). Fails if a transport (TCP,
+/* Start the server. Called automatically by UA_Server_run and
+ * UA_Server_runUntilInterrupt. Fails if a transport (TCP,
  * WebSocket, HTTP) cannot open its server socket and the server cannot be
  * reached otherwise (no other transport listens, no reverse connect is
  * registered). Then the startup is undone as in UA_Server_run_shutdown. The
@@ -145,36 +140,49 @@ UA_Server_run_startup(UA_Server *server);
 UA_EXPORT UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
-/* The epilogue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt).
+/**
+ * .. _server-shutdown:
  *
- * Runs the EventLoop until the server is fully stopped. An external EventLoop
- * is left running for its other users; an owned EventLoop is stopped as well.
- * Calling this on an already stopped server succeeds without further action.
- * Use UA_Server_run_shutdown_async if shutdown requires application work
- * between EventLoop iterations or is initiated from an EventLoop callback.
+ * Stopping the server
+ * ~~~~~~~~~~~~~~~~~~~
+ * Choose how to drive shutdown:
+ *
+ * - ``UA_Server_run_shutdown`` runs the EventLoop until fully stopped. It is
+ *   called automatically by ``UA_Server_run`` and ``UA_Server_runUntilInterrupt``.
+ * - ``UA_Server_run_shutdown_async`` does not run the EventLoop. While it returns
+ *   STOPPING, drive the EventLoop directly or with ``UA_Server_run_iterate``,
+ *   then call it again to check for completion.
+ *
+ * Shutdown cancels pending async operations with BADSHUTDOWN and waits for their
+ * result setters. Keep completing deferred operations; see :ref:`async-operations`.
+ *
+ * The server stops an owned EventLoop and leaves an external one running.
+ * Lifecycle notifications report STOPPING and STOPPED. Repeated shutdown calls
+ * are safe and do not repeat notifications. A fully stopped server needs no
+ * further work.
+ *
+ * Use nonblocking shutdown from EventLoop callbacks or when application work
+ * is needed between iterations. The blocking API's callback restrictions are
+ * listed below.
+ *
+ * Shutdown also waits for deferred operations started by local synchronous calls
+ * before startup or after a previous shutdown, even if the lifecycle state is
+ * STOPPED. Blocking shutdown starts their EventLoop if needed; for nonblocking
+ * shutdown, the caller must start it before driving it. */
+
+/* Shut down the server and run the EventLoop until shutdown completes.
  *
  * @param server The server object.
- * @return GOOD once the server is STOPPED, or an EventLoop error if shutdown
- *         could not be completed. Returns BADINVALIDARGUMENT for NULL. */
+ * @return GOOD once fully stopped, or an EventLoop error if shutdown could not
+ *         complete. Returns BADINVALIDARGUMENT for NULL and BADINVALIDSTATE
+ *         from an initiating callback, cancellation notification or result callback. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
 
-/* Initiates asynchronous shutdown and advances it on subsequent calls, without
- * running the EventLoop. While the server is STOPPING, the caller must drive
- * the EventLoop (directly or via UA_Server_run_iterate) and call this function
- * again to complete shutdown.
- *
- * Use UA_Server_getLifecycleState to read the current state, or the configured
- * lifecycle notification callbacks to observe state transitions.
- *
- * An external EventLoop is left running; an owned EventLoop is stopped once
- * all drivers have stopped.
- * Repeated calls do not repeat stop requests or lifecycle notifications.
+/* Initiate or advance shutdown without running the EventLoop.
  *
  * @param server The server object. NULL is treated as already stopped.
- * @return The lifecycle state after this shutdown step: STOPPING while shutdown
- *         is in progress, or STOPPED if the server is fully stopped. */
+ * @return STOPPING while shutdown is in progress, or STOPPED once fully stopped. */
 UA_EXPORT UA_LifecycleState
 UA_Server_run_shutdown_async(UA_Server *server);
 
@@ -256,8 +264,7 @@ typedef void (*UA_ServerNotificationCallback)(UA_Server *server,
 /**
  * SecureChannel Handling
  * ----------------------
- * The server opens new SecureChannels internally when a server socket is
- * active. Information about SecureChannels and their state is notified with
+ * SecureChannel state changes are reported with
  * UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL. SecureChannels can be manually
  * closed. This leaves any attached session alive so that it can potentially
  * reconnect. */
@@ -279,11 +286,8 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
  * UA_STATUSCODE_BADNOTWRITABLE (set/delete). An application is free to use
  * any key in a non-zero namespace as generic, arbitrary storage.
  *
- * Most of the predefined ns0 keys are read-only: their value is computed
- * fresh from the live SecureChannel on every access (nothing is cached),
- * mirroring the background information sent with the
- * UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED/_CLOSED notification
- * (see common.h): ``0:securechannel-id``, ``0:connection-manager-name``,
+ * The following predefined ns0 keys are read-only and report the current
+ * SecureChannel state: ``0:securechannel-id``, ``0:connection-manager-name``,
  * ``0:connection-id``, ``0:remote-address``, ``0:protocol-version``,
  * ``0:recv-buffer-size``, ``0:recv-max-message-size``,
  * ``0:recv-max-chunk-count``, ``0:send-buffer-size``,
@@ -294,9 +298,7 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
  * UA_Server_deleteSecureChannelAttribute reject writes to these with
  * UA_STATUSCODE_BADNOTWRITABLE.
  *
- * One further ns0 key is interpreted by the server itself, and is the one
- * ns0 attribute the application may write (stored in the generic map like
- * any application-defined attribute):
+ * The application may write one ns0 attribute:
  *
  * - ``0:maxMessageSize`` (``UA_UInt32``): If set, tightens (but never
  *   loosens) UA_ServerConfig.tcpMaxMsgSize for this specific channel. Useful
@@ -348,8 +350,7 @@ UA_Server_deleteSecureChannelAttribute(UA_Server *server, UA_UInt32 channelId,
  * Session Handling
  * ----------------
  * Sessions are managed via the OPC UA Session Service Set (CreateSession,
- * ActivateSession, CloseSession). The identifier of sessions is generated
- * internally in the server and is always a Guid-NodeId.
+ * ActivateSession, CloseSession). Session identifiers are Guid-NodeIds.
  *
  * The creation of sessions is passed to the :ref:`access-control`. There, the
  * authentication information is evaluated and a context-pointer is attached to
@@ -368,7 +369,9 @@ UA_Server_deleteSecureChannelAttribute(UA_Server *server, UA_UInt32 channelId,
 void UA_EXPORT
 UA_Server_setAdminSessionContext(UA_Server *server, void *context);
 
-/* Manually close a session */
+/* Close a session and reject new requests immediately. While the server is
+ * running, final notifications and session-context cleanup occur asynchronously,
+ * after outstanding service responses. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
 
@@ -422,8 +425,7 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
 /**
  * Attribute Service Set
  * ---------------------
- * The functions for reading and writing node attributes call the regular read
- * and write service in the background that are also used over the network.
+ * Read and write node attributes locally.
  *
  * The following attributes cannot be read, since the local "admin" user always
  * has full rights.
@@ -651,12 +653,9 @@ UA_Server_writeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
  * by their NodeId. This is required because the same MethodNode can be
  * referenced from multiple objects.
  *
- * In this server implementation, when an object is instantiated from a an
- * ObjectType, all (mandatory) methods are automatically added to the new object
- * instance. This is done by adding an additional reference to the original
- * MethodNode. It is however possible to add a custom MethodNode directly to the
- * object instance. It is also possible to remove a (optional) MethodNode that
- * exists in the ObjectType from an instance.
+ * By default, Object instances reference the mandatory MethodNodes of their
+ * ObjectType. Custom MethodNodes can also be added directly to an instance, and
+ * optional methods inherited from the ObjectType can be removed from an instance.
  *
  * The ``methodId`` can point to a MethodNode that exists in the ObjectType but
  * not in the object instance. It is resolved to the actual MethodNode of the
@@ -732,8 +731,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
 
 /* Non-standard version of the Browse service that recurses into child nodes.
  *
- * Possible loops (that can occur for non-hierarchical references) are handled
- * internally. Every node is added at most once to the results array.
+ * Each node appears at most once in the results, even if references form cycles.
  *
  * Nodes are only added if they match the NodeClassMask in the
  * BrowseDescription. However, child nodes are still recursed into if the
@@ -772,8 +770,7 @@ UA_Server_getNodeType(UA_Server *server, const UA_NodeId nodeId,
                       UA_NodeId *outTypeId);
 
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
- * function for each child node (in ifdef because GCC/CLANG handle include order
- * differently) */
+ * function for each child node. */
 typedef UA_StatusCode
 (*UA_ServerNodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
                            UA_NodeId referenceTypeId, void *handle);
@@ -793,14 +790,12 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
  * also be registered locally. Notifications are then forwarded to a
  * user-defined callback instead of a remote client.
  *
- * Local MonitoredItems are delivered asynchronously. That is, the notification
- * is inserted as a *Delayed Callback* for the EventLoop. The callback is then
- * triggered when the control flow next returns to the EventLoop. */
+ * Local notifications are delivered asynchronously when control next returns
+ * to the EventLoop. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-/* Delete a local MonitoredItem. Used for both DataChange- and
- * Event-MonitoredItems. */
+/* Delete a local DataChange- or Event-MonitoredItem. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
@@ -814,7 +809,11 @@ typedef void (*UA_Server_DataChangeNotificationCallback)
  * notify the userland about value changes. Note that the sampling interval can
  * also be zero to be notified about changes "right away". For this we hook the
  * MonitoredItem into the observed Node and check the filter after every call of
- * the Write-Service. */
+ * the Write-Service.
+ *
+ * Sampling occurs only while the server is STARTED. Items created before
+ * startup wait for their next sampling trigger, not startup itself. This is
+ * the next write for zero-interval items sampled on writes. */
 
 /* Create a local MonitoredItem to detect data changes.
  *
@@ -953,9 +952,7 @@ typedef enum {
 typedef struct {
     /* Notify the application before the value attribute is read. Ignored if
      * NULL. It is possible to write into the value attribute during onRead
-     * (using the write service). The node is re-retrieved from the Nodestore
-     * afterwards so that changes are considered in the following read
-     * operation.
+     * (using the write service). Such changes are reflected in the read result.
      *
      * @param handle Points to user-provided data for the callback.
      * @param nodeid The identifier of the node.
@@ -968,8 +965,7 @@ typedef struct {
                    const UA_DataValue *value);
 
     /* Notify the application after writing the value attribute. Ignored if
-     * NULL. The node is re-retrieved after writing, so that the new value is
-     * visible in the callback.
+     * NULL. The callback receives the updated value.
      *
      * @param server The server executing the callback
      * @sessionId The identifier of the session
@@ -989,24 +985,15 @@ typedef struct {
 } UA_ValueSourceNotifications;
 
 typedef struct {
-    /* Copies the data from the source into the provided value.
+    /* Read from a data source into value. Set hasValue when supplying a value.
      *
-     * !! ZERO-COPY OPERATIONS POSSIBLE !!
-     * It is not required to return a copy of the actual content data. You can
-     * return a pointer to memory owned by the user. Memory can be reused
-     * between read callbacks of a DataSource, as the result is already encoded
-     * on the network buffer between each read operation.
+     * On synchronous completion with GOOD and hasValue, Variant data marked
+     * UA_VARIANT_DATA_NODELETE is copied after the callback returns. It must
+     * remain valid and unchanged until that copy completes; it must not point
+     * into the callback's stack.
      *
-     * To use zero-copy reads, set the value of the `value->value` Variant
-     * without copying, e.g. with `UA_Variant_setScalar`. Then, also set
-     * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
-     * memory being cleaned up. Don't forget to also set `value->hasValue` to
-     * true to indicate the presence of a value.
-     *
-     * To make an async read, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
-     * The result can then be set at a later time using
-     * UA_Server_setAsyncReadResult. Note that the server might cancel the async
-     * read by calling serverConfig->asyncOperationCancelCallback.
+     * For deferred completion, see Async Operations and
+     * UA_Server_setAsyncReadResult.
      *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
@@ -1023,9 +1010,9 @@ typedef struct {
      * @param value The (non-null) DataValue that is returned to the client. The
      *        data source sets the read data, the result status and optionally a
      *        sourcetimestamp.
-     * @return Returns a status code for logging. Error codes intended for the
-     *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done. */
+     * @return GOOD on synchronous completion, GOODCOMPLETESASYNCHRONOUSLY to
+     *         defer completion, or an error reported to the caller. A status
+     *         set in value is also returned to the caller (set hasStatus). */
     UA_StatusCode (*read)(UA_Server *server, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
@@ -1034,10 +1021,8 @@ typedef struct {
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
      *
-     * To make an async write, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
-     * The result can then be set at a later time using
-     * UA_Server_setAsyncWriteResult. Note that the server might cancel the
-     * async read by calling serverConfig->asyncOperationCancelCallback.
+     * For deferred completion, see Async Operations and
+     * UA_Server_setAsyncWriteResult.
      *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
@@ -1045,16 +1030,12 @@ typedef struct {
      *        access control layer
      * @param nodeId The identifier of the node being written to
      * @param nodeContext Additional data attached to the node by the user
-     * @param range If not NULL, then the datasource shall return only a
-     *        selection of the (nonscalar) data. Set
-     *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
-     *        apply
+     * @param range If not NULL, write only the selected range of the array.
+     *        Return BADINDEXRANGEINVALID if the range is invalid.
      * @param value The (non-NULL) DataValue that has been written by the client.
-     *        The data source contains the written data, the result status and
-     *        optionally a sourcetimestamp
-     * @return Returns a status code for logging. Error codes intended for the
-     *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done. */
+     *        Its contents are borrowed for the duration of this callback.
+     * @return The write status, or GOODCOMPLETESASYNCHRONOUSLY to defer
+     *         completion and supply the write status via the result setter. */
     UA_StatusCode (*write)(UA_Server *server, const UA_NodeId *sessionId,
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
@@ -1106,9 +1087,9 @@ UA_Server_setVariableNode_internalValueSource(UA_Server *server,
     const UA_NodeId nodeId, const UA_DataValue *value,
     const UA_ValueSourceNotifications *notifications);
 
-/* For the external value, no initial copy is made. The node "just" points to
- * the provided double-pointer. Otherwise identical to the internal data
- * source. */
+/* Set an external value source. The value is referenced through the provided
+ * double-pointer without copying it. Notifications work as for an internal
+ * value source. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_externalValueSource(UA_Server *server,
     const UA_NodeId nodeId, UA_DataValue** value,
@@ -1161,7 +1142,12 @@ UA_Server_addVariableTypeNode(UA_Server *server,
  * ~~~~~~~~~~
  * Please refer to the :ref:`Method Service Set <server-method-call>` to get
  * information about which MethodNodes may get executed and would thus require
- * callbacks to be registered. */
+ * callbacks to be registered.
+ *
+ * The method callback fills the server-provided output array and returns the
+ * operation status. To defer completion, return
+ * ``UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY``; see :ref:`async-operations`
+ * and ``UA_Server_setAsyncCallMethodResult``. */
 
 typedef UA_StatusCode
 (*UA_MethodCallback)(UA_Server *server,
@@ -1264,31 +1250,26 @@ UA_Server_addDataTypeNode(UA_Server *server,
                           void *nodeContext, UA_NodeId *outNewNodeId);
 
 /**
- * Due to the history of development, the DataTypeAttributes structure used in
- * the AddNodes Service does not describe the layout of the DataType. But the
- * (newer) structures for describing DataTypes do:
+ * DataTypeAttributes does not describe a DataType's layout. To register that
+ * layout, use one of these descriptions:
  *
  * - SimpleTypeDescription
  * - EnumDescription
  * - StructureDescription
  *
- * The ``UA_Server_addDataTypeFromDescription`` function translates the
- * DataTypeDescription into a UA_DataType structure and adds it to an internal
- * array of the server. Then the DataType is automatically decoded in messages
- * received by the server. Also the ``DataTypeDefinition`` attribute of the
- * corresponding DataTypeNode can then be read via the Read service.
+ * ``UA_Server_addDataTypeFromDescription`` registers the type for decoding
+ * incoming messages and makes the corresponding DataTypeNode's
+ * ``DataTypeDefinition`` attribute available through the Read service.
  * Simple aliases used as structure members are resolved to their storage
  * representation without modifying the supplied description.
  *
- * The memory layout of the internally generated ``UA_DataType`` corresponds to
- * the matching C-structure including padding.
+ * The generated ``UA_DataType`` uses the layout of the matching C-structure,
+ * including padding.
  *
- * Note that a DataTypeDescription can be added only once during the lifetime of
- * the server. This protects against existing instances of the DataType to
- * having their layout changed. */
+ * A DataTypeDescription can be added only once during the server's lifetime;
+ * the layout of a registered type cannot be changed. */
 
-/* Use the DataType description to create an internal UA_DataType entry in the
- * server */
+/* Register a DataType from its description. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addDataTypeFromDescription(UA_Server *server,
                                      const UA_ExtensionObject *description);
@@ -1313,28 +1294,25 @@ typedef struct {
 /* Extended description loading. The description must contain a decoded
  * SimpleTypeDescription, EnumDescription or StructureDescription. All its
  * namespace indexes, including member references and the QualifiedName, use
- * the source context specified by the options. Mapping precedes server-side
- * member resolution and native layout construction.
+ * the source namespace context specified by the options.
  *
  * The options can be NULL. Inputs remain unchanged. The server owns the
- * resulting datatype, including copies of both encoding IDs. Registration
- * happens only after all conversion and encoding-ID allocation succeeds.
- * An already registered datatype returns BADNODEIDEXISTS. */
+ * resulting datatype, including copies of both encoding IDs. An already
+ * registered datatype returns BADNODEIDEXISTS. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addDataTypeFromDescriptionEx(
     UA_Server *server, const UA_ExtensionObject *description,
     const UA_AddDataTypeFromDescriptionOptions *options);
 
 /* The same as UA_Server_addDataTypeFromDescription, but with the description
- * already converted into a UA_DataType. Makes a copy of the UA_DataType
- * internally. */
+ * already converted into a UA_DataType. The server makes its own copy. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
                       const UA_DataType *type);
 
 /* Get the entry to the linked list of custom datatypes. This includes both the
- * datatypes from serverConfig->customDataTypes and the internal custom data
- * types from UA_Server_addDataType.
+ * datatypes from serverConfig->customDataTypes and those registered through
+ * UA_Server_addDataType.
  *
  * Attention! The output pointer is only valid until the next call to
  * UA_Server_addDataType. */
@@ -1529,8 +1507,8 @@ UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
  * _finish part via their matching BrowseName.
  *
  * The _begin method:
- *  - prepares the node and adds it to the nodestore
- *  - copies some unassigned attributes from the TypeDefinition node internally
+ *  - creates the node
+ *  - inherits missing attributes from the TypeDefinition node
  *  - adds the references to the parent (and the TypeDefinition if applicable)
  *  - performs type-checking of variables
  *  - calls the global and node-type earlyConstructors, if configured.
@@ -1599,67 +1577,108 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  *
  * Async Operations
  * ----------------
- * Some operations can take time, such as reading a sensor that needs to warm up
- * first. In order not to block the server, a long-running operation can be
- * handled asynchronously and the result returned at a later time. The core idea
- * is that a userland callback can return
- * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY as the statuscode to signal that it
- * wishes to complete the operation later.
+ * An *initiating callback* implements a Read, Write or Call. It uses a *result
+ * setter* to complete deferred work. A local requester receives the outcome in
+ * a *result callback*; a remote client receives a service response.
+ * See :doc:`tutorial_server_method_async` for an event-loop example.
  *
- * Currently, async operations are supported for the services
+ * Implementing deferred callbacks
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Read/Write use a ``UA_CallbackValueSource``; Call uses a ``UA_MethodCallback``.
+ * Values stored directly in a VariableNode are handled synchronously.
  *
- * - Read
- * - Write
- * - Call
+ * To finish later, schedule the work and return
+ * ``UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY`` from the initiating callback.
+ * For synchronous completion, return the operation status normally without
+ * calling a result setter.
  *
- * with the caveat that read/write need a CallbackValueSource registered for the
- * variable. Values that are stored directly in a VariableNode are written and
- * read immediately.
+ * Completion
+ * ^^^^^^^^^^
+ * After the initiating callback returns, finish the work and call the matching
+ * result setter exactly once with the original pointer:
  *
- * Note that an async operation can be cancelled (e.g. after a timeout period or
- * if the caller cannot wait for the result). This is signaled in the configured
- * ``asyncOperationCancelCallback``. The provided memory locations to store the
- * operation output are then no longer valid. */
+ * - Read: fill the ``UA_DataValue`` with the value, status and optional timestamps.
+ * - Write: use the ``const UA_DataValue *`` only as an identifier; do not dereference
+ *   it after the initiating callback returns.
+ * - Call: fill the ``UA_Variant`` output array.
+ *
+ * Read/Call output remains valid until the result setter takes ownership,
+ * including after cancellation. Do not access it after handoff. Populate it with
+ * owned data, for example using ``UA_Variant_setScalarCopy``; the server clears
+ * that data after use. Do not use temporary memory.
+ *
+ * Input data is borrowed for the initiating callback's duration. Copy anything
+ * needed later, including Write values, Call arguments, NodeIds and ranges.
+ *
+ * Cancellation
+ * ^^^^^^^^^^^^
+ * Cancellation ends the requester's wait without stopping deferred work. Call
+ * the result setter even if processing is abandoned. Canceled results are
+ * discarded; side effects are not undone.
+ *
+ * The optional ``asyncOperationCancelCallback`` receives the original pointer
+ * for each canceled operation still awaiting its result setter. Notification
+ * runs after response handling or local result delivery; it does not complete
+ * the operation. Cancellation can occur before the initiating API returns.
+ *
+ * Synchronous local Read/Write/Call APIs cancel deferred completion and return
+ * BadWaitingForResponse. The cancellation rules above still apply. For
+ * cancellation during shutdown, see :ref:`server-shutdown`.
+ *
+ * Threading
+ * ^^^^^^^^^
+ * Deferred work can run on the EventLoop without multithreading support.
+ * Worker threads require ``UA_MULTITHREADING >= 100``. Result setters acquire
+ * the server mutex. Output accessed by only one thread needs no external mutex;
+ * synchronize shared output, work queues and cancellation flags.
+ *
+ * Initiating callbacks, cancellation notifications and result callbacks run
+ * under the server mutex. Do not wait in them for a thread that needs to call
+ * a server API.
+ *
+ * Result setters
+ * ^^^^^^^^^^^^^^
+ * For all three result setters, GOOD confirms the ownership handoff, not delivery
+ * to the requester. BADNOTFOUND means no pending operation matches the pointer
+ * and operation type. */
 
-/* When the UA_MethodCallback returns UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY,
- * then an async operation is created in the server for later completion. The
- * output pointer from the method callback is used to identify the async
- * operation. Do not access the output pointer after the operation has been
- * cancelled or after setting the result. */
+/* Complete a Call using the original output array and the operation status. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
                                    UA_StatusCode result);
 
-/* See the UA_CallbackValueSource documentation */
+/* Complete a Read using the original DataValue, including its result status. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result);
 
-/* See the UA_CallbackValueSource documentation. The value needs to be the
- * pointer used in the write callback. The statuscode is the result signal to be
- * returned asynchronously. */
+/* Complete a Write using the original value pointer as the identifier and
+ * result as the write status. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
                               UA_StatusCode result);
 
 /**
- * The server supports asynchronous "local" read/write/call operations. The user
- * supplies a result-callback that gets called either synchronously (if the
- * operation terminates right away) or asynchronously at a later time. The
- * result-callback is called exactly one time for each operation, also if the
- * operation is cancelled. In this case a StatusCode like
- * ``UA_STATUSCODE_BADTIMEOUT`` or ``UA_STATUSCODE_BADSHUTDOWN`` is set.
+ * Submitting local async requests
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Call ``UA_Server_read_async``, ``UA_Server_write_async`` or
+ * ``UA_Server_call_async`` with a non-NULL result callback. The server must be
+ * STARTED; otherwise the API returns BADSHUTDOWN.
  *
- * If an operation returns asynchronously, then the result-callback is executed
- * only in the next iteration of the Eventloop. An exception to this is
- * UA_Server_cancelAsync, which can optionally call the result-callback right
- * away (e.g. as part of a cleanup where the context of the result-callback gets
- * removed).
+ * GOOD means the request was accepted and the result callback will run exactly
+ * once, including on cancellation. An error return means it will not be called.
+ * The return code reports acceptance, not the operation's result.
  *
- * Async operations incur a small overhead since memory is allocated to persist
- * the operation over time.
+ * Drive the EventLoop while requests are pending. For synchronous completion,
+ * the result callback may run before the API returns; otherwise it runs on the
+ * EventLoop.
  *
- * The operation timeout is defined in milliseconds. A timeout of zero means
- * infinite. */
+ * Result data is borrowed for the result callback's duration; copy it to keep it.
+ * Keep ``asyncOpContext`` valid until the result callback finishes, or longer if
+ * still used by the application.
+ *
+ * The timeout is in milliseconds; zero disables it. It is independent of
+ * ``asyncOperationTimeout``, which applies to service requests. Timeouts are
+ * checked periodically, not at an exact deadline. */
 
 typedef void(*UA_ServerAsyncReadResultCallback)
     (UA_Server *server, void *asyncOpContext, const UA_DataValue *result);
@@ -1683,34 +1702,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_call_async(UA_Server *server, const UA_CallMethodRequest *operation,
                      UA_ServerAsyncMethodResultCallback callback,
                      void *asyncOpContext, UA_UInt32 timeout);
-
-/**
- * Local async operations can be manually cancelled (besides an internal cancel
- * due to a timeout or server shutdown). The local async operations to be
- * cancelled are selected by matching their asyncOpContext pointer. This can
- * cancel multiple operations that use the same context pointer.
- *
- * For operations where the async result was not yet set, the
- * asyncOperationCancelCallback from the server-config gets called and the
- * cancel-status is set in the operation result.
- *
- * For async operations where the result has already been set, but not yet
- * notified with the result-callback (to be done in the next EventLoop
- * iteration), the asyncOperationCancelCallback is not called and no cancel
- * status is set in the result.
- *
- * Each operation's result-callback gets called exactly once. When the operation
- * is cancelled, the result-callback can be called synchronously using the
- * synchronousResultCallback flag. Otherwise the result gets returned "normally"
- * in the next EventLoop iteration. The synchronous option ensures that all
- * (matching) async operations are fully cancelled right away. This can be
- * important in a cleanup situation where the asyncOpContext is no longer valid
- * in the future. */
-
-void UA_EXPORT UA_THREADSAFE
-UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
-                      UA_StatusCode status,
-                      UA_Boolean synchronousResultCallback);
 
 /**
  * .. _events:
@@ -1843,10 +1834,9 @@ UA_Server_createEventEx(UA_Server *server,
  *
  * A structural change is reported only if the affected Node has a
  * scalar ``NodeVersion`` Property with the String DataType. The server updates
- * that Property with the decimal representation of a server-wide, increasing
- * Int64. Nodes without a suitable ``NodeVersion`` Property are not
- * included in a ModelChangeEvent. The following successful operations are
- * reported:
+ * that Property when reporting structural changes. Nodes without a suitable
+ * ``NodeVersion`` Property are not included in a ModelChangeEvent. The following
+ * successful operations are reported:
  *
  * .. list-table::
  *    :header-rows: 1
@@ -1870,9 +1860,8 @@ UA_Server_createEventEx(UA_Server *server,
  * Variable whose AccessLevel contains ``UA_ACCESSLEVELMASK_SEMANTICCHANGE``.
  * The Variable must be a Property connected to its owner by ``HasProperty`` or
  * a subtype. The owner is reported as the affected Node. Same-value writes are
- * suppressed when the previous value is directly available. For callback-based
- * value sources the previous value may not be available for comparison, so a
- * successful write is treated as a SemanticChange.
+ * suppressed when the previous value is available. For callback-based value
+ * sources, every successful write is treated as a SemanticChange.
  *
  * A SemanticChange also marks Value MonitoredItems on the affected Variable.
  * Their next DataChange notification contains the ``SemanticsChanged``
@@ -1880,11 +1869,10 @@ UA_Server_createEventEx(UA_Server *server,
  * immediately. For cyclic sampling the bit remains pending until the next
  * notification.
  *
- * Changes are accumulated until the outermost local operation or decoded
- * Service request completes. Entries for the same affected Node are coalesced
- * by combining their ModelChange verbs. Model and Semantic changes collected
- * together are emitted as separate standard Events. Failed operations are not
- * reported.
+ * Changes are reported when the outermost local API call or Service request
+ * completes. For each affected Node, its ModelChange verbs are combined into
+ * one entry. Model and Semantic changes are emitted as separate standard
+ * Events. Failed operations are not reported.
  *
  * See ``examples/events/server_modelchange.c`` for a complete local example. */
 
@@ -1892,20 +1880,14 @@ UA_Server_createEventEx(UA_Server *server,
 /**
  * Remote Discovery Server Registration
  * ------------------------------------
- * The current server can register itself at a discovery. For that it requires
- * to open a client connection. */
+ * Register this server with a remote discovery server. */
 
 /* Register the given server instance at a discovery server. This should be
  * called periodically, for example every 10 minutes, depending on the
  * configuration of the discovery server.
  *
- * The supplied client configuration is used to create a new client to connect
- * to the discovery server. The client configuration is moved over to the server
- * and eventually cleaned up internally. The structure pointed at by `cc` is
- * zeroed to avoid accessing outdated information.
- *
- * The eventloop and logging plugins in the client configuration are replaced by
- * those configured in the server. */
+ * Takes ownership of the supplied client configuration and clears *cc. The
+ * server's EventLoop and logging plugins are used instead of those in cc. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
                             const UA_String discoveryServerUrl,
@@ -1951,8 +1933,8 @@ UA_Server_deregisterServer(UA_Server *server, const UA_String serverUri,
                            const UA_String *discoveryUrls);
 
 /**
- * The server internally manages the ServersOnNetwork list. Multicast discovery
- * is implemented on top in a driver outside of the core library. */
+ * Query and maintain ServerOnNetwork records. Multicast discovery requires an
+ * mDNS driver. */
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_findServersOnNetwork(UA_Server *server, UA_String endpointUrl,
@@ -2005,10 +1987,7 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  *
  * Drivers can use the server's public API to the full extent. For example
  * add/remove nodes, or register connections and timers in the server's
- * EventLoop.
- *
- * Some drivers define core functionality and are added internally in the server
- * implementation. */
+ * EventLoop. */
 
 /* GENERIC permits multiple instances. Other driver types
  * can be added only once to a server. */
@@ -2020,8 +1999,7 @@ typedef enum {
 struct UA_Driver;
 typedef struct UA_Driver UA_Driver;
 
-/* Callback through which the server notifies the driver
- * about runtime changes and internal events. */
+/* Receive application notifications selected by notificationFilter. */
 typedef void
 (*UA_DriverNotificationCallback)(UA_Driver *drv,
                                  UA_ApplicationNotificationType type,
@@ -2046,11 +2024,9 @@ struct UA_Driver {
      * not be switched out once the driver has been started. */
     UA_Server *server;
 
-    /* The server forwards its internal notifications to all drivers. In order
-     * to avoid overload, the filter must be set. The top 32bit are ANDed with
-     * the notification type to see if the driver is interested in the
-     * notification. See the common.h for details on the notification types and
-     * their payload. */
+    /* Select notifications by setting notificationFilter. A notification is
+     * delivered when its type shares a bit with the filter in the upper 32 bits.
+     * See common.h for notification types and their payloads. */
     UA_DriverNotificationCallback notificationCallback;
     UA_ApplicationNotificationType notificationFilter;
 
@@ -2060,11 +2036,8 @@ struct UA_Driver {
 
     UA_LifecycleState state;
 
-    /* Start the Driver. It will typically register timers/connections in the
-     * EventLoop and may add nodes in the server's information model. Starting
-     * can fail if the server is not already started also.
-     *
-     * During startup, the server calls start on all registered drivers. */
+    /* Start the Driver. Can fail if the server has not started.
+     * The server calls start on all registered drivers during startup. */
     UA_StatusCode (*start)(UA_Driver *sc);
 
     /* Stopping is asynchronous and might need a few iterations of the eventloop
@@ -2078,9 +2051,8 @@ struct UA_Driver {
      * successfully removed, the Driver must no longer be accessed from the
      * server.
      *
-     * Drivers are all free'd when the server is deleted. If a Driver is
-     * manually removed before, then it needs to be unlinked from the server's
-     * internal linked-list before. */
+     * The server frees its drivers when deleted. To free a driver manually,
+     * first detach it with UA_Server_removeDriver. */
     UA_StatusCode (*free)(UA_Driver *sc);
 };
 
@@ -2308,19 +2280,13 @@ UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
  *
  * Server Configuration
  * --------------------
- * The configuration structure is passed to the server during initialization.
- * The server expects that the configuration is not modified during runtime.
- * Currently, only one server can use a configuration at a time. During
- * shutdown, the server will clean up the parts of the configuration that are
- * modified at runtime through the provided API.
+ * Do not modify the configuration while the server is running. A configuration
+ * belongs to one server at a time. The usual usage is:
  *
- * Examples for configurations are provided in the ``/plugins`` folder.
- * The usual usage is as follows:
- *
- * 1. Create a server configuration with default settings as a starting point
- * 2. Modify the configuration, e.g. by adding a server certificate
- * 3. Instantiate a server with it
- * 4. After shutdown of the server, clean up the configuration (free memory)
+ * 1. Create a configuration with default settings.
+ * 2. Adjust it, for example by adding a server certificate.
+ * 3. Pass it to ``UA_Server_newWithConfig``, which takes ownership of its contents.
+ * 4. Shut down and delete the server; deletion also frees its configuration.
  *
  * The :ref:`tutorials` provide a good starting point for this. */
 
@@ -2339,8 +2305,7 @@ struct UA_ServerConfig {
 
     /* Server Description
      * ~~~~~~~~~~~~~~~~~~
-     * The description must be internally consistent. The ApplicationUri set in
-     * the ApplicationDescription must match the URI set in the server
+     * The ApplicationUri in the ApplicationDescription must match the URI in the
      * certificate.
      * The applicationType is not just descriptive, it changes the actual
      * functionality of the server. The RegisterServer service is available only
@@ -2571,8 +2536,7 @@ struct UA_ServerConfig {
     UA_Boolean modellingRulesOnInstances;
 
     /* Copy Method instance declarations into each Object instance instead of
-     * adding a reference to the Method on the ObjectType. The default is false
-     * for backwards compatibility. */
+     * adding a reference to the Method on the ObjectType. Default is false. */
     UA_Boolean copyMethodsOnInstances;
 
     /* Limits
@@ -2605,12 +2569,14 @@ struct UA_ServerConfig {
     /* Async Operations
      * ~~~~~~~~~~~~~~~~
      * See the section for :ref:`async operations<async-operations>`. */
-    UA_Double asyncOperationTimeout;   /* in ms, 0 => unlimited */
-    size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
+    UA_Double asyncOperationTimeout; /* Service requests only, in ms; 0 disables.
+                                     * Local requests use their timeout argument. */
+    size_t maxAsyncOperationQueueSize; /* Admission limit; 0 => unlimited.
+                                       * Canceled operations count until their setter call.
+                                       * Not a hard limit on retained memory. */
 
-    /* Notifies the userland that an async operation has been canceled. The
-     * memory for setting the output value is then freed internally and should
-     * not be touched afterwards. */
+    /* Optional cancellation notification. See Async Operations for the out
+     * pointer, notification timing and completion rules. */
     void (*asyncOperationCancelCallback)(UA_Server *server, const void *out);
 
 #ifdef UA_ENABLE_ENCRYPTION
@@ -2626,28 +2592,20 @@ struct UA_ServerConfig {
      * ApplicationType (Part 12, 7.10.14). */
     UA_UInt64 serverCapabilities;
 
-    /* Enable the internal management of RegisteredServers (besides the local
-     * server itself) via the RegisterServer and FindServer services. */
+    /* Enable registration and discovery of other servers through the
+     * RegisterServer and FindServers services. */
     UA_Boolean registeredServersEnabled;
 
     /* Timeout in seconds when to automatically remove a registered server from
      * the list, if it doesn't re-register within the given time frame. A value
      * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
-     * bigger than 10 seconds, because cleanup is only triggered approximately
-     * every 10 seconds. The server will still be removed depending on the
-     * state of the semaphore file. */
+     * greater than 10 seconds; expiration is not an exact deadline. Removal
+     * based on the semaphore file is independent of this timeout. */
     UA_UInt32 registeredServerCleanupTimeout;
 
-    /* mDNS based Announcement and Discovery is implemented in a driver that
-     * attach to a server outside the main configuration. The
-     * FindServersOnNetwork Server is however implemented by the server itself.
-     * The drivers interact with the server via the Discovery API. For example
-     * to add/update/remove a ServerOnNetwork structure. */
-
-    /* Enable the internal management of ServerOnNetwork entries and the
-     * FindServersOnNetwork Service. This is used in conjunction with mDNS to
-     * implement a Discovery Server that detects other servers on the
-     * network. If registeredServersEnabled is also set, every registered
+    /* Enable ServerOnNetwork records and the FindServersOnNetwork service.
+     * Use an mDNS driver to discover other servers on the network.
+     * If registeredServersEnabled is also set, every registered
      * server gets a ServerOnNetwork entry under its mDNS name (the
      * mdnsServerName from RegisterServer2 or else the first ServerName). See
      * announceRegisteredServers for the announcement of these entries. */
@@ -2713,7 +2671,7 @@ struct UA_ServerConfig {
     UA_Boolean auditingEnabled;
 #ifdef UA_ENABLE_AUDITING
     UA_Boolean auditWriteUpdateEnabled;  /* Mind the runtime overhead */
-    UA_Boolean auditMethodUpdateEnabled; /* Mind the runtime overhead */
+    UA_Boolean auditMethodUpdateEnabled; /* Synchronous calls only; mind the overhead */
 #endif
 
     /* Historical Access
@@ -2762,29 +2720,19 @@ struct UA_ServerConfig {
      * UA_RolePermission mappings that define which roles get which
      * permissions on nodes that reference this preset.
      *
-     * During server startup, these presets are copied into the server's
-     * internal role-permissions array. The preset entries form the initial
-     * configuration with the following guarantees:
+     * Presets cannot be deleted during runtime and their indices remain stable
+     * throughout the server's lifetime. Custom nodestores can rely on these
+     * indices when assigning permissions to nodes.
      *
-     * - Preset entries are **never deleted** during server runtime.
-     * - Their position (index) in the internal array is **kept stable**,
-     *   ensuring that nodes assigned to a preset continue to reference
-     *   the same configuration throughout the server's lifetime.
-     * - Custom nodestore implementations should be aware of these
-     *   index-stability guarantees when managing node permission storage.
-     *
-     * Additional role-permission sets can be added at runtime through
-     * the server API (UA_Server_setNodeRolePermissions). Runtime entries
-     * may be garbage-collected when no longer referenced by any node. */
+     * Additional role-permission sets can be assigned at runtime through
+     * UA_Server_setNodeRolePermissions. */
     size_t rolePermissionPresetsSize;
     UA_RolePermissionSet *rolePermissionPresets;
 
     /* Initial Role Definitions
      * ~~~~~~~~~~~~~~~~~~~~~~~~
-     * Array of initial role definitions. During server startup, these roles
-     * are copied into the server's internal role registry. Config roles are
-     * treated as **protected**: they cannot be removed at runtime via
-     * UA_Server_removeRole.
+     * Configured roles are **protected**: they cannot be removed at runtime
+     * via UA_Server_removeRole.
      *
      * Additional roles can be added at runtime through UA_Server_addRole.
      * Runtime-added roles can be removed via UA_Server_removeRole. */
@@ -2864,9 +2812,6 @@ UA_Server_removeCertificates(UA_Server *server,
 /* Set role permissions for a node.
  *
  * Assigns the given set of role-permission mappings to the specified node.
- * If an identical permission configuration already exists internally, the
- * node will reference the existing configuration (deduplication). Otherwise,
- * a new internal entry is created.
  *
  * @param server The server instance
  * @param nodeId The NodeId of the node
@@ -2908,8 +2853,7 @@ UA_Server_getNodeRolePermissions(UA_Server *server,
 /* Remove role permissions from a node.
  *
  * Resets the node to have no specific role permissions. Default access
- * control behavior then applies. The internal reference count for the
- * previously assigned permission configuration is decremented.
+ * control behavior then applies.
  *
  * @param server The server instance
  * @param nodeId The NodeId of the node

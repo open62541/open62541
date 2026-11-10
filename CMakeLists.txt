@@ -133,7 +133,8 @@ if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     # Detect whether any loaded companion spec requires the RoleSet node
     set(UA_NODESET_INJECTOR_NEEDS_ROLESET OFF)
     foreach(_model ${UA_INFORMATION_MODEL_AUTOLOAD})
-        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data")
+        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data" OR
+           _model STREQUAL "DemoModel" OR _model STREQUAL "TestModel")
             set(UA_NODESET_INJECTOR_NEEDS_ROLESET ON)
         endif()
     endforeach()
@@ -1055,7 +1056,8 @@ set(lib_sources ${lib_sources}
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
                 ${PROJECT_SOURCE_DIR}/deps/yxml.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
-                ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
+                ${PROJECT_SOURCE_DIR}/deps/parse_num.c
+                ${PROJECT_SOURCE_DIR}/deps/strtod.c)
 
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)

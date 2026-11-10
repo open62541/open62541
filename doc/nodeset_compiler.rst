@@ -690,9 +690,12 @@ OPCFoundation/UANodeset Repository
 models using CMake.
 
 Which nodesets are to be loaded is determined by the Cmake flag
-``DUA_INFORMATION_MODEL_AUTOLOAD``. All nodesets that are to be loaded
+``UA_INFORMATION_MODEL_AUTOLOAD``. All nodesets that are to be loaded
 automatically are listed here. The naming is based on the folder name of the
-Companion Specification in the ua-nodeset folder.
+Companion Specification in the ua-nodeset folder. Shortnames are case-sensitive;
+nested models use the names listed below. Where a folder contains several
+revisions of the same model, the shortname selects the revision configured in
+``tools/nodeset_injector/CMakeLists.txt``.
 
 A CMake call could look like this.
 
@@ -700,7 +703,7 @@ A CMake call could look like this.
 
     -DCMAKE_BUILD_TYPE=Debug
     -DUA_BUILD_EXAMPLES=ON
-    -DUA_INFORMATION_MODEL_AUTOLOAD=DI;POWERLINK;PROFINET;MachineVision
+    -DUA_INFORMATION_MODEL_AUTOLOAD="DI;POWERLINK;PROFINET;MachineVision"
     -DUA_NAMESPACE_ZERO=FULL
 
 The order of nodesets is important! Nodesets that build on other nodesets must
@@ -709,37 +712,45 @@ supported, grouped by dependency depth:
 
 **Level 0 — Standalone (no companion-spec dependency, only ns0):**
 
-AMB, BACnet, CNC, DEXPI, DI, GDS, I4AAS, IOLinkIODD, IREDES,
+AML-BaseTypes, AMB, BACnet, CNC, DemoModel, DEXPI, DI, DI-PackageMetadata,
+GDS, I4AAS, IOLinkIODD, IREDES, ISA-95,
 ISA95-JOBCONTROL, MachineVision, Machinery-Result,
-MDIS, MTConnect, OpenSCS, PackML, PROFINET,
-Safety, Scheduler, UAFX-Data, WireHarness-VEC, WoT
+MDIS, MTConnect, OpenSCS, PackML, PROFINET, RSL,
+Safety, Scheduler, TestModel, UAFX-Data, WireHarness-VEC, WoT, XML
 
 **Level 1 — Depends on Level-0 specs (typically DI):**
 
-ADI (DI), AutoID (DI), CommercialKitchenEquipment (DI),
-CSPPlusForMachine (DI), FDI5 (DI), FDI7 (DI), FDT (DI), IA (DI),
+ADI (DI), AML-Libraries (AML-BaseTypes), AutoID (DI), CommercialKitchenEquipment (DI),
+CSPPlusForMachine (DI), FDI5 (DI), FDI7 (DI), FDT (DI), GPOS (RSL), IA (DI),
 IOLink (DI), Machinery-Jobs (ISA95-JOBCONTROL),
 Onboarding (GDS), PADIM (DI),
 PlasticsRubber-GeneralTypes (DI), PLCopen (DI),
 PNEM (DI), PNENC (DI), PNGSDGM (DI), PNRIO (DI), POWERLINK (DI),
 Robotics (DI), Sercos (DI),
-UAFX-AC (DI, UAFX-Data), UAFX-CM (DI, UAFX-Data)
+UAFX-AC (DI, UAFX-Data), UAFX-CM (DI, UAFX-Data), UnattendedRetail (DI)
 
 **Level 2 — Depends on Level-1 specs (two or more dependency hops):**
 
 Each entry lists its required dependencies in parentheses.
 
 CAS (DI, Machinery, IA),
+CranesHoists (DI, IA, Machinery, Robotics),
 ECM (DI, IA),
 Eumabois (DI, Machinery, Woodworking),
 Glass (DI, Machinery),
+Glass-v2 (DI, IA, Machinery, ISA95-JOBCONTROL, Machinery-Jobs),
+IA-Examples (DI, IA),
 LADS (DI, AMB, Machinery),
 Machinery (DI, IA),
+MachineVision-AMCM (DI, IA, Machinery),
 Machinery-Energy (DI, IA, ECM),
 Machinery-ProcessValues (DI, PADIM),
 MachineTool (DI, Machinery, IA, ISA95-JOBCONTROL, Machinery-Jobs),
 Mining-General (DI, IA, Machinery),
 PNDRV (DI, PNENC),
+PlasticsRubber-Dosing (DI, IA, Machinery, PlasticsRubber-GeneralTypes),
+PlasticsRubber-FoamCutting (DI, IA, Machinery, PlasticsRubber-GeneralTypes),
+PlasticsRubber-GDD (DI, IA, Machinery, PlasticsRubber-GeneralTypes),
 PlasticsRubber-TCD (DI, PlasticsRubber-GeneralTypes),
 PlasticsRubber-IMM2MES (DI, PlasticsRubber-GeneralTypes),
 PlasticsRubber-LDS (DI, PlasticsRubber-GeneralTypes),
@@ -763,6 +774,8 @@ CuttingTool (DI, IA, Machinery, ISA95-JOBCONTROL, Machinery-Jobs, Machinery-Resu
 GMS (DI, IA, Machinery, ISA95-JOBCONTROL, Machinery-Jobs, Machinery-Result, MachineTool),
 IJT (DI, AMB, IA, Machinery, Machinery-Result — loads both IJT/Base and IJT/Tightening),
 LaserSystems (DI, IA, Machinery, ISA95-JOBCONTROL, Machinery-Jobs, MachineTool),
+LaserSystems-Example (DI, IA, Machinery, ISA95-JOBCONTROL, Machinery-Jobs, MachineTool, LaserSystems),
+Machinery-Examples (DI, IA, Machinery, PADIM, Machinery-ProcessValues, ISA95-JOBCONTROL, Machinery-Jobs, Machinery-Result),
 MetalForming (DI, IA, Machinery, PADIM, Machinery-ProcessValues, ISA95-JOBCONTROL, Machinery-Jobs, MachineTool),
 Mining-Extraction-General (DI, IA, Machinery, Mining-General),
 Mining-Extraction-ShearerLoader (DI, IA, Machinery, Mining-General, Mining-Extraction-General),
@@ -771,6 +784,7 @@ Mining-Loading-HydraulicExcavator (DI, IA, Machinery, Mining-General, Mining-Loa
 Mining-DevelopmentSupport-General (DI, IA, Machinery, Mining-General),
 Mining-DevelopmentSupport-RoofSupportSystem (DI, IA, Machinery, Mining-General, Mining-DevelopmentSupport-General),
 Mining-DevelopmentSupport-Dozer (DI, IA, Machinery, Mining-General, Mining-DevelopmentSupport-General),
+Mining-TransportDumping-Conveying (DI, IA, Machinery, Mining-General),
 Mining-TransportDumping-General (DI, IA, Machinery, Mining-General),
 Mining-TransportDumping-RearDumpTruck (DI, IA, Machinery, Mining-General, Mining-TransportDumping-General),
 Mining-TransportDumping-ArmouredFaceConveyor (DI, IA, Machinery, Mining-General, Mining-TransportDumping-General),
@@ -781,6 +795,8 @@ Mining-PELOServices-FaceAlignmentSystem (DI, IA, Machinery, Mining-General, Mini
 Mining-MonitoringSupervisionServices-General (DI, IA, Machinery, Mining-General),
 PAEFS (DI, Machinery, PADIM, Machinery-ProcessValues),
 Powertrain (DI, Machinery, UAFX-Data, UAFX-AC),
+SurfaceTechnology-CleaningPretreatment (DI, IA, Machinery, PADIM, Machinery-ProcessValues, ISA95-JOBCONTROL, Machinery-Jobs, STGeneralTypes),
+SurfaceTechnology-OCT-MSS (DI, IA, Machinery, PADIM, Machinery-ProcessValues, ISA95-JOBCONTROL, Machinery-Jobs, STGeneralTypes),
 WMTP (DI, Machinery, PADIM, Machinery-ProcessValues),
 PlasticsRubber-Extrusion-GeneralTypes (DI, IA, Machinery, PlasticsRubber-GeneralTypes),
 PlasticsRubber-Extrusion-{ExtrusionLine,Extruder,Die,Filter,MeltPump,HaulOff,
@@ -795,27 +811,19 @@ WireHarness (DI, Machinery, ISA95-JOBCONTROL, Machinery-Jobs, Machinery-Result, 
 
 .. note::
 
-   **PADIM** and **Machinery-ProcessValues** are generated as internal
-   helper nodesets (including the IRDI dictionary) when a model that
-   requires them is selected.
+   **PADIM** also loads the IRDI dictionary. List **PADIM** and
+   **Machinery-ProcessValues** explicitly before models that require them.
+   **SurfaceTechnology** selects the Plasma model; **STGeneralTypes** selects
+   its shared general types. **Glass** and **Glass-v2** select the original
+   and v2 Flat Glass models, respectively.
 
 .. warning::
-
-   Some companion specifications are not yet supported:
-
-   - **GPOS** and **RSL** depend on OPC UA Part 8 spatial types
-     (``3DFrame``, ``3DCartesianCoordinates``) and use abstract
-     VariableTypes as TypeDefinitions, which are not yet fully
-     supported by the open62541 type system.
-   - **Glass** has no embedded ``.bsd`` blob, so the compile-time
-     nodeset compiler cannot generate ``UA_DataType`` definitions for
-     its custom structs. Loading Glass via the **NodesetLoader** at
-     runtime works (the loader registers types from ``<Definition>``
-     elements dynamically).
 
    Some companion specifications define types with the same C name in
    different OPC UA namespaces. These cannot be loaded simultaneously:
 
+   - **DemoModel** and **TestModel** share test datatype names, including
+     ``UA_EnumUnderscoreTest``.
    - **Pumps** and **PAEFS** both define ``UA_ControlModeEnum``.
    - **TMC** and **PlasticsRubber-GeneralTypes** both define
      ``UA_ControlModeEnumeration`` / ``UA_ProductionStatusEnumeration``.

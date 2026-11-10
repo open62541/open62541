@@ -522,8 +522,10 @@ UA_DataType_toEnumDescription(const UA_DataType *type,
         ef->value = (UA_Int64)(intptr_t)dtm->memberType;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_String name = UA_STRING((char*)(uintptr_t)dtm->memberName);
-        ef->displayName.locale = UA_STRING_ALLOC("");
-        res = UA_String_copy(&name, &ef->name);
+        UA_String locale = UA_STRING("");
+        res = UA_String_copy(&locale, &ef->displayName.locale);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_String_copy(&name, &ef->name);
         if(res == UA_STATUSCODE_GOOD)
             res = UA_String_copy(&name, &ef->displayName.text);
         if(res != UA_STATUSCODE_GOOD) {

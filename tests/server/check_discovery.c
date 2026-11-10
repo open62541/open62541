@@ -428,11 +428,9 @@ FindAndCheckDiscoveryUrls(const char *requestedEndpointUrl,
                           UA_Boolean expectRegistered) {
     UA_Client *client = UA_Client_newForUnitTest();
 
-    UA_StatusCode retval = UA_Client_connect(client, requestedEndpointUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return false;
-    }
+    /* Discovery services do not require a Session. */
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, requestedEndpointUrl);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
@@ -549,7 +547,8 @@ static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
                      const UA_String *expectedEndpointUrl) {
     UA_Client *client = UA_Client_newForUnitTest();
-    ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(client, discoveryUrl),
+                      UA_STATUSCODE_GOOD);
 
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
@@ -775,9 +774,13 @@ START_TEST(Server_getEndpoints_emptyPolicyId) {
 
     UA_UserTokenPolicy *policy = &config->accessControl.userTokenPolicies[0];
     UA_String_clear(&policy->policyId);
-    policy->policyId = UA_STRING_ALLOC("");
-    ck_assert_ptr_eq(policy->policyId.data,
-                     (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    /* Empty policy IDs can use the sentinel or own a terminated buffer. */
+    if(_i == 0)
+        policy->policyId.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+    else
+        policy->policyId = UA_STRING_ALLOC("");
+    ck_assert_uint_eq(policy->policyId.length, 0);
+    ck_assert_ptr_nonnull(policy->policyId.data);
 
     UA_EndpointDescription *endpoints = NULL;
     size_t endpointsSize = 0;
@@ -993,7 +996,7 @@ START_TEST(Server_registerServer2_withoutCertificate_rejected) {
     while(!Client_find_discovery()) {}
 
     UA_Client *client = UA_Client_newForUnitTest();
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_String uninvitedUri =
@@ -1033,7 +1036,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_new_del = tcase_create("New Delete");
     tcase_add_test(tc_new_del, Server_new_delete);
     tcase_add_test(tc_new_del, Server_new_shutdown_delete);
-    tcase_add_test(tc_new_del, Server_getEndpoints_emptyPolicyId);
+    tcase_add_loop_test(tc_new_del, Server_getEndpoints_emptyPolicyId, 0, 2);
     tcase_add_loop_test(tc_new_del, Server_addEndpoint_rejectsInvalidSecurityMode, 0, 4);
     tcase_add_loop_test(tc_new_del, Server_getEndpoints_rejectsOutOfRangeSecurityMode, 0, 3);
     suite_add_tcase(s,tc_new_del);

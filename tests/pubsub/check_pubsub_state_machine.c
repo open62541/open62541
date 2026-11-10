@@ -69,13 +69,8 @@ static void
 teardown(void) {
     if(server == NULL)
         return;
-    /* Only call UA_Server_run_shutdown if the server was actually
-     * started. Tests that exercise the "server not started" branch in
-     * the state machine leave the server unstarted. */
-    if(server->state == UA_LIFECYCLESTATE_STARTED) {
-        UA_Server_run_shutdown(server);
-    }
-    UA_Server_delete(server);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
     server = NULL;
     UA_NodeId_init(&connectionIdent);
     UA_NodeId_init(&writerGroupIdent);
@@ -179,6 +174,47 @@ START_TEST(Connection_EnableBeforeStartup_PausesAndRecovers) {
     res = UA_Server_run_startup(server);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(connection->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+} END_TEST
+
+/* UA_Server_enableAllPubSubComponents before startup must not start the
+ * PubSubManager. Otherwise the connection opens its transport on a
+ * ConnectionManager that is not started and goes to ERROR. Instead the
+ * components wait in PAUSED and become operational with the server startup. */
+START_TEST(Server_EnableAllBeforeStartup_PausesAndRecovers) {
+    UA_PubSubConnectionConfig cfg;
+    memset(&cfg, 0, sizeof(UA_PubSubConnectionConfig));
+    cfg.name = UA_STRING("Pre-start EnableAll Connection");
+    cfg.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType addressUrl =
+        {UA_STRING_NULL, UA_STRING("opc.udp://127.0.0.1:4840/")};
+    UA_Variant_setScalar(&cfg.address, &addressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    cfg.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    cfg.publisherId.id.uint16 = 2234;
+    UA_StatusCode res =
+        UA_Server_addPubSubConnection(server, &cfg, &connectionIdent);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* A WriterGroup makes the connection open a send channel */
+    addMinimalWriterGroup();
+
+    res = UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_find(psm, connectionIdent);
+    ck_assert_ptr_ne(connection, NULL);
+    ck_assert_int_eq(connection->head.state, UA_PUBSUBSTATE_PAUSED);
+
+    res = UA_Server_run_startup(server);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(connection->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
+    ck_assert_ptr_ne(wg, NULL);
+    ck_assert_int_ne(wg->head.state, UA_PUBSUBSTATE_ERROR);
 } END_TEST
 
 /* A WriterGroup with its own UDP address can be added before the server and
@@ -588,6 +624,8 @@ stateMachineSuite(void) {
     tcase_add_checked_fixture(tc_connection_state, setup, teardown);
     tcase_add_test(tc_connection_state,
                    Connection_EnableBeforeStartup_PausesAndRecovers);
+    tcase_add_test(tc_connection_state,
+                   Server_EnableAllBeforeStartup_PausesAndRecovers);
 
     TCase *tc_wg_state = tcase_create("WriterGroup state-machine branches");
     tcase_add_checked_fixture(tc_wg_state, setup, teardown);

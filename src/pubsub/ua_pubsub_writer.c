@@ -855,11 +855,13 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
             dataSetMessage->header.timestamp = el->dateTime_now(el);
         }
 
-        /* TODO: Picoseconds resolution not supported atm */
-        if((u64)dsm->dataSetMessageContentMask &
-           (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
-            dataSetMessage->header.picoSecondsIncluded = false;
-        }
+        /* The EventLoop clock has 100 ns resolution, so the remainder is zero.
+         * PicoSeconds can only be included together with a Timestamp. */
+        dataSetMessage->header.picoSeconds = 0;
+        dataSetMessage->header.picoSecondsIncluded =
+            dataSetMessage->header.timestampEnabled &&
+            ((u64)dsm->dataSetMessageContentMask &
+             (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) != 0;
 
         /* Include the overall status computed while sampling the fields. */
         if((u64)dsm->dataSetMessageContentMask &

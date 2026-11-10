@@ -56,7 +56,7 @@ UA_EventLoopLWIP_addTimer(UA_EventLoop *public_el,
                                     UA_Callback cb,
                                     void *application, void *data,
                                     UA_Double interval_ms,
-                                    UA_DateTime *baseTime,
+                                    const UA_DateTime *baseTime,
                                     UA_TimerPolicy timerPolicy,
                                     UA_UInt64 *callbackId) {
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
@@ -69,7 +69,7 @@ static UA_StatusCode
 UA_EventLoopLWIP_modifyTimer(UA_EventLoop *public_el,
                               UA_UInt64 callbackId,
                               UA_Double interval_ms,
-                              UA_DateTime *baseTime,
+                              const UA_DateTime *baseTime,
                               UA_TimerPolicy timerPolicy) {
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     return UA_Timer_modify(&el->timer, callbackId, interval_ms,

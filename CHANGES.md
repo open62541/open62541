@@ -3,6 +3,19 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Default ValueRank is scalar
+
+The default `ValueRank` for `UA_VariableAttributes` and
+`UA_VariableTypeAttributes` is now `UA_VALUERANK_SCALAR` (`-1`). Both the nodeset
+compiler and the runtime XML loader also apply the UANodeSet schema's scalar
+default when a Variable or VariableType omits `ValueRank`. They no longer
+inherit the rank from the type definition or supertype in that case.
+
+Array-valued nodes must declare a compatible rank explicitly. This also applies
+to VariableTypes intended to allow arrays. Older NodeSets that relied on rank
+inheritance can now contain incompatible nodes: the generated loader returns an
+error, while the runtime XML loader logs and omits rejected nodes.
+
 ### Configure the advertised server profiles explicitly
 
 `UA_ServerConfig.serverProfileArray` and `serverProfileArraySize` now determine
@@ -187,6 +200,56 @@ The PubSub SecurityPolicies `PubSub-Aes128-CTR` and `PubSub-Aes256-CTR`
 now available with every `UA_ENABLE_ENCRYPTION` backend. They were limited to
 mbedTLS before. The PubSub security tests and the encrypted PubSub examples
 build with OpenSSL and LibreSSL as well.
+
+### Async cancellation still requires completion
+
+Cancellation of an asynchronous Read, Write or Call now preserves operation
+storage until completion. Applications must follow these ownership rules:
+
+- Read/Call output remains valid after cancellation until its setter takes
+  ownership. Synchronize concurrent access from the cancellation callback.
+- Whether canceled or not, complete each operation with exactly one matching
+  `UA_Server_setAsync*Result` call, then stop accessing its storage: the server
+  may free or reuse it. Canceled results are discarded.
+- Continue completing operations during shutdown. Shutdown cancels pending
+  service and local operations with `UA_STATUSCODE_BADSHUTDOWN` and waits for
+  outstanding setter calls. Keep driving an external event loop if used.
+
+The local `UA_Server_cancelAsync` API has been removed. Local requests complete
+normally, time out, or are canceled during shutdown.
+
+Deleting a monitored item no longer cancels asynchronous reads already started
+to sample its value. Applications must still complete those reads with
+`UA_Server_setAsyncReadResult`; the server discards the results.
+
+After response handling or local result delivery, the server calls the optional
+`asyncOperationCancelCallback` for each canceled operation still awaiting its
+setter call.
+
+Session closure rejects new requests immediately. While the server is running,
+final notifications and session-context cleanup are deferred to the event loop.
+Outstanding async responses emit `SERVICE_END` before `SESSION_CLOSED` and before
+the access-control `closeSession` callback releases the session context.
+
+Local async requests are rejected with `BadShutdown` unless the server is
+started. `UA_Server_run_shutdown` waits until `STOPPED`, including when called
+while already `STOPPING`. Calling this blocking shutdown during operation
+dispatch or async callbacks returns `BadInvalidState`; defer it until the callback
+returns or use `UA_Server_run_shutdown_async`.
+Shutdown also drains workers left by synchronous calls before startup or after
+a completed shutdown. Blocking shutdown starts their EventLoop if necessary;
+with nonblocking shutdown the caller must start and drive it.
+Datachange monitored items sample only while the server is `STARTED`. Items
+created before startup wait for their next sampling trigger; startup does not
+take an initial sample. Zero-interval items sampled on writes wait for a write.
+If startup fails while the server is `STOPPING`, keep driving an external event
+loop until `STOPPED` before retrying startup.
+
+Synchronous local Read/Write/Call APIs cancel deferred operations and report
+`BadWaitingForResponse`; their operation storage also survives until the setter call.
+This does not extend the lifetime of callback inputs: copy any contents needed
+later. In particular, a Write value pointer is only an identifier after its
+callback returns.
 
 ### PubSub security-policy nonce lengths
 

@@ -46,7 +46,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/mbedtls \
             -DENABLE_PROGRAMS=OFF \
             -DENABLE_TESTING=OFF
-          cmake --build mbedtls-build --parallel
+          cmake --build mbedtls-build --parallel "$(nproc)"
           cmake --install mbedtls-build
       - name: Build and test open62541
         run: |
@@ -63,7 +63,7 @@ jobs:
             -DUA_ENABLE_PUBSUB=ON \
             -DUA_FORCE_WERROR=ON \
             -DUA_NAMESPACE_ZERO=FULL
-          cmake --build build-mbedtls --parallel
+          cmake --build build-mbedtls --parallel "$(nproc)"
           ctest --test-dir build-mbedtls --output-on-failure \
             -R "(encrypt|decrypt|cert|crypto|ecc|auth|json_config|http)"
       - name: Check mbedTLS 4 ownership with Valgrind
@@ -147,7 +147,10 @@ jobs:
 
           - name: "Encryption (OpenSSL 4) Build & Unit Tests (gcc)"
             cmd_deps: |
-              curl -L https://github.com/openssl/openssl/releases/download/openssl-4.0.2/openssl-4.0.2.tar.gz --output openssl.tar.gz
+              curl --fail --location --retry 3 --retry-delay 2 \
+                --connect-timeout 30 --max-time 120 \
+                https://github.com/openssl/openssl/releases/download/openssl-4.0.2/openssl-4.0.2.tar.gz \
+                --output openssl.tar.gz
               tar -xz -f openssl.tar.gz
               cd openssl-4.0.2
               ./Configure --prefix=/usr/local --libdir=lib no-docs no-tests

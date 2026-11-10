@@ -645,6 +645,24 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
     return best;
 }
 
+const UA_ByteString *
+getUserTokenEncryptionCertificate(UA_Server *server,
+                                  const UA_EndpointDescription *ed) {
+    for(size_t i = 0; i < ed->userIdentityTokensSize; i++) {
+        const UA_UserTokenPolicy *utp = &ed->userIdentityTokens[i];
+        if(utp->tokenType == UA_USERTOKENTYPE_ANONYMOUS ||
+           utp->securityPolicyUri.length == 0)
+            continue;
+        UA_SecurityPolicy *encSP =
+            getSecurityPolicyByUri(server, &utp->securityPolicyUri);
+        if(!encSP || encSP->policyType == UA_SECURITYPOLICYTYPE_NONE ||
+           encSP->localCertificate.length == 0)
+            continue;
+        return &encSP->localCertificate;
+    }
+    return NULL;
+}
+
 static const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
 
 UA_String
@@ -837,18 +855,9 @@ setCurrentEndpoint(UA_Server *server, const UA_EndpointDescription *source,
     /* OPC UA Part 4 §5.4.2: A client needs a certificate to encrypt credentials
      * if the endpoint uses None but a token policy requires encryption. */
     if(ed->serverCertificate.length == 0) {
-        for(size_t i = 0; i < ed->userIdentityTokensSize; i++) {
-            UA_UserTokenPolicy *utp = &ed->userIdentityTokens[i];
-            if(utp->securityPolicyUri.length == 0)
-                continue;
-            UA_SecurityPolicy *encSP =
-                getSecurityPolicyByUri(server, &utp->securityPolicyUri);
-            if(!encSP || encSP->localCertificate.length == 0)
-                continue;
-            res |= UA_ByteString_copy(&encSP->localCertificate,
-                                      &ed->serverCertificate);
-            break;
-        }
+        const UA_ByteString *encCert = getUserTokenEncryptionCertificate(server, ed);
+        if(encCert)
+            res |= UA_ByteString_copy(encCert, &ed->serverCertificate);
     }
 
     UA_String_clear(&ed->endpointUrl);

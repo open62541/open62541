@@ -177,7 +177,7 @@ static Fp multiply(Fp* a, Fp* b) {
     uint64_t al_bh = (a->frac & lomask) * (b->frac >> 32);
     uint64_t al_bl = (a->frac & lomask) * (b->frac & lomask);
     uint64_t ah_bh = (a->frac >> 32)    * (b->frac >> 32);
-    uint64_t tmp = (ah_bl & lomask) + (al_bh & lomask) + (al_bl >> 32); 
+    uint64_t tmp = (ah_bl & lomask) + (al_bh & lomask) + (al_bl >> 32);
     /* round up */
     tmp += 1U << 31;
     Fp fp;
@@ -271,9 +271,10 @@ static unsigned grisu2(uint64_t bits, char* digits, int* K) {
 static unsigned
 emit_digits(char* digits, unsigned ndigits, char* dest, int K, bool neg) {
     int exp = absv(K + (int)ndigits - 1);
+    int max_trailing_zeros = (!neg) ? 7 : 6;
 
     /* write plain integer */
-    if(K >= 0 && (exp < (int)ndigits + 7)) {
+    if(K >= 0 && (exp < (int)ndigits + max_trailing_zeros)) {
         memcpy(dest, digits, ndigits);
         memset(dest + ndigits, '0', (unsigned)K);
         memcpy(dest + ndigits + (unsigned)K, ".0", 2); /* always append .0 for naked integers */

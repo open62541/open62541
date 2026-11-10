@@ -182,13 +182,13 @@ struct UA_EventLoop {
      * time. The timerId is written if the pointer is non-NULL. */
     UA_StatusCode
     (*addTimer)(UA_EventLoop *el, UA_Callback cb, void *application,
-                void *data, UA_Double interval_ms, UA_DateTime *baseTime,
+                void *data, UA_Double interval_ms, const UA_DateTime *baseTime,
                 UA_TimerPolicy timerPolicy, UA_UInt64 *timerId);
 
     /* If baseTime is NULL, use the current time as the base. */
     UA_StatusCode
     (*modifyTimer)(UA_EventLoop *el, UA_UInt64 timerId,
-                   UA_Double interval_ms, UA_DateTime *baseTime,
+                   UA_Double interval_ms, const UA_DateTime *baseTime,
                    UA_TimerPolicy timerPolicy);
 
     void (*removeTimer)(UA_EventLoop *el, UA_UInt64 timerId);
@@ -834,6 +834,8 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  *    DER or PEM encoded CA certificate used to validate the TLS peer. For a
  *    listener, setting this requires clients to present a trusted certificate.
  *    A client uses the system trust store when this parameter is omitted.
+ *    Clients may configure TLS credentials and trust with ``useSSL=false``;
+ *    they apply when an HTTP request redirects to HTTPS.
  *
  * 0:recv-max-message-size [uint32]
  *    Maximum size of a reassembled response body for clients or request body

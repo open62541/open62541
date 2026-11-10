@@ -39,6 +39,16 @@ Copy mode inserts unrelated namespaces;
 static registration preloads the common compile-time namespace plan in both
 servers. All descriptor arrays are const and can be shared.
 
+`invalid_value_ranks.json` records upstream models that conflict with the
+UANodeSet scalar default for omitted ValueRank attributes. Each entry pins the
+source file's SHA-256 and identifies a rejected node. These cases require
+BadTypeMismatch from the compiled loader and absence of the identified node
+from both loaders; an unexpected success fails the test. The XML loader may
+continue loading other nodes after a rejection. Models depending on a rejected
+model are reported as skipped (exit 77) and are not compared as successful loads. The
+combined-server tests continue with independent models. Changes to a pinned
+file require reassessing the expectation rather than silently carrying it over.
+
 Legal structure field ranks that the SDK cannot represent natively generate a
 warning. Their datatype namespace nodes remain present, while their native
 descriptors and native layouts depending on them are omitted. Polymorphic
