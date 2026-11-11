@@ -1123,10 +1123,8 @@ START_TEST(filterBitwiseAnd) {
     UA_StatusCode retval = evaluateWhereClause(&ctx);
     UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
-    /* BitwiseAnd returns a UInt32, not a Boolean. The WHERE clause
-     * evaluation only considers Boolean TRUE as a match. Non-boolean
-     * results are treated as BADNOMATCH. */
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+    /* The nonzero UInt32 result is explicitly cast to Boolean TRUE. */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(filterBitwiseOr) {
@@ -1147,9 +1145,7 @@ START_TEST(filterBitwiseOr) {
     UA_StatusCode retval = evaluateWhereClause(&ctx);
     UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
-    /* BitwiseOr returns a UInt32, not a Boolean. The WHERE clause
-     * evaluation only considers Boolean TRUE as a match. Non-boolean
-     * results are treated as BADNOMATCH. */
+    /* The zero UInt32 result is explicitly cast to Boolean FALSE. */
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
 } END_TEST
 
@@ -2804,6 +2800,70 @@ START_TEST(nonNormalFormEventFieldsMap) {
     forkServer();
 } END_TEST
 
+/* An operand that cannot be resolved (here: a field the event does not have)
+ * must make the evaluation fail cleanly. The failed operand must not be cleaned
+ * up as if it held a valid Variant. */
+static void
+checkUnresolvableOperand(UA_FilterOperator filterOperator) {
+    /* Equals(42, /NoSuchField) or InList(/NoSuchField, 42). InList pushes
+     * both operands before resolving the first. If that fails, the second
+     * operand must still be safe to clear even though it was never resolved. */
+    UA_Int32 v = 42;
+    UA_LiteralOperand lop;
+    UA_LiteralOperand_init(&lop);
+    UA_Variant_setScalar(&lop.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_QualifiedName fieldName = UA_QUALIFIEDNAME(0, "NoSuchField");
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+    sao.browsePathSize = 1;
+    sao.browsePath = &fieldName;
+
+    UA_ExtensionObject ops[2];
+    UA_ExtensionObject_init(&ops[0]);
+    ops[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    ops[0].content.decoded.data = &lop;
+    UA_ExtensionObject_init(&ops[1]);
+    ops[1].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[1].content.decoded.type = &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND];
+    ops[1].content.decoded.data = &sao;
+
+    UA_ContentFilterElement element;
+    UA_ContentFilterElement_init(&element);
+    if(filterOperator == UA_FILTEROPERATOR_INLIST) {
+        UA_ExtensionObject tmp = ops[0];
+        ops[0] = ops[1];
+        ops[1] = tmp;
+    }
+    element.filterOperator = filterOperator;
+    element.filterOperandsSize = 2;
+    element.filterOperands = ops;
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &element, 1);
+    /* Pushed operands must be initialized even when resolution leaves them empty. */
+    memset(ctx.operandStack, 0xA5, sizeof(ctx.operandStack));
+
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+
+    /* The missing browse target yields BadNoMatch for both operators.
+     * Both must clean up without crashing. */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+}
+
+START_TEST(evaluateFilterUnresolvableOperand) {
+    checkUnresolvableOperand(UA_FILTEROPERATOR_EQUALS);
+} END_TEST
+
+START_TEST(evaluateFilterInListUnresolvableFirstOperand) {
+    checkUnresolvableOperand(UA_FILTEROPERATOR_INLIST);
+} END_TEST
+
 START_TEST(evaluateFilterRejectsOutOfRangeOperator) {
     static const UA_Int32 operators[] = {-1, 18, UA_INT32_MAX};
     UA_ContentFilterElement element;
@@ -2899,6 +2959,8 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, filterCast_doubleToInt32);
     tcase_add_test(tc_server, filterCast_unsignedPaths);
     tcase_add_test(tc_server, filterEquals_strings);
+    tcase_add_test(tc_server, evaluateFilterUnresolvableOperand);
+    tcase_add_test(tc_server, evaluateFilterInListUnresolvableFirstOperand);
     tcase_add_loop_test(tc_server, evaluateFilterRejectsOutOfRangeOperator, 0, 3);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);

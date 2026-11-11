@@ -23,6 +23,42 @@
 #include "ua_pubsub_keystorage.h"
 #endif
 
+#define UA_DATASETMESSAGE_STACK_CAPACITY 16
+
+static UA_StatusCode
+allocDataSetMessageStore(size_t count, UA_UInt16 *stackWriterIds,
+                         UA_DataSetMessage *stackMessages,
+                         UA_UInt16 **writerIds, UA_DataSetMessage **messages) {
+    *writerIds = stackWriterIds;
+    *messages = stackMessages;
+    if(count <= UA_DATASETMESSAGE_STACK_CAPACITY)
+        return UA_STATUSCODE_GOOD;
+    if(count > SIZE_MAX / sizeof(UA_UInt16) ||
+       count > SIZE_MAX / sizeof(UA_DataSetMessage))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    *writerIds = (UA_UInt16*)UA_calloc(count, sizeof(UA_UInt16));
+    if(!*writerIds)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *messages = (UA_DataSetMessage*)UA_calloc(count, sizeof(UA_DataSetMessage));
+    if(!*messages) {
+        UA_free(*writerIds);
+        *writerIds = NULL;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+freeDataSetMessageStore(UA_UInt16 *stackWriterIds,
+                        UA_DataSetMessage *stackMessages,
+                        UA_UInt16 *writerIds, UA_DataSetMessage *messages) {
+    if(messages != stackMessages)
+        UA_free(messages);
+    if(writerIds != stackWriterIds)
+        UA_free(writerIds);
+}
+
 static UA_StatusCode
 encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
                UA_Byte *signStart, UA_Byte *encryptStart,
@@ -740,8 +776,11 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
 
     /* Collect field metadata for the DataSetMessages in this group. */
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    UA_DataSetMessage_EncodingMetaData stackMetaData[UA_PUBSUB_METADATA_STACK_CAPACITY];
+    UA_DataSetMessage_EncodingMetaData *emd =
+        allocEncodingMetaData(wg->writersCount, stackMetaData);
+    if(!emd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     ctx.eo.metaData = emd;
     ctx.eo.metaDataSize = wg->writersCount;
     UA_DataSetWriter *dsw;
@@ -761,17 +800,25 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
         i++;
     }
 
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
     /* Compute the message length */
     size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, &ctx.eo, NULL);
-    if(msgSize == 0)
-        return UA_STATUSCODE_BADENCODINGERROR;
+    if(msgSize == 0) {
+        res = UA_STATUSCODE_BADENCODINGERROR;
+        goto cleanup;
+    }
     if(wg->config.maxNetworkMessageSize > 0 &&
-       msgSize > wg->config.maxNetworkMessageSize)
-        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+       msgSize > wg->config.maxNetworkMessageSize) {
+        res = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        goto cleanup;
+    }
 
     UA_ConnectionManager *cm = connection->cm;
-    if(!cm)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!cm) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     /* Select the wg sendchannel if configured */
     uintptr_t sendChannel = connection->sendChannel;
@@ -779,13 +826,14 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
         sendChannel = wg->sendChannel;
     if(sendChannel == 0) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Cannot send, no open connection");
-        return UA_STATUSCODE_BADINTERNALERROR;
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
     }
 
     /* Allocate the buffer */
     UA_ByteString buf;
-    UA_StatusCode res = cm->allocNetworkBuffer(cm, sendChannel, &buf, msgSize);
-    UA_CHECK_STATUS(res, return res);
+    res = cm->allocNetworkBuffer(cm, sendChannel, &buf, msgSize);
+    UA_CHECK_STATUS(res, goto cleanup);
 
     /* Encode the message */
     ctx.ctx.pos = buf.data;
@@ -793,13 +841,15 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     res = UA_NetworkMessage_encodeJsonInternal(&ctx, &nm);
     if(res != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, sendChannel, &buf);
-        return res;
+        goto cleanup;
     }
     UA_assert(ctx.ctx.pos == ctx.ctx.end);
 
     /* Send the prepared messages */
     sendNetworkMessageBuffer(psm, wg, connection, sendChannel, &buf);
-    return UA_STATUSCODE_GOOD;
+ cleanup:
+    freeEncodingMetaData(emd, stackMetaData);
+    return res;
 }
 #endif
 
@@ -1031,8 +1081,13 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     /* Pass each writer's field metadata and configured size to the encoder.
      * ConfiguredSize controls padding inside the NetworkMessage. */
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    UA_DataSetMessage_EncodingMetaData stackMetaData[UA_PUBSUB_METADATA_STACK_CAPACITY];
+    UA_DataSetMessage_EncodingMetaData *emd =
+        allocEncodingMetaData(wg->writersCount, stackMetaData);
+    if(!emd) {
+        clearPromotedFields(&nm);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     ctx.eo.metaData = emd;
     ctx.eo.metaDataSize = wg->writersCount;
     UA_DataSetWriter *dsw;
@@ -1056,8 +1111,8 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
      * There is no padding and the encryption incurs no size overhead. */
     size_t msgSize = UA_NetworkMessage_calcSizeBinaryInternal(&ctx, &nm);
     if(msgSize == 0) {
-        clearPromotedFields(&nm);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        rv = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
     }
 
     /* Add the overhead for the security signature.
@@ -1071,14 +1126,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     }
     if(wg->config.maxNetworkMessageSize > 0 &&
        msgSize > wg->config.maxNetworkMessageSize) {
-        clearPromotedFields(&nm);
-        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        rv = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        goto cleanup;
     }
 
     UA_ConnectionManager *cm = connection->cm;
     if(!cm) {
-        clearPromotedFields(&nm);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        rv = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
     }
 
     /* Select the wg sendchannel if configured */
@@ -1087,17 +1142,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
         sendChannel = wg->sendChannel;
     if(sendChannel == 0) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Cannot send, no open connection");
-        clearPromotedFields(&nm);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        rv = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
     }
 
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf = UA_BYTESTRING_NULL;
     rv = cm->allocNetworkBuffer(cm, sendChannel, &buf, msgSize);
-    if(rv != UA_STATUSCODE_GOOD) {
-        clearPromotedFields(&nm);
-        return rv;
-    }
+    UA_CHECK_STATUS(rv, goto cleanup);
 
     /* Encode and encrypt the message */
     ctx.ctx.pos = buf.data;
@@ -1105,14 +1157,15 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     rv = encodeNetworkMessage(wg, &ctx, &nm, &buf);
     if(rv != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, sendChannel, &buf);
-        clearPromotedFields(&nm);
-        return rv;
+        goto cleanup;
     }
 
     /* Send out the message */
     sendNetworkMessageBuffer(psm, wg, connection, sendChannel, &buf);
+ cleanup:
+    freeEncodingMetaData(emd, stackMetaData);
     clearPromotedFields(&nm);
-    return UA_STATUSCODE_GOOD;
+    return rv;
 }
 
 static void
@@ -1226,7 +1279,20 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
     }
 
     /* Build array of enabled writers for ordering (DataSetOrdering, OPC UA Part 14 6.3.1.1.3) */
-    UA_STACKARRAY(UA_DataSetWriter*, writers, wg->writersCount);
+    UA_DataSetWriter *stackWriters[UA_DATASETMESSAGE_STACK_CAPACITY];
+    UA_DataSetWriter **writers = stackWriters;
+    size_t writersCount = wg->writersCount;
+    if(writersCount > UA_DATASETMESSAGE_STACK_CAPACITY) {
+        if(writersCount > SIZE_MAX / sizeof(*writers)) {
+            unlockServer(psm->drv.server);
+            return;
+        }
+        writers = (UA_DataSetWriter**)UA_calloc(writersCount, sizeof(*writers));
+        if(!writers) {
+            unlockServer(psm->drv.server);
+            return;
+        }
+    }
     size_t enabledWriters = 0;
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
@@ -1239,6 +1305,8 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
     if(enabledWriters == 0) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "Cannot publish -- No Writers are enabled");
+        if(writers != stackWriters)
+            UA_free(writers);
         unlockServer(psm->drv.server);
         return;
     }
@@ -1264,9 +1332,23 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
      * consecutively, starting at one. */
     size_t dsmCount = 0;
     UA_UInt32 networkMessageNumber = 1;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, enabledWriters);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, enabledWriters);
-    UA_STACKARRAY(UA_Guid, classIds, enabledWriters);
+    UA_UInt16 stackWriterIds[UA_DATASETMESSAGE_STACK_CAPACITY];
+    UA_DataSetMessage stackMessages[UA_DATASETMESSAGE_STACK_CAPACITY];
+    UA_Guid stackClassIds[UA_DATASETMESSAGE_STACK_CAPACITY];
+    UA_UInt16 *dsWriterIds;
+    UA_DataSetMessage *dsmStore;
+    UA_Guid *classIds = stackClassIds;
+    UA_StatusCode res = allocDataSetMessageStore(
+        enabledWriters, stackWriterIds, stackMessages, &dsWriterIds, &dsmStore);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    if(enabledWriters > UA_DATASETMESSAGE_STACK_CAPACITY) {
+        if(enabledWriters > SIZE_MAX / sizeof(*classIds))
+            goto cleanup;
+        classIds = (UA_Guid*)UA_calloc(enabledWriters, sizeof(*classIds));
+        if(!classIds)
+            goto cleanup;
+    }
 
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
     for(size_t i = 0; i < enabledWriters; i++) {
@@ -1277,8 +1359,7 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
 
         /* Generate the DSM */
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
-        UA_StatusCode res =
-            UA_DataSetWriter_generateDataSetMessage(psm, dsw, &dsmStore[dsmCount]);
+        res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &dsmStore[dsmCount]);
         if(res == UA_STATUSCODE_GOODNODATA)
             continue;
         if(res != UA_STATUSCODE_GOOD) {
@@ -1322,11 +1403,16 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
                            &dsWriterIds[i], nmDsmCount, networkMessageNumber++);
     }
 
+ cleanup:
     /* Clean up DSM */
     for(size_t i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
-
+    freeDataSetMessageStore(stackWriterIds, stackMessages, dsWriterIds, dsmStore);
+    if(classIds != stackClassIds)
+        UA_free(classIds);
+    if(writers != stackWriters)
+        UA_free(writers);
     unlockServer(psm->drv.server);
 }
 
@@ -1921,14 +2007,20 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     memset(&networkMessage, 0, sizeof(networkMessage));
     memset(ot, 0, sizeof(UA_PubSubOffsetTable));
 
+    /* An offset table describes one NetworkMessage. Reject oversized groups
+     * before allocating or generating DataSetMessages. */
+    if(wg->writersCount > UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Prepare the metadata encode the DataSetMessages */
     PubSubEncodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeCtx));
     ctx.ot = ot;
 
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    UA_DataSetMessage_EncodingMetaData emd[UA_NETWORKMESSAGE_MAXMESSAGECOUNT] = {0};
     ctx.eo.metaData = emd;
     ctx.eo.metaDataSize = wg->writersCount;
     UA_DataSetWriter *dsw;
@@ -1952,9 +2044,8 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     size_t msgSize;
     size_t dsmCount = 0;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
-    memset(dsmStore, 0, sizeof(UA_DataSetMessage) * wg->writersCount);
+    UA_UInt16 dsWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
+    UA_DataSetMessage dsmStore[UA_NETWORKMESSAGE_MAXMESSAGECOUNT] = {0};
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &dsmStore[dsmCount]);
@@ -1964,18 +2055,6 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     }
 
     /* Generate the NetworkMessage */
-    /* Guard against exceeding the fixed-size dataSetWriterIds array (32 entries).
-     * The sendNetworkMessage path already checks this (line 886), but the offset-
-     * table computation calls generateNetworkMessage directly. Without this guard,
-     * a WriterGroup with more than 32 writers writes past the on-stack
-     * networkMessage.dataSetWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT] array. */
-    if(dsmCount > UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
-        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
-                            "More DataSetMessages than allowed in "
-                            "UA_NETWORKMESSAGE_MAXMESSAGECOUNT");
-        res = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
     res = generateNetworkMessage(psm, wg->linkedConnection, wg, dsmStore, dsWriterIds,
                                  (UA_Byte) dsmCount, 1, &wg->config.messageSettings,
                                  &wg->config.transportSettings, &networkMessage);

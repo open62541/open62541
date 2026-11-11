@@ -12,7 +12,11 @@
  *  - abrupt disconnect (crash, cable pull),
  *  - a *hung* server that keeps the TCP connection open but stops answering
  *    (the session stays ACTIVATED, so this is only visible through the
- *    subscriptionInactivityCallback).
+ *    subscriptionInactivityCallback),
+ *  - a server that refuses to establish the subscription: quota reached
+ *    (BadTooManySubscriptions), or the request timing out. The session stays
+ *    ACTIVATED here too, and the inactivity callback cannot help since it needs
+ *    a subscription to fire, so every failure to establish asks for a reconnect.
  *
  * UA_Client_run_iterate() drives the state machine; the (re)connection is
  * issued from the main loop with UA_Client_connectAsync() /
@@ -36,7 +40,7 @@
 
 typedef struct {
     volatile UA_Boolean running;
-    UA_Boolean mustReconnect; /* set by the inactivity callback: the server hung */
+    UA_Boolean mustReconnect; /* the session is useless although still ACTIVATED */
 } AppState;
 
 static AppState app = {true, false};
@@ -80,6 +84,14 @@ subscriptionInactivityCallback(UA_Client *client, UA_UInt32 subId, void *subCont
 static void
 monCallback(UA_Client *client, void *userdata,
             UA_UInt32 requestId, UA_CreateMonitoredItemsResponse *r) {
+    if(r->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                    "CreateMonitoredItems failed, serviceResult %s -> reconnect",
+                    UA_StatusCode_name(r->responseHeader.serviceResult));
+        app.mustReconnect = true;
+        return;
+    }
+
     if(0 < r->resultsSize && r->results[0].statusCode == UA_STATUSCODE_GOOD)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Monitoring SERVER_SERVERSTATUS_CURRENTTIME, id %u",
@@ -90,9 +102,13 @@ static void
 createSubscriptionCallback(UA_Client *client, void *userdata,
                            UA_UInt32 requestId, UA_CreateSubscriptionResponse *r) {
     if(r->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        /* The subscription is only created from the stateCallback, on a session
+         * transition, and the session is still ACTIVATED. Without a reconnect the
+         * client would look connected while no data can ever arrive again. */
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                    "Create subscription failed, serviceResult %s",
+                    "Create subscription failed, serviceResult %s -> reconnect",
                     UA_StatusCode_name(r->responseHeader.serviceResult));
+        app.mustReconnect = true;
         return;
     }
 
@@ -112,9 +128,12 @@ createSubscriptionCallback(UA_Client *client, void *userdata,
     UA_StatusCode retval =
         UA_Client_MonitoredItems_createDataChanges_async(client, req, NULL, cb, NULL,
                                                           monCallback, NULL, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                    "createDataChanges_async failed: %s", UA_StatusCode_name(retval));
+                    "createDataChanges_async failed: %s -> reconnect",
+                    UA_StatusCode_name(retval));
+        app.mustReconnect = true;
+    }
 }
 
 static void
@@ -136,9 +155,12 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
             UA_Client_Subscriptions_create_async(client, request, NULL, NULL,
                                                  deleteSubscriptionCallback,
                                                  createSubscriptionCallback, NULL, NULL);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                        "Subscriptions_create_async failed: %s", UA_StatusCode_name(retval));
+                        "Subscriptions_create_async failed: %s -> reconnect",
+                        UA_StatusCode_name(retval));
+            app.mustReconnect = true;
+        }
     }
 }
 
