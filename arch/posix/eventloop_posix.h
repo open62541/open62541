@@ -21,6 +21,10 @@
 
 #if !defined(__QNX__)
 # include "../deps/open62541_queue.h"
+#else
+/* QNX has its own queue.h, but since QNX 8.0 the network headers no longer
+ * include it */
+# include <sys/queue.h>
 #endif
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)

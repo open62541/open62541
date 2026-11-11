@@ -743,8 +743,7 @@ getTargetFallback(UA_PubSubManager *psm, UA_DataSetReader *dsr, size_t index,
 static UA_StatusCode
 writeTargetValue(UA_PubSubManager *psm, UA_WriteValue *wv) {
     UA_Server *server = psm->drv.server;
-    UA_StatusCode res;
-    Operation_Write(server, &server->adminSession, wv, &res);
+    UA_StatusCode res = writeNoAsync(server, &server->adminSession, wv);
     if(res != UA_STATUSCODE_BADINDEXRANGEINVALID ||
        wv->attributeId != UA_ATTRIBUTEID_VALUE ||
        wv->indexRange.length == 0 || !wv->value.hasValue)
@@ -796,7 +795,7 @@ writeTargetValue(UA_PubSubManager *psm, UA_WriteValue *wv) {
     UA_WriteValue fullWrite = *wv;
     fullWrite.value.value = current.value;
     fullWrite.indexRange = UA_STRING_NULL;
-    Operation_Write(server, &server->adminSession, &fullWrite, &res);
+    res = writeNoAsync(server, &server->adminSession, &fullWrite);
 
  cleanup:
     UA_DataValue_clear(&current);
