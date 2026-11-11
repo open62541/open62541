@@ -16,21 +16,17 @@
 
 _UA_BEGIN_DECLS
 
-/* Typing restrictions for key-value parameters */
-typedef struct {
-    UA_QualifiedName name;
-    const UA_DataType *type;
-    UA_Boolean required;
-    UA_Boolean scalar;
-    UA_Boolean array;
-} UA_KeyValueRestriction;
-
-UA_StatusCode
+/* Validate EventLoop parameters against the restrictions (see
+ * UA_KeyValueMap_validate). Parameters without restriction are ignored. */
+static UA_INLINE UA_StatusCode
 UA_KeyValueRestriction_validate(const UA_Logger *logger,
                                 const char *logprefix,
                                 const UA_KeyValueRestriction *restrictions,
                                 size_t restrictionsSize,
-                                const UA_KeyValueMap *map);
+                                const UA_KeyValueMap *map) {
+    return UA_KeyValueMap_validate(map, restrictions, restrictionsSize, false,
+                                   logger, UA_LOGCATEGORY_EVENTLOOP, logprefix);
+}
 
 /* (Re)allocate a static network buffer sized by the UInt32 parameter `name`.
  * If the parameter is not set, use defaultSize and write it back into the
