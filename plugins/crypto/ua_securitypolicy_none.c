@@ -181,7 +181,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *sp, const UA_ByteString localCertifica
 
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
-    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    sp->policyUri = UA_STRING(UA_SECURITYPOLICY_URI_NONE);
     sp->certificateGroupId = UA_NODEID_NULL;
     sp->certificateTypeId = UA_NODEID_NULL;
     sp->securityLevel = 0;

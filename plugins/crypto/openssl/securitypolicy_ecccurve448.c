@@ -641,7 +641,7 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
                    "SecurityPolicy ECC_curve448 is deprecated (OPC UA Part 7); "
                    "use ECC_nistP256_AesGcm or ECC_nistP256_ChaChaPoly instead");
     sp->policyUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448\0");
+        UA_STRING(UA_SECURITYPOLICY_URI_ECC_CURVE448);
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NODEID_NUMERIC(0, 23543);

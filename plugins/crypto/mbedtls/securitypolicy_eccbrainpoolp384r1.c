@@ -9,7 +9,7 @@
 #include "securitypolicy_ecc.h"
 
 static const UA_mbedTLS_EccPolicyConfig eccBrainpoolP384Config = {
-    "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1",
+    UA_SECURITYPOLICY_URI_ECC_BRAINPOOLP384R1,
     "http://www.w3.org/2000/09/xmldsig#hmac-sha2-384",
     "http://www.w3.org/2001/04/xmlenc#aes256-cbc",
     UA_NS0ID_ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE,

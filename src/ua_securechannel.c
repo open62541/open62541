@@ -24,7 +24,7 @@
 #define UA_BITMASK_CHUNKTYPE 0xff000000u
 
 const UA_String UA_SECURITY_POLICY_NONE_URI =
-    {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
+    UA_STRING_STATIC(UA_SECURITYPOLICY_URI_NONE);
 
 void
 UA_SecureChannel_init(UA_SecureChannel *channel) {

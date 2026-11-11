@@ -347,7 +347,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *sp,
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
     sp->policyUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256\0");
+        UA_STRING(UA_SECURITYPOLICY_URI_BASIC256SHA256);
     sp->certificateGroupId = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 20;

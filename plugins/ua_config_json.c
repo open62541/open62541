@@ -794,18 +794,18 @@ UA_SecurityPolicy_initByUri(UA_SecurityPolicy *policy,
 
 #ifdef UA_ENABLE_ENCRYPTION
     static const UA_String basic128Rsa15Uri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_BASIC128RSA15);
     static const UA_String basic256Uri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_BASIC256);
     static const UA_String basic256Sha256Uri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_BASIC256SHA256);
     static const UA_String aes128Sha256RsaOaepUri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_AES128_SHA256_RSAOAEP);
     static const UA_String aes256Sha256RsaPssUri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_AES256_SHA256_RSAPSS);
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     static const UA_String eccNistP256Uri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_ECC_NISTP256);
 #endif
 
     if(UA_String_equal(policyUri, &basic128Rsa15Uri))
