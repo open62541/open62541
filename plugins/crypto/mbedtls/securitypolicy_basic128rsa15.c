@@ -9,7 +9,7 @@
 #include "securitypolicy_rsa.h"
 
 static const UA_mbedTLS_RsaPolicyConfig rsaBasic128Rsa15Config = {
-    "http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15",
+    UA_SECURITYPOLICY_URI_BASIC128RSA15,
     "http://www.w3.org/2000/09/xmldsig#rsa-sha1",
     "http://www.w3.org/2001/04/xmlenc#rsa-1_5",
     "http://www.w3.org/2000/09/xmldsig#hmac-sha1",

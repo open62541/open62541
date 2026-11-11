@@ -508,7 +508,7 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
     UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                    "SecurityPolicy ECC_nistP256 is deprecated (OPC UA Part 7); "
                    "use ECC_nistP256_AesGcm or ECC_nistP256_ChaChaPoly instead");
-    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256\0");
+    sp->policyUri = UA_STRING(UA_SECURITYPOLICY_URI_ECC_NISTP256);
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(ECCNISTP256APPLICATIONCERTIFICATETYPE);

@@ -675,7 +675,7 @@ UA_PubSubSecurityPolicy_Aes256CtrTPM(UA_PubSubSecurityPolicy *sp, char *userpin,
     memset(sp, 0, sizeof(UA_PubSubSecurityPolicy));
     sp->logger = logger;
     sp->policyUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR");
+        UA_STRING(UA_SECURITYPOLICY_URI_PUBSUB_AES256_CTR);
 
     /* Set the method pointers */
     sp->newGroupContext = newContext_pubsub_aes256ctr_tpm;

@@ -611,7 +611,7 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
 /****************/
 
 static UA_String basic256Sha256Uri =
-    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_STRING_STATIC(UA_SECURITYPOLICY_URI_BASIC256SHA256);
 
 /* Get an encrypted policy or NULL if no encrypted policy is defined */
 UA_SecurityPolicy *

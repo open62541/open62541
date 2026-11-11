@@ -498,7 +498,7 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *sp,
     UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                    "SecurityPolicy ECC_brainpoolP384r1 is deprecated (OPC UA Part 7); "
                    "use ECC_brainpoolP384r1_AesGcm or ECC_brainpoolP384r1_ChaChaPoly instead");
-    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1\0");
+    sp->policyUri = UA_STRING(UA_SECURITYPOLICY_URI_ECC_BRAINPOOLP384R1);
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE);

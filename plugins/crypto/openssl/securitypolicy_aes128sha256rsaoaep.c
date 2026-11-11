@@ -351,7 +351,7 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *sp,
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
     sp->policyUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep\0");
+        UA_STRING(UA_SECURITYPOLICY_URI_AES128_SHA256_RSAOAEP);
     sp->certificateGroupId = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 10;
