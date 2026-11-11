@@ -44,7 +44,7 @@ createSigningRequest_sp_aes128sha256rsaoaep(UA_SecurityPolicy *securityPolicy,
             (openssl_PolicyContext *) securityPolicy->policyContext;
     return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey, &pc->csrLocalPrivateKey,
                                            securityPolicy, subjectName, nonce,
-                                           csr, newPrivateKey);
+                                           params, csr, newPrivateKey);
 }
 
 static UA_StatusCode

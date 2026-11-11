@@ -447,79 +447,65 @@ verifyIssuedCertificate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
                                    method);
 }
 
-static UA_GDSPendingCsr *
-findPendingCsr(UA_GDSReceiverContext *ctx, const UA_NodeId *certificateTypeId) {
-    UA_GDSPendingCsr *pc;
-    LIST_FOREACH(pc, &ctx->pendingCsrs, pointers) {
-        if(UA_NodeId_equal(&pc->certificateTypeId, certificateTypeId))
-            return pc;
-    }
-    return NULL;
-}
-
+/* Read the private key of the last CreateSigningRequest with
+ * RegeneratePrivateKey from the SecurityPolicy. The key is empty if no key is
+ * staged. The CSR is not empty, so a SecurityPolicy that does not support the
+ * "staged-private-key" parameter creates nothing (see createSigningRequest in
+ * securitypolicy.h). */
 static void
-removePendingCsr(UA_GDSReceiverContext *ctx, const UA_NodeId *certificateTypeId) {
-    UA_GDSPendingCsr *pc = findPendingCsr(ctx, certificateTypeId);
-    if(!pc)
+readStagedPrivateKey(UA_SecurityPolicy *sp, UA_ByteString *stagedKey) {
+    UA_ByteString_init(stagedKey);
+    if(!sp->createSigningRequest)
         return;
-    LIST_REMOVE(pc, pointers);
-    UA_NodeId_clear(&pc->certificateTypeId);
-    UA_ByteString_clear(&pc->csr);
-    UA_free(pc);
-}
+    UA_ByteString csr = UA_BYTESTRING_NULL;
+    if(UA_ByteString_allocBuffer(&csr, 1) != UA_STATUSCODE_GOOD)
+        return;
+    csr.data[0] = 0;
 
-/* The CSR replaces the CSR of an earlier CreateSigningRequest for the
- * certificate type */
-static UA_StatusCode
-setPendingCsr(UA_GDSReceiverContext *ctx, const UA_NodeId *certificateTypeId,
-              const UA_ByteString *csr) {
-    UA_ByteString csrCopy;
-    UA_StatusCode res = UA_ByteString_copy(csr, &csrCopy);
-    if(res != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_Boolean readStagedKey = true;
+    UA_KeyValuePair param;
+    param.key = UA_QUALIFIEDNAME(0, "staged-private-key");
+    UA_Variant_setScalar(&param.value, &readStagedKey, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap params = {1, &param};
 
-    /* Replace the CSR of an existing entry in place */
-    UA_GDSPendingCsr *pc = findPendingCsr(ctx, certificateTypeId);
-    if(pc) {
-        UA_ByteString_clear(&pc->csr);
-        pc->csr = csrCopy;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    pc = (UA_GDSPendingCsr*)UA_calloc(1, sizeof(UA_GDSPendingCsr));
-    if(!pc) {
-        UA_ByteString_clear(&csrCopy);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    res = UA_NodeId_copy(certificateTypeId, &pc->certificateTypeId);
+    UA_StatusCode res = sp->createSigningRequest(sp, NULL, NULL, &params, &csr, stagedKey);
+    UA_ByteString_clear(&csr);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(&csrCopy);
-        UA_free(pc);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_ByteString_memZero(stagedKey);
+        UA_ByteString_clear(stagedKey);
     }
-    pc->csr = csrCopy;
-    LIST_INSERT_HEAD(&ctx->pendingCsrs, pc, pointers);
-    return UA_STATUSCODE_GOOD;
 }
 
-/* A certificate without a PrivateKey is used with the current private key of
- * the SecurityPolicies or with the private key of the last CSR for the
- * certificate type. A certificate for another key, for example for the key of
- * an earlier CSR, would be installed with a key that does not match. Every
- * handshake would fail afterwards. */
+/* A certificate without a PrivateKey is used with the key of the last CSR with
+ * RegeneratePrivateKey or with the current key of the SecurityPolicies. Part
+ * 12, 7.10.10 keeps one active and one new key pair per CertificateType. A
+ * certificate for another key, for example for the key of an earlier CSR,
+ * would be installed with a key that does not match. Every handshake would
+ * fail afterwards. All SecurityPolicies of the CertificateType have the same
+ * staged key, so it is read from the first one. */
 static UA_StatusCode
-checkKeylessCertificate(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
-                        const UA_NodeId *certificateTypeId,
+checkKeylessCertificate(UA_ServerConfig *sc, const UA_NodeId *certificateTypeId,
                         const UA_ByteString *certificate) {
-    UA_GDSPendingCsr *pc = findPendingCsr(ctx, certificateTypeId);
-    if(pc && UA_CertificateUtils_comparePublicKeys(certificate, &pc->csr) ==
-       UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_GOOD;
+    UA_Boolean stagedKeyChecked = false;
     for(size_t i = 0; i < sc->securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &sc->securityPolicies[i];
         if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE ||
            !UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId))
             continue;
+
+        if(!stagedKeyChecked) {
+            stagedKeyChecked = true;
+            UA_ByteString stagedKey;
+            readStagedPrivateKey(sp, &stagedKey);
+            UA_Boolean matches = stagedKey.length > 0 &&
+                UA_CertificateUtils_checkKeyPair(certificate, &stagedKey) ==
+                UA_STATUSCODE_GOOD;
+            UA_ByteString_memZero(&stagedKey);
+            UA_ByteString_clear(&stagedKey);
+            if(matches)
+                return UA_STATUSCODE_GOOD;
+        }
+
         if(UA_CertificateUtils_comparePublicKeys(certificate, &sp->localCertificate) ==
            UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_GOOD;
@@ -528,19 +514,6 @@ checkKeylessCertificate(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
                  "UpdateCertificate: The certificate matches neither the private "
                  "key of the Server nor the key of the last CSR");
     return UA_STATUSCODE_BADCERTIFICATEINVALID;
-}
-
-/* The SecurityPolicies use the key of the CSR for a certificate without a
- * PrivateKey that matches the CSR. Then the CSR is no longer pending. */
-static void
-consumePendingCsr(UA_GDSReceiverContext *ctx, const UA_NodeId *certificateTypeId,
-                  const UA_ByteString *certificate, const UA_ByteString *privateKey) {
-    if(privateKey->length > 0)
-        return;
-    UA_GDSPendingCsr *pc = findPendingCsr(ctx, certificateTypeId);
-    if(pc && UA_CertificateUtils_comparePublicKeys(certificate, &pc->csr) ==
-       UA_STATUSCODE_GOOD)
-        removePendingCsr(ctx, certificateTypeId);
 }
 
 /* TODO: Handle isTrustedCertificate */
@@ -678,7 +651,7 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(!privateKey || privateKey->length == 0) {
-        retval = checkKeylessCertificate(ctx, sc, certificateTypeId, &leafCertificate);
+        retval = checkKeylessCertificate(sc, certificateTypeId, &leafCertificate);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -1206,7 +1179,7 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
     if(res != UA_STATUSCODE_GOOD)
         return res;
     if(!privateKey) {
-        res = checkKeylessCertificate(ctx, sc, &certificateTypeId, &leafCertificate);
+        res = checkKeylessCertificate(sc, &certificateTypeId, &leafCertificate);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
@@ -1229,7 +1202,6 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
         UA_free(ccb);
         return res;
     }
-    consumePendingCsr(ctx, &certificateTypeId, &leafCertificate, &newPrivateKey);
 
     ccb->dc.callback = closeChannelsAfterCertificateUpdate;
     ccb->dc.context = ccb;
@@ -1260,6 +1232,7 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
 
 static UA_StatusCode
 createSigningRequestLocked(UA_GDSReceiver *receiver,
+                           const UA_NodeId *sessionId,
                            const UA_NodeId certificateGroupId,
                            const UA_NodeId certificateTypeId,
                            const UA_String *subjectName,
@@ -1287,6 +1260,14 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
     if(!UA_NodeId_equal(&sc->secureChannelPKI.certificateGroupId,
                         &defaultApplicationGroup))
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Bad_TransactionPending if a transaction is active for another Session. */
+    UA_GDSTransaction *transaction = &ctx->transaction;
+    if(transaction->applyChangesQueued)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH &&
+       (!sessionId || !UA_NodeId_equal(&transaction->sessionId, sessionId)))
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ByteString *newPrivateKey = NULL;
@@ -1316,19 +1297,35 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
             goto cleanup;
     }
 
-    /* UpdateCertificate without a PrivateKey checks the certificate against
-     * the key of the CSR */
-    retval = setPendingCsr(ctx, &certificateTypeId, csr);
-
 cleanup:
-    /* The SecurityPolicies may have discarded the key of the earlier CSR */
-    if(retval != UA_STATUSCODE_GOOD)
-        removePendingCsr(ctx, &certificateTypeId);
     if(newPrivateKey) {
         UA_ByteString_memZero(newPrivateKey);
         UA_ByteString_delete(newPrivateKey);
     }
     return retval;
+}
+
+UA_StatusCode
+UA_GDSReceiver_createSigningRequestForSession(UA_GDSReceiver *receiver,
+                                              const UA_NodeId *sessionId,
+                                              const UA_NodeId certificateGroupId,
+                                              const UA_NodeId certificateTypeId,
+                                              const UA_String *subjectName,
+                                              const UA_Boolean *regenerateKey,
+                                              const UA_ByteString *nonce,
+                                              UA_ByteString *csr) {
+    if(!receiver || !csr)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!receiver->drv.server)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
+    sc->eventLoop->lock(sc->eventLoop);
+    UA_StatusCode res = createSigningRequestLocked(
+        receiver, sessionId, certificateGroupId, certificateTypeId, subjectName,
+        regenerateKey, nonce, csr);
+    sc->eventLoop->unlock(sc->eventLoop);
+    return res;
 }
 
 UA_StatusCode
@@ -1339,18 +1336,9 @@ UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
                                     const UA_Boolean *regenerateKey,
                                     const UA_ByteString *nonce,
                                     UA_ByteString *csr) {
-    if(!receiver || !csr)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(!receiver->drv.server)
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
-    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
-    sc->eventLoop->lock(sc->eventLoop);
-    UA_StatusCode res = createSigningRequestLocked(
-        receiver, certificateGroupId, certificateTypeId, subjectName,
+    return UA_GDSReceiver_createSigningRequestForSession(
+        receiver, NULL, certificateGroupId, certificateTypeId, subjectName,
         regenerateKey, nonce, csr);
-    sc->eventLoop->unlock(sc->eventLoop);
-    return res;
 }
 
 static UA_StatusCode
@@ -1439,7 +1427,6 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
                                             privateKey);
         if(retval != UA_STATUSCODE_GOOD)
             goto rollback;
-        consumePendingCsr(ctx, &certTypeId, &certificate, &privateKey);
     }
 
     if(groupsSize > 0 && transaction->certificateInfosSize > 0)
@@ -1653,14 +1640,6 @@ UA_GDSReceiver_free(UA_Driver *drv) {
         UA_NodeId_clear(&cm->certificateTypeId);
         UA_ByteString_clear(&cm->certificate);
         UA_free(cm);
-    }
-
-    UA_GDSPendingCsr *pc, *pc_tmp;
-    LIST_FOREACH_SAFE(pc, &ctx->pendingCsrs, pointers, pc_tmp) {
-        LIST_REMOVE(pc, pointers);
-        UA_NodeId_clear(&pc->certificateTypeId);
-        UA_ByteString_clear(&pc->csr);
-        UA_free(pc);
     }
 
     UA_free(drv);

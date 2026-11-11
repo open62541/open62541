@@ -371,8 +371,10 @@ struct UA_SecurityPolicy {
      *        used.
      * @param nonce Additional entropy that the caller can provide. It shall be
      *        at least 32 bytes long.
-     * @param params A KeyVaue list that can be used for additional parameters
-     *        later.
+     * @param params A KeyValue list for additional parameters:
+     *        - "staged-private-key" (Boolean): If true, return the staged
+     *          private key of the last CSR in newPrivateKey. The output parameter
+     *          newPrivateKey shall be empty.
      * @param csr Returns the created CSR. If the passed byte string is not
      *        empty, nothing is created.
      * @param newPrivateKey Returns the private key if a new one needs to be

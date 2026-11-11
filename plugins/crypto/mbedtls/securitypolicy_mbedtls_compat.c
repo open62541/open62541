@@ -35,6 +35,15 @@ UA_mbedTLS_compat_parsePrivateKey(mbedtls_pk_context *target,
 }
 
 UA_Boolean
+UA_mbedTLS_compat_hasKey(const mbedtls_pk_context *key) {
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    return key && mbedtls_pk_get_key_type(key) != PSA_KEY_TYPE_NONE;
+#else
+    return key && mbedtls_pk_get_type(key) != MBEDTLS_PK_NONE;
+#endif
+}
+
+UA_Boolean
 UA_mbedTLS_compat_isEccKeyPair(const mbedtls_pk_context *key) {
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
     return key && PSA_KEY_TYPE_IS_ECC_KEY_PAIR(mbedtls_pk_get_key_type(key));

@@ -881,8 +881,13 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     (void)nonce; /* PSA manages its own entropy pool. */
 
-    /* Import a key returned by an external CSR workflow without destroying
-     * the currently retained rollover key on parse failure. */
+    /* Every CSR discards the key of the previous CSR (Part 12, 7.10.10), also
+     * a CSR without a new key and a failed CSR. UpdateCertificate without a
+     * PrivateKey must not accept a certificate for the discarded key. */
+    mbedtls_pk_free(csrLocalPrivateKey);
+    mbedtls_pk_init(csrLocalPrivateKey);
+
+    /* Import a key returned by an external CSR workflow */
     if(newPrivateKey && newPrivateKey->length > 0) {
         mbedtls_pk_context importedKey;
         mbedtls_pk_init(&importedKey);
@@ -891,7 +896,6 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
             mbedtls_pk_free(&importedKey);
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         }
-        mbedtls_pk_free(csrLocalPrivateKey);
         *csrLocalPrivateKey = importedKey;
         mbedtls_pk_init(&importedKey);
         return UA_STATUSCODE_GOOD;
@@ -1207,6 +1211,10 @@ UA_mbedTLS_UpdateCertificateAndPrivateKey(UA_SecurityPolicy *securityPolicy,
         mbedtls_pk_init(&pc->csrLocalPrivateKey);
     }
 
+    /* The replaced certificate discards the new key pair of a CSR. */
+    mbedtls_pk_free(&pc->csrLocalPrivateKey);
+    mbedtls_pk_init(&pc->csrLocalPrivateKey);
+
 cleanup:
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&thumbprint);
@@ -1496,7 +1504,20 @@ UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
     if(securityPolicy->policyContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)securityPolicy->policyContext;
-    (void)params;
+
+    /* Return the staged key without changing anything (see
+     * createSigningRequest in securitypolicy.h) */
+    const UA_Boolean *readStagedKey = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "staged-private-key"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(readStagedKey && *readStagedKey) {
+        if(!newPrivateKey || newPrivateKey->length > 0)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        if(!UA_mbedTLS_compat_hasKey(&pc->csrLocalPrivateKey))
+            return UA_STATUSCODE_GOOD;
+        return mbedtls_writePrivateKeyDer(&pc->csrLocalPrivateKey, newPrivateKey);
+    }
+
     return mbedtls_createSigningRequest(&pc->localPrivateKey, &pc->csrLocalPrivateKey,
                                         securityPolicy, subjectName, nonce,
                                         csr, newPrivateKey);
