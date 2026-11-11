@@ -711,7 +711,7 @@ UA_SecurityPolicy_EccNistP256ChaChaPoly(UA_SecurityPolicy *sp,
                                     const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
-    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly\0");
+    sp->policyUri = UA_STRING(UA_SECURITYPOLICY_URI_ECC_NISTP256_CHACHAPOLY);
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(ECCNISTP256APPLICATIONCERTIFICATETYPE);
@@ -732,7 +732,7 @@ UA_SecurityPolicy_EccNistP256ChaChaPoly(UA_SecurityPolicy *sp,
      * dedicated ECDSA URIs (xmldsig-more#ecdsa-sha256, conformanceunit/2473)
      * are NOT accepted and must not be used. */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
-    asymSig->uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly\0");
+    asymSig->uri = UA_STRING(UA_SECURITYPOLICY_URI_ECC_NISTP256_CHACHAPOLY);
     asymSig->verify = UA_AsymSig_EccNistP256ChaChaPoly_verify;
     asymSig->sign = UA_AsymSig_EccNistP256ChaChaPoly_sign;
     asymSig->getLocalSignatureSize = UA_AsySig_EccNistP256ChaChaPoly_getLocalSignatureSize;

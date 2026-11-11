@@ -18,6 +18,39 @@
 
 _UA_BEGIN_DECLS
 
+#define UA_SECURITYPOLICY_URI_NONE \
+    "http://opcfoundation.org/UA/SecurityPolicy#None"
+#define UA_SECURITYPOLICY_URI_BASIC128RSA15 \
+    "http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15"
+#define UA_SECURITYPOLICY_URI_BASIC256 \
+    "http://opcfoundation.org/UA/SecurityPolicy#Basic256"
+#define UA_SECURITYPOLICY_URI_BASIC256SHA256 \
+    "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256"
+#define UA_SECURITYPOLICY_URI_AES128_SHA256_RSAOAEP \
+    "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep"
+#define UA_SECURITYPOLICY_URI_AES256_SHA256_RSAPSS \
+    "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss"
+#define UA_SECURITYPOLICY_URI_ECC_NISTP256 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256"
+#define UA_SECURITYPOLICY_URI_ECC_NISTP384 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384"
+#define UA_SECURITYPOLICY_URI_ECC_BRAINPOOLP256R1 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1"
+#define UA_SECURITYPOLICY_URI_ECC_BRAINPOOLP384R1 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1"
+#define UA_SECURITYPOLICY_URI_ECC_CURVE25519 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519"
+#define UA_SECURITYPOLICY_URI_ECC_CURVE448 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448"
+#define UA_SECURITYPOLICY_URI_ECC_NISTP256_AESGCM \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm"
+#define UA_SECURITYPOLICY_URI_ECC_NISTP256_CHACHAPOLY \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly"
+#define UA_SECURITYPOLICY_URI_PUBSUB_AES128_CTR \
+    "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes128-CTR"
+#define UA_SECURITYPOLICY_URI_PUBSUB_AES256_CTR \
+    "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR"
+
 extern UA_EXPORT const UA_String UA_SECURITY_POLICY_NONE_URI;
 
 struct UA_SecurityPolicy;

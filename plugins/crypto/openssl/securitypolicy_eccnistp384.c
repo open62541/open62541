@@ -482,7 +482,7 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *sp,
     UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                    "SecurityPolicy ECC_nistP384 is deprecated (OPC UA Part 7); "
                    "use ECC_nistP384_AesGcm or ECC_nistP384_ChaChaPoly instead");
-    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384\0");
+    sp->policyUri = UA_STRING(UA_SECURITYPOLICY_URI_ECC_NISTP384);
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(ECCNISTP384APPLICATIONCERTIFICATETYPE);

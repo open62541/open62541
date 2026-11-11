@@ -289,9 +289,9 @@ UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
     if(!policy)
         return false;
     static const UA_String eccNistP256AesGcm =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_ECC_NISTP256_AESGCM);
     static const UA_String eccNistP256ChaChaPoly =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_ECC_NISTP256_CHACHAPOLY);
     return UA_String_equal(&policy->policyUri, &eccNistP256AesGcm) ||
            UA_String_equal(&policy->policyUri, &eccNistP256ChaChaPoly);
 }
