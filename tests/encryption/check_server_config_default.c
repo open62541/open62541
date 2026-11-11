@@ -178,6 +178,42 @@ START_TEST(addSecurityPolicy_eccNistP256) {
     UA_ServerConfig_clear(&config);
 }
 END_TEST
+
+/* The deprecated ECC_curve25519 SecurityPolicy is not part of the default
+ * policy set, even with a matching Ed25519 certificate */
+START_TEST(addAllSecurityPolicies_skipsDeprecatedCurve25519) {
+    UA_StatusCode retval;
+    UA_ByteString certificate;
+    certificate.length = CERT_ED25519_DER_LENGTH;
+    certificate.data = CERT_ED25519_DER_DATA;
+    UA_ByteString privateKey;
+    privateKey.length = KEY_ED25519_DER_LENGTH;
+    privateKey.data = KEY_ED25519_DER_DATA;
+    UA_ServerConfig config;
+
+    memset(&config, 0, sizeof(config));
+    retval = UA_ServerConfig_setBasics(&config);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_ServerConfig_addAllSecurityPolicies(&config, &certificate, &privateKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_String curve25519 =
+        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519");
+    for(size_t i = 0; i < config.securityPoliciesSize; ++i)
+        ck_assert(!UA_String_equal(&config.securityPolicies[i].policyUri, &curve25519));
+
+    /* Adding it explicitly still works, with level zero */
+    retval = UA_ServerConfig_addSecurityPolicyEccCurve25519(&config, &certificate,
+                                                            &privateKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    const UA_SecurityPolicy *sp =
+        &config.securityPolicies[config.securityPoliciesSize - 1];
+    ck_assert(UA_String_equal(&sp->policyUri, &curve25519));
+    ck_assert_uint_eq(sp->securityLevel, 0);
+
+    UA_ServerConfig_clear(&config);
+}
+END_TEST
 #endif
 
 START_TEST(addEndpoint_unknownPolicy_returnsBadInvalidArgument) {
@@ -498,6 +534,7 @@ testSuite_server_config_default(void) {
     tcase_add_test(testCase, addSecurityPolicies_individual);
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     tcase_add_test(testCase, addSecurityPolicy_eccNistP256);
+    tcase_add_test(testCase, addAllSecurityPolicies_skipsDeprecatedCurve25519);
 #endif
     tcase_add_test(testCase, addEndpoint_unknownPolicy_returnsBadInvalidArgument);
     tcase_add_test(testCase, setMinimalCustomBuffer_addsOnlyNone);
