@@ -169,6 +169,12 @@ START_TEST(addSecurityPolicy_eccNistP256) {
     assertPolicyUri(&config.securityPolicies[0],
                     "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
 
+    /* Deprecated SecurityPolicies have level zero and get no secure Endpoints */
+    ck_assert_uint_eq(config.securityPolicies[0].securityLevel, 0);
+    retval = UA_ServerConfig_addAllSecureEndpoints(&config);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.endpointsSize, 0);
+
     UA_ServerConfig_clear(&config);
 }
 END_TEST

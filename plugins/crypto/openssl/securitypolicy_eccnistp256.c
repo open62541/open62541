@@ -512,7 +512,7 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(ECCNISTP256APPLICATIONCERTIFICATETYPE);
-    sp->securityLevel = 10;
+    sp->securityLevel = 0;
     sp->policyType = UA_SECURITYPOLICYTYPE_ECC;
 
     /* Asymmetric Signature

@@ -3,6 +3,15 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Deprecated ECC SecurityPolicies have SecurityLevel 0
+
+The OPC UA 1.05 Profile database marks the SecurityPolicies `ECC_nistP256`,
+`ECC_nistP384`, `ECC_brainpoolP256r1`, `ECC_brainpoolP384r1`, `ECC_curve25519`
+and `ECC_curve448` as deprecated. Their `securityLevel` is now 0, like
+`Basic128Rsa15` and `Basic256`. `UA_ServerConfig_addAllSecureEndpoints` creates
+no Endpoints for them, and clients that select an Endpoint by SecurityLevel rank
+them last.
+
 ### Default ValueRank is scalar
 
 The default `ValueRank` for `UA_VariableAttributes` and
