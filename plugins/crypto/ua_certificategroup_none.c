@@ -7,14 +7,6 @@
 
 #include <open62541/plugin/certificategroup_default.h>
 
-static UA_StatusCode
-verifyCertificateAllowAll(UA_CertificateGroup *certGroup,
-                          const UA_ByteString *certificate) {
-    UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_APPLICATION,
-                   "No certificate store configured. Accepting the certificate.");
-    return UA_STATUSCODE_GOOD;
-}
-
 static void
 clearVerifyAllowAll(UA_CertificateGroup *certGroup) {
 
@@ -26,7 +18,7 @@ void UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup) {
     if(certGroup->clear)
         certGroup->clear(certGroup);
     UA_NodeId_copy(&groupId, &certGroup->certificateGroupId);
-    certGroup->verifyCertificate = verifyCertificateAllowAll;
+    certGroup->verifyCertificate = NULL;
     certGroup->clear = clearVerifyAllowAll;
     certGroup->getTrustList = NULL;
     certGroup->setTrustList = NULL;

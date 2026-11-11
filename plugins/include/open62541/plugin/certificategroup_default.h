@@ -14,7 +14,7 @@
 
 _UA_BEGIN_DECLS
 
-/* Default implementation that accepts all certificates */
+/* Accepts all certificates. Leaves verifyCertificate NULL. */
 UA_EXPORT void
 UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup);
 

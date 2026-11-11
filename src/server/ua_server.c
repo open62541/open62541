@@ -969,6 +969,51 @@ verifyServerApplicationUri(const UA_Server *server) {
 #endif
 }
 
+#if defined(UA_ENABLE_ENCRYPTION) && UA_LOGLEVEL <= 400
+static UA_Boolean
+offersX509Token(const UA_ServerConfig *sc) {
+    for(size_t i = 0; i < sc->accessControl.userTokenPoliciesSize; i++) {
+        if(sc->accessControl.userTokenPolicies[i].tokenType ==
+           UA_USERTOKENTYPE_CERTIFICATE)
+            return true;
+    }
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        const UA_EndpointDescription *ed = &sc->endpoints[i];
+        for(size_t j = 0; j < ed->userIdentityTokensSize; j++) {
+            if(ed->userIdentityTokens[j].tokenType ==
+               UA_USERTOKENTYPE_CERTIFICATE)
+                return true;
+        }
+    }
+    return false;
+}
+#endif
+
+/* A PKI without verifyCertificate accepts all certificates, as in the default
+ * configuration. Warn at startup if it is used with a SecurityPolicy other
+ * than #None. The Session PKI only verifies x509 user tokens. */
+static void
+warnAcceptAllPKI(const UA_Server *server) {
+#if defined(UA_ENABLE_ENCRYPTION) && UA_LOGLEVEL <= 400
+    const UA_ServerConfig *sc = &server->config;
+    size_t i = 0;
+    for(; i < sc->securityPoliciesSize; i++) {
+        if(sc->securityPolicies[i].policyType != UA_SECURITYPOLICYTYPE_NONE)
+            break;
+    }
+    if(i == sc->securityPoliciesSize)
+        return;
+    if(!sc->secureChannelPKI.verifyCertificate)
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "The SecureChannel PKI accepts all certificates. "
+                       "Configure a trust list for production use.");
+    if(!sc->sessionPKI.verifyCertificate && offersX509Token(sc))
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "The Session PKI accepts all certificates. "
+                       "Configure a trust list for production use.");
+#endif
+}
+
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
     UA_ServerStatistics stat;
@@ -1193,6 +1238,8 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
+
+    warnAcceptAllPKI(server);
 
     /* Are there enough SecureChannels possible for the max number of sessions? */
     if(config->maxSecureChannels != 0 &&

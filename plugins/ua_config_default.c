@@ -2215,12 +2215,6 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->maxRejectedListSize = 0;
 #endif
 
-    if(!config->certificateVerification.verifyCertificate) {
-        /* Certificate Verification that accepts every certificate. Can be
-         * overwritten when the policy is specialized. */
-        UA_CertificateGroup_AcceptAll(&config->certificateVerification);
-    }
-
     /* With encryption enabled, the applicationUri needs to match the URI from
      * the certificate */
     if(!config->clientDescription.applicationUri.data)

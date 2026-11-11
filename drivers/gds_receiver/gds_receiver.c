@@ -953,7 +953,8 @@ secureChannel_delayedClose(void *application, void *context) {
                 break;
             }
         }
-        if(!closeChannel && trustListUpdated) {
+        /* A CertificateGroup without verification accepts all certificates */
+        if(!closeChannel && trustListUpdated && certGroup->verifyCertificate) {
             UA_StatusCode res =
                 certGroup->verifyCertificate(certGroup, &cm->certificate);
             closeChannel = (res != UA_STATUSCODE_GOOD);

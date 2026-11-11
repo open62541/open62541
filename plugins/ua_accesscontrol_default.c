@@ -636,13 +636,12 @@ UA_AccessControl_default(UA_ServerConfig *config,
         }
     }
 
-    /* Set the allowed policies */
-    size_t policies = 0;
+    /* Set the allowed policies. x509 is always offered. A Session PKI without
+     * verifyCertificate accepts all certificates. */
+    size_t policies = 1;
     if(allowAnonymous)
         policies++;
     if(usernamePasswordLoginSize > 0)
-        policies++;
-    if(config->sessionPKI.verifyCertificate)
         policies++;
     ac->userTokenPoliciesSize = 0;
     ac->userTokenPolicies = (UA_UserTokenPolicy *)
@@ -650,12 +649,6 @@ UA_AccessControl_default(UA_ServerConfig *config,
     if(!ac->userTokenPolicies)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     ac->userTokenPoliciesSize = policies * numOfPolcies;
-
-    if(policies == 0) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
-                       "No allowed policies set.");
-        return UA_STATUSCODE_GOOD;
-    }
 
     const UA_String *utpUri = NULL;
     policies = 0;
@@ -673,21 +666,19 @@ UA_AccessControl_default(UA_ServerConfig *config,
             policies++;
         }
 
-        if(config->sessionPKI.verifyCertificate) {
-            ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
-            ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
+        ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
+        ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
 #if UA_LOGLEVEL <= 400
-            if(UA_String_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
-                UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
-                               "x509 Certificate Authentication configured, "
-                               "but no encrypting SecurityPolicy. "
-                               "This can leak credentials on the network.");
-            }
-#endif
-            UA_String_copy(utpUri,
-                               &ac->userTokenPolicies[policies].securityPolicyUri);
-            policies++;
+        if(UA_String_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                           "x509 Certificate Authentication configured, "
+                           "but no encrypting SecurityPolicy. "
+                           "This can leak credentials on the network.");
         }
+#endif
+        UA_String_copy(utpUri,
+                           &ac->userTokenPolicies[policies].securityPolicyUri);
+        policies++;
 
         if(usernamePasswordLoginSize > 0) {
             ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
