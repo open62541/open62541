@@ -648,7 +648,7 @@ UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *sp,
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
     sp->policyUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519\0");
+        UA_STRING(UA_SECURITYPOLICY_URI_ECC_CURVE25519);
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NODEID_NUMERIC(0, 23542);

@@ -5,8 +5,12 @@
 #include <open62541/server.h>
 
 #include "../common.h"
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include "../encryption/certificates.h"
+#endif
 
 #include <check.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -173,10 +177,59 @@ START_TEST(server_from_json_with_pkifolder) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+static void
+writeFile(const char *path, const UA_Byte *data, size_t length) {
+    FILE *f = fopen(path, "wb");
+    ck_assert_ptr_ne(f, NULL);
+    ck_assert_uint_eq(fwrite(data, 1, length, f), length);
+    fclose(f);
+}
+
+START_TEST(server_from_json_with_ecc_nistp256_policy) {
+    char *dir = createTempDir();
+    ck_assert_ptr_ne(dir, NULL);
+
+    char certFile[TEST_PATH_MAX];
+    char keyFile[TEST_PATH_MAX];
+    snprintf(certFile, sizeof(certFile), "%s/cert.der", dir);
+    snprintf(keyFile, sizeof(keyFile), "%s/key.der", dir);
+    writeFile(certFile, CERT_P256_DER_DATA, CERT_P256_DER_LENGTH);
+    writeFile(keyFile, KEY_P256_DER_DATA, KEY_P256_DER_LENGTH);
+
+    char json[2 * TEST_PATH_MAX + 256];
+    int n = snprintf(json, sizeof(json),
+        "{securityPolicies:[{"
+        "policy:'http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256',"
+        "certificate:'%s',privateKey:'%s'}]}",
+        certFile, keyFile);
+    ck_assert_int_gt(n, 0);
+    ck_assert_int_lt((size_t)n, sizeof(json));
+
+    UA_ServerConfig config;
+    UA_StatusCode retval = UA_ServerConfig_loadFromFile(&config, UA_BYTESTRING(json));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
+    UA_Boolean found = false;
+    for(size_t i = 0; i < config.securityPoliciesSize; i++)
+        found |= UA_String_equal(&config.securityPolicies[i].policyUri, &uri);
+    ck_assert(found);
+
+    UA_ServerConfig_clear(&config);
+    removeDir(dir);
+    UA_free(dir);
+}
+END_TEST
+#endif
+
 static Suite *testSuite_pki_from_json(void) {
     Suite *s = suite_create("Load server from json config with pkiFolder");
     TCase *tc_new = tcase_create("pki_regression");
     tcase_add_test(tc_new, server_from_json_with_pkifolder);
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    tcase_add_test(tc_new, server_from_json_with_ecc_nistp256_policy);
+#endif
     suite_add_tcase(s, tc_new);
     return s;
 }

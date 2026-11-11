@@ -495,7 +495,7 @@ UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *sp,
                                   const UA_Logger *logger) {
     return setup(sp, logger,
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes128-CTR"),
+        UA_STRING(UA_SECURITYPOLICY_URI_PUBSUB_AES128_CTR),
         16);
 }
 
@@ -503,7 +503,7 @@ UA_StatusCode
 UA_PubSubSecurityPolicy_Aes256Ctr(UA_PubSubSecurityPolicy *sp,
                                   const UA_Logger *logger) {
     return setup(sp, logger,
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR"),
+        UA_STRING(UA_SECURITYPOLICY_URI_PUBSUB_AES256_CTR),
         32);
 }
 
