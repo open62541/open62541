@@ -502,7 +502,7 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *sp,
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE);
-    sp->securityLevel = 15;
+    sp->securityLevel = 0;
     sp->policyType = UA_SECURITYPOLICYTYPE_ECC;
 
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
