@@ -87,6 +87,9 @@ static void
 teardown(void) {
     UA_ByteString_clear(&sentMessage);
     UA_Server_run_shutdown(server);
+    /* A leaked writer freeze must not silently prevent DataSet cleanup. */
+    ck_assert_uint_eq(UA_Server_removePublishedDataSet(server, dataSetId),
+                      UA_STATUSCODE_GOOD);
     UA_Server_delete(server);
 }
 
@@ -123,8 +126,15 @@ addWriters(UA_WriterGroup *wg, size_t count) {
 
 static void
 removeWriters(UA_WriterGroup *wg, UA_DataSetWriter *writers) {
+    /* Publishing errors can pause writers and freeze their DataSet. Release
+     * those freezes through the state machine before freeing the test array. */
+    lockServer(server);
+    for(size_t i = 0; i < wg->writersCount; i++)
+        UA_DataSetWriter_setPubSubState(getPSM(server), &writers[i],
+                                        UA_PUBSUBSTATE_DISABLED);
     LIST_INIT(&wg->writers);
     wg->writersCount = 0;
+    unlockServer(server);
     UA_free(writers);
 }
 
