@@ -52,34 +52,23 @@ _UA_BEGIN_DECLS
 #define get_error_line_data(pFile, pLine, pData, pFlags) ERR_get_error_all(pFile, pLine, NULL, pData, pFlags)
 #endif
 
-/* The object fetched once per process for a constant such as
- * EVP_aes_128_gcm(). Before OpenSSL 3.0 there is nothing to fetch. */
-#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
-const EVP_CIPHER *
-UA_OpenSSL_fetchedCipher(const EVP_CIPHER *cipher);
-#else
-#define UA_OpenSSL_fetchedCipher(cipher) (cipher)
-#endif
-
-/* Contexts that hold the key setup, so a message only resets them. Built on
- * first use (NULL until then), freed when the key is replaced. Local ones
- * serve sign/encrypt, remote ones verify/decrypt. A busy flag marks a context
- * in use; another thread then takes a temporary context instead of waiting. */
+/* HMAC with the key absorbed. A message copies inner and outer into work. */
 typedef struct {
-#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
-    EVP_MAC_CTX *localMac;
-    EVP_MAC_CTX *remoteMac;
-    UA_atomic(uintptr_t) localMacBusy;
-    UA_atomic(uintptr_t) remoteMacBusy;
-#endif
+    EVP_MD_CTX *inner;
+    EVP_MD_CTX *outer;
+    EVP_MD_CTX *work;
+} UA_OpenSSL_HmacState;
+
+/* Per-key state of a channel, built on the first use and freed when the key
+ * is replaced. Local: sign/encrypt, remote: verify/decrypt. Not locked, see
+ * the channel setters in securitypolicy.h. */
+typedef struct {
+    UA_OpenSSL_HmacState localMac;
+    UA_OpenSSL_HmacState remoteMac;
     EVP_CIPHER_CTX *localCipher; /* CBC, or AEAD with the encrypting key */
     EVP_CIPHER_CTX *remoteCipher;
-    UA_atomic(uintptr_t) localCipherBusy;
-    UA_atomic(uintptr_t) remoteCipherBusy;
     EVP_CIPHER_CTX *localTag; /* AEAD sign-only tags */
     EVP_CIPHER_CTX *remoteTag;
-    UA_atomic(uintptr_t) localTagBusy;
-    UA_atomic(uintptr_t) remoteTagBusy;
 } UA_OpenSSL_SymContexts;
 
 void
@@ -88,14 +77,14 @@ UA_OpenSSL_SymContexts_init(UA_OpenSSL_SymContexts *sym);
 void
 UA_OpenSSL_SymContexts_clear(UA_OpenSSL_SymContexts *sym);
 
-/* Call from the key setters: frees the contexts built with the old key */
-void
-UA_OpenSSL_SymContexts_signingKeyChanged(UA_OpenSSL_SymContexts *sym,
-                                         UA_Boolean local);
+/* Stores a copy of key and frees the state built with the old key */
+UA_StatusCode
+UA_OpenSSL_Sym_setSigningKey(UA_OpenSSL_SymContexts *sym, UA_Boolean local,
+                             UA_ByteString *stored, const UA_ByteString *key);
 
-void
-UA_OpenSSL_SymContexts_encryptingKeyChanged(UA_OpenSSL_SymContexts *sym,
-                                            UA_Boolean local);
+UA_StatusCode
+UA_OpenSSL_Sym_setEncryptingKey(UA_OpenSSL_SymContexts *sym, UA_Boolean local,
+                                UA_ByteString *stored, const UA_ByteString *key);
 
 typedef struct {
     UA_ByteString localSymSigningKey;

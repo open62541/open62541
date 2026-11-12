@@ -304,9 +304,8 @@ EccNistP384_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP384 *cc = (Channel_Context_EccNistP384 *)channelContext;
-    UA_OpenSSL_SymContexts_signingKeyChanged(&cc->sym, true);
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+    return UA_OpenSSL_Sym_setSigningKey(&cc->sym, true,
+                                        &cc->localSymSigningKey, key);
 }
 
 static UA_StatusCode
@@ -316,9 +315,8 @@ EccNistP384_setLocalSymEncryptingKey(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP384 *cc = (Channel_Context_EccNistP384 *)channelContext;
-    UA_OpenSSL_SymContexts_encryptingKeyChanged(&cc->sym, true);
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+    return UA_OpenSSL_Sym_setEncryptingKey(&cc->sym, true,
+                                           &cc->localSymEncryptingKey, key);
 }
 
 static UA_StatusCode
@@ -357,9 +355,8 @@ EccNistP384_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP384 *cc = (Channel_Context_EccNistP384 *)channelContext;
-    UA_OpenSSL_SymContexts_signingKeyChanged(&cc->sym, false);
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+    return UA_OpenSSL_Sym_setSigningKey(&cc->sym, false,
+                                        &cc->remoteSymSigningKey, key);
 }
 
 static UA_StatusCode
@@ -369,9 +366,8 @@ EccNistP384_setRemoteSymEncryptingKey(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP384 *cc = (Channel_Context_EccNistP384 *)channelContext;
-    UA_OpenSSL_SymContexts_encryptingKeyChanged(&cc->sym, false);
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+    return UA_OpenSSL_Sym_setEncryptingKey(&cc->sym, false,
+                                           &cc->remoteSymEncryptingKey, key);
 }
 
 static UA_StatusCode
