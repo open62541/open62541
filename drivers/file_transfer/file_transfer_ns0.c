@@ -79,6 +79,11 @@ removeFTEntry(FileTransferDriver *ftd, FTEntry *node) {
     ftd->entryCount--;
     unbindObjectContext(ftd->driver.server, node);
     releaseFileNode(ftd->driver.server, node);
+    if(node->transfer) {
+        UA_NodeId_clear(&node->transfer->sessionId);
+        UA_Variant_clear(&node->transfer->generateOptions);
+        UA_free(node->transfer);
+    }
     if(ftd->root == node)
         ftd->root = NULL;
     UA_NodeId_clear(&node->nodeId);
@@ -87,6 +92,12 @@ removeFTEntry(FileTransferDriver *ftd, FTEntry *node) {
 }
 
 #define UA_FTMETHODS_SIZE(methods) (sizeof(methods) / sizeof(methods[0]))
+#define UA_FTMETHODS_MAX 16 /* Methods installed in one call */
+
+typedef struct {
+    const FTMethod *methods;
+    size_t size;
+} FTMethodTable;
 
 /* The callbacks are attached to the Namespace Zero type declarations. With the
  * default configuration (copyMethodsOnInstances false) an Object instance
@@ -94,58 +105,79 @@ removeFTEntry(FileTransferDriver *ftd, FTEntry *node) {
  * registration serves every FileType/FileDirectoryType instance. The flip side
  * is that this is server-global state: it claims the Part 20 Methods for the
  * drivers, and is released when the last active instance stops. */
-static const FTMethod *
-fileTransferMethod(size_t index) {
-    if(index < UA_FTMETHODS_SIZE(fileTypeMethods))
-        return &fileTypeMethods[index];
-    return &fileDirectoryTypeMethods[index - UA_FTMETHODS_SIZE(fileTypeMethods)];
-}
-
 static UA_StatusCode
-setFileTransferMethodCallbacks(UA_Server *server, UA_Boolean install) {
-    const size_t count = UA_FTMETHODS_SIZE(fileTypeMethods) +
-        UA_FTMETHODS_SIZE(fileDirectoryTypeMethods);
-    UA_MethodCallback previous[UA_FTMETHODS_SIZE(fileTypeMethods) +
-                               UA_FTMETHODS_SIZE(fileDirectoryTypeMethods)];
-    size_t changed = 0;
+setMethodCallbacks(UA_Server *server, const FTMethodTable *tables,
+                   size_t tablesSize, UA_Boolean install) {
+    struct {
+        UA_UInt32 methodId;
+        UA_MethodCallback previous;
+    } changed[UA_FTMETHODS_MAX];
+    size_t changedSize = 0;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < count; i++) {
-        const FTMethod *method = fileTransferMethod(i);
-        UA_NodeId id = UA_NODEID_NUMERIC(0, method->methodId);
-        UA_MethodCallback current = NULL;
-        res = UA_Server_getMethodNodeCallback(server, id, &current);
-        if(res != UA_STATUSCODE_GOOD)
-            break;
-        previous[i] = current;
-        /* Never remove a callback replaced by the application. */
-        if(install || current == method->callback)
-            res = UA_Server_setMethodNodeCallback(server, id,
-                                                    install ? method->callback : NULL);
-        if(res != UA_STATUSCODE_GOOD)
-            break;
-        changed++;
+    for(size_t t = 0; t < tablesSize && res == UA_STATUSCODE_GOOD; t++) {
+        for(size_t i = 0; i < tables[t].size; i++) {
+            const FTMethod *method = &tables[t].methods[i];
+            UA_NodeId id = UA_NODEID_NUMERIC(0, method->methodId);
+            UA_MethodCallback current = NULL;
+            res = UA_Server_getMethodNodeCallback(server, id, &current);
+            if(res != UA_STATUSCODE_GOOD)
+                break;
+            /* Never remove a callback replaced by the application. */
+            if(install || current == method->callback)
+                res = UA_Server_setMethodNodeCallback(server, id,
+                                                        install ? method->callback : NULL);
+            if(res != UA_STATUSCODE_GOOD)
+                break;
+            UA_assert(changedSize < UA_FTMETHODS_MAX);
+            changed[changedSize].methodId = method->methodId;
+            changed[changedSize].previous = current;
+            changedSize++;
+        }
     }
     if(install && res != UA_STATUSCODE_GOOD) {
-        for(size_t i = 0; i < changed; i++)
+        for(size_t i = 0; i < changedSize; i++)
             UA_Server_setMethodNodeCallback(server,
-                UA_NODEID_NUMERIC(0, fileTransferMethod(i)->methodId), previous[i]);
+                UA_NODEID_NUMERIC(0, changed[i].methodId), changed[i].previous);
     }
     return res;
 }
 
+static const FTMethodTable storageMethodTables[2] = {
+    {fileTypeMethods, UA_FTMETHODS_SIZE(fileTypeMethods)},
+    {fileDirectoryTypeMethods, UA_FTMETHODS_SIZE(fileDirectoryTypeMethods)}
+};
+
 UA_StatusCode
 registerFileTransferMethodCallbacks(UA_Server *server) {
-    return setFileTransferMethodCallbacks(server, true);
+    return setMethodCallbacks(server, storageMethodTables, 2, true);
 }
 
 void
 unregisterFileTransferMethodCallbacks(UA_Server *server) {
-    setFileTransferMethodCallbacks(server, false);
+    setMethodCallbacks(server, storageMethodTables, 2, false);
+}
+
+static const FTMethodTable temporaryMethodTable = {
+    temporaryFileTransferTypeMethods, UA_FTMETHODS_SIZE(temporaryFileTransferTypeMethods)
+};
+
+UA_StatusCode
+registerTemporaryMethodCallbacks(UA_Server *server) {
+    return setMethodCallbacks(server, &temporaryMethodTable, 1, true);
+}
+
+void
+unregisterTemporaryMethodCallbacks(UA_Server *server) {
+    setMethodCallbacks(server, &temporaryMethodTable, 1, false);
 }
 
 static const FTMethod *
 entryMethods(const FTEntry *node, size_t *size) {
-    if(node->isDirectory) {
+    if(node->kind == FT_ENTRY_TEMPORARY) {
+        *size = UA_FTMETHODS_SIZE(temporaryFileTransferTypeMethods);
+        return temporaryFileTransferTypeMethods;
+    }
+    if(node->kind == FT_ENTRY_STORAGE && node->isDirectory) {
         *size = UA_FTMETHODS_SIZE(fileDirectoryTypeMethods);
         return fileDirectoryTypeMethods;
     }
@@ -305,8 +337,7 @@ hasSupertype(UA_Server *server, const UA_NodeId type, const UA_NodeId base,
 
 UA_StatusCode
 checkFileTransferType(UA_Server *server, const UA_NodeId typeDefinition,
-                      UA_Boolean isDirectory) {
-    UA_NodeId base = isDirectory ? UA_NS0ID(FILEDIRECTORYTYPE) : UA_NS0ID(FILETYPE);
+                      const UA_NodeId base) {
     UA_Boolean found;
     UA_StatusCode res = hasSupertype(server, typeDefinition, base,
                                       UA_NODECLASS_OBJECTTYPE, &found);
@@ -316,7 +347,7 @@ checkFileTransferType(UA_Server *server, const UA_NodeId typeDefinition,
 
 UA_StatusCode
 checkFileTransferObject(UA_Server *server, const UA_NodeId nodeId,
-                        UA_Boolean isDirectory) {
+                        const UA_NodeId base) {
     UA_NodeClass cls;
     UA_StatusCode res = UA_Server_readNodeClass(server, nodeId, &cls);
     if(res != UA_STATUSCODE_GOOD)
@@ -333,7 +364,7 @@ checkFileTransferObject(UA_Server *server, const UA_NodeId nodeId,
     if(res == UA_STATUSCODE_GOOD) {
         res = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
         if(br.referencesSize == 1 && UA_ExpandedNodeId_isLocal(&br.references[0].nodeId))
-            res = checkFileTransferType(server, br.references[0].nodeId.nodeId, isDirectory);
+            res = checkFileTransferType(server, br.references[0].nodeId.nodeId, base);
     }
     UA_BrowseResult_clear(&br);
     return res;
@@ -430,6 +461,18 @@ readMaxLengthCallback(UA_Server *server, const UA_NodeId *sessionId,
 }
 
 static UA_StatusCode
+readTimeoutCallback(UA_Server *server, const UA_NodeId *sessionId,
+                    void *sessionContext, const UA_NodeId *nodeId,
+                    void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                    const UA_NumericRange *range, UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
+    FTEntry *node = (FTEntry*)nodeContext;
+    return readScalar(&node->driver->config.activityTimeout,
+                      &UA_TYPES[UA_TYPES_DURATION], includeSourceTimeStamp, value);
+}
+
+static UA_StatusCode
 readWritable(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
               FTEntry *node, UA_Boolean includeSourceTimeStamp, UA_DataValue *value) {
     UA_FileAccessRights rights = 0;
@@ -496,25 +539,56 @@ typedef struct {
     UA_Boolean created;
 } FTPropertyBinding;
 
+/* The Property tables of all entry kinds have at most FT_PROPERTIES_SIZE
+ * entries */
 typedef struct FTFileBinding {
     UA_Boolean bound; /* All snapshots completed before the first mutation */
     FTPropertyBinding properties[FT_PROPERTIES_SIZE];
     FTPropertySnapshot *saved; /* Allocated only for reused Objects */
 } FTFileBinding;
 
-static const struct {
+typedef struct {
     const char *name;
     UA_UInt16 typeIndex;
     UA_CallbackValueSource source;
-} fileProperties[FT_PROPERTIES_SIZE] = {
-    {"Size", UA_TYPES_UINT64, {readSizeCallback, NULL}},
-    {"Writable", UA_TYPES_BOOLEAN, {readWritableCallback, NULL}},
-    {"UserWritable", UA_TYPES_BOOLEAN, {readUserWritableCallback, NULL}},
-    {"OpenCount", UA_TYPES_UINT16, {readOpenCountCallback, NULL}},
-    {"LastModifiedTime", UA_TYPES_DATETIME, {readLastModifiedCallback, NULL}},
-    {"MaxByteStringLength", UA_TYPES_UINT32, {readMaxLengthCallback, NULL}},
-    {"MimeType", UA_TYPES_STRING, {NULL, NULL}}
+    UA_Boolean optional;  /* Added to the Object when missing */
+    UA_Boolean checkType; /* The Variable has to accept the value type */
+} FTPropertyDesc;
+
+static const FTPropertyDesc fileProperties[FT_PROPERTIES_SIZE] = {
+    {"Size", UA_TYPES_UINT64, {readSizeCallback, NULL}, false, false},
+    {"Writable", UA_TYPES_BOOLEAN, {readWritableCallback, NULL}, false, false},
+    {"UserWritable", UA_TYPES_BOOLEAN, {readUserWritableCallback, NULL}, false, false},
+    {"OpenCount", UA_TYPES_UINT16, {readOpenCountCallback, NULL}, false, true},
+    {"LastModifiedTime", UA_TYPES_DATETIME, {readLastModifiedCallback, NULL}, true, false},
+    {"MaxByteStringLength", UA_TYPES_UINT32, {readMaxLengthCallback, NULL}, true, true},
+    {"MimeType", UA_TYPES_STRING, {NULL, NULL}, true, false}
 };
+
+static const FTPropertyDesc temporaryProperties[1] = {
+    {"ClientProcessingTimeout", UA_TYPES_DURATION, {readTimeoutCallback, NULL}, false, true}
+};
+
+static const FTPropertyDesc *
+entryProperties(const FTEntry *node, size_t *size) {
+    if(node->kind == FT_ENTRY_TEMPORARY) {
+        *size = 1;
+        return temporaryProperties;
+    }
+    *size = FT_PROPERTIES_SIZE;
+    return fileProperties;
+}
+
+static UA_Boolean
+isDriverValueSource(const UA_CallbackValueSource *source) {
+    if(source->read == readTimeoutCallback)
+        return true;
+    for(size_t i = 0; i < FT_PROPERTIES_SIZE; i++) {
+        if(fileProperties[i].source.read && source->read == fileProperties[i].source.read)
+            return true;
+    }
+    return false;
+}
 
 static UA_StatusCode
 savePropertyBinding(UA_Server *server, const UA_NodeId nodeId,
@@ -545,13 +619,8 @@ savePropertyBinding(UA_Server *server, const UA_NodeId nodeId,
         case UA_VALUESOURCETYPE_CALLBACK:
             binding->value.callback = v->valueSource.callback;
             /* A snapshot must not retain another driver's entry context. */
-            for(size_t i = 0; i < FT_PROPERTIES_SIZE; i++) {
-                if(fileProperties[i].source.read &&
-                   v->valueSource.callback.read == fileProperties[i].source.read) {
-                    res = UA_STATUSCODE_BADNODEIDEXISTS;
-                    break;
-                }
-            }
+            if(isDriverValueSource(&v->valueSource.callback))
+                res = UA_STATUSCODE_BADNODEIDEXISTS;
             break;
         }
     }
@@ -628,11 +697,13 @@ setupFileNode(UA_Server *server, FTEntry *node,
               const UA_FileTransferFileInfo *info) {
     if(node->binding)
         return UA_STATUSCODE_GOOD;
+    size_t count;
+    const FTPropertyDesc *props = entryProperties(node, &count);
     FTFileBinding *binding = (FTFileBinding*)UA_calloc(1, sizeof(FTFileBinding));
     if(!binding)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     if(!node->created) {
-        binding->saved = (FTPropertySnapshot*)UA_calloc(FT_PROPERTIES_SIZE,
+        binding->saved = (FTPropertySnapshot*)UA_calloc(count,
                                                        sizeof(FTPropertySnapshot));
         if(!binding->saved) {
             UA_free(binding);
@@ -641,10 +712,10 @@ setupFileNode(UA_Server *server, FTEntry *node,
     }
     node->binding = binding;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < FT_PROPERTIES_SIZE; i++) {
+    for(size_t i = 0; i < count; i++) {
         FTPropertyBinding *property = &binding->properties[i];
-        res = getChildId(server, node->nodeId, fileProperties[i].name, &property->nodeId);
-        if(res == UA_STATUSCODE_BADNOTFOUND && i >= FT_PROPERTY_LASTMODIFIED) {
+        res = getChildId(server, node->nodeId, props[i].name, &property->nodeId);
+        if(res == UA_STATUSCODE_BADNOTFOUND && props[i].optional) {
             res = UA_STATUSCODE_GOOD;
             continue;
         }
@@ -655,28 +726,33 @@ setupFileNode(UA_Server *server, FTEntry *node,
     }
     binding->bound = true;
 
-    const char *mtEnd = (const char*)memchr(info->mimeType, 0, sizeof(info->mimeType));
-    UA_String mimeType = {mtEnd ? (size_t)(mtEnd - info->mimeType) : sizeof(info->mimeType),
-                          (UA_Byte*)(uintptr_t)info->mimeType};
-    for(size_t i = 0; i < FT_PROPERTIES_SIZE; i++) {
+    /* Only files carry a MimeType */
+    UA_String mimeType = UA_STRING_NULL;
+    if(info && props == fileProperties) {
+        const char *mtEnd = (const char*)memchr(info->mimeType, 0, sizeof(info->mimeType));
+        mimeType.length = mtEnd ? (size_t)(mtEnd - info->mimeType) : sizeof(info->mimeType);
+        mimeType.data = (UA_Byte*)(uintptr_t)info->mimeType;
+    }
+    for(size_t i = 0; i < count; i++) {
         FTPropertyBinding *property = &binding->properties[i];
-        if(i == FT_PROPERTY_MIMETYPE && mimeType.length == 0)
+        UA_Boolean isMimeType = (props == fileProperties && i == FT_PROPERTY_MIMETYPE);
+        if(isMimeType && mimeType.length == 0)
             continue;
         UA_Variant value;
         UA_Variant_init(&value);
-        if(i == FT_PROPERTY_MIMETYPE)
+        if(isMimeType)
             UA_Variant_setScalar(&value, &mimeType, &UA_TYPES[UA_TYPES_STRING]);
         if(UA_NodeId_isNull(&property->nodeId)) {
             UA_VariableAttributes attr = UA_VariableAttributes_default;
-            attr.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)fileProperties[i].name);
-            attr.dataType = UA_TYPES[fileProperties[i].typeIndex].typeId;
+            attr.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)props[i].name);
+            attr.dataType = UA_TYPES[props[i].typeIndex].typeId;
             attr.valueRank = UA_VALUERANK_SCALAR;
             attr.value = value;
             UA_UInt64 zero = 0;
-            if(fileProperties[i].source.read)
-                UA_Variant_setScalar(&attr.value, &zero, &UA_TYPES[fileProperties[i].typeIndex]);
+            if(props[i].source.read)
+                UA_Variant_setScalar(&attr.value, &zero, &UA_TYPES[props[i].typeIndex]);
             res = UA_Server_addVariableNode(server, UA_NODEID_NULL, node->nodeId,
-                UA_NS0ID(HASPROPERTY), UA_QUALIFIEDNAME(0, (char*)(uintptr_t)fileProperties[i].name),
+                UA_NS0ID(HASPROPERTY), UA_QUALIFIEDNAME(0, (char*)(uintptr_t)props[i].name),
                 UA_NS0ID(PROPERTYTYPE), attr, NULL, &property->nodeId);
             property->created = (res == UA_STATUSCODE_GOOD);
         } else if(value.type) {
@@ -684,17 +760,17 @@ setupFileNode(UA_Server *server, FTEntry *node,
         }
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
-        if(i == FT_PROPERTY_OPENCOUNT || i == FT_PROPERTY_MAXLENGTH) {
+        if(props[i].checkType) {
             res = checkScalarProperty(server, &property->nodeId,
-                                        &UA_TYPES[fileProperties[i].typeIndex]);
+                                        &UA_TYPES[props[i].typeIndex]);
             if(res != UA_STATUSCODE_GOOD)
                 goto cleanup;
         }
-        if(fileProperties[i].source.read) {
+        if(props[i].source.read) {
             res = UA_Server_setNodeContext(server, property->nodeId, node);
             if(res == UA_STATUSCODE_GOOD)
                 res = UA_Server_setVariableNode_callbackValueSource(
-                    server, property->nodeId, fileProperties[i].source);
+                    server, property->nodeId, props[i].source);
         }
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
@@ -711,19 +787,21 @@ releaseFileNode(UA_Server *server, FTEntry *node) {
     FTFileBinding *binding = node->binding;
     if(!binding)
         return;
-    for(size_t i = 0; i < FT_PROPERTIES_SIZE; i++) {
+    size_t count;
+    const FTPropertyDesc *props = entryProperties(node, &count);
+    for(size_t i = 0; i < count; i++) {
         FTPropertyBinding *property = &binding->properties[i];
         FTPropertySnapshot *saved = binding->saved ? &binding->saved[i] : NULL;
         if(binding->bound && saved && saved->saved) {
             restorePropertyBinding(server, property->nodeId, saved);
-        } else if(binding->bound && node->created && fileProperties[i].source.read &&
+        } else if(binding->bound && node->created && props[i].source.read &&
                   !UA_NodeId_isNull(&property->nodeId)) {
             /* A Property may survive its created Object via another parent.
              * Replace callbacks carrying our context with a typed zero value. */
             UA_UInt64 zero = 0;
             UA_DataValue value;
             UA_DataValue_init(&value);
-            UA_Variant_setScalar(&value.value, &zero, &UA_TYPES[fileProperties[i].typeIndex]);
+            UA_Variant_setScalar(&value.value, &zero, &UA_TYPES[props[i].typeIndex]);
             value.hasValue = true;
             UA_Server_setVariableNode_internalValueSource(server, property->nodeId, &value, NULL);
             UA_Server_setNodeContext(server, property->nodeId, NULL);
@@ -837,7 +915,8 @@ mirrorObject(UA_Server *server, FTEntry *dirNode,
         if(findEntryOwner(server, &newNodeId) || findFTEntry(ftd, &newNodeId))
             res = UA_STATUSCODE_BADNODEIDEXISTS;
         else
-            res = checkFileTransferObject(server, newNodeId, !info);
+            res = checkFileTransferObject(server, newNodeId, info ? UA_NS0ID(FILETYPE) :
+                                          UA_NS0ID(FILEDIRECTORYTYPE));
     }
     if(res != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&newNodeId);

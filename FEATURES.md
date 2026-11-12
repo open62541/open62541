@@ -90,7 +90,8 @@ OPC UA Server
 | FileType Objects                        | :heavy_check_mark: |
 | FileDirectoryType Objects              | :heavy_check_mark: |
 | Pluggable storage backends              | :heavy_check_mark: |
-| TemporaryFileTransferType               |     :new_moon:     |
+| TemporaryFileTransferType (synchronous) | :heavy_check_mark: |
+| FileTransferStateMachineType (async)    |     :new_moon:     |
 
 OPC UA Client
 -------------
