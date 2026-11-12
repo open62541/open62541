@@ -351,6 +351,50 @@ START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
     UA_Variant_clear(&value);
 } END_TEST
 
+START_TEST(AddVariableNodeAdjustsEnumArrayWireType) {
+    UA_Int32 rawValues[2] = {UA_IDTYPE_NUMERIC, UA_IDTYPE_STRING};
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Id Types");
+    attr.dataType = UA_TYPES[UA_TYPES_IDTYPE].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
+    UA_Variant_setArray(&attr.value, rawValues, 2, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_NodeId nodeId;
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, "Id Types"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, &nodeId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    res = UA_Server_readValue(server, nodeId, &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_IDTYPE]));
+    ck_assert_uint_eq(value.arrayLength, 2);
+    ck_assert_int_eq(((UA_IdType*)value.data)[1], UA_IDTYPE_STRING);
+    UA_Variant_clear(&value);
+} END_TEST
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+/* Namespace zero is loaded from the nodeset XML, which stores enumeration
+ * values as Int32. See #8317. */
+START_TEST(Ns0EnumValueHasEnumType) {
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode res =
+        UA_Server_readValue(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_OPCUANAMESPACEMETADATA_STATICNODEIDTYPES),
+            &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_IDTYPE]));
+    UA_Variant_clear(&value);
+} END_TEST
+#endif
+
 START_TEST(AbstractVariableTypeBelowHierarchicalParent) {
     UA_ObjectTypeAttributes objectTypeAttr = UA_ObjectTypeAttributes_default;
     objectTypeAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ContainerType");
