@@ -5,6 +5,7 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel_async.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include "open62541/common.h"
@@ -13,6 +14,7 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "test_helpers.h"
 #include "testing_clock.h"
@@ -275,6 +277,95 @@ START_TEST(Client_connectUsername_async) {
 }
 END_TEST
 
+/* Counts the connections of the client that were closed, from its log */
+static size_t closedConnections;
+
+static void
+countClosedConnections(void *context, UA_LogLevel level, UA_LogCategory category,
+                       const char *msg, va_list args) {
+    if(strstr(msg, "SecureChannel closed"))
+        closedConnections++;
+}
+
+static UA_Logger countingLogger = {countClosedConnections, NULL, NULL};
+
+/* The server accepts the TCP connection and closes it before the SecureChannel
+ * opens, without an ERR message. Here because its only SecureChannel is taken
+ * by a client with an activated Session. The client has to report the failure
+ * instead of reconnecting as fast as the network allows. */
+START_TEST(Client_connect_async_closedBeforeChannelOpen) {
+    UA_Server_getConfig(server)->maxSecureChannels = 1;
+
+    UA_Client *holder = UA_Client_newForUnitTest();
+    UA_Client_getConfig(holder)->stateCallback = currentState;
+    connected = false;
+    UA_StatusCode retval = UA_Client_connectAsync(holder, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    while(!connected) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(holder, 0);
+    }
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_Logger *clientLogger = cc->logging;
+    cc->logging = &countingLogger;
+    closedConnections = 0;
+    retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Without the fix the client is still reconnecting after one second. The
+     * EventLoop of the test runs on a fake clock, the elapsed time is taken
+     * from the real one. */
+    UA_StatusCode connectStatus = UA_STATUSCODE_GOOD;
+    UA_DateTime start = UA_DateTime_nowMonotonic();
+    UA_DateTime elapsed = 0;
+    while(elapsed < UA_DATETIME_SEC && connectStatus == UA_STATUSCODE_GOOD) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+        UA_Client_getState(client, NULL, NULL, &connectStatus);
+        elapsed = UA_DateTime_nowMonotonic() - start;
+    }
+    cc->logging = clientLogger;
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
+                "Server without a free SecureChannel: %u connection(s) closed "
+                "in %u ms, connectStatus %s", (unsigned)closedConnections,
+                (unsigned)(elapsed / UA_DATETIME_MSEC),
+                UA_StatusCode_name(connectStatus));
+    ck_assert_uint_eq(connectStatus, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_uint_eq(closedConnections, 1);
+
+    /* The failure is not permanent. Once the SecureChannel is free, the same
+     * client connects. */
+    UA_Client_disconnectAsync(holder);
+    while(holder->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(holder, 0);
+    }
+    UA_Client_delete(holder);
+    start = UA_DateTime_nowMonotonic();
+    while(UA_Server_getStatistics(server).scs.currentChannelCount > 0 &&
+          UA_DateTime_nowMonotonic() - start < 5 * UA_DATETIME_SEC)
+        UA_Server_run_iterate(server, true);
+    ck_assert_uint_eq(UA_Server_getStatistics(server).scs.currentChannelCount, 0);
+
+    UA_Client_getConfig(client)->stateCallback = currentState;
+    connected = false;
+    retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    while(!connected) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
+    UA_Client_disconnectAsync(client);
+    while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_connect = tcase_create("Client Connect Async");
@@ -287,6 +378,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_connect, Client_connectSecureChannelAsync);
     tcase_add_test(tc_client_connect, Client_connect_async_wrongUrl);
     tcase_add_test(tc_client_connect, Client_connectUsername_async);
+    tcase_add_test(tc_client_connect, Client_connect_async_closedBeforeChannelOpen);
     suite_add_tcase(s,tc_client_connect);
     return s;
 }
