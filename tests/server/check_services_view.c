@@ -322,6 +322,36 @@ START_TEST(Service_Browse_ReferenceTypes) {
 }
 END_TEST
 
+/* HasAddIn is a subtype of HasComponent (Part 3, 7.20), so browsing for
+ * hierarchical references must return it (#5377) */
+START_TEST(Service_Browse_HasAddInIsHierarchical) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASADDIN);
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(br.referencesSize, 1);
+    UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    ck_assert(UA_NodeId_equal(&br.references[0].nodeId.nodeId, &hasComponent));
+    UA_BrowseResult_clear(&br);
+
+    UA_ReferenceTypeSet subTypeIdx;
+    UA_NodeId hasSubtype = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    referenceTypeIndices(server, &hasSubtype, &subTypeIdx, false);
+    UA_NodeId hasAddIn = UA_NODEID_NUMERIC(0, UA_NS0ID_HASADDIN);
+    UA_NodeId hierarchical = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    ck_assert(isNodeInTree(server, &hasAddIn, &hierarchical, &subTypeIdx));
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Service_Browse_Recursive) {
     UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -1134,6 +1164,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_browse, Service_Browse_WithBrowseName);
     tcase_add_test(tc_browse, Service_Browse_ClassMask);
     tcase_add_test(tc_browse, Service_Browse_ReferenceTypes);
+    tcase_add_test(tc_browse, Service_Browse_HasAddInIsHierarchical);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     tcase_add_test(tc_browse, Service_Browse_ReclaimsOldestContinuationPoint);
     tcase_add_test(tc_browse, Service_Browse_Recursive);

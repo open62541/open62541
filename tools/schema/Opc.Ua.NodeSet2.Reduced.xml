@@ -1416,7 +1416,7 @@
   <UAReferenceType NodeId="i=17604" BrowseName="HasAddIn">
     <DisplayName>HasAddIn</DisplayName>
     <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=47</Reference>
     </References>
     <InverseName>AddInOf</InverseName>
   </UAReferenceType>
