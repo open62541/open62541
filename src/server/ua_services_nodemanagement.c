@@ -502,6 +502,37 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     return retval;
 }
 
+/* Values of an enumeration DataType can arrive as Int32, for example when the
+ * nodeset compiler decodes them from the XML. Store them with the enumeration
+ * type, so that reading the value returns the type of the DataType attribute.
+ * Both types have the same memory layout. */
+static UA_StatusCode
+setEnumValueTypeCallback(UA_Server *server, UA_Session *session,
+                         UA_Node *node, void *enumType) {
+    UA_Variant *value = &node->variableNode.valueSource.internal.value.value;
+    if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL &&
+       value->type == &UA_TYPES[UA_TYPES_INT32])
+        value->type = (const UA_DataType*)enumType;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+adjustEnumValueType(UA_Server *server, const UA_VariableNode *node,
+                    UA_Boolean *adjusted) {
+    *adjusted = false;
+    if(node->valueSourceType != UA_VALUESOURCETYPE_INTERNAL ||
+       node->valueSource.internal.value.value.type != &UA_TYPES[UA_TYPES_INT32])
+        return UA_STATUSCODE_GOOD;
+    const UA_DataType *enumType = UA_Server_findDataType(server, &node->dataType);
+    if(!enumType || enumType->typeKind != UA_DATATYPEKIND_ENUM)
+        return UA_STATUSCODE_GOOD;
+    *adjusted = true;
+    return editNode(server, &server->adminSession, &node->head.nodeId,
+                    UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                    UA_BROWSEDIRECTION_INVALID, setEnumValueTypeCallback,
+                    (void*)(uintptr_t)enumType);
+}
+
 struct findChildContext {
     UA_Server *server;
     UA_QualifiedName browseName;
@@ -1701,6 +1732,28 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
                      node->head.nodeClass != UA_NODECLASS_VARIABLETYPE)) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
+        }
+
+        /* Store an Int32 value of an enumeration DataType with the enum type.
+         * This also runs while namespace zero is bootstrapped, where the value
+         * is not written back by the type check below. */
+        UA_Boolean adjusted = false;
+        retval = adjustEnumValueType(server, &node->variableNode, &adjusted);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(server->config.logging, session,
+                                "AddNode (%N): Adjusting the enumeration value "
+                                "type failed with error code %s",
+                                node->head.nodeId, UA_StatusCode_name(retval));
+            goto cleanup;
+        }
+        if(adjusted) {
+            UA_NODESTORE_RELEASE(server, node);
+            node = UA_NODESTORE_GET(server, nodeId);
+            if(!node || (node->head.nodeClass != UA_NODECLASS_VARIABLE &&
+                         node->head.nodeClass != UA_NODECLASS_VARIABLETYPE)) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
         }
 
         /* Check if all attributes hold the constraints of the type now. The initial
