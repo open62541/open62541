@@ -108,6 +108,14 @@ UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
 
 _UA_BEGIN_DECLS
 
+/* HMAC with the key absorbed, built by the key setter. A message clones inner
+ * and outer. */
+typedef struct {
+    psa_hash_operation_t inner;
+    psa_hash_operation_t outer;
+    UA_Boolean ready; /* false: sign and verify use psa_mac_compute */
+} UA_mbedTLS_HmacState;
+
 typedef struct {
     UA_ByteString localSymIv;
     UA_ByteString remoteSymIv;
@@ -117,6 +125,8 @@ typedef struct {
     UA_mbedTLS_PsaKey localSymEncryptingKey;
     UA_mbedTLS_PsaKey remoteSymSigningKey;
     UA_mbedTLS_PsaKey remoteSymEncryptingKey;
+    UA_mbedTLS_HmacState localMac;
+    UA_mbedTLS_HmacState remoteMac; 
     psa_algorithm_t symmetricMacAlgorithm;
 } mbedtls_ChannelContext;
 
