@@ -2210,6 +2210,24 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
            client->connectStatus == UA_STATUSCODE_GOOD)
             setConnectStatus(client, fallbackEndpointUrl(client));
 
+        /* The server accepted the TCP connection and closed it before the
+         * SecureChannel opened, without an ERR message. For example a server
+         * without a free SecureChannel or a TCP proxy without a backend.
+         * Reconnecting right away would loop as fast as the network allows.
+         * Report the failure and leave the next attempt to the application. A
+         * connection closed by the client itself is already in the CLOSING
+         * state and is not concerned. */
+        if((oldState == UA_SECURECHANNELSTATE_CONNECTED ||
+            oldState == UA_SECURECHANNELSTATE_HEL_SENT ||
+            oldState == UA_SECURECHANNELSTATE_ACK_RECEIVED ||
+            oldState == UA_SECURECHANNELSTATE_OPN_SENT) &&
+           client->connectStatus == UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                           "The connection was closed before the SecureChannel "
+                           "opened. No automatic reconnect.");
+            setConnectStatus(client, UA_STATUSCODE_BADCONNECTIONCLOSED);
+        }
+
         /* Try to reconnect. Duplicate the code instead of continue_connect to
          * pacify compiler warnings. */
         /* goto continue_connect; */
