@@ -155,6 +155,18 @@ UA_StatusCode
 UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
                                      const UA_NodeId *sessionId);
 
+/* CreateSigningRequest of a Session. Returns Bad_TransactionPending if a
+ * transaction is active for another Session. */
+UA_StatusCode
+UA_GDSReceiver_createSigningRequestForSession(UA_GDSReceiver *receiver,
+                                              const UA_NodeId *sessionId,
+                                              const UA_NodeId certificateGroupId,
+                                              const UA_NodeId certificateTypeId,
+                                              const UA_String *subjectName,
+                                              const UA_Boolean *regenerateKey,
+                                              const UA_ByteString *nonce,
+                                              UA_ByteString *csr);
+
 UA_StatusCode
 UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
                                       UA_GDSTrustList *tl,

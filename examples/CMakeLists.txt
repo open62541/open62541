@@ -196,10 +196,13 @@ if(UA_ENABLE_PUBSUB)
     if(UA_ARCHITECTURE_POSIX AND NOT APPLE)
         add_example(server_pubsub_publish_rt_state_machine
                     pubsub_realtime/server_pubsub_publish_rt_state_machine.c)
-        target_link_libraries(server_pubsub_publish_rt_state_machine "rt")
         add_example(server_pubsub_subscribe_rt_state_machine
                     pubsub_realtime/server_pubsub_subscribe_rt_state_machine.c)
-        target_link_libraries(server_pubsub_subscribe_rt_state_machine "rt")
+        ## QNX has the POSIX realtime extensions in libc
+        if(NOT CMAKE_SYSTEM_NAME STREQUAL "QNX")
+            target_link_libraries(server_pubsub_publish_rt_state_machine "rt")
+            target_link_libraries(server_pubsub_subscribe_rt_state_machine "rt")
+        endif()
     endif()
 
     if(UA_ENABLE_ENCRYPTION)
