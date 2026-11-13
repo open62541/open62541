@@ -489,7 +489,9 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
     UA_RESET_ERRNO;
     int result = -1;
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
-#if defined(__APPLE__)
+        /* Linux takes the struct ip_mreqn. Elsewhere the request is a struct
+         * ip_mreq, but IP_MULTICAST_IF takes only the interface address. */
+#if !defined(__linux__)
         result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                             &req.ipv4.imr_interface, sizeof(struct in_addr));
 #else

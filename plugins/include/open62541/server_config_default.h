@@ -298,11 +298,17 @@ UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1(UA_ServerConfig *config,
                                                     const UA_ByteString *certificate,
                                                     const UA_ByteString *privateKey);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccCurve25519_AesGcm`` / ``EccCurve25519_ChaChaPoly``. No longer part of
+ * the default policy set; call this function to add it explicitly. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccCurve25519(UA_ServerConfig *config,
                                                const UA_ByteString *certificate,
                                                const UA_ByteString *privateKey);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccCurve448_AesGcm`` / ``EccCurve448_ChaChaPoly``. No longer part of the
+ * default policy set; call this function to add it explicitly. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccCurve448(UA_ServerConfig *config,
                                              const UA_ByteString *certificate,
