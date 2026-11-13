@@ -383,10 +383,13 @@ setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
     return res;
 }
 
+/* valueDeferred: The value source answered asynchronously when it was read in
+ * useVariableTypeAttributes. The value is then not available for checking. */
 static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session,
                       const UA_VariableNode *node,
-                      const UA_VariableTypeNode *vt) {
+                      const UA_VariableTypeNode *vt,
+                      UA_Boolean valueDeferred) {
     /* Check the datatype against the vt */
     if(!compatibleDataTypes(server, &node->dataType, &vt->dataType)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
@@ -423,6 +426,12 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     /* Typecheck the value. Less strict for NS0 -- we adjust nodes after loading
      * the generated definitions. */
     if(server->bootstrapNS0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Do not read the value source a second time. Values from a callback
+     * value source are produced when read, so there is no stored value to
+     * check. */
+    if(valueDeferred)
         return UA_STATUSCODE_GOOD;
 
     /* The value might come from a datasource, so we perform a
@@ -532,21 +541,35 @@ compatibleVariableTypeValue(UA_Server *server, UA_Session *session,
 }
 
 /* Use attributes from the variable type wherever required. Reload the node if
- * changes were made. */
+ * changes were made. valueDeferred is set if a callback value source answers
+ * the read asynchronously. */
 static UA_StatusCode
 useVariableTypeAttributes(UA_Server *server, UA_Session *session,
                           const UA_VariableNode *node,
-                          const UA_VariableTypeNode *vt) {
+                          const UA_VariableTypeNode *vt,
+                          UA_Boolean *valueDeferred) {
     /* If no value is set, see if the vt provides one and copy it. This needs to
      * be done before copying the datatype from the vt, as setting the datatype
      * triggers a typecheck. */
     UA_DataValue origDv;
     UA_DataValue_init(&origDv);
     UA_StatusCode retval = readValueAttribute(server, session, node, &origDv);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
 
-    if(origDv.hasValue && origDv.value.type) {
+    /* A callback value source may complete the read asynchronously. AddNodes
+     * cannot wait for the result. The application still completes the read
+     * with UA_Server_setAsyncReadResult; the result is then discarded. Keep
+     * the value source as the value and skip the default value of the vt. */
+    *valueDeferred = (retval == UA_STATUSCODE_BADWAITINGFORRESPONSE &&
+                      node->valueSourceType == UA_VALUESOURCETYPE_CALLBACK);
+    if(*valueDeferred) {
+        logAddNode(server->config.logging, session, &node->head.nodeId,
+                   "The value source completes asynchronously. "
+                   "The value is not type-checked.");
+        UA_DataValue_clear(&origDv);
+        retval = UA_STATUSCODE_GOOD;
+    } else if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    } else if(origDv.hasValue && origDv.value.type) {
         /* A value is present */
         UA_DataValue_clear(&origDv);
     } else {
@@ -600,6 +623,37 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     }
 
     return retval;
+}
+
+/* Values of an enumeration DataType can arrive as Int32, for example when the
+ * nodeset compiler decodes them from the XML. Store them with the enumeration
+ * type, so that reading the value returns the type of the DataType attribute.
+ * Both types have the same memory layout. */
+static UA_StatusCode
+setEnumValueTypeCallback(UA_Server *server, UA_Session *session,
+                         UA_Node *node, void *enumType) {
+    UA_Variant *value = &node->variableNode.valueSource.internal.value.value;
+    if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL &&
+       value->type == &UA_TYPES[UA_TYPES_INT32])
+        value->type = (const UA_DataType*)enumType;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+adjustEnumValueType(UA_Server *server, const UA_VariableNode *node,
+                    UA_Boolean *adjusted) {
+    *adjusted = false;
+    if(node->valueSourceType != UA_VALUESOURCETYPE_INTERNAL ||
+       node->valueSource.internal.value.value.type != &UA_TYPES[UA_TYPES_INT32])
+        return UA_STATUSCODE_GOOD;
+    const UA_DataType *enumType = UA_Server_findDataType(server, &node->dataType);
+    if(!enumType || enumType->typeKind != UA_DATATYPEKIND_ENUM)
+        return UA_STATUSCODE_GOOD;
+    *adjusted = true;
+    return editNode(server, &server->adminSession, &node->head.nodeId,
+                    UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                    UA_BROWSEDIRECTION_INVALID, setEnumValueTypeCallback,
+                    (void*)(uintptr_t)enumType);
 }
 
 struct findChildContext {
@@ -1817,9 +1871,11 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
         /* Use attributes from the type. The value and value constraints are the
          * same for the variable and variabletype attribute structs. */
+        UA_Boolean valueDeferred = false;
         retval = useVariableTypeAttributes(server, session,
                                            &node->variableNode,
-                                           &type->variableTypeNode);
+                                           &type->variableTypeNode,
+                                           &valueDeferred);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logging, session,
                                 "AddNode (%N): Using attributes for from "
@@ -1839,11 +1895,33 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             goto cleanup;
         }
 
+        /* Store an Int32 value of an enumeration DataType with the enum type.
+         * This also runs while namespace zero is bootstrapped, where the value
+         * is not written back by the type check below. */
+        UA_Boolean adjusted = false;
+        retval = adjustEnumValueType(server, &node->variableNode, &adjusted);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(server->config.logging, session,
+                                "AddNode (%N): Adjusting the enumeration value "
+                                "type failed with error code %s",
+                                node->head.nodeId, UA_StatusCode_name(retval));
+            goto cleanup;
+        }
+        if(adjusted) {
+            UA_NODESTORE_RELEASE(server, node);
+            node = UA_NODESTORE_GET(server, nodeId);
+            if(!node || (node->head.nodeClass != UA_NODECLASS_VARIABLE &&
+                         node->head.nodeClass != UA_NODECLASS_VARIABLETYPE)) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+        }
+
         /* Check if all attributes hold the constraints of the type now. The initial
          * attributes must type-check. The constructor might change the attributes
          * again. Then, the changes are type-checked by the normal write service. */
         retval = typeCheckVariableNode(server, session, &node->variableNode,
-                                       &type->variableTypeNode);
+                                       &type->variableTypeNode, valueDeferred);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logging, session,
                                 "AddNode (%N): Type-checking failed with error code %s",

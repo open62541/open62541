@@ -268,29 +268,38 @@ UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
     return UA_GDSReceiver_applyChanges(ctx);
 }
 
+/* Is the result of the validation process of Part 4 accepted for a certificate
+ * that is put into the TrustList or that the Server uses? */
+static UA_Boolean
+verificationAccepted(UA_StatusCode res) {
+    /* Bad_CertificateUntrusted: The chain is complete, but no certificate in
+     * it is trusted. Adding the certificate makes it trusted. The Server does
+     * not need to trust its own certificate. The issuer CAs of a TrustList are
+     * not trusted (Part 4, 6.1.3).
+     *
+     * Bad_Certificate(Issuer)TimeInvalid: Suppressible errors are ignored. The
+     * validity period is checked after all other steps, so the other steps
+     * passed. */
+    return res == UA_STATUSCODE_GOOD ||
+        res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED ||
+        res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
+        res == UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
+}
+
 /* Evaluate the result of the validation process of Part 4 for a certificate
  * that is put into the TrustList or that the Server uses */
 static UA_StatusCode
 checkVerificationResult(UA_ServerConfig *sc, UA_StatusCode res, const char *method) {
-    if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
-        /* The chain is complete, but no certificate in it is trusted. Adding
-         * the certificate makes it trusted. The Server does not need to trust
-         * its own certificate. The issuer CAs of a TrustList are not trusted
-         * (Part 4, 6.1.3). */
-        res = UA_STATUSCODE_GOOD;
-    } else if(res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
-              res == UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID) {
-        /* Suppressible errors are ignored. The validity period is checked
-         * after all other steps, so the other steps passed. */
+    if(res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
+       res == UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID)
         UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
                        "%s: Ignoring the suppressible error %s",
                        method, UA_StatusCode_name(res));
-        res = UA_STATUSCODE_GOOD;
-    }
-    if(res != UA_STATUSCODE_GOOD)
-        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
-                     "%s: The certificate is not valid (%s)",
-                     method, UA_StatusCode_name(res));
+    if(verificationAccepted(res))
+        return UA_STATUSCODE_GOOD;
+    UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                 "%s: The certificate is not valid (%s)",
+                 method, UA_StatusCode_name(res));
     return res;
 }
 
@@ -718,6 +727,35 @@ String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
     return case_cmp(s1->data, s2->data, s1->length) == 0;
 }
 
+/* RemoveCertificate fails if the removed certificate is needed to validate
+ * another certificate of the TrustList (Part 12, 7.8.2.7). */
+static UA_StatusCode
+verifyTrustListRemoval(UA_ServerConfig *sc, const UA_TrustListDataType *before,
+                       const UA_TrustListDataType *after) {
+    const UA_ByteString *certificates[2] =
+        {after->trustedCertificates, after->issuerCertificates};
+    size_t certificatesSize[2] =
+        {after->trustedCertificatesSize, after->issuerCertificatesSize};
+    for(size_t i = 0; i < 2; i++) {
+        for(size_t j = 0; j < certificatesSize[i]; j++) {
+            const UA_ByteString *cert = &certificates[i][j];
+            UA_StatusCode res =
+                UA_CertificateUtils_verifyTrustListCertificate(after, cert, sc->logging);
+            if(verificationAccepted(res))
+                continue;
+            if(!verificationAccepted(UA_CertificateUtils_verifyTrustListCertificate(
+                   before, cert, sc->logging)))
+                continue;
+            UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                         "RemoveCertificate: The certificate is needed to validate "
+                         "another certificate of the TrustList (%s)",
+                         UA_StatusCode_name(res));
+            return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
                                 UA_CertificateGroup *certGroup,
@@ -832,6 +870,19 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
     retval = transactionCG->removeFromTrustList(transactionCG, &list);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
+
+    /* Only a CA can be needed to validate another certificate */
+    if(UA_CertificateUtils_checkCA(&certificate) == UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType after;
+        UA_TrustListDataType_init(&after);
+        after.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+        retval = transactionCG->getTrustList(transactionCG, &after);
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = verifyTrustListRemoval(sc, &trustList, &after);
+        UA_TrustListDataType_clear(&after);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
 
     /* Apply */
     retval = UA_GDSReceiver_applyChanges(ctx);
@@ -1260,6 +1311,7 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
 
 static UA_StatusCode
 createSigningRequestLocked(UA_GDSReceiver *receiver,
+                           const UA_NodeId *sessionId,
                            const UA_NodeId certificateGroupId,
                            const UA_NodeId certificateTypeId,
                            const UA_String *subjectName,
@@ -1287,6 +1339,14 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
     if(!UA_NodeId_equal(&sc->secureChannelPKI.certificateGroupId,
                         &defaultApplicationGroup))
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Bad_TransactionPending if a transaction is active for another Session. */
+    UA_GDSTransaction *transaction = &ctx->transaction;
+    if(transaction->applyChangesQueued)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH &&
+       (!sessionId || !UA_NodeId_equal(&transaction->sessionId, sessionId)))
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ByteString *newPrivateKey = NULL;
@@ -1332,13 +1392,14 @@ cleanup:
 }
 
 UA_StatusCode
-UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
-                                    const UA_NodeId certificateGroupId,
-                                    const UA_NodeId certificateTypeId,
-                                    const UA_String *subjectName,
-                                    const UA_Boolean *regenerateKey,
-                                    const UA_ByteString *nonce,
-                                    UA_ByteString *csr) {
+UA_GDSReceiver_createSigningRequestForSession(UA_GDSReceiver *receiver,
+                                              const UA_NodeId *sessionId,
+                                              const UA_NodeId certificateGroupId,
+                                              const UA_NodeId certificateTypeId,
+                                              const UA_String *subjectName,
+                                              const UA_Boolean *regenerateKey,
+                                              const UA_ByteString *nonce,
+                                              UA_ByteString *csr) {
     if(!receiver || !csr)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!receiver->drv.server)
@@ -1347,10 +1408,23 @@ UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
     UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
     sc->eventLoop->lock(sc->eventLoop);
     UA_StatusCode res = createSigningRequestLocked(
-        receiver, certificateGroupId, certificateTypeId, subjectName,
+        receiver, sessionId, certificateGroupId, certificateTypeId, subjectName,
         regenerateKey, nonce, csr);
     sc->eventLoop->unlock(sc->eventLoop);
     return res;
+}
+
+UA_StatusCode
+UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
+                                    const UA_NodeId certificateGroupId,
+                                    const UA_NodeId certificateTypeId,
+                                    const UA_String *subjectName,
+                                    const UA_Boolean *regenerateKey,
+                                    const UA_ByteString *nonce,
+                                    UA_ByteString *csr) {
+    return UA_GDSReceiver_createSigningRequestForSession(
+        receiver, NULL, certificateGroupId, certificateTypeId, subjectName,
+        regenerateKey, nonce, csr);
 }
 
 static UA_StatusCode

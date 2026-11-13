@@ -788,6 +788,88 @@ START_TEST(userTokenGroupNotVerified) {
     ck_assert_uint_eq(trustedCount(&UA_Server_getConfig(server)->sessionPKI), 1);
 } END_TEST
 
+/* RemoveCertificate for the certificate in the trusted or the issuer list */
+static UA_StatusCode
+removeByThumbprint(UA_ByteString certificate, UA_Boolean isTrusted) {
+    UA_Byte buf[40]; /* SHA1 as hex */
+    UA_String thumbprint = {sizeof(buf), buf};
+    ck_assert_uint_eq(UA_CertificateUtils_getThumbprint(&certificate, &thumbprint),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &thumbprint, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&input[1], &isTrusted, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_StatusCode res = callAs(admin(), appList.object, appList.removeCertificate,
+                               2, input, 0, NULL);
+    /* The applied transaction ends in the next iteration */
+    UA_Server_run_iterate(server, false);
+    return res;
+}
+
+/* The number of certificates in the trusted and the issuer list */
+static size_t
+certificateCount(UA_CertificateGroup *group) {
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    lockServer(server);
+    ck_assert_uint_eq(group->getTrustList(group, &list), UA_STATUSCODE_GOOD);
+    unlockServer(server);
+    size_t count = list.trustedCertificatesSize + list.issuerCertificatesSize;
+    UA_TrustListDataType_clear(&list);
+    return count;
+}
+
+/* RemoveCertificate fails with Bad_CertificateChainIncomplete if the
+ * Certificate is needed to validate another Certificate in the TrustList (Part
+ * 12, 7.8.2.7). The root CA issued the intermediate CA. The loop puts each CA
+ * with its CRL into the trusted or the issuer list:
+ * bit 0 = root CA trusted, bit 1 = intermediate CA trusted. */
+START_TEST(removeNeededCa) {
+    UA_CertificateGroup *pki = &UA_Server_getConfig(server)->secureChannelPKI;
+    UA_ByteString cas[2] = {{ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA},
+                            intermediateCa()};
+    UA_ByteString crls[2] = {
+        {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA},
+        {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA}};
+    UA_Boolean isTrusted[2] = {(_i & 1) != 0, (_i & 2) != 0};
+
+    /* Upload both CAs with the TrustList Methods */
+    UA_ByteString trusted[2], trustedCrls[2], issuers[2], issuerCrls[2];
+    UA_TrustListDataType list;
+    UA_TrustListDataType_init(&list);
+    list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    list.trustedCertificates = trusted;
+    list.trustedCrls = trustedCrls;
+    list.issuerCertificates = issuers;
+    list.issuerCrls = issuerCrls;
+    for(size_t i = 0; i < 2; i++) {
+        if(isTrusted[i]) {
+            trusted[list.trustedCertificatesSize++] = cas[i];
+            trustedCrls[list.trustedCrlsSize++] = crls[i];
+        } else {
+            issuers[list.issuerCertificatesSize++] = cas[i];
+            issuerCrls[list.issuerCrlsSize++] = crls[i];
+        }
+    }
+    ck_assert_uint_eq(updateList(&appList, &list), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(certificateCount(pki), 2);
+
+    /* The intermediate CA needs the root CA. Nothing is removed and no
+     * transaction stays. */
+    ck_assert_uint_eq(removeByThumbprint(cas[0], isTrusted[0]),
+                      UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    ck_assert_uint_eq(certificateCount(pki), 2);
+    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_BADNOTHINGTODO);
+
+    /* No certificate needs the intermediate CA. Without it, no certificate
+     * needs the root CA. */
+    ck_assert_uint_eq(removeByThumbprint(cas[1], isTrusted[1]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(certificateCount(pki), 1);
+    ck_assert_uint_eq(removeByThumbprint(cas[0], isTrusted[0]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(certificateCount(pki), 0);
+} END_TEST
+
 /* Only the Session of the transaction can open a TrustList (Part 12, 7.8.2.2).
  * While a handle is open, the file locking of Part 20 decides first. */
 START_TEST(transactionOfAnotherSession) {
@@ -1195,6 +1277,7 @@ int main(void) {
     tcase_add_test(tc, acceptExpiredCrl);
     tcase_add_test(tc, rejectApplicationCertificateAsIssuer);
     tcase_add_test(tc, userTokenGroupNotVerified);
+    tcase_add_loop_test(tc, removeNeededCa, 0, 4);
     tcase_add_test(tc, transactionOfAnotherSession);
     tcase_add_test(tc, transactionKeptWhileWriting);
     tcase_add_test(tc, writeChunkFollowsMaxTrustListSize);

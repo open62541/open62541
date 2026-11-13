@@ -2060,16 +2060,16 @@ struct UA_Driver {
  * started and returns the start result. A failed start rolls back registration
  * and leaves ownership with the caller. The server backpointer is retained
  * for cleanup; stop the driver if needed before freeing it. */
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_Server_addDriver(UA_Server *server, UA_Driver *drv);
 
 /* Remove the Driver from the server. This will fail if the driver is not fully
  * stopped. */
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_Server_removeDriver(UA_Server *server, UA_Driver *drv);
 
 /* Get the first entry of the server's driver linked list. */
-UA_Driver *
+UA_EXPORT UA_Driver *
 UA_Server_getDrivers(UA_Server *server);
 
 /**

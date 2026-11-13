@@ -582,8 +582,13 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
     /* Prepare the metadata with information from the readers to decode the
      * DataSetMessages */
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    UA_DataSetMessage_EncodingMetaData stackMetaData[UA_PUBSUB_METADATA_STACK_CAPACITY];
+    UA_DataSetMessage_EncodingMetaData *emd =
+        allocEncodingMetaData(rg->readersCount, stackMetaData);
+    if(!emd) {
+        UA_NetworkMessage_clear(nm);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     ctx.eo.metaData = emd;
     ctx.eo.metaDataSize = rg->readersCount;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
@@ -596,33 +601,27 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
     /* Handle missing payload header and "inject" metadata */
     if(!nm->payloadHeaderEnabled) {
         rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_NetworkMessage_clear(nm);
-            return rv;
-        }
+        if(rv != UA_STATUSCODE_GOOD)
+            goto cleanup;
     }
 
     /* Decrypt */
     rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
+    if(rv != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Decode the payload */
     rv = UA_NetworkMessage_decodePayload(&ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
+    if(rv != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     rv = UA_NetworkMessage_decodeFooters(&ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
 
-    return UA_STATUSCODE_GOOD;
+ cleanup:
+    freeEncodingMetaData(emd, stackMetaData);
+    if(rv != UA_STATUSCODE_GOOD)
+        UA_NetworkMessage_clear(nm);
+    return rv;
 }
 
 #ifdef UA_ENABLE_JSON_ENCODING
@@ -644,8 +643,11 @@ UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
      * DataSetMessages */
     UA_NetworkMessage_EncodingOptions eo;
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    UA_DataSetMessage_EncodingMetaData stackMetaData[UA_PUBSUB_METADATA_STACK_CAPACITY];
+    UA_DataSetMessage_EncodingMetaData *emd =
+        allocEncodingMetaData(rg->readersCount, stackMetaData);
+    if(!emd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     eo.metaData = emd;
     eo.metaDataSize = rg->readersCount;
 
@@ -658,7 +660,9 @@ UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
     }
 
     /* Decode */
-    return UA_NetworkMessage_decodeJson(&buffer, nm, &eo, &jo);
+    UA_StatusCode res = UA_NetworkMessage_decodeJson(&buffer, nm, &eo, &jo);
+    freeEncodingMetaData(emd, stackMetaData);
+    return res;
 }
 #endif
 

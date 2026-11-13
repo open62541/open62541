@@ -388,17 +388,23 @@ static const uint64_t DOUBLE_POW5_SPLIT[DOUBLE_POW5_TABLE_SIZE][2] = {
   {  3278889188817135834u, 1424047269444608885u }, {  8710297504448807696u, 1780059086805761106u }
 };
 
-#if defined(_MSC_VER) && defined(_WIN64)
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
 
 #include <intrin.h>
 
 static STRTOD_INLINE uint32_t floor_log2(const uint64_t value) {
-    long index;
+    unsigned long index;
     return _BitScanReverse64(&index, value) ? index : 64;
 }
 
 static STRTOD_INLINE uint64_t umul128(const uint64_t a, const uint64_t b, uint64_t* const productHi) {
+#if defined(_M_ARM64)
+  // _umul128 is only available on x64. ARM64 provides the high half separately.
+  *productHi = __umulh(a, b);
+  return a * b;
+#else
   return _umul128(a, b, productHi);
+#endif
 }
 
 #else
