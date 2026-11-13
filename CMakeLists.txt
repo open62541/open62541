@@ -525,6 +525,12 @@ if("${UA_ARCHITECTURE}" STREQUAL "posix")
         list(APPEND open62541_LIBRARIES "rt")
         list(APPEND pkgcfg_libsprivate "-lrt")
     endif()
+    if(${CMAKE_SYSTEM_NAME} STREQUAL "QNX")
+        # QNX keeps the socket API in a separate libsocket (like ws2_32 on
+        # Windows); it is not part of libc.
+        list(APPEND open62541_LIBRARIES "socket")
+        list(APPEND pkgcfg_libsprivate "-lsocket")
+    endif()
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     list(APPEND open62541_LIBRARIES "ws2_32")
     list(APPEND open62541_LIBRARIES "iphlpapi")
