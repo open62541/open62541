@@ -94,17 +94,32 @@ writeGroupVariables(UA_GDSReceiverContext *ctx) {
     UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    /* Advertise only the certificate types that can be updated. These are the
-     * permitted types for UpdateCertificate and CreateSigningRequest. */
-    const UA_NodeId knownCertificateTypes[2] = {
-        UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE)
-    };
-    UA_NodeId certificateTypes[2];
+    /* Advertise only the supported certificate types, i.e., the types that have
+     * at least one associated endpoint. */
+    size_t policiesSize = config->securityPoliciesSize;
+    UA_NodeId *certificateTypes = (UA_NodeId*)
+        UA_Array_new(policiesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    if(!certificateTypes)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     size_t certificateTypesSize = 0;
-    for(size_t i = 0; i < 2; i++) {
-        if(UA_GDSReceiver_certificateTypeSupported(config, &knownCertificateTypes[i]))
-            certificateTypes[certificateTypesSize++] = knownCertificateTypes[i];
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < policiesSize; i++) {
+        const UA_NodeId *typeId = &config->securityPolicies[i].certificateTypeId;
+        if(!UA_GDSReceiver_certificateTypeSupported(config, typeId))
+            continue;
+        size_t j = 0;
+        for(; j < certificateTypesSize; j++) {
+            if(UA_NodeId_equal(&certificateTypes[j], typeId))
+                break;
+        }
+        if(j < certificateTypesSize)
+            continue;
+        retval = UA_NodeId_copy(typeId, &certificateTypes[certificateTypesSize]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(certificateTypes, policiesSize, &UA_TYPES[UA_TYPES_NODEID]);
+            return retval;
+        }
+        certificateTypesSize++;
     }
 
     UA_String supportedPrivateKeyFormats[2] =
@@ -113,7 +128,6 @@ writeGroupVariables(UA_GDSReceiverContext *ctx) {
     UA_UInt32 maxTrustListSize = config->maxTrustListSize;
 
     /* Set variables */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= writeGDSNs0VariableArray(server, UA_NS0ID(SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS),
                                        supportedPrivateKeyFormats, supportedPrivateKeyFormatsSize,
                                        &UA_TYPES[UA_TYPES_STRING]);
@@ -124,6 +138,7 @@ writeGroupVariables(UA_GDSReceiverContext *ctx) {
     retval |= writeGDSNs0VariableArray(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES),
                                        certificateTypes, certificateTypesSize,
                                        &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Array_delete(certificateTypes, policiesSize, &UA_TYPES[UA_TYPES_NODEID]);
 
     /* The file transfer drivers serve OpenCount */
     for(size_t i = 0; i < UA_GDSRECEIVER_TRUSTLISTS; i++)

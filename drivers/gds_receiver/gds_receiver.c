@@ -1034,25 +1034,20 @@ getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri) {
     return NULL;
 }
 
-/* The receiver updates the RSA application certificates of the
- * DefaultApplicationGroup. A certificate type is supported only if an endpoint
- * uses a SecurityPolicy with that type, so that an update takes effect. The
- * supported types are the CertificateTypes of the group (Part 12 §7.10.5). */
+/* A cert type is only supported if there exists an endpoint of that type. */
 UA_Boolean
 UA_GDSReceiver_certificateTypeSupported(UA_ServerConfig *sc,
                                         const UA_NodeId *certificateTypeId) {
     static UA_NodeId defaultApplicationGroup =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    static UA_NodeId certTypRsaMin = STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
-    static UA_NodeId certTypRsaSha256 = STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) &&
-       !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
+    if(UA_NodeId_isNull(certificateTypeId))
         return false;
 
     for(size_t i = 0; i < sc->endpointsSize; i++) {
         UA_SecurityPolicy *sp =
             getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
-        if(sp && UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId) &&
+        if(sp && sp->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+           UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId) &&
            UA_NodeId_equal(&sp->certificateGroupId, &defaultApplicationGroup))
             return true;
     }
@@ -1222,9 +1217,9 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
     if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    static UA_NodeId certTypRsaSha256 =
-        STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
+    UA_Server *server = receiver->drv.server;
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    if(!UA_GDSReceiver_certificateTypeSupported(sc, &certificateTypeId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* The Server uses the leaf only. Issuers appended to the certificate are
@@ -1239,8 +1234,6 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
        UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    UA_Server *server = receiver->drv.server;
-    UA_ServerConfig *sc = UA_Server_getConfig(server);
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
     if(privateKey) {
         if(UA_CertificateUtils_checkKeyPair(&leafCertificate, privateKey) !=
