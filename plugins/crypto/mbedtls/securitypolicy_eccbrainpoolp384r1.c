@@ -13,7 +13,7 @@ static const UA_mbedTLS_EccPolicyConfig eccBrainpoolP384Config = {
     "http://www.w3.org/2000/09/xmldsig#hmac-sha2-384",
     "http://www.w3.org/2001/04/xmlenc#aes256-cbc",
     UA_NS0ID_ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE,
-    15,
+    0,
     PSA_ECC_FAMILY_BRAINPOOL_P_R1,
     384,
     PSA_ALG_SHA_384,

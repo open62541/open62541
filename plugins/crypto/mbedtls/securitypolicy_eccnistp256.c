@@ -13,7 +13,7 @@ static const UA_mbedTLS_EccPolicyConfig eccNistP256Config = {
     "http://www.w3.org/2000/09/xmldsig#hmac-sha2-256",
     "http://www.w3.org/2001/04/xmlenc#aes128-cbc",
     UA_NS0ID_ECCNISTP256APPLICATIONCERTIFICATETYPE,
-    10,
+    0,
     PSA_ECC_FAMILY_SECP_R1,
     256,
     PSA_ALG_SHA_256,

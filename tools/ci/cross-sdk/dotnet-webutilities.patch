@@ -1,0 +1,22 @@
+diff --git a/Directory.Packages.props b/Directory.Packages.props
+--- a/Directory.Packages.props
++++ b/Directory.Packages.props
+@@ -13,6 +13,7 @@
+     <PackageVersion Include="Microsoft.AspNetCore.Server.Kestrel.Core" Version="2.3.9" />
+     <PackageVersion Include="Microsoft.AspNetCore.Server.Kestrel.Https" Version="2.3.9" />
+     <PackageVersion Include="Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets" Version="2.3.9" />
++    <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="2.3.14" />
+     <PackageVersion Include="Microsoft.Bcl.HashCode" Version="6.0.0" />
+     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.0" />
+     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.2" />
+diff --git a/Stack/Opc.Ua.Bindings.Https/Opc.Ua.Bindings.Https.csproj b/Stack/Opc.Ua.Bindings.Https/Opc.Ua.Bindings.Https.csproj
+--- a/Stack/Opc.Ua.Bindings.Https/Opc.Ua.Bindings.Https.csproj
++++ b/Stack/Opc.Ua.Bindings.Https/Opc.Ua.Bindings.Https.csproj
+@@ -25,6 +25,7 @@
+         <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets" />
+         <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel.Https" />
+         <PackageReference Include="Microsoft.AspNetCore.Http" />
++        <PackageReference Include="Microsoft.AspNetCore.WebUtilities" />
+       </ItemGroup>
+     </When>
+     <Otherwise>
