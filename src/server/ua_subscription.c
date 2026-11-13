@@ -138,8 +138,13 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId
 static void
 removeOldestRetransmissionMessageFromSub(UA_Subscription *sub) {
     UA_NotificationMessageEntry *oldestEntry =
-        TAILQ_LAST(&sub->retransmissionQueue, NotificationMessageQueue);
+        TAILQ_FIRST(&sub->retransmissionQueue);
+    UA_NotificationMessageEntry *next = TAILQ_NEXT(oldestEntry, listEntry);
     TAILQ_REMOVE(&sub->retransmissionQueue, oldestEntry, listEntry);
+    /* TAILQ_REMOVE already updated the head through tqe_prev. The clang static
+     * analyzer cannot follow that and reports a use-after-free of the removed
+     * entry when the queue is iterated. So set the head explicitly. */
+    TAILQ_FIRST(&sub->retransmissionQueue) = next;
     UA_NotificationMessage_clear(&oldestEntry->message);
     UA_free(oldestEntry);
     --sub->retransmissionQueueSize;
@@ -158,7 +163,7 @@ removeOldestRetransmissionMessageFromSession(UA_Session *session) {
     UA_Subscription *sub;
     TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         UA_NotificationMessageEntry *first =
-            TAILQ_LAST(&sub->retransmissionQueue, NotificationMessageQueue);
+            TAILQ_FIRST(&sub->retransmissionQueue);
         if(!first)
             continue;
         if(!oldestEntry || oldestEntry->message.publishTime > first->message.publishTime) {
