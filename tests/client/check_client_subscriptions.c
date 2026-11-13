@@ -1598,6 +1598,308 @@ START_TEST(Client_subscription_createDataChanges_async) {
 END_TEST
 
 typedef struct {
+    UA_Boolean received;
+    UA_PublishResponse response;
+} RetransmissionResponse;
+
+static void
+retransmissionResponseCallback(UA_Client *client, void *context,
+                               UA_UInt32 requestId, void *response) {
+    RetransmissionResponse *received = (RetransmissionResponse*)context;
+    ck_assert(!received->received);
+    ck_assert_uint_eq(UA_PublishResponse_copy((UA_PublishResponse*)response,
+                                             &received->response), UA_STATUSCODE_GOOD);
+    received->received = true;
+}
+
+static UA_Subscription *
+createRetransmissionSubscription(UA_Client *client) {
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    /* Publishing is driven explicitly while the server thread is paused. */
+    request.requestedPublishingInterval = 60000;
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 90000 + subId);
+    UA_UInt32 value = 0;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, nodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Retransmission"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(nodeId);
+    item.requestedParameters.samplingInterval = 0;
+    UA_MonitoredItemCreateResult result = UA_Client_MonitoredItems_createDataChange(
+        client, subId, UA_TIMESTAMPSTORETURN_NEITHER, item, NULL, NULL, NULL);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult_clear(&result);
+
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subId);
+    unlockServer(server);
+    ck_assert_ptr_nonnull(sub);
+    return sub;
+}
+
+static void
+queueRetransmissionPublish(UA_Client *client, UA_Subscription *sub,
+                           UA_PublishRequest *request, RetransmissionResponse *received) {
+    memset(received, 0, sizeof(*received));
+    ck_assert_uint_eq(sub->session->responseQueueSize, 0);
+    ck_assert_uint_eq(__UA_Client_AsyncService(client, request,
+        &UA_TYPES[UA_TYPES_PUBLISHREQUEST], retransmissionResponseCallback,
+        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], received, NULL), UA_STATUSCODE_GOOD);
+    for(unsigned i = 0; i < 1000 && sub->session->responseQueueSize == 0; i++) {
+        UA_Server_run_iterate(server, false);
+        ck_assert_uint_eq(UA_Client_run_iterate(client, 1), UA_STATUSCODE_GOOD);
+    }
+    ck_assert(!received->received);
+    ck_assert_uint_eq(sub->session->responseQueueSize, 1);
+}
+
+static void
+receiveRetransmissionPublish(UA_Client *client, UA_Subscription *sub,
+                             RetransmissionResponse *received) {
+    lockServer(server);
+    UA_Subscription_publish(server, sub);
+    unlockServer(server);
+    for(unsigned i = 0; i < 1000 && !received->received; i++) {
+        UA_Server_run_iterate(server, false);
+        ck_assert_uint_eq(UA_Client_run_iterate(client, 1), UA_STATUSCODE_GOOD);
+    }
+    ck_assert(received->received);
+    ck_assert_uint_eq(received->response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(received->response.subscriptionId, sub->subscriptionId);
+}
+
+static void
+checkRetransmissionValue(const UA_NotificationMessage *message, UA_UInt32 value) {
+    ck_assert_uint_eq(message->notificationDataSize, 1);
+    const UA_ExtensionObject *eo = &message->notificationData[0];
+    ck_assert_uint_eq(eo->encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert_ptr_eq(eo->content.decoded.type, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]);
+    const UA_DataChangeNotification *data =
+        (const UA_DataChangeNotification*)eo->content.decoded.data;
+    ck_assert_uint_eq(data->monitoredItemsSize, 1);
+    const UA_Variant *v = &data->monitoredItems[0].value.value;
+    ck_assert(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)v->data, value);
+}
+
+static UA_PublishResponse
+publishRetransmissionValue(UA_Client *client, UA_Subscription *sub, UA_UInt32 value) {
+    UA_Variant variant;
+    UA_Variant_setScalar(&variant, &value, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server,
+        UA_NODEID_NUMERIC(1, 90000 + sub->subscriptionId), variant), UA_STATUSCODE_GOOD);
+    UA_PublishRequest request;
+    UA_PublishRequest_init(&request);
+    RetransmissionResponse received;
+    queueRetransmissionPublish(client, sub, &request, &received);
+    receiveRetransmissionPublish(client, sub, &received);
+    checkRetransmissionValue(&received.response.notificationMessage, value);
+    UA_fakeSleep(1); /* Distinguish publication times across subscriptions. */
+    return received.response;
+}
+
+static void
+checkRepublishedValue(UA_Client *client, UA_Subscription *sub, UA_UInt32 sequence,
+                      UA_StatusCode expected) {
+    UA_RepublishRequest request;
+    UA_RepublishRequest_init(&request);
+    request.subscriptionId = sub->subscriptionId;
+    request.retransmitSequenceNumber = sequence;
+    UA_RepublishResponse response;
+    UA_RepublishResponse_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REPUBLISHREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REPUBLISHRESPONSE]);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, expected);
+    if(expected == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(response.notificationMessage.sequenceNumber, sequence);
+        checkRetransmissionValue(&response.notificationMessage, sequence);
+    }
+    UA_RepublishResponse_clear(&response);
+}
+
+START_TEST(Client_retransmissionCapacity) {
+    const UA_UInt32 limits[] = {0, 1024, 3, 1, 0};
+    pauseServer();
+    UA_Server_getConfig(server)->maxRetransmissionQueueSize = limits[_i];
+    UA_Server_getConfig(server)->enableRetransmissionQueue = (_i != 4);
+    runServer();
+    UA_Client *client = newConnectedClient();
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+    UA_Subscription *sub = createRetransmissionSubscription(client);
+    pauseServer();
+
+    UA_UInt32 count = _i < 2 ? 1025 : 8;
+    size_t retained = 0;
+    for(UA_UInt32 sequence = 1; sequence <= count; sequence++) {
+        UA_PublishResponse response = publishRetransmissionValue(client, sub, sequence);
+        retained = limits[_i] && sequence > limits[_i] ? limits[_i] : sequence;
+        if(_i == 4)
+            retained = 0;
+        ck_assert_uint_eq(response.notificationMessage.sequenceNumber, sequence);
+        ck_assert_uint_eq(response.availableSequenceNumbersSize, retained);
+        for(size_t i = 0; i < retained; i++)
+            ck_assert_uint_eq(response.availableSequenceNumbers[i], sequence - retained + 1 + i);
+        ck_assert_uint_eq(sub->session->totalRetransmissionQueueSize, retained);
+        UA_PublishResponse_clear(&response);
+    }
+
+    runServer();
+    checkRepublishedValue(client, sub, count, _i == 4 ?
+                         UA_STATUSCODE_BADMESSAGENOTAVAILABLE : UA_STATUSCODE_GOOD);
+    if(_i < 2) {
+        checkRepublishedValue(client, sub, 256, UA_STATUSCODE_GOOD);
+        checkRepublishedValue(client, sub, 512, UA_STATUSCODE_GOOD);
+    }
+    if(limits[_i])
+        checkRepublishedValue(client, sub, 1, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
+    pauseServer();
+
+    /* Acknowledgement frees one entry; duplicates and unknown numbers do not. */
+    UA_SubscriptionAcknowledgement acks[] = {
+        {sub->subscriptionId, count}, {sub->subscriptionId, count},
+        {sub->subscriptionId, count + 100}
+    };
+    UA_PublishRequest request;
+    UA_PublishRequest_init(&request);
+    request.subscriptionAcknowledgements = acks;
+    request.subscriptionAcknowledgementsSize = 3;
+    RetransmissionResponse received;
+    queueRetransmissionPublish(client, sub, &request, &received);
+    sub->currentKeepAliveCount = sub->maxKeepAliveCount;
+    receiveRetransmissionPublish(client, sub, &received);
+    ck_assert_uint_eq(received.response.resultsSize, 3);
+    ck_assert_uint_eq(received.response.results[0], _i == 4 ?
+                     UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN : UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(received.response.results[1], UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN);
+    ck_assert_uint_eq(received.response.results[2], UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN);
+    ck_assert_uint_eq(received.response.availableSequenceNumbersSize, retained ? retained - 1 : 0);
+    ck_assert_uint_eq(received.response.notificationMessage.notificationDataSize, 0);
+    UA_PublishResponse_clear(&received.response);
+    runServer();
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Client_retransmissionOldestAcrossSubscriptions) {
+    pauseServer();
+    UA_Server_getConfig(server)->maxRetransmissionQueueSize = 4;
+    runServer();
+    UA_Client *client = newConnectedClient();
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+    UA_Subscription *first = createRetransmissionSubscription(client);
+    UA_Subscription *second = createRetransmissionSubscription(client);
+    pauseServer();
+
+    /* The oldest message is in the subscription with the newest tail. */
+    UA_Subscription *order[] = {first, second, second, first, second, first};
+    UA_UInt32 values[] = {1, 1, 2, 2, 3, 3};
+    for(size_t i = 0; i < 6; i++) {
+        UA_PublishResponse response = publishRetransmissionValue(client, order[i], values[i]);
+        UA_PublishResponse_clear(&response);
+    }
+    ck_assert_uint_eq(first->session->totalRetransmissionQueueSize, 4);
+    runServer();
+    checkRepublishedValue(client, first, 1, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
+    checkRepublishedValue(client, second, 1, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
+    checkRepublishedValue(client, first, 2, UA_STATUSCODE_GOOD);
+    checkRepublishedValue(client, second, 2, UA_STATUSCODE_GOOD);
+    checkRepublishedValue(client, first, 3, UA_STATUSCODE_GOOD);
+    checkRepublishedValue(client, second, 3, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+static unsigned retransmissionAllocationsBeforeFailure;
+static UA_Boolean retransmissionAllocationFailed;
+
+static UA_Boolean
+failRetransmissionAllocation(void) {
+    if(retransmissionAllocationFailed)
+        return false;
+    if(retransmissionAllocationsBeforeFailure > 0) {
+        retransmissionAllocationsBeforeFailure--;
+        return false;
+    }
+    retransmissionAllocationFailed = true;
+    return true;
+}
+
+static void *
+failRetransmissionMalloc(size_t size) {
+    return failRetransmissionAllocation() ? NULL : malloc(size);
+}
+
+static void *
+failRetransmissionCalloc(size_t count, size_t size) {
+    return failRetransmissionAllocation() ? NULL : calloc(count, size);
+}
+
+START_TEST(Client_retransmissionAllocationFailure) {
+    UA_Client *client = newConnectedClient();
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+    UA_Subscription *sub = createRetransmissionSubscription(client);
+    pauseServer();
+    UA_PublishResponse first = publishRetransmissionValue(client, sub, 1);
+    UA_PublishResponse_clear(&first);
+    if(_i < 3) {
+        UA_UInt32 value = 2;
+        UA_Variant variant;
+        UA_Variant_setScalar(&variant, &value, &UA_TYPES[UA_TYPES_UINT32]);
+        ck_assert_uint_eq(UA_Server_writeValue(server,
+            UA_NODEID_NUMERIC(1, 90000 + sub->subscriptionId), variant), UA_STATUSCODE_GOOD);
+    } else {
+        sub->currentKeepAliveCount = sub->maxKeepAliveCount;
+    }
+    UA_PublishRequest request;
+    UA_PublishRequest_init(&request);
+    RetransmissionResponse received;
+    queueRetransmissionPublish(client, sub, &request, &received);
+
+    /* Fail the sequence array, retransmission entry or notification preparation;
+     * the final case exercises allocation for a keep-alive response. */
+    retransmissionAllocationsBeforeFailure = _i < 3 ? (unsigned)_i : 0;
+    retransmissionAllocationFailed = false;
+    lockServer(server);
+    UA_mallocSingleton = failRetransmissionMalloc;
+    UA_callocSingleton = failRetransmissionCalloc;
+    UA_Subscription_publish(server, sub);
+    UA_mallocSingleton = malloc;
+    UA_callocSingleton = calloc;
+    unlockServer(server);
+    ck_assert(retransmissionAllocationFailed);
+    ck_assert_uint_eq(sub->notificationQueueSize, _i < 3 ? 1 : 0);
+    ck_assert_uint_eq(sub->retransmissionQueueSize, 1);
+    ck_assert_uint_eq(sub->nextSequenceNumber, 2);
+    ck_assert_uint_eq(sub->session->responseQueueSize, 1);
+
+    receiveRetransmissionPublish(client, sub, &received);
+    if(_i < 3) {
+        checkRetransmissionValue(&received.response.notificationMessage, 2);
+        ck_assert_uint_eq(received.response.availableSequenceNumbersSize, 2);
+        ck_assert_uint_eq(received.response.availableSequenceNumbers[1], 2);
+    } else {
+        ck_assert_uint_eq(received.response.notificationMessage.notificationDataSize, 0);
+        ck_assert_uint_eq(received.response.availableSequenceNumbersSize, 1);
+    }
+    ck_assert_uint_eq(received.response.availableSequenceNumbers[0], 1);
+    UA_PublishResponse_clear(&received.response);
+    runServer();
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+#endif
+
+typedef struct {
     UA_UInt32 requestId;
     UA_UInt32 requestHandle;
     UA_Boolean received;
@@ -3952,6 +4254,15 @@ static Suite* testSuite_Client(void) {
     tcase_add_loop_test(tc_asyncSettings, Client_asyncMonitoringModeReportsResults, 0, 4);
     tcase_add_loop_test(tc_asyncSettings, Client_asyncTriggeringReportsResults, 0, 4);
     suite_add_tcase(s, tc_asyncSettings);
+
+    TCase *tc_retransmission = tcase_create("Retransmission queue");
+    tcase_add_checked_fixture(tc_retransmission, setup, teardown);
+    tcase_add_loop_test(tc_retransmission, Client_retransmissionCapacity, 0, 5);
+    tcase_add_test(tc_retransmission, Client_retransmissionOldestAcrossSubscriptions);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    tcase_add_loop_test(tc_retransmission, Client_retransmissionAllocationFailure, 0, 4);
+#endif
+    suite_add_tcase(s, tc_retransmission);
 
     TCase *tc_publish = tcase_create("Publish response lifecycle");
     tcase_add_checked_fixture(tc_publish, setup, teardown);

@@ -27,8 +27,6 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-#define UA_MAX_RETRANSMISSIONQUEUESIZE 256
-
 /****************/
 /* Notification */
 /****************/
@@ -410,7 +408,7 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId
 static void
 removeOldestRetransmissionMessageFromSub(UA_Subscription *sub) {
     UA_NotificationMessageEntry *oldestEntry =
-        TAILQ_LAST(&sub->retransmissionQueue, NotificationMessageQueue);
+        TAILQ_FIRST(&sub->retransmissionQueue);
     TAILQ_REMOVE(&sub->retransmissionQueue, oldestEntry, listEntry);
     UA_NotificationMessage_clear(&oldestEntry->message);
     UA_free(oldestEntry);
@@ -430,7 +428,7 @@ removeOldestRetransmissionMessageFromSession(UA_Session *session) {
     UA_Subscription *sub;
     TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         UA_NotificationMessageEntry *first =
-            TAILQ_LAST(&sub->retransmissionQueue, NotificationMessageQueue);
+            TAILQ_FIRST(&sub->retransmissionQueue);
         if(!first)
             continue;
         if(!oldestEntry || oldestEntry->message.publishTime > first->message.publishTime) {
@@ -449,13 +447,8 @@ UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub
                                          UA_NotificationMessageEntry *entry) {
     /* Release the oldest entry if there is not enough space */
     UA_Session *session = sub->session;
-    if(sub->retransmissionQueueSize >= UA_MAX_RETRANSMISSIONQUEUESIZE) {
-        UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
-                                    "Subscription retransmission queue overflow");
-        removeOldestRetransmissionMessageFromSub(sub);
-    } else if(session && server->config.maxRetransmissionQueueSize > 0 &&
-              session->totalRetransmissionQueueSize >=
-              server->config.maxRetransmissionQueueSize) {
+    if(session && server->config.maxRetransmissionQueueSize > 0 &&
+       session->totalRetransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
         UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                     "Session-wide retransmission queue overflow");
         removeOldestRetransmissionMessageFromSession(sub->session);
@@ -856,6 +849,25 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_PublishResponse *response = &pre->response;
     UA_NotificationMessage *message = &response->notificationMessage;
     UA_NotificationMessageEntry *retransmission = NULL;
+
+    /* Allocate before consuming notifications. Adding the new message may evict
+     * an old one, so this is an upper bound on the required array size. */
+    size_t seqNumbersSize = sub->retransmissionQueueSize;
+    if(notifications > 0 && server->config.enableRetransmissionQueue)
+        seqNumbersSize++;
+    UA_UInt32 *seqNumbers = NULL;
+    if(seqNumbersSize > 0) {
+        seqNumbers = (UA_UInt32*)UA_Array_new(seqNumbersSize, &UA_TYPES[UA_TYPES_UINT32]);
+        if(!seqNumbers) {
+            UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
+                                        "Could not allocate available sequence numbers. "
+                                        "The subscription is late.");
+            sub->late = true;
+            UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
+            return;
+        }
+    }
+
 #ifdef UA_ENABLE_DIAGNOSTICS
     size_t priorDataChangeNotifications = sub->dataChangeNotifications;
     size_t priorEventNotifications = sub->eventNotifications;
@@ -866,6 +878,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
             retransmission = (UA_NotificationMessageEntry*)
                 UA_malloc(sizeof(UA_NotificationMessageEntry));
             if(!retransmission) {
+                UA_free(seqNumbers);
                 UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                             "Could not allocate memory for retransmission. "
                                             "The subscription is late.");
@@ -885,6 +898,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
             /* If the retransmission queue is enabled a retransmission message is allocated */
             if(retransmission)
                 UA_free(retransmission);
+            UA_free(seqNumbers);
             sub->late = true;
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
             return;
@@ -922,17 +936,17 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* Get the available sequence numbers from the retransmission queue */
-    UA_assert(sub->retransmissionQueueSize <= UA_MAX_RETRANSMISSIONQUEUESIZE);
-    UA_UInt32 seqNumbers[UA_MAX_RETRANSMISSIONQUEUESIZE];
-    response->availableSequenceNumbers = seqNumbers;
-    response->availableSequenceNumbersSize = sub->retransmissionQueueSize;
+    UA_assert(sub->retransmissionQueueSize <= seqNumbersSize);
     size_t i = 0;
     UA_NotificationMessageEntry *nme;
     TAILQ_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
-        response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
-        ++i;
+        if(i == seqNumbersSize)
+            break; /* Not reached, seqNumbersSize is an upper bound */
+        seqNumbers[i++] = nme->message.sequenceNumber;
     }
     UA_assert(i == sub->retransmissionQueueSize);
+    response->availableSequenceNumbers = seqNumbers;
+    response->availableSequenceNumbersSize = i;
 
     /* Send the response */
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
@@ -959,8 +973,6 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         /* NotificationMessage was moved into retransmission queue */
         UA_NotificationMessage_init(&response->notificationMessage);
     }
-    response->availableSequenceNumbers = NULL;
-    response->availableSequenceNumbersSize = 0;
     UA_PublishResponse_clear(&pre->response);
     UA_free(pre);
 
