@@ -3,6 +3,15 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Retransmission queue capacity
+
+`UA_ServerConfig.maxRetransmissionQueueSize` now controls the retransmission
+capacity without an additional hard-coded limit of 256 messages per subscription.
+The configured limit is shared by all subscriptions in a session; overflow removes
+the oldest retained message. The default value of `0` permits growth subject to
+available memory. Applications that need bounded retention should configure a
+nonzero limit, or disable retransmission with `enableRetransmissionQueue`.
+
 ### Deprecated ECC SecurityPolicies have SecurityLevel 0
 
 The OPC UA 1.05 Profile database marks the SecurityPolicies `ECC_nistP256`,
