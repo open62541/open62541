@@ -1237,9 +1237,10 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
     }
 
     /* The non-deprecated ECC SecurityPolicies are the AEAD profiles, which are
-     * implemented only in the OpenSSL backend. The deprecated non-AEAD ECC
-     * policies (EccNistP256/P384, EccBrainpoolP256r1/P384r1) are not part of the
-     * default set; add them explicitly via UA_ServerConfig_addSecurityPolicyEcc*. */
+     * implemented only in the OpenSSL backend. The deprecated ECC policies
+     * (EccNistP256/P384, EccBrainpoolP256r1/P384r1, EccCurve25519/448) are not
+     * part of the default set; add them explicitly via
+     * UA_ServerConfig_addSecurityPolicyEcc*. */
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     /* EccNistP256AesGcm */
     retval = UA_SecurityPolicy_EccNistP256AesGcm(sp + *length, applicationType,
@@ -1258,26 +1259,6 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
                        "Could not add SecurityPolicy#EccNistP256_ChaChaPoly with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccCurve25519 */
-    retval = UA_SecurityPolicy_EccCurve25519(sp + *length, applicationType,
-                                             certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccCurve25519 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccCurve448 */
-    retval = UA_SecurityPolicy_EccCurve448(sp + *length, applicationType,
-                                           certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccCurve448 with error code %s",
                        UA_StatusCode_name(retval));
     }
 #endif
@@ -1315,9 +1296,9 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
     }
 #endif
 
-    /* The non-AEAD ECC SecurityPolicies (EccNistP256/P384,
-     * EccBrainpoolP256r1/P384r1) are deprecated (OPC UA Part 7), superseded by
-     * their *_AesGcm / *_ChaChaPoly variants. They are not part of the default
+    /* The ECC SecurityPolicies EccNistP256/P384, EccBrainpoolP256r1/P384r1 and
+     * EccCurve25519/448 are deprecated (OPC UA Part 7), superseded by their
+     * *_AesGcm / *_ChaChaPoly variants. They are not part of the default
      * policy set; use the UA_ServerConfig_addSecurityPolicyEcc* functions to add
      * them explicitly. */
 }
@@ -1924,9 +1905,9 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
     }
 #endif
 
-    /* The non-AEAD ECC SecurityPolicies (EccNistP256/P384,
-     * EccBrainpoolP256r1/P384r1) are deprecated (OPC UA Part 7), superseded by
-     * their *_AesGcm / *_ChaChaPoly variants. They are not part of the default
+    /* The ECC SecurityPolicies EccNistP256/P384, EccBrainpoolP256r1/P384r1 and
+     * EccCurve25519/448 are deprecated (OPC UA Part 7), superseded by their
+     * *_AesGcm / *_ChaChaPoly variants. They are not part of the default
      * policy set; use the UA_ServerConfig_addSecurityPolicyEcc* functions to add
      * them explicitly. */
 
