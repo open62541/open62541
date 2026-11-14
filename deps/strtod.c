@@ -537,6 +537,7 @@ size_t parseDouble(const char *buffer, size_t len, double *result) {
     int32_t e10 = 0;
     bool signedM = false;
     bool signedE = false;
+    bool hasDigits = false;
 
     size_t dotIndex = len;
     size_t eIndex = len;
@@ -557,12 +558,18 @@ size_t parseDouble(const char *buffer, size_t len, double *result) {
         }
         if((c < '0') || (c > '9'))
             break;
+        hasDigits = true;
         if(m10digits >= 17)
             return 0;
         m10 = 10 * m10 + (c - '0');
         if(m10 != 0)
             m10digits++;
     }
+
+    // The mantissa needs at least one digit before or after the dot
+    if(!hasDigits)
+        return 0;
+
     if(i < len && ((buffer[i] == 'e') || (buffer[i] == 'E'))) {
         eIndex = i;
         i++;
@@ -570,6 +577,9 @@ size_t parseDouble(const char *buffer, size_t len, double *result) {
             signedE = buffer[i] == '-';
             i++;
         }
+        // The exponent needs at least one digit
+        if(i == len)
+            return 0;
         for(; i < len; i++) {
             char c = buffer[i];
             if((c < '0') || (c > '9'))
