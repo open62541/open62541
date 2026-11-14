@@ -173,8 +173,9 @@ START_TEST(badAddressFamily) {
     unsigned char addr[16];
     errno = 0;
     int ret = musl_inet_pton(999, "127.0.0.1", addr);
+    int err = errno; /* check may change errno in the next assertion */
     ck_assert_int_eq(ret, -1);
-    ck_assert_int_eq(errno, EAFNOSUPPORT);
+    ck_assert_int_eq(err, EAFNOSUPPORT);
 } END_TEST
 
 START_TEST(ipv6SingleColon) {

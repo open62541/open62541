@@ -38,10 +38,9 @@
 
 /* --- Curve parameter table --- */
 
-/* Constructor for the deprecated (non-AEAD) ECC SecurityPolicies. They are no
- * longer part of the default policy set (OPC UA Part 7), so the test adds them
- * explicitly. NULL for the AEAD curves (curve25519/curve448) that remain in the
- * default set. */
+/* Constructor for the deprecated ECC SecurityPolicies. They are no longer part
+ * of the default policy set (OPC UA Part 7), so the test adds them
+ * explicitly. */
 typedef UA_StatusCode (*EccPolicyCtor)(UA_SecurityPolicy *,
                                        const UA_ApplicationType,
                                        const UA_ByteString,
@@ -87,19 +86,18 @@ static EccCurveTestData eccCurves[] = {
      KEY_ED25519_DER_DATA, KEY_ED25519_DER_LENGTH,
      CERT_ED25519_PEM_DATA, CERT_ED25519_PEM_LENGTH,
      KEY_ED25519_PEM_DATA, KEY_ED25519_PEM_LENGTH,
-     NULL},
+     UA_SecurityPolicy_EccCurve25519},
     {"ECC_curve448",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448",
      CERT_ED448_DER_DATA, CERT_ED448_DER_LENGTH,
      KEY_ED448_DER_DATA, KEY_ED448_DER_LENGTH,
      CERT_ED448_PEM_DATA, CERT_ED448_PEM_LENGTH,
      KEY_ED448_PEM_DATA, KEY_ED448_PEM_LENGTH,
-     NULL}
+     UA_SecurityPolicy_EccCurve448}
 #endif
 };
 
-/* Add the active curve's deprecated SecurityPolicy to a server config (no-op
- * for the AEAD curves that are part of the default set). */
+/* Add the active curve's deprecated SecurityPolicy to a server config */
 static void
 addDeprecatedServerPolicy(UA_ServerConfig *config, EccCurveTestData *c,
                           UA_ByteString cert, UA_ByteString key) {
