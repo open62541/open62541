@@ -1996,7 +1996,7 @@ static UA_Server *realUdpReceiver, *realUdpSender;
 
 static void
 useLoopbackInterface(UA_MdnsDriver *mdns) {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__QNX__)
     UA_String interface = UA_STRING("lo0");
 #else
     UA_String interface = UA_STRING("lo");

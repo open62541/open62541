@@ -103,6 +103,8 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *policy,
                                      const UA_ByteString localPrivateKey,
                                      const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the policies
+ * ECC_curve25519_AesGcm / ECC_curve25519_ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *policy,
                                 const UA_ApplicationType applicationType,
@@ -110,6 +112,8 @@ UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *policy,
                                 const UA_ByteString localPrivateKey,
                                 const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the policies
+ * ECC_curve448_AesGcm / ECC_curve448_ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *policy,
                               const UA_ApplicationType applicationType,
