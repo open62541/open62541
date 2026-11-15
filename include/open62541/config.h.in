@@ -258,7 +258,9 @@
 #  ifdef __cplusplus
 #    include <atomic>
 #    define _Atomic(T) std::atomic<T>
-#    define atomic_uintptr_t std::atomic_uintptr_t
+/* A using-declaration instead of a macro. A macro would also rename
+ * atomic_uintptr_t in other namespaces, e.g. boost::atomic_uintptr_t. */
+using std::atomic_uintptr_t;
 #  else
 #    include <stdatomic.h>
 #  endif
