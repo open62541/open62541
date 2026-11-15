@@ -238,6 +238,39 @@ START_TEST(callMethodWithEmptyArgument) {
 #endif
 } END_TEST
 
+START_TEST(callMethodWithArrayForScalarArgument) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    /* A null UInt32 array (data NULL) and an empty ExtensionObject array (data
+     * is the sentinel) must not be accepted for the scalar SubscriptionId */
+    UA_Variant inputArguments[2];
+    UA_Variant_init(&inputArguments[0]);
+    inputArguments[0].type = &UA_TYPES[UA_TYPES_UINT32];
+    UA_Variant_init(&inputArguments[1]);
+    UA_Variant_setArray(&inputArguments[1], UA_EMPTY_ARRAY_SENTINEL, 0,
+                        &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+
+    for(size_t i = 0; i < 2; i++) {
+        UA_CallMethodRequest callMethodRequest;
+        UA_CallMethodRequest_init(&callMethodRequest);
+        callMethodRequest.inputArgumentsSize = 1;
+        callMethodRequest.inputArguments = &inputArguments[i];
+        callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
+        callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+
+        UA_CallMethodResult result;
+        UA_CallMethodResult_init(&result);
+        result = UA_Server_call(server, &callMethodRequest);
+
+        ck_assert_uint_gt(result.inputArgumentResultsSize, 0);
+        ck_assert_int_eq(result.inputArgumentResults[0], UA_STATUSCODE_BADTYPEMISMATCH);
+        ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+        UA_CallMethodResult_clear(&result);
+    }
+#endif
+} END_TEST
+
 START_TEST(callObjectTypeMethodOnInstance) {
 /* Minimal nodeset does not add any method nodes we may call here */
 #if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
@@ -337,6 +370,7 @@ int main(void) {
     tcase_add_test(tc_call, callMethodWithTooManyArguments);
     tcase_add_test(tc_call, callMethodWithWronglyTypedArguments);
     tcase_add_test(tc_call, callMethodWithEmptyArgument);
+    tcase_add_test(tc_call, callMethodWithArrayForScalarArgument);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance2);
     suite_add_tcase(s, tc_call);

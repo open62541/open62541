@@ -95,10 +95,14 @@ checkAdjustArguments(UA_Server *server, UA_Session *session,
         /* Incompatible value. Try to correct the type if possible. */
         adjustValueType(server, &args[i], &argReqs[i].dataType);
 
-        /* Check */
+        /* Check. compatibleValue accepts a null array and an empty
+         * ExtensionObject array for any ValueRank. But method callbacks rely on
+         * a scalar argument pointing to a value. */
         if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                            &args[i], NULL, &reason)) {
+                            &args[i], NULL, &reason) ||
+           (argReqs[i].valueRank == UA_VALUERANK_SCALAR &&
+            !UA_Variant_isEmpty(&args[i]) && !UA_Variant_isScalar(&args[i]))) {
             inputArgumentResults[i] = UA_STATUSCODE_BADTYPEMISMATCH;
             retval = UA_STATUSCODE_BADINVALIDARGUMENT;
         }
