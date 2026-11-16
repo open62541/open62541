@@ -121,6 +121,11 @@ gdsTrustListOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mo
     /* A TrustList is read or replaced completely (Part 12, 7.8.2.2) */
     if(mode != UA_OPENFILEMODE_READ && mode != GDS_TRUSTLIST_WRITEMODE)
         return UA_STATUSCODE_BADNOTSUPPORTED;
+    UA_CertificateGroup *certGroup = getCertGroup(ctx->drv.server, &tl->objectId);
+    if(!certGroup)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!UA_GDSReceiver_hasTrustList(certGroup))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* Only an Open for writing from the Session of the transaction continues
      * it (Part 12, 7.8.2.2), unless ApplyChanges is already queued */
@@ -139,12 +144,10 @@ gdsTrustListOpen(UA_FileTransferFileBackend *b, const UA_String path, UA_Byte mo
         /* The reads of a handle see the TrustList at the time of the Open. The
          * CertificateGroup returns only the lists of the masks (Part 12,
          * 7.8.2.3). */
-        UA_CertificateGroup *certGroup = getCertGroup(ctx->drv.server, &tl->objectId);
         UA_TrustListDataType trustList;
         UA_TrustListDataType_init(&trustList);
         trustList.specifiedLists = masks;
-        res = certGroup ? certGroup->getTrustList(certGroup, &trustList) :
-            UA_STATUSCODE_BADINTERNALERROR;
+        res = certGroup->getTrustList(certGroup, &trustList);
         if(res == UA_STATUSCODE_GOOD)
             res = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
                                   &h->data, NULL);

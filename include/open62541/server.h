@@ -2768,7 +2768,9 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
  *        trusted list or the issuer list
  * @param appendCertificates Indicates whether the certificates should be added
  *        to the list or replace the existing list
- * @return ``UA_STATUSCODE_GOOD`` on success */
+ * @return ``UA_STATUSCODE_GOOD`` on success, ``UA_STATUSCODE_BADNOTSUPPORTED``
+ *         if the certificate group has no TrustList (e.g.
+ *         UA_CertificateGroup_AcceptAll) */
 UA_StatusCode UA_EXPORT
 UA_Server_addCertificates(UA_Server *server,
                           const UA_NodeId certificateGroupId,
@@ -2789,7 +2791,9 @@ UA_Server_addCertificates(UA_Server *server,
  * @param certificatesSize The number of certificates
  * @param isTrusted Indicates whether the certificates are being removed from
  *        the trusted list or the issuer list
- * @return ``UA_STATUSCODE_GOOD`` on success */
+ * @return ``UA_STATUSCODE_GOOD`` on success, ``UA_STATUSCODE_BADNOTSUPPORTED``
+ *         if the certificate group has no TrustList (e.g.
+ *         UA_CertificateGroup_AcceptAll) */
 UA_StatusCode UA_EXPORT
 UA_Server_removeCertificates(UA_Server *server,
                              const UA_NodeId certificateGroupId,
