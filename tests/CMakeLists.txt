@@ -272,7 +272,8 @@ if(UA_ENABLE_JSON_ENCODING)
     configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_cert.der ${CMAKE_BINARY_DIR}/tests/server_cert.der COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_key.der ${CMAKE_BINARY_DIR}/tests/server_key.der COPYONLY)
 
-    if(UA_ENABLE_ENCRYPTION)
+    # pkiFolder configures the certificate filestore, which is not built on QNX
+    if(UA_ENABLE_ENCRYPTION AND NOT CMAKE_SYSTEM_NAME STREQUAL "QNX")
         ua_add_test(server/check_json_config_pki.c)
     endif()
 

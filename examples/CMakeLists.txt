@@ -202,6 +202,9 @@ if(UA_ENABLE_PUBSUB)
         if(NOT CMAKE_SYSTEM_NAME STREQUAL "QNX")
             target_link_libraries(server_pubsub_publish_rt_state_machine "rt")
             target_link_libraries(server_pubsub_subscribe_rt_state_machine "rt")
+        else()
+            ## The subscriber calls the socket API, which is in libsocket on QNX
+            target_link_libraries(server_pubsub_subscribe_rt_state_machine socket)
         endif()
     endif()
 
