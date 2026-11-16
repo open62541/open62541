@@ -819,6 +819,9 @@ UA_Server_addCertificates(UA_Server *server,
     UA_CertificateGroup *certGroup = getCertificateGroup(server, certificateGroupId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    /* E.g. UA_CertificateGroup_AcceptAll has no TrustList */
+    if(appendCertificates ? !certGroup->addToTrustList : !certGroup->setTrustList)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
@@ -869,6 +872,9 @@ UA_Server_removeCertificates(UA_Server *server,
     UA_CertificateGroup *certGroup = getCertificateGroup(server, certificateGroupId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    /* E.g. UA_CertificateGroup_AcceptAll has no TrustList */
+    if(!certGroup->getCertificateCrls || !certGroup->removeFromTrustList)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
     UA_ByteString *crls = NULL;
     size_t crlsSize = 0;

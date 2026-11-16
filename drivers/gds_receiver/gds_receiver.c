@@ -42,6 +42,13 @@ checkTrustListClosed(UA_GDSTrustList *tl) {
     return UA_STATUSCODE_GOOD;
 }
 
+UA_Boolean
+UA_GDSReceiver_hasTrustList(const UA_CertificateGroup *certGroup) {
+    return certGroup->getTrustList && certGroup->setTrustList &&
+        certGroup->addToTrustList && certGroup->removeFromTrustList &&
+        certGroup->getCertificateCrls;
+}
+
 /********************/
 /* GDS Transaction  */
 /********************/
@@ -82,7 +89,7 @@ UA_GDSTransaction_findCertificateGroup(UA_GDSTransaction *transaction,
 static UA_CertificateGroup*
 UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
                                       const UA_CertificateGroup *certGroup) {
-    if(!transaction || !certGroup)
+    if(!transaction || !certGroup || !UA_GDSReceiver_hasTrustList(certGroup))
         return NULL;
 
     /* Check if transaction was initialized */
@@ -423,6 +430,12 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
 static UA_StatusCode
 verifyInTrustListCopy(UA_CertificateGroup *certGroup,
                       const UA_ByteString *certificate) {
+    /* Without a TrustList, the CertificateGroup verifies the certificate
+     * itself. UA_CertificateGroup_AcceptAll accepts every certificate. */
+    if(!certGroup->getTrustList)
+        /* If `certGroup->verifyCertificate` is unset, accept. */
+        return certGroup->verifyCertificate ? certGroup->verifyCertificate(certGroup, certificate) : UA_STATUSCODE_GOOD;
+
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
@@ -582,6 +595,8 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
                              UA_ByteString *certificate,
                              const UA_Boolean *isTrustedCertificate) {
     UA_assert(certGroup != NULL);
+    if(!UA_GDSReceiver_hasTrustList(certGroup))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
@@ -780,6 +795,8 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
                                 const UA_String *thumbprint,
                                 const UA_Boolean *isTrustedCertificate) {
     UA_assert(certGroup != NULL);
+    if(!UA_GDSReceiver_hasTrustList(certGroup))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
@@ -925,12 +942,16 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
 
     size_t rejectedListSize = 0;
 
+    /* A CertificateGroup without a rejected list, e.g.
+     * UA_CertificateGroup_AcceptAll, rejects no certificates */
+
     /* DefaultApplicationGroup */
     UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
     UA_ByteString *rejectedListSecureChannel = NULL;
     size_t rejectedListSecureChannelSize = 0;
-    UA_StatusCode res = certGroup->getRejectedList(
-        certGroup, &rejectedListSecureChannel, &rejectedListSecureChannelSize);
+    UA_StatusCode res = !certGroup->getRejectedList ? UA_STATUSCODE_GOOD :
+        certGroup->getRejectedList(certGroup, &rejectedListSecureChannel,
+                                   &rejectedListSecureChannelSize);
     if(res != UA_STATUSCODE_GOOD) {
         UA_Array_delete(rejectedListSecureChannel,
                         rejectedListSecureChannelSize,
@@ -943,8 +964,9 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
     certGroup = &sc->sessionPKI;
     UA_ByteString *rejectedListSession = NULL;
     size_t rejectedListSessionSize = 0;
-    res = certGroup->getRejectedList(certGroup, &rejectedListSession,
-                                     &rejectedListSessionSize);
+    res = !certGroup->getRejectedList ? UA_STATUSCODE_GOOD :
+        certGroup->getRejectedList(certGroup, &rejectedListSession,
+                                   &rejectedListSessionSize);
     if(res != UA_STATUSCODE_GOOD) {
         UA_Array_delete(rejectedListSecureChannel,
                         rejectedListSecureChannelSize,
@@ -977,10 +999,14 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
                         &UA_TYPES[UA_TYPES_BYTESTRING]);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    memcpy(rejectedList, rejectedListSecureChannel,
-           rejectedListSecureChannelSize * sizeof(UA_ByteString));
-    memcpy(rejectedList + rejectedListSecureChannelSize,
-           rejectedListSession, rejectedListSessionSize * sizeof(UA_ByteString));
+    /* One of the lists can be NULL if its CertificateGroup has no rejected
+     * list. memcpy with a NULL source is undefined even for zero length. */
+    if(rejectedListSecureChannelSize > 0)
+        memcpy(rejectedList, rejectedListSecureChannel,
+               rejectedListSecureChannelSize * sizeof(UA_ByteString));
+    if(rejectedListSessionSize > 0)
+        memcpy(rejectedList + rejectedListSecureChannelSize, rejectedListSession,
+               rejectedListSessionSize * sizeof(UA_ByteString));
 
     /* Set the array in the output */
     res = UA_Variant_setArrayCopy(&output[0], rejectedList, rejectedListSize,
@@ -1489,7 +1515,7 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
     for(size_t i = 0; i < groupsSize; i++) {
         UA_CertificateGroup *stagedGroup = &transaction->certGroups[i];
         groups[i] = getCertGroup(server, &stagedGroup->certificateGroupId);
-        if(!groups[i]) {
+        if(!groups[i] || !UA_GDSReceiver_hasTrustList(groups[i])) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }

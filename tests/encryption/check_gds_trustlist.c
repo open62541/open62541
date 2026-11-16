@@ -6,6 +6,7 @@
  */
 
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/driver/gds_receiver.h>
 #include <open62541/driver/file_transfer.h>
 
@@ -64,7 +65,7 @@ applicationCert(void) {
 }
 
 static void
-setup(void) {
+startServer(UA_Boolean acceptAll) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
     UA_ByteString rootCa = {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA};
@@ -75,11 +76,27 @@ setup(void) {
     server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
                                                           cas, 2, cas, 2, crls, 2);
     ck_assert_ptr_nonnull(server);
-    UA_Server_getConfig(server)->tcpEnabled = false;
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->tcpEnabled = false;
+    /* The CertificateGroups without TrustList callbacks */
+    if(acceptAll) {
+        UA_CertificateGroup_AcceptAll(&sc->secureChannelPKI);
+        UA_CertificateGroup_AcceptAll(&sc->sessionPKI);
+    }
     receiver = UA_GDSReceiver_new();
     ck_assert_ptr_nonnull(receiver);
     ck_assert_uint_eq(UA_Server_addDriver(server, &receiver->drv), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+}
+
+static void
+setup(void) {
+    startServer(false);
+}
+
+static void
+setupAcceptAll(void) {
+    startServer(true);
 }
 
 static void
@@ -1253,6 +1270,41 @@ START_TEST(receiverStartRollsBack) {
     ck_assert_uint_eq(fileTransferDrivers(), 2);
 } END_TEST
 
+/* UA_CertificateGroup_AcceptAll has no TrustList and no rejected list. The
+ * TrustList Methods are not supported, the rejected list is empty and a new
+ * certificate is accepted. */
+START_TEST(acceptAllCertificateGroup) {
+    openList(&appList, admin(), UA_OPENFILEMODE_READ, UA_STATUSCODE_BADNOTSUPPORTED);
+    openList(&appList, admin(), WRITEMODE, UA_STATUSCODE_BADNOTSUPPORTED);
+    openWithMasks(&appList, admin(), UA_TRUSTLISTMASKS_ALL,
+                  UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(addCertificate(&appList), UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(removeCertificate(&appList), UA_STATUSCODE_BADNOTSUPPORTED);
+
+    UA_Variant output;
+    ck_assert_uint_eq(callAs(admin(), UA_NS0ID_SERVERCONFIGURATION,
+                             UA_NS0ID_SERVERCONFIGURATION_GETREJECTEDLIST,
+                             0, NULL, 1, &output), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(output.arrayLength, 0);
+    UA_Variant_clear(&output);
+
+    UA_ByteString certificate = applicationCert();
+    UA_NodeId groupId = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    ck_assert_uint_eq(UA_Server_addCertificates(server, groupId, &certificate, 1,
+                                                NULL, 0, true, true),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(UA_Server_removeCertificates(server, groupId, &certificate, 1, true),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+
+    UA_ByteString serverCertificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    ck_assert_uint_eq(UA_GDSReceiver_updateCertificate(
+                          receiver, UA_NODEID_NULL,
+                          UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE),
+                          serverCertificate, &privateKey),
+                      UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("GDS TrustList");
     TCase *tc = tcase_create("TrustList File");
@@ -1288,6 +1340,11 @@ int main(void) {
     tcase_add_test(tc, receiverAddedAtRuntime);
     tcase_add_test(tc, receiverStartRollsBack);
     suite_add_tcase(s, tc);
+
+    TCase *tcAcceptAll = tcase_create("AcceptAll CertificateGroup");
+    tcase_add_checked_fixture(tcAcceptAll, setupAcceptAll, teardown);
+    tcase_add_test(tcAcceptAll, acceptAllCertificateGroup);
+    suite_add_tcase(s, tcAcceptAll);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

@@ -140,6 +140,12 @@ initGDSRolePermissions(UA_Server *server);
 UA_CertificateGroup *
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);
 
+/* CertificateGroups without a TrustList, e.g. UA_CertificateGroup_AcceptAll,
+ * leave the TrustList callbacks NULL. They do not support the TrustList
+ * Methods. */
+UA_Boolean
+UA_GDSReceiver_hasTrustList(const UA_CertificateGroup *certGroup);
+
 /* Can certificates of the type be updated in the DefaultApplicationGroup */
 UA_Boolean
 UA_GDSReceiver_certificateTypeSupported(UA_ServerConfig *sc,
