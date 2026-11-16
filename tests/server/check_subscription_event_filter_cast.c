@@ -317,6 +317,22 @@ START_TEST(numericElementResult) {
     checkLiteralResult(UA_FILTEROPERATOR_BITWISEOR, &a, &b, expected);
 } END_TEST
 
+START_TEST(emptyComparisonOperand) {
+    UA_Int32 number = 42;
+    UA_Variant numeric, empty;
+    UA_Variant_setScalar(&numeric, &number, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_init(&empty);
+    const UA_FilterOperator operators[] = {
+        UA_FILTEROPERATOR_EQUALS, UA_FILTEROPERATOR_GREATERTHAN,
+        UA_FILTEROPERATOR_LESSTHAN, UA_FILTEROPERATOR_GREATERTHANOREQUAL,
+        UA_FILTEROPERATOR_LESSTHANOREQUAL
+    };
+    /* Every comparison must handle an empty left, right, or both operands. */
+    checkLiteralResult(operators[_i], &numeric, &empty, TRUTH_FALSE);
+    checkLiteralResult(operators[_i], &empty, &numeric, TRUTH_FALSE);
+    checkLiteralResult(operators[_i], &empty, &empty, TRUTH_FALSE);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("Event Filter Boolean Casting");
     TCase *tc = tcase_create("Logical operands and implicit casts");
@@ -332,6 +348,7 @@ int main(void) {
                        sizeof(stringCases) / sizeof(stringCases[0]));
     tcase_add_loop_test(tc, numericComparisonRemainsNumeric, 0, 10);
     tcase_add_loop_test(tc, statusCodeNumericComparison, 0, 3);
+    tcase_add_loop_test(tc, emptyComparisonOperand, 0, 5);
     tcase_add_loop_test(tc, numericElementResult, 0, 2);
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s);
