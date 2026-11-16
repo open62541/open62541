@@ -1231,9 +1231,8 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        udpConnectionParams,
-                                        UDP_PARAMETERSSIZE, params);
+        UA_KeyValueMap_validate(params, udpConnectionParams, UDP_PARAMETERSSIZE, false,
+                                el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "UDP");
     if(res != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return res;
@@ -1286,9 +1285,8 @@ UDP_eventSourceStart(UA_EventSource *es) {
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        udpManagerParams, UDP_MANAGERPARAMS,
-                                        &cm->eventSource.params);
+        UA_KeyValueMap_validate(&cm->eventSource.params, udpManagerParams, UDP_MANAGERPARAMS,
+                                false, el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "UDP");
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 

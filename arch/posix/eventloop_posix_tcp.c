@@ -1117,9 +1117,8 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "TCP",
-                                        tcpConnectionParams,
-                                        TCP_PARAMETERSSIZE, params);
+        UA_KeyValueMap_validate(params, tcpConnectionParams, TCP_PARAMETERSSIZE, false,
+                                el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "TCP");
     if(res != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return res;
@@ -1177,9 +1176,8 @@ TCP_eventSourceStart(UA_EventSource *es) {
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "TCP",
-                                        tcpManagerParams, TCP_MANAGERPARAMS,
-                                        &cm->eventSource.params);
+        UA_KeyValueMap_validate(&cm->eventSource.params, tcpManagerParams, TCP_MANAGERPARAMS,
+                                false, el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "TCP");
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 
