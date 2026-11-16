@@ -254,6 +254,25 @@ START_TEST(parseDoubleSubstring) {
     ck_assert(fabs(result - 3.14) <= 1e-9);
 } END_TEST
 
+START_TEST(parseDoubleNoDigits) {
+    /* A sign, a dot or an exponent marker alone is not a number */
+    const char *invalid[] = {"-", ".", "-.", "e5", "-e5", ".e1",
+                             "1e", "1e+", "1e-", "0e", "-0.E"};
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        double result = 42.0;
+        size_t len = parseDouble(invalid[i], strlen(invalid[i]), &result);
+        ck_assert_uint_eq(len, 0);
+    }
+
+    /* A digit on either side of the dot is enough */
+    const char *valid[] = {".5", "5.", "-.5", "-5.", "0e0", "1E+2", "1e-2"};
+    for(size_t i = 0; i < sizeof(valid) / sizeof(valid[0]); i++) {
+        double result = 42.0;
+        size_t len = parseDouble(valid[i], strlen(valid[i]), &result);
+        ck_assert_uint_eq(len, strlen(valid[i]));
+    }
+} END_TEST
+
 static Suite *testSuite_parse_num(void) {
     TCase *tc_uint = tcase_create("parseUInt64");
     tcase_add_test(tc_uint, parseUint64Zero);
@@ -291,6 +310,7 @@ static Suite *testSuite_parse_num(void) {
     tcase_add_test(tc_double, parseDoubleTooLong);
     tcase_add_test(tc_double, parseDoubleInteger);
     tcase_add_test(tc_double, parseDoubleSubstring);
+    tcase_add_test(tc_double, parseDoubleNoDigits);
 
     Suite *s = suite_create("Test number parsing functions");
     suite_add_tcase(s, tc_uint);
