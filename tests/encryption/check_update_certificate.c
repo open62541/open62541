@@ -208,7 +208,8 @@ END_TEST
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 /* The filestore configuration also has the Basic128Rsa15 and Basic256
- * SecurityPolicies. So RsaMin is advertised as well. */
+ * SecurityPolicies. So RsaMin is advertised as well. The order follows the
+ * SecurityPolicies of the configuration. */
 START_TEST(certificate_types_configured_filestore) {
     UA_Variant value;
     UA_Variant_init(&value);
@@ -220,8 +221,11 @@ START_TEST(certificate_types_configured_filestore) {
     ck_assert_uint_eq(value.arrayLength, 2);
     UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
     UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    ck_assert(UA_NodeId_equal(&((UA_NodeId*)value.data)[0], &certTypRsaMin));
-    ck_assert(UA_NodeId_equal(&((UA_NodeId*)value.data)[1], &certTypRsaSha256));
+    const UA_NodeId *types = (const UA_NodeId*)value.data;
+    ck_assert((UA_NodeId_equal(&types[0], &certTypRsaMin) &&
+               UA_NodeId_equal(&types[1], &certTypRsaSha256)) ||
+              (UA_NodeId_equal(&types[0], &certTypRsaSha256) &&
+               UA_NodeId_equal(&types[1], &certTypRsaMin)));
     UA_Variant_clear(&value);
 }
 END_TEST
