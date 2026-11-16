@@ -1759,6 +1759,12 @@ START_TEST(Client_retransmissionCapacity) {
         checkRepublishedValue(client, sub, 256, UA_STATUSCODE_GOOD);
         checkRepublishedValue(client, sub, 512, UA_STATUSCODE_GOOD);
     }
+    if(_i != 4) {
+        UA_UInt32 oldest = count - (UA_UInt32)retained + 1;
+        checkRepublishedValue(client, sub, oldest, UA_STATUSCODE_GOOD);
+        if(oldest > 1)
+            checkRepublishedValue(client, sub, oldest - 1, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
+    }
     if(limits[_i])
         checkRepublishedValue(client, sub, 1, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
     pauseServer();
