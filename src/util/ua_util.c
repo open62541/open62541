@@ -664,9 +664,8 @@ static void
 logParameterError(const UA_Logger *logger, UA_LogCategory category,
                   const char *logprefix, const UA_QualifiedName *name,
                   const char *msg) {
-    UA_LOG_WARNING(logger, category, "%s\t| Parameter %.*s %s",
-                   logprefix ? logprefix : "",
-                   (int)name->name.length, (char*)name->name.data, msg);
+    UA_LOG_WARNING(logger, category, "%s\t| Parameter %S %s",
+                   logprefix ? logprefix : "", name->name, msg);
 }
 
 UA_StatusCode
