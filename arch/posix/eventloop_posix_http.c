@@ -634,9 +634,9 @@ static UA_StatusCode
 HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                     void *application, void *context,
                     UA_ConnectionManager_connectionCallback callback) {
-    UA_StatusCode res = UA_KeyValueRestriction_validate(
-        cm->eventSource.eventLoop->logger, "HTTP", httpConnectionParams,
-        ARRAY_SIZE(httpConnectionParams), params);
+    UA_StatusCode res = UA_KeyValueMap_validate(
+        params, httpConnectionParams, ARRAY_SIZE(httpConnectionParams), false,
+        cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP, "HTTP");
     if(res == UA_STATUSCODE_GOOD)
         res = rejectUnknownParameters(httpConnectionParams,
                                       ARRAY_SIZE(httpConnectionParams), params);
@@ -734,9 +734,9 @@ finishSend(UA_StatusCode result, UA_ByteString *buffer) {
 static UA_StatusCode
 HTTP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                         const UA_KeyValueMap *params, UA_ByteString *buffer) {
-    UA_StatusCode res = UA_KeyValueRestriction_validate(
-        cm->eventSource.eventLoop->logger, "HTTP", httpSendParams,
-        ARRAY_SIZE(httpSendParams), params);
+    UA_StatusCode res = UA_KeyValueMap_validate(
+        params, httpSendParams, ARRAY_SIZE(httpSendParams), false,
+        cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP, "HTTP");
     if(res == UA_STATUSCODE_GOOD)
         res = rejectUnknownParameters(httpSendParams,
                                       ARRAY_SIZE(httpSendParams), params);

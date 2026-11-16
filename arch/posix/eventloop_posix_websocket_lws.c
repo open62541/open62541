@@ -416,9 +416,9 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
                                     const UA_KeyValueMap *params,
                                     void *application, void *context,
                                     UA_ConnectionManager_connectionCallback cb) {
-    UA_StatusCode res = UA_KeyValueRestriction_validate(
-        cm->eventSource.eventLoop->logger, "WebSocket", wsParams,
-        sizeof(wsParams) / sizeof(wsParams[0]), params);
+    UA_StatusCode res = UA_KeyValueMap_validate(
+        params, wsParams, sizeof(wsParams) / sizeof(wsParams[0]), false,
+        cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP, "WebSocket");
     if(res != UA_STATUSCODE_GOOD)
         return res;
     const UA_Boolean *validate = (const UA_Boolean*)UA_KeyValueMap_getScalar(
