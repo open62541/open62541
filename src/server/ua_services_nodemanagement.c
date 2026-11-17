@@ -2767,8 +2767,9 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
             goto cleanup;
         }
 
-        /* Remove first direction if the second direction failed */
-        if(*retval != UA_STATUSCODE_GOOD) {
+        /* Remove the first direction if the second direction failed. Only if
+         * it was added here: a reference that existed before stays. */
+        if(*retval != UA_STATUSCODE_GOOD && firstChanged) {
             UA_Node_deleteReference(sourceNode, refTypeIndex, item->isForward, &item->targetNodeId);
             firstChanged = false;
         }
