@@ -303,6 +303,28 @@ checkVerificationResult(UA_ServerConfig *sc, UA_StatusCode res, const char *meth
     return res;
 }
 
+/* Check the KeyUsage of an application certificate of the
+ * DefaultApplicationGroup (Part 6, 6.2.2). The validation rules of other
+ * Purposes are not defined (Part 12, 7.8.2.5). Part 4, 6.1.3 allows to suppress
+ * the Certificate Usage error unless the certificate indicates that the usage
+ * is mandatory. The KeyUsage required by Part 6 counts as mandatory, so the
+ * error is not suppressed, also if the extension is not critical. Called after
+ * the validation of Part 4 to keep the order of its steps. */
+static UA_StatusCode
+checkApplicationKeyUsage(UA_ServerConfig *sc, const UA_CertificateGroup *certGroup,
+                         const UA_ByteString *certificate, const char *method) {
+    if(!UA_NodeId_equal(&certGroup->certificateGroupId,
+                        &sc->secureChannelPKI.certificateGroupId))
+        return UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_CertificateUtils_checkApplicationKeyUsage(certificate);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "%s: The KeyUsage of the certificate does not meet the "
+                     "requirements of an application certificate (%s)",
+                     method, UA_StatusCode_name(res));
+    return res;
+}
+
 /* Verify every certificate of the TrustList after the update with the
  * validation process of Part 4 (Part 12, 7.8.2.5). The update replaces the
  * specified lists of the TrustList of the CertificateGroup. */
@@ -333,9 +355,17 @@ verifyTrustListUpdate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
         {trustList.trustedCertificatesSize, trustList.issuerCertificatesSize};
     for(size_t i = 0; i < 2 && res == UA_STATUSCODE_GOOD; i++) {
         for(size_t j = 0; j < certificatesSize[i] && res == UA_STATUSCODE_GOOD; j++) {
+            const UA_ByteString *cert = &certificates[i][j];
             res = UA_CertificateUtils_verifyTrustListCertificate(
-                &trustList, &certificates[i][j], sc->logging);
+                &trustList, cert, sc->logging);
             res = checkVerificationResult(sc, res, "CloseAndUpdate");
+
+            /* The trusted list contains application and CA certificates. The
+             * issuer list contains CA certificates only. */
+            if(res == UA_STATUSCODE_GOOD && i == 0 &&
+               UA_CertificateUtils_checkCA(cert) != UA_STATUSCODE_GOOD)
+                res = checkApplicationKeyUsage(sc, certGroup, cert,
+                                               "CloseAndUpdate");
         }
     }
     UA_TrustListDataType_clear(&trustList);
@@ -445,15 +475,19 @@ verifyInTrustListCopy(UA_CertificateGroup *certGroup,
     return res;
 }
 
-/* Verify a certificate that is added to the TrustList or that the Server uses
+/* Verify an AIC that is added to the TrustList or that the Server uses
  * with the validation process of Part 4. Its issuers must already be in the
  * TrustList (Part 12, 7.8.2.6 and 7.10.5). Otherwise building the chain fails
  * with Bad_CertificateChainIncomplete. */
 static UA_StatusCode
 verifyIssuedCertificate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
                         const UA_ByteString *certificate, const char *method) {
-    return checkVerificationResult(sc, verifyInTrustListCopy(certGroup, certificate),
-                                   method);
+    UA_StatusCode res =
+        checkVerificationResult(sc, verifyInTrustListCopy(certGroup, certificate),
+                                method);
+    if(res == UA_STATUSCODE_GOOD)
+        res = checkApplicationKeyUsage(sc, certGroup, certificate, method);
+    return res;
 }
 
 static UA_GDSPendingCsr *

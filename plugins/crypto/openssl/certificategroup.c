@@ -1198,12 +1198,61 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     return retval;
 }
 
+/* Return `true` if the certificate is self-signed and valid. `X509_self_signed`
+ * exists since OpenSSL 3.0,but LibreSSL and older OpenSSL versions only have
+ * `X509_check_issued` which cannot be used here. */
+static UA_Boolean
+openSSLIsSelfSigned(X509 *cert) {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+    return X509_self_signed(cert, 1) == 1;
+#else
+    if(X509_NAME_cmp(X509_get_subject_name(cert), X509_get_issuer_name(cert)) != 0)
+        return false;
+    EVP_PKEY *key = X509_get0_pubkey(cert);
+    return key && X509_verify(cert, key) == 1;
+#endif
+}
+
+UA_StatusCode
+UA_CertificateUtils_checkApplicationKeyUsage(const UA_ByteString *certificate) {
+    if(!certificate || (certificate->length > 0 && !certificate->data))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(certificate->length == 0)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(!cert)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
+    UA_StatusCode retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+    uint32_t flags = X509_get_extension_flags(cert);
+    EVP_PKEY *key = X509_get0_pubkey(cert);
+    if((flags & EXFLAG_INVALID) || !key)
+        goto cleanup;
+
+    /* The extension is required. Its critical flag is not evaluated. */
+    retval = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    if(!(flags & EXFLAG_KUSAGE))
+        goto cleanup;
+
+    /* RSA keys also encrypt. Self-signed certificates sign themselves. */
+    uint32_t required = KU_DIGITAL_SIGNATURE;
+    if(EVP_PKEY_base_id(key) == EVP_PKEY_RSA)
+        required |= KU_NON_REPUDIATION | KU_KEY_ENCIPHERMENT | KU_DATA_ENCIPHERMENT;
+    if(openSSLIsSelfSigned(cert))
+        required |= KU_KEY_CERT_SIGN;
+    if((X509_get_key_usage(cert) & required) == required)
+        retval = UA_STATUSCODE_GOOD;
+
+cleanup:
+    X509_free(cert);
+    return retval;
+}
+
 /* Checks for a certificate of a TrustList that are not part of the validation
  * of a SecureChannel. Application and CA certificates are X.509 v3 (Part 6,
- * 6.2.2). The KeyUsage of an application certificate includes
- * digitalSignature, and nonRepudiation, keyEncipherment and dataEncipherment
- * for RSA keys. The Certificate Usage error is suppressible, unless the
- * KeyUsage is critical (Part 4, 6.1.3). */
+ * 6.2.2). The KeyUsage is checked with
+ * UA_CertificateUtils_checkApplicationKeyUsage. */
 static UA_StatusCode
 openSSLCheckTrustListCertificate(const UA_ByteString *certificate) {
     X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
@@ -1211,25 +1260,8 @@ openSSLCheckTrustListCertificate(const UA_ByteString *certificate) {
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
     /* The version is zero-based */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(X509_get_version(cert) != 2) {
-        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
-        goto cleanup;
-    }
-
-    uint32_t flags = X509_get_extension_flags(cert);
-    if((flags & EXFLAG_CA) || !(flags & EXFLAG_KUSAGE))
-        goto cleanup;
-    uint32_t required = KU_DIGITAL_SIGNATURE;
-    EVP_PKEY *key = X509_get0_pubkey(cert);
-    if(key && EVP_PKEY_base_id(key) == EVP_PKEY_RSA)
-        required |= KU_NON_REPUDIATION | KU_KEY_ENCIPHERMENT | KU_DATA_ENCIPHERMENT;
-    const X509_EXTENSION *ext = X509_get_ext(cert, X509_get_ext_by_NID(cert, NID_key_usage, -1));
-    if((X509_get_key_usage(cert) & required) != required &&
-       ext && X509_EXTENSION_get_critical(ext))
-        retval = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
-
-cleanup:
+    UA_StatusCode retval = (X509_get_version(cert) == 2) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADCERTIFICATEINVALID;
     X509_free(cert);
     return retval;
 }

@@ -134,6 +134,17 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate);
 
+/* Checks the KeyUsage of an ApplicationInstanceCertificate (Part 6, 6.2.2).
+ * This check is independent of the KeyUsage criticality.
+ *
+ * @return UA_STATUSCODE_GOOD if the required usage bits are set,
+ *         UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED if a bit or the extension
+ *         is missing,
+ *         UA_STATUSCODE_BADCERTIFICATEINVALID if the certificate does not
+ *         parse. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_checkApplicationKeyUsage(const UA_ByteString *certificate);
+
 /* Verify a Certificate of a TrustList against that TrustList with the
  * validation process of Part 4.
  *

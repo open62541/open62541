@@ -23,6 +23,7 @@
 #include "../common.h"
 #include "certificates.h"
 #include "certificate_eku.h"
+#include "certificates_keyusage.h"
 #include "check.h"
 #include "thread_wrapper.h"
 
@@ -280,6 +281,87 @@ START_TEST(check_extended_key_usage_profile) {
     retval = UA_CertificateUtils_checkExtendedKeyUsage(
         &eccMissing, UA_CERTIFICATEEKU_SERVERAUTH, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+static UA_StatusCode
+checkKeyUsage(UA_Byte *data, size_t length) {
+    UA_ByteString certificate = {length, data};
+    return UA_CertificateUtils_checkApplicationKeyUsage(&certificate);
+}
+
+/* RSA keys require digitalSignature, nonRepudiation, keyEncipherment and
+ * dataEncipherment. Self-signed certificates also require keyCertSign. The
+ * critical flag of the extension is not evaluated. */
+START_TEST(check_application_key_usage_rsa) {
+    const UA_StatusCode notAllowed = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_PEM, KEYUSAGE_RSA_LENGTH),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_NONCRITICAL_PEM,
+                                    KEYUSAGE_RSA_NONCRITICAL_LENGTH),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(checkKeyUsage(CERT_DER_DATA, CERT_DER_LENGTH),
+                      UA_STATUSCODE_GOOD);
+
+    /* keyCertSign is only required for self-signed certificates */
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_ISSUED_PEM,
+                                    KEYUSAGE_RSA_ISSUED_LENGTH),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_MISSING_PEM,
+                                    KEYUSAGE_RSA_MISSING_LENGTH),
+                      notAllowed);
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_NO_DIGITALSIGNATURE_PEM,
+                                    KEYUSAGE_RSA_NO_DIGITALSIGNATURE_LENGTH),
+                      notAllowed);
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_NO_NONREPUDIATION_PEM,
+                                    KEYUSAGE_RSA_NO_NONREPUDIATION_LENGTH),
+                      notAllowed);
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_NO_KEYENCIPHERMENT_PEM,
+                                    KEYUSAGE_RSA_NO_KEYENCIPHERMENT_LENGTH),
+                      notAllowed);
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_NO_DATAENCIPHERMENT_PEM,
+                                    KEYUSAGE_RSA_NO_DATAENCIPHERMENT_LENGTH),
+                      notAllowed);
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_RSA_NO_KEYCERTSIGN_PEM,
+                                    KEYUSAGE_RSA_NO_KEYCERTSIGN_LENGTH),
+                      notAllowed);
+}
+END_TEST
+
+/* ECC keys require only digitalSignature (and keyCertSign if self-signed) */
+START_TEST(check_application_key_usage_ecc) {
+    const UA_StatusCode notAllowed = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_ECC_PEM, KEYUSAGE_ECC_LENGTH),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(checkKeyUsage(CERT_P256_DER_DATA, CERT_P256_DER_LENGTH),
+                      UA_STATUSCODE_GOOD);
+
+    /* Other bits are allowed, also encipherOnly with keyAgreement */
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_ECC_ENCIPHERONLY_PEM,
+                                    KEYUSAGE_ECC_ENCIPHERONLY_LENGTH),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(checkKeyUsage(KEYUSAGE_ECC_NO_DIGITALSIGNATURE_PEM,
+                                    KEYUSAGE_ECC_NO_DIGITALSIGNATURE_LENGTH),
+                      notAllowed);
+}
+END_TEST
+
+START_TEST(check_application_key_usage_invalid) {
+    /* A CA certificate is checked like an application certificate. The root
+     * CA has only keyCertSign and cRLSign. */
+    ck_assert_uint_eq(checkKeyUsage(ROOT_CERT_DER_DATA, ROOT_CERT_DER_LENGTH),
+                      UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    UA_ByteString invalid = UA_BYTESTRING("not a certificate");
+    ck_assert_uint_eq(UA_CertificateUtils_checkApplicationKeyUsage(&invalid),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_CertificateUtils_checkApplicationKeyUsage(&empty),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(UA_CertificateUtils_checkApplicationKeyUsage(NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
 }
 END_TEST
 
@@ -1065,6 +1147,9 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, check_cert_common_name);
     tcase_add_test(tc_encryption_memorystore, get_extended_key_usage);
     tcase_add_test(tc_encryption_memorystore, check_extended_key_usage_profile);
+    tcase_add_test(tc_encryption_memorystore, check_application_key_usage_rsa);
+    tcase_add_test(tc_encryption_memorystore, check_application_key_usage_ecc);
+    tcase_add_test(tc_encryption_memorystore, check_application_key_usage_invalid);
     tcase_add_test(tc_encryption_memorystore, client_certificate_eku_rule);
     tcase_add_test(tc_encryption_memorystore, server_certificate_eku_rule);
     tcase_add_test(tc_encryption_memorystore, remove_from_trustlist);
