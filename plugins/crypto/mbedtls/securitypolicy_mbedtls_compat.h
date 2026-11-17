@@ -58,5 +58,41 @@ int
 UA_mbedTLS_compat_writeCsrDer(mbedtls_x509write_csr *request,
                               unsigned char *buffer, size_t bufferSize);
 
+/* AES-CBC with the key expanded once. PSA expands the key for every message.
+ * Not available if only a PSA driver implements AES; then PSA is used. */
+#if defined(MBEDTLS_AES_C) && defined(MBEDTLS_CIPHER_MODE_CBC) && \
+    !defined(MBEDTLS_BLOCK_CIPHER_NO_DECRYPT)
+#define UA_MBEDTLS_AES_CONTEXT
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+#include <mbedtls/private/aes.h>
+#else
+#include <mbedtls/aes.h>
+#endif
+
+void
+UA_mbedTLS_compat_aesInit(mbedtls_aes_context *ctx);
+
+void
+UA_mbedTLS_compat_aesFree(mbedtls_aes_context *ctx);
+
+int
+UA_mbedTLS_compat_aesSetKey(mbedtls_aes_context *ctx, UA_Boolean encrypt,
+                            const UA_ByteString *key);
+
+/* In place. The IV is not changed. */
+int
+UA_mbedTLS_compat_aesCbc(mbedtls_aes_context *ctx, UA_Boolean encrypt,
+                         const UA_Byte iv[16], UA_ByteString *data);
+
+#if defined(MBEDTLS_CIPHER_MODE_CTR)
+#define UA_MBEDTLS_AES_CTR_CONTEXT
+
+/* In place, needs an encryption key. The counter block is not changed. */
+int
+UA_mbedTLS_compat_aesCtr(mbedtls_aes_context *ctx, const UA_Byte counter[16],
+                         UA_ByteString *data);
+#endif
+#endif
+
 #endif /* UA_ENABLE_ENCRYPTION_MBEDTLS */
 #endif /* UA_SECURITYPOLICY_MBEDTLS_COMPAT_H_ */

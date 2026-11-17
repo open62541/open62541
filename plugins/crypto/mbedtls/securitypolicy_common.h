@@ -11,9 +11,12 @@
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
+#include <mbedtls/md.h>
 #include <mbedtls/x509_crt.h>
 
 #include <psa/crypto.h>
+
+#include "securitypolicy_mbedtls_compat.h"
 
 /* Define MBEDTLS_ENTROPY_HARDWARE_ALT when the platform has no default
  * entropy source. */
@@ -97,13 +100,15 @@ UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
 _UA_BEGIN_DECLS
 
 /* HMAC with the key absorbed into the inner and outer hash states. A message
- * clones both. Without clone support the key is imported for psa_mac_*. */
+ * clones both into work. mbedtls_md uses a PSA hash driver if there is one.
+ * Without clone support the key is imported for psa_mac_*. */
 typedef struct {
-    psa_hash_operation_t inner;
-    psa_hash_operation_t outer;
+    mbedtls_md_context_t inner;
+    mbedtls_md_context_t outer;
+    mbedtls_md_context_t work;
     UA_mbedTLS_PsaKey fallbackKey;
     psa_algorithm_t hash;
-    UA_Boolean ready; /* inner and outer are usable */
+    UA_Boolean ready; /* inner, outer and work are usable */
 } UA_mbedTLS_HmacState;
 
 void
@@ -119,12 +124,12 @@ UA_mbedTLS_HmacState_setKey(UA_mbedTLS_HmacState *hs, psa_algorithm_t hash,
 
 /* The signature length must be the hash length */
 UA_StatusCode
-UA_mbedTLS_HmacState_sign(const UA_mbedTLS_HmacState *hs,
+UA_mbedTLS_HmacState_sign(UA_mbedTLS_HmacState *hs,
                           const UA_ByteString *message,
                           UA_ByteString *signature);
 
 UA_StatusCode
-UA_mbedTLS_HmacState_verify(const UA_mbedTLS_HmacState *hs,
+UA_mbedTLS_HmacState_verify(UA_mbedTLS_HmacState *hs,
                             const UA_ByteString *message,
                             const UA_ByteString *signature);
 
@@ -133,8 +138,15 @@ typedef struct {
     UA_ByteString remoteSymIv;
 
     mbedtls_x509_crt remoteCertificate;
+#if defined(UA_MBEDTLS_AES_CONTEXT)
+    mbedtls_aes_context localAes;  /* expanded encryption key */
+    mbedtls_aes_context remoteAes; /* expanded decryption key */
+    UA_Boolean localAesSet;
+    UA_Boolean remoteAesSet;
+#else
     UA_mbedTLS_PsaKey localSymEncryptingKey;
     UA_mbedTLS_PsaKey remoteSymEncryptingKey;
+#endif
     UA_mbedTLS_HmacState localMac;
     UA_mbedTLS_HmacState remoteMac;
     psa_algorithm_t symmetricMacAlgorithm;

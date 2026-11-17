@@ -1,11 +1,15 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+/* mbedTLS 4 declares the AES functions only for its own modules */
+#define MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
+
 #include "securitypolicy_mbedtls_compat.h"
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
 #include <mbedtls/md.h>
+#include <mbedtls/platform_util.h>
 #include <mbedtls/psa_util.h>
 #include <mbedtls/version.h>
 #if MBEDTLS_VERSION_NUMBER < 0x04000000
@@ -230,5 +234,50 @@ UA_mbedTLS_compat_writeCsrDer(mbedtls_x509write_csr *request,
                                      MBEDTLS_PSA_RANDOM_STATE);
 #endif
 }
+
+#if defined(UA_MBEDTLS_AES_CONTEXT)
+void
+UA_mbedTLS_compat_aesInit(mbedtls_aes_context *ctx) {
+    mbedtls_aes_init(ctx);
+}
+
+void
+UA_mbedTLS_compat_aesFree(mbedtls_aes_context *ctx) {
+    mbedtls_aes_free(ctx);
+}
+
+int
+UA_mbedTLS_compat_aesSetKey(mbedtls_aes_context *ctx, UA_Boolean encrypt,
+                            const UA_ByteString *key) {
+    const unsigned int bits = (unsigned int)key->length * 8;
+    return encrypt ? mbedtls_aes_setkey_enc(ctx, key->data, bits) :
+                     mbedtls_aes_setkey_dec(ctx, key->data, bits);
+}
+
+int
+UA_mbedTLS_compat_aesCbc(mbedtls_aes_context *ctx, UA_Boolean encrypt,
+                         const UA_Byte iv[16], UA_ByteString *data) {
+    unsigned char ivCopy[16]; /* mbedtls_aes_crypt_cbc advances the IV */
+    memcpy(ivCopy, iv, sizeof(ivCopy));
+    return mbedtls_aes_crypt_cbc(ctx,
+                                 encrypt ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT,
+                                 data->length, ivCopy, data->data, data->data);
+}
+
+#if defined(UA_MBEDTLS_AES_CTR_CONTEXT)
+int
+UA_mbedTLS_compat_aesCtr(mbedtls_aes_context *ctx, const UA_Byte counter[16],
+                         UA_ByteString *data) {
+    unsigned char counterCopy[16]; /* mbedtls_aes_crypt_ctr advances it */
+    unsigned char streamBlock[16];
+    size_t offset = 0;
+    memcpy(counterCopy, counter, sizeof(counterCopy));
+    int err = mbedtls_aes_crypt_ctr(ctx, data->length, &offset, counterCopy,
+                                    streamBlock, data->data, data->data);
+    mbedtls_platform_zeroize(streamBlock, sizeof(streamBlock));
+    return err;
+}
+#endif
+#endif
 
 #endif
