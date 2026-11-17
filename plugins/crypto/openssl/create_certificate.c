@@ -18,6 +18,8 @@
 #include <openssl/x509v3.h>
 #include <openssl/err.h>
 
+#include <time.h>
+
 /**
  * Join an array of UA_String to a single NULL-Terminated UA_String
  * separated by character sep
@@ -176,6 +178,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     UA_UInt16 keySizeBits = 4096;
     /* Default to 1 year */
     UA_UInt16 expiresInDays = 365;
+    /* Default to the creation time */
+    const UA_DateTime *validFrom = NULL;
     /* Key type: 0 = RSA (default), 1 = EC */
     int keyTypeEC = 0;
     UA_String eccCurve = UA_STRING_STATIC("prime256v1");
@@ -190,6 +194,9 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
             params, UA_QUALIFIEDNAME(0, "expires-in-days"), &UA_TYPES[UA_TYPES_UINT16]);
         if(expiresInDaysValue)
             expiresInDays = *expiresInDaysValue;
+
+        validFrom = (const UA_DateTime *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "valid-from"), &UA_TYPES[UA_TYPES_DATETIME]);
 
         const UA_String *keyTypeValue = (const UA_String *)UA_KeyValueMap_getScalar(
             params, UA_QUALIFIEDNAME(0, "key-type"), &UA_TYPES[UA_TYPES_STRING]);
@@ -296,17 +303,20 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    if(X509_gmtime_adj(X509_get_notBefore(x509), 0) == NULL) {
+    time_t notBefore = validFrom ?
+        (time_t)UA_DateTime_toUnixTime(*validFrom) : time(NULL);
+
+    if(ASN1_TIME_set(X509_get_notBefore(x509), notBefore) == NULL) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting 'not before' failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
 
-    if(X509_time_adj_ex(X509_get_notAfter(x509), (int)expiresInDays, 0, NULL) ==
+    if(X509_time_adj_ex(X509_get_notAfter(x509), (int)expiresInDays, 0, &notBefore) ==
        NULL) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Create Certificate: Setting 'not before' failed.");
+                     "Create Certificate: Setting 'not after' failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
