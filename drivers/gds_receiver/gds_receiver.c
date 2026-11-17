@@ -589,9 +589,17 @@ checkKeylessCertificate(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
 /* Check the key of a certificate after it was verified. A certificate with
  * changed bytes, for example in its public key, can still parse. Then only the
  * signature check of the verification finds the change and returns
- * Bad_CertificateInvalid. Bad_NotSupported is for a PrivateKey that does not
- * match a valid certificate (Part 12, 7.10.5). Without a PrivateKey, the
- * certificate must match a key of the Server. */
+ * Bad_CertificateInvalid.
+ *
+ * Bad_NotSupported is for a PrivateKey that is invalid by itself (Part 12,
+ * 7.10.5): It does not decode, it is encrypted (UpdateCertificate has no
+ * password), or its components do not form a key pair. The PrivateKey is
+ * checked by itself before it is compared with the certificate. A changed
+ * private component keeps the public key, so the PrivateKey still matches the
+ * certificate. A valid PrivateKey of another key pair does not belong to the
+ * certificate. This returns Bad_CertificateInvalid.
+ *
+ * Without a PrivateKey, the certificate must match a key of the Server. */
 static UA_StatusCode
 checkCertificateKey(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
                     const UA_NodeId *certificateTypeId,
@@ -599,12 +607,17 @@ checkCertificateKey(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
                     const UA_ByteString *privateKey) {
     if(!privateKey)
         return checkKeylessCertificate(ctx, sc, certificateTypeId, certificate);
+    if(UA_CertificateUtils_checkPrivateKey(privateKey) != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "UpdateCertificate: The PrivateKey is invalid or encrypted");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
     if(UA_CertificateUtils_checkKeyPair(certificate, privateKey) !=
        UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "UpdateCertificate: The PrivateKey does not match the "
                      "certificate");
-        return UA_STATUSCODE_BADNOTSUPPORTED;
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
     return UA_STATUSCODE_GOOD;
 }

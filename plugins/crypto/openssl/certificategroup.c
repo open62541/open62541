@@ -1183,6 +1183,59 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Checks the public and the private components and that they form a key pair.
+ * For RSA, this includes n = p*q, the exponents and the CRT values. OpenSSL
+ * signs with the CRT values and recomputes a wrong result with d. So a
+ * signature test does not find a changed component. */
+#if defined(LIBRESSL_VERSION_NUMBER)
+/* LibreSSL has no EVP_PKEY_check. RSA_check_key checks the same RSA components.
+ * EC_KEY_check_key checks that the public point is d*G. LibreSSL decodes an
+ * Ed25519 or X25519 key from the private value only and calculates the public
+ * key from it. */
+static UA_Boolean
+openSSLCheckPrivateKey(EVP_PKEY *pkey) {
+    switch(EVP_PKEY_base_id(pkey)) {
+    case EVP_PKEY_RSA:
+    case EVP_PKEY_RSA_PSS: {
+        const RSA *rsa = EVP_PKEY_get0_RSA(pkey);
+        return rsa && RSA_check_key(rsa) == 1;
+    }
+    case EVP_PKEY_EC: {
+        const EC_KEY *ecKey = EVP_PKEY_get0_EC_KEY(pkey);
+        return ecKey && EC_KEY_check_key(ecKey) == 1;
+    }
+    case EVP_PKEY_ED25519:
+    case EVP_PKEY_X25519:
+        return true;
+    default:
+        return false;
+    }
+}
+#else
+static UA_Boolean
+openSSLCheckPrivateKey(EVP_PKEY *pkey) {
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    UA_Boolean valid = (ctx && EVP_PKEY_check(ctx) == 1);
+    EVP_PKEY_CTX_free(ctx);
+    return valid;
+}
+#endif
+
+UA_StatusCode
+UA_CertificateUtils_checkPrivateKey(const UA_ByteString *privateKey) {
+    if(privateKey == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    EVP_PKEY *pkey = UA_OpenSSL_LoadPrivateKey(privateKey);
+    if(!pkey)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    UA_StatusCode retval = openSSLCheckPrivateKey(pkey) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    EVP_PKEY_free(pkey);
+    return retval;
+}
+
 UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(certificate == NULL)

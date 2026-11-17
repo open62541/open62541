@@ -121,6 +121,10 @@ START_TEST(update_certificate) {
 }
 END_TEST
 
+/* Part 12, 7.10.5: KEY_DER_DATA is a valid PrivateKey of another key pair. It
+ * does not belong to the valid certificate. This returns
+ * Bad_CertificateInvalid. Bad_NotSupported is for a PrivateKey that is invalid
+ * by itself. */
 START_TEST(update_certificate_wrongKey) {
     UA_ByteString newCertificate = UA_BYTESTRING_NULL;
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
@@ -137,7 +141,7 @@ START_TEST(update_certificate_wrongKey) {
     UA_StatusCode retval =
             UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
                                         newCertificate, &wrongPrivateKey);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
 
     UA_ByteString_clear(&newCertificate);
     UA_ByteString_clear(&newPrivateKey);
