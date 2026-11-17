@@ -92,11 +92,132 @@ START_TEST(rejectSignatureLengthLargerThanSecret) {
 }
 END_TEST
 
+static UA_Boolean decryptCalled;
+
+static UA_StatusCode
+acceptSignature(const UA_SecurityPolicy *policy, void *channelContext,
+                const UA_ByteString *message,
+                const UA_ByteString *signature) {
+    verifyCalled = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+getRemoteKeyLength(const UA_SecurityPolicy *policy,
+                   const void *channelContext) {
+    return 32;
+}
+
+static size_t
+getRemoteBlockSize(const UA_SecurityPolicy *policy,
+                   const void *channelContext) {
+    return 16;
+}
+
+static UA_StatusCode
+generateKey(const UA_SecurityPolicy *policy, void *channelContext,
+            const UA_ByteString *secret, const UA_ByteString *seed,
+            UA_ByteString *out) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+setRemoteKey(const UA_SecurityPolicy *policy, void *channelContext,
+             const UA_ByteString *key) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+decryptPayload(const UA_SecurityPolicy *policy, void *channelContext,
+               UA_ByteString *data) {
+    decryptCalled = true;
+    return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+}
+
+/* The policy header (SenderPublicKey) ends exactly at the end of the secret,
+ * so it overlaps the trailing signature and leaves no room for the payload */
+static UA_ByteString
+overlappingPolicyHeaderSecret(const UA_String policyUri) {
+    UA_NodeId typeId = UA_NS0ID(ECCENCRYPTEDSECRET);
+    UA_Byte encodingMask = 0x01;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_DateTime signingTime = 0;
+    UA_Byte keyData[96];
+    memset(keyData, 0, sizeof(keyData));
+    UA_ByteString senderPublicKey = {sizeof(keyData), keyData};
+    UA_ByteString receiverPublicKey = UA_BYTESTRING_NULL;
+    UA_UInt16 keyDataLen = (UA_UInt16)
+        (UA_calcSizeBinary(&senderPublicKey, &UA_TYPES[UA_TYPES_BYTESTRING], NULL) +
+         UA_calcSizeBinary(&receiverPublicKey, &UA_TYPES[UA_TYPES_BYTESTRING], NULL));
+
+    size_t headerPrefix =
+        UA_calcSizeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID], NULL) +
+        UA_calcSizeBinary(&encodingMask, &UA_TYPES[UA_TYPES_BYTE], NULL) +
+        UA_calcSizeBinary(&(UA_UInt32){0}, &UA_TYPES[UA_TYPES_UINT32], NULL);
+    UA_UInt32 length = (UA_UInt32)
+        (UA_calcSizeBinary(&policyUri, &UA_TYPES[UA_TYPES_STRING], NULL) +
+         UA_calcSizeBinary(&certificate, &UA_TYPES[UA_TYPES_BYTESTRING], NULL) +
+         UA_calcSizeBinary(&signingTime, &UA_TYPES[UA_TYPES_DATETIME], NULL) +
+         UA_calcSizeBinary(&keyDataLen, &UA_TYPES[UA_TYPES_UINT16], NULL) +
+         keyDataLen);
+    UA_ByteString secret;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&secret,
+                                                headerPrefix + length),
+                      UA_STATUSCODE_GOOD);
+    UA_Byte *pos = secret.data;
+    const UA_Byte *end = secret.data + secret.length;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= UA_NodeId_encodeBinary(&typeId, &pos, end);
+    res |= UA_Byte_encodeBinary(&encodingMask, &pos, end);
+    res |= UA_UInt32_encodeBinary(&length, &pos, end);
+    res |= UA_String_encodeBinary(&policyUri, &pos, end);
+    res |= UA_ByteString_encodeBinary(&certificate, &pos, end);
+    res |= UA_DateTime_encodeBinary(&signingTime, &pos, end);
+    res |= UA_UInt16_encodeBinary(&keyDataLen, &pos, end);
+    res |= UA_ByteString_encodeBinary(&senderPublicKey, &pos, end);
+    res |= UA_ByteString_encodeBinary(&receiverPublicKey, &pos, end);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(pos, end);
+    return secret;
+}
+
+START_TEST(rejectPolicyHeaderOverlappingSignature) {
+    UA_SecurityPolicy policy;
+    memset(&policy, 0, sizeof(policy));
+    policy.policyType = UA_SECURITYPOLICYTYPE_ECC;
+    policy.policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384");
+    policy.asymSignatureAlgorithm.getRemoteSignatureSize =
+        getRemoteSignatureSize;
+    policy.asymSignatureAlgorithm.verify = acceptSignature;
+    policy.symEncryptionAlgorithm.getRemoteKeyLength = getRemoteKeyLength;
+    policy.symEncryptionAlgorithm.getRemoteBlockSize = getRemoteBlockSize;
+    policy.symEncryptionAlgorithm.decrypt = decryptPayload;
+    policy.generateKey = generateKey;
+    policy.setRemoteSymEncryptingKey = setRemoteKey;
+    policy.setRemoteSymIv = setRemoteKey;
+
+    UA_ByteString secret = overlappingPolicyHeaderSecret(policy.policyUri);
+
+    UA_SecureChannel channel;
+    memset(&channel, 0, sizeof(channel));
+    UA_Logger logger = *UA_Log_Stdout;
+    verifyCalled = false;
+    decryptCalled = false;
+    UA_StatusCode res = decryptUserTokenEcc(&logger, &channel, &policy,
+                                            NULL, UA_BYTESTRING_NULL, &secret);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADIDENTITYTOKENINVALID);
+    ck_assert(verifyCalled);
+    ck_assert(!decryptCalled);
+    UA_ByteString_clear(&secret);
+}
+END_TEST
+
 static Suite *
 encryptedSecretSuite(void) {
     Suite *s = suite_create("encrypted-secret");
     TCase *tc = tcase_create("ECC bounds");
     tcase_add_test(tc, rejectSignatureLengthLargerThanSecret);
+    tcase_add_test(tc, rejectPolicyHeaderOverlappingSignature);
     suite_add_tcase(s, tc);
     return s;
 }
