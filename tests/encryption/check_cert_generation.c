@@ -70,7 +70,9 @@ START_TEST(certificate_generation) {
     ck_assert(!mbedtls_x509_crt_has_ext_type(&parsed,
                                              MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) ||
               !mbedtls_x509_crt_get_ca_istrue(&parsed));
-    ck_assert_int_ne(mbedtls_x509_crt_check_key_usage(
+    /* The certificate is self-signed. Its KeyUsage also includes keyCertSign
+     * (Part 6, 6.2.2). */
+    ck_assert_int_eq(mbedtls_x509_crt_check_key_usage(
                          &parsed, MBEDTLS_X509_KU_KEY_CERT_SIGN), 0);
     ck_assert_int_ne(mbedtls_x509_crt_check_key_usage(
                          &parsed, MBEDTLS_X509_KU_CRL_SIGN), 0);
