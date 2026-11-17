@@ -1,9 +1,6 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-/* mbedTLS 4 declares the AES functions only for its own modules */
-#define MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
-
 #include "securitypolicy_mbedtls_compat.h"
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
