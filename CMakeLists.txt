@@ -1312,8 +1312,8 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
     list(INSERT plugin_sources 0
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_compat.h
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_ecc.h
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_rsa.h)
     list(APPEND plugin_sources

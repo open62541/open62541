@@ -64,6 +64,9 @@ UA_mbedTLS_compat_writeCsrDer(mbedtls_x509write_csr *request,
     !defined(MBEDTLS_BLOCK_CIPHER_NO_DECRYPT)
 #define UA_MBEDTLS_AES_CONTEXT
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
+#ifndef MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
+#define MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
+#endif
 #include <mbedtls/private/aes.h>
 #else
 #include <mbedtls/aes.h>
