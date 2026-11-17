@@ -422,12 +422,15 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    /* ECC certificates need keyAgreement for ECDH instead of keyEncipherment */
+    /* ECC certificates need keyAgreement for ECDH instead of keyEncipherment.
+     * The certificate is self-signed and therefore also includes keyCertSign
+     * (Part 6, 6.2.2). */
     unsigned int keyUsageFlags = keyTypeEC
         ? (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION |
-           MBEDTLS_X509_KU_KEY_AGREEMENT)
+           MBEDTLS_X509_KU_KEY_AGREEMENT | MBEDTLS_X509_KU_KEY_CERT_SIGN)
         : (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION |
-           MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT);
+           MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT |
+           MBEDTLS_X509_KU_KEY_CERT_SIGN);
     if(mbedtls_x509write_crt_set_key_usage(&crt, keyUsageFlags) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Setting key usage failed.");
