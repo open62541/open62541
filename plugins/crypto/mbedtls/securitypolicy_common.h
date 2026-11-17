@@ -42,18 +42,6 @@ UA_mbedTLS_PsaKey_import(UA_mbedTLS_PsaKey *target,
                          const UA_ByteString *material);
 
 UA_StatusCode
-UA_mbedTLS_PsaMacCompute(mbedtls_svc_key_id_t key,
-                         psa_algorithm_t algorithm,
-                         const UA_ByteString *input,
-                         UA_ByteString *output);
-
-UA_StatusCode
-UA_mbedTLS_PsaMacVerify(mbedtls_svc_key_id_t key,
-                        psa_algorithm_t algorithm,
-                        const UA_ByteString *input,
-                        const UA_ByteString *mac);
-
-UA_StatusCode
 UA_mbedTLS_PsaRandom(UA_ByteString *output);
 
 UA_StatusCode
@@ -108,25 +96,47 @@ UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
 
 _UA_BEGIN_DECLS
 
-/* HMAC with the key absorbed, built by the key setter. A message clones inner
- * and outer. */
+/* HMAC with the key absorbed into the inner and outer hash states. A message
+ * clones both. Without clone support the key is imported for psa_mac_*. */
 typedef struct {
     psa_hash_operation_t inner;
     psa_hash_operation_t outer;
-    UA_Boolean ready; /* false: sign and verify use psa_mac_compute */
+    UA_mbedTLS_PsaKey fallbackKey;
+    psa_algorithm_t hash;
+    UA_Boolean ready; /* inner and outer are usable */
 } UA_mbedTLS_HmacState;
+
+void
+UA_mbedTLS_HmacState_init(UA_mbedTLS_HmacState *hs);
+
+void
+UA_mbedTLS_HmacState_clear(UA_mbedTLS_HmacState *hs);
+
+/* Clears the old key first. On failure no key is set. */
+UA_StatusCode
+UA_mbedTLS_HmacState_setKey(UA_mbedTLS_HmacState *hs, psa_algorithm_t hash,
+                            const UA_ByteString *key);
+
+/* The signature length must be the hash length */
+UA_StatusCode
+UA_mbedTLS_HmacState_sign(const UA_mbedTLS_HmacState *hs,
+                          const UA_ByteString *message,
+                          UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_HmacState_verify(const UA_mbedTLS_HmacState *hs,
+                            const UA_ByteString *message,
+                            const UA_ByteString *signature);
 
 typedef struct {
     UA_ByteString localSymIv;
     UA_ByteString remoteSymIv;
 
     mbedtls_x509_crt remoteCertificate;
-    UA_mbedTLS_PsaKey localSymSigningKey;
     UA_mbedTLS_PsaKey localSymEncryptingKey;
-    UA_mbedTLS_PsaKey remoteSymSigningKey;
     UA_mbedTLS_PsaKey remoteSymEncryptingKey;
     UA_mbedTLS_HmacState localMac;
-    UA_mbedTLS_HmacState remoteMac; 
+    UA_mbedTLS_HmacState remoteMac;
     psa_algorithm_t symmetricMacAlgorithm;
 } mbedtls_ChannelContext;
 
