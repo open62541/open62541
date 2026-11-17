@@ -85,6 +85,11 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
 }
 
 UA_StatusCode
+UA_CertificateUtils_checkApplicationKeyUsage(const UA_ByteString *certificate) {
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
 UA_CertificateUtils_verifyTrustListCertificate(const UA_TrustListDataType *trustList,
                                                const UA_ByteString *certificate,
                                                const UA_Logger *logger) {

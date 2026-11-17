@@ -746,10 +746,10 @@ START_TEST(acceptExpiredIssuer) {
 } END_TEST
 
 /* The KeyUsage of an application certificate lacks digitalSignature,
- * keyEncipherment and dataEncipherment (Part 6, 6.2.2). The Certificate Usage
- * step is suppressible, unless the certificate marks the usage as mandatory
- * with a critical extension (Part 4, 6.1.3). */
-START_TEST(rejectCriticalKeyUsage) {
+ * keyEncipherment and dataEncipherment (Part 6, 6.2.2). The required KeyUsage
+ * counts as mandatory, so the Certificate Usage error (Part 4, 6.1.3) is not
+ * suppressed, also if the extension is not critical. */
+START_TEST(rejectMissingKeyUsage) {
     UA_ByteString issuer = {PUSH_CA_CERT_DER_LENGTH, PUSH_CA_CERT_DER_DATA};
     UA_ByteString crl = {PUSH_CA_CRL_DER_LENGTH, PUSH_CA_CRL_DER_DATA};
     UA_ByteString critical = {PUSH_KEYUSAGE_CRITICAL_APP_CERT_DER_LENGTH,
@@ -759,8 +759,8 @@ START_TEST(rejectCriticalKeyUsage) {
 
     UA_ByteString nonCritical = {PUSH_KEYUSAGE_NONCRITICAL_APP_CERT_DER_LENGTH,
                                  PUSH_KEYUSAGE_NONCRITICAL_APP_CERT_DER_DATA};
-    ck_assert_uint_eq(updateWithIssuer(nonCritical, issuer, crl), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(applyChanges(admin()), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(updateWithIssuer(nonCritical, issuer, crl),
+                      UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
 } END_TEST
 
 /* The CRL of the issuer is expired. Finding the revocation list is
@@ -1325,7 +1325,7 @@ int main(void) {
     tcase_add_test(tc, acceptSuppressibleErrors);
     tcase_add_test(tc, rejectV2Certificate);
     tcase_add_test(tc, acceptExpiredIssuer);
-    tcase_add_test(tc, rejectCriticalKeyUsage);
+    tcase_add_test(tc, rejectMissingKeyUsage);
     tcase_add_test(tc, acceptExpiredCrl);
     tcase_add_test(tc, rejectApplicationCertificateAsIssuer);
     tcase_add_test(tc, userTokenGroupNotVerified);

@@ -61,6 +61,11 @@ START_TEST(certificate_generation) {
     ck_assert(derPrivKey.length > 0);
     ck_assert(derCert.length > 0);
 
+    /* The certificate is self-signed. Its KeyUsage also includes keyCertSign
+     * (Part 6, 6.2.2). */
+    ck_assert_uint_eq(UA_CertificateUtils_checkApplicationKeyUsage(&derCert),
+                      UA_STATUSCODE_GOOD);
+
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     mbedtls_x509_crt parsed;
     mbedtls_x509_crt_init(&parsed);
@@ -70,10 +75,6 @@ START_TEST(certificate_generation) {
     ck_assert(!mbedtls_x509_crt_has_ext_type(&parsed,
                                              MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) ||
               !mbedtls_x509_crt_get_ca_istrue(&parsed));
-    /* The certificate is self-signed. Its KeyUsage also includes keyCertSign
-     * (Part 6, 6.2.2). */
-    ck_assert_int_eq(mbedtls_x509_crt_check_key_usage(
-                         &parsed, MBEDTLS_X509_KU_KEY_CERT_SIGN), 0);
     ck_assert_int_ne(mbedtls_x509_crt_check_key_usage(
                          &parsed, MBEDTLS_X509_KU_CRL_SIGN), 0);
     mbedtls_x509_crt_free(&parsed);
@@ -266,6 +267,8 @@ checkGeneratedCertificate(UA_ByteString *cert, const UA_ByteString *key) {
     ck_assert_uint_eq(UA_CertificateUtils_getExtendedKeyUsage(cert, &usage),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(usage, UA_CERTIFICATEEKU_SERVERAUTH | UA_CERTIFICATEEKU_CLIENTAUTH);
+    ck_assert_uint_eq(UA_CertificateUtils_checkApplicationKeyUsage(cert),
+                      UA_STATUSCODE_GOOD);
 }
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
