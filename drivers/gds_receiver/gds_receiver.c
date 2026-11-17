@@ -15,7 +15,6 @@
 #include <open62541/driver/file_transfer.h>
 
 #define UA_SHA1_LENGTH 20
-#define GDS_RECEIVER_MAX_ENDPOINTS 32
 #define STATIC_NS0ID(ID) {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
 
 typedef enum UA_GDSTransactionChanges {
@@ -1008,29 +1007,13 @@ secureChannel_delayedClose(void *application, void *context) {
     /* Shutdown SecureChannels that use an updated certificate type. If the
      * TrustList was updated, re-verify the remote certificates of the other
      * SecureChannels. Close the SecureChannel on failure. */
-    ChannelMetadata *cm;
-    UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
-    LIST_FOREACH(cm, &ctx->secureChannels, pointers) {
-        UA_Boolean closeChannel = false;
-        for(size_t i = 0; i < ctx->transaction.certificateInfosSize; i++) {
-            UA_GDSCertificateInfo *certInfo =
-                &ctx->transaction.certificateInfos[i];
-            if(UA_NodeId_equal(&cm->certificateTypeId,
-                               &certInfo->certificateType)) {
-                closeChannel = true;
-                break;
-            }
-        }
-        /* A CertificateGroup without verification accepts all certificates */
-        if(!closeChannel && trustListUpdated && certGroup->verifyCertificate) {
-            UA_StatusCode res =
-                certGroup->verifyCertificate(certGroup, &cm->certificate);
-            closeChannel = (res != UA_STATUSCODE_GOOD);
-        }
-        if(closeChannel)
-            UA_Server_closeSecureChannel(server, cm->channelId,
-                                         UA_SHUTDOWNREASON_CLOSE);
-    }
+    for(size_t i = 0; i < ctx->transaction.certificateInfosSize; i++)
+        UA_GDSChannels_closeCertificateType(
+            &ctx->secureChannels, server, NULL,
+            &ctx->transaction.certificateInfos[i].certificateType);
+    if(trustListUpdated)
+        UA_GDSChannels_closeUntrusted(&ctx->secureChannels, server,
+                                      &sc->secureChannelPKI);
 
     UA_free(changes);
     ctx->transaction.applyChangesQueued = false;
@@ -1040,16 +1023,6 @@ secureChannel_delayedClose(void *application, void *context) {
     if(ctx->pendingDelayedCallbacks == 0 &&
        ctx->drv.state == UA_LIFECYCLESTATE_STOPPING)
         ctx->drv.state = UA_LIFECYCLESTATE_STOPPED;
-}
-
-static UA_SecurityPolicy *
-getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri) {
-    for(size_t i = 0; i < sc->securityPoliciesSize; i++) {
-        UA_SecurityPolicy *sp = &sc->securityPolicies[i];
-        if(UA_String_equal(securityPolicyUri, &sp->policyUri))
-            return sp;
-    }
-    return NULL;
 }
 
 /* The receiver updates the RSA application certificates of the
@@ -1069,129 +1042,12 @@ UA_GDSReceiver_certificateTypeSupported(UA_ServerConfig *sc,
 
     for(size_t i = 0; i < sc->endpointsSize; i++) {
         UA_SecurityPolicy *sp =
-            getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
+            UA_GDS_getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
         if(sp && UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId) &&
            UA_NodeId_equal(&sp->certificateGroupId, &defaultApplicationGroup))
             return true;
     }
     return false;
-}
-
-/* Update every SecurityPolicy and endpoint that uses the certificate type.
- * First resolve all endpoint policies and allocate the replacement endpoint
- * certificates. This ensures configuration and allocation errors are reported
- * before any live policy is changed. A SecurityPolicy referenced by multiple
- * endpoints is updated only once. After all policy updates succeed, commit the
- * preallocated endpoint certificates without further fallible operations.
- *
- * SecurityPolicy implementations update their private state directly and do
- * not expose the previous private key for rollback. An unexpected failure from
- * a policy after an earlier policy succeeded is therefore logged explicitly. */
-static UA_StatusCode
-applyCertificateToPolicies(UA_ServerConfig *sc,
-                           const UA_NodeId *certificateTypeId,
-                           const UA_ByteString certificate,
-                           const UA_ByteString privateKey) {
-    if(sc->endpointsSize > GDS_RECEIVER_MAX_ENDPOINTS) {
-        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Cannot update the certificate for more than %u endpoints",
-                     (unsigned)GDS_RECEIVER_MAX_ENDPOINTS);
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-
-    UA_SecurityPolicy *policies[GDS_RECEIVER_MAX_ENDPOINTS];
-    size_t policiesSize = 0;
-    UA_ByteString endpointCertificates[GDS_RECEIVER_MAX_ENDPOINTS] = {0};
-    UA_Boolean updateEndpoint[GDS_RECEIVER_MAX_ENDPOINTS] = {0};
-
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < sc->endpointsSize; i++) {
-        UA_EndpointDescription *ed = &sc->endpoints[i];
-        UA_SecurityPolicy *sp = getSecPolicyByUri(sc, &ed->securityPolicyUri);
-        if(!sp) {
-            res = UA_STATUSCODE_BADINTERNALERROR;
-            goto cleanup;
-        }
-        if(!UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId))
-            continue;
-
-        res = UA_ByteString_copy(&certificate, &endpointCertificates[i]);
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
-        updateEndpoint[i] = true;
-
-        size_t j = 0;
-        for(; j < policiesSize; j++) {
-            if(policies[j] == sp)
-                break;
-        }
-        if(j == policiesSize)
-            policies[policiesSize++] = sp;
-    }
-
-    /* No endpoint uses the certificate type. The update would have no
-     * effect. */
-    if(policiesSize == 0)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* A SecurityPolicy#None endpoint presents the certificate of the None
-     * SecurityPolicy, which is usually the replaced certificate. Update it as
-     * well, so that all endpoints present the same certificate. */
-    for(size_t i = 0; i < sc->endpointsSize; i++) {
-        if(updateEndpoint[i])
-            continue;
-        UA_SecurityPolicy *sp =
-            getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
-        if(!sp || sp->policyType != UA_SECURITYPOLICYTYPE_NONE ||
-           sp->localCertificate.length == 0)
-            continue;
-
-        UA_Boolean replaced = false;
-        size_t j = 0;
-        for(; j < policiesSize; j++) {
-            if(policies[j] == sp)
-                break;
-            if(UA_ByteString_equal(&sp->localCertificate,
-                                   &policies[j]->localCertificate))
-                replaced = true;
-        }
-        if(j == policiesSize && !replaced)
-            continue;
-
-        res = UA_ByteString_copy(&certificate, &endpointCertificates[i]);
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
-        updateEndpoint[i] = true;
-        if(j == policiesSize)
-            policies[policiesSize++] = sp;
-    }
-
-    /* Endpoint resolution and allocations cannot fail from here onwards. */
-    for(size_t i = 0; i < policiesSize; i++) {
-        res = policies[i]->updateCertificate(policies[i], certificate,
-                                              privateKey);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "Updating the certificate failed after %u of %u "
-                         "SecurityPolicies were updated",
-                         (unsigned)i, (unsigned)policiesSize);
-            goto cleanup;
-        }
-    }
-
-    /* Commit the preallocated endpoint certificates without further errors. */
-    for(size_t i = 0; i < sc->endpointsSize; i++) {
-        if(!updateEndpoint[i])
-            continue;
-        UA_ByteString_clear(&sc->endpoints[i].serverCertificate);
-        sc->endpoints[i].serverCertificate = endpointCertificates[i];
-        endpointCertificates[i] = UA_BYTESTRING_NULL;
-    }
-
-cleanup:
-    for(size_t i = 0; i < sc->endpointsSize; i++)
-        UA_ByteString_clear(&endpointCertificates[i]);
-    return res;
 }
 
 typedef struct {
@@ -1204,13 +1060,8 @@ static void
 closeChannelsAfterCertificateUpdate(void *application, void *context) {
     CloseChannelsCallback *ccb = (CloseChannelsCallback*)context;
     UA_GDSReceiverContext *ctx = ccb->ctx;
-    ChannelMetadata *cm, *cmTmp;
-    LIST_FOREACH_SAFE(cm, &ctx->secureChannels, pointers, cmTmp) {
-        if(!UA_NodeId_equal(&cm->certificateTypeId, &ccb->certificateTypeId))
-            continue;
-        UA_Server_closeSecureChannel(ctx->drv.server, cm->channelId,
-                                     UA_SHUTDOWNREASON_CLOSE);
-    }
+    UA_GDSChannels_closeCertificateType(&ctx->secureChannels, ctx->drv.server,
+                                        NULL, &ccb->certificateTypeId);
     UA_assert(ctx->pendingDelayedCallbacks > 0);
     ctx->pendingDelayedCallbacks--;
     if(ctx->pendingDelayedCallbacks == 0 &&
@@ -1283,8 +1134,8 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
         return res;
     }
 
-    res = applyCertificateToPolicies(sc, &certificateTypeId, leafCertificate,
-                                     newPrivateKey);
+    res = UA_GDS_applyCertificateToPolicies(sc, NULL, &certificateTypeId,
+                                            leafCertificate, newPrivateKey);
     if(res != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&ccb->certificateTypeId);
         UA_free(ccb);
@@ -1368,7 +1219,7 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
 
     for(size_t i = 0; i < sc->endpointsSize; i++) {
         UA_SecurityPolicy *sp =
-            getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
+            UA_GDS_getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
         if(!sp) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
@@ -1519,8 +1370,8 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
         UA_ByteString certificate = certInfo.certificate;
         UA_ByteString privateKey = certInfo.privateKey;
 
-        retval = applyCertificateToPolicies(sc, &certTypeId, certificate,
-                                            privateKey);
+        retval = UA_GDS_applyCertificateToPolicies(sc, NULL, &certTypeId,
+                                                   certificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
             goto rollback;
         consumePendingCsr(ctx, &certTypeId, &certificate, &privateKey);
@@ -1611,55 +1462,8 @@ receiverNotificationCallback(UA_Driver *drv,
                     "Session with an open transaction has ended. "
                     "The transaction has been discarded.");
         UA_GDSTransaction_clear(transaction);
-    } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED) {
-        UA_UInt32 channelId = *(const UA_UInt32*)
-            UA_KeyValueMap_getScalar(&payload,
-                                     UA_QUALIFIEDNAME(0, "securechannel-id"),
-                                     &UA_TYPES[UA_TYPES_UINT32]);
-        UA_ByteString certificate = *(const UA_ByteString*)
-            UA_KeyValueMap_getScalar(&payload,
-                                     UA_QUALIFIEDNAME(0, "remote-certificate"),
-                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
-        const UA_NodeId *certificateTypeId = (const UA_NodeId*)
-            UA_KeyValueMap_getScalar(&payload,
-                                     UA_QUALIFIEDNAME(0, "certificate-type-id"),
-                                     &UA_TYPES[UA_TYPES_NODEID]);
-        if(!certificateTypeId)
-            return;
-
-        ChannelMetadata *cm = (ChannelMetadata*)UA_calloc(1, sizeof(ChannelMetadata));
-        if(!cm) {
-            UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
-            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
-                           "Could not register SecureChannel (oom)");
-            return;
-        }
-        cm->channelId = channelId;
-        UA_StatusCode res = UA_NodeId_copy(certificateTypeId,
-                                           &cm->certificateTypeId);
-        res |= UA_ByteString_copy(&certificate, &cm->certificate);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_NodeId_clear(&cm->certificateTypeId);
-            UA_ByteString_clear(&cm->certificate);
-            UA_free(cm);
-            return;
-        }
-        LIST_INSERT_HEAD(&ctx->secureChannels, cm, pointers);
-    } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED) {
-        UA_UInt32 channelId = *(const UA_UInt32*)
-            UA_KeyValueMap_getScalar(&payload,
-                                     UA_QUALIFIEDNAME(0, "securechannel-id"),
-                                     &UA_TYPES[UA_TYPES_UINT32]);
-        ChannelMetadata *cm;
-        LIST_FOREACH(cm, &ctx->secureChannels, pointers) {
-            if(cm->channelId != channelId)
-                continue;
-            LIST_REMOVE(cm, pointers);
-            UA_NodeId_clear(&cm->certificateTypeId);
-            UA_ByteString_clear(&cm->certificate);
-            UA_free(cm);
-            break;
-        }
+    } else {
+        UA_GDSChannels_notify(&ctx->secureChannels, drv->server, type, payload);
     }
 }
 
@@ -1730,14 +1534,7 @@ UA_GDSReceiver_free(UA_Driver *drv) {
     UA_GDSTransaction_clear(&ctx->transaction);
     UA_KeyValueMap_clear(&drv->params);
 
-    /* Free SecureChannel Metadata */
-    ChannelMetadata *cm, *cm_tmp;
-    LIST_FOREACH_SAFE(cm, &ctx->secureChannels, pointers, cm_tmp) {
-        LIST_REMOVE(cm, pointers);
-        UA_NodeId_clear(&cm->certificateTypeId);
-        UA_ByteString_clear(&cm->certificate);
-        UA_free(cm);
-    }
+    UA_GDSChannels_clear(&ctx->secureChannels);
 
     UA_GDSPendingCsr *pc, *pc_tmp;
     LIST_FOREACH_SAFE(pc, &ctx->pendingCsrs, pointers, pc_tmp) {
