@@ -2475,6 +2475,85 @@ START_TEST(trustlist_file_properties) {
 }
 END_TEST
 
+/* The values of the started receiver */
+static void
+assertReceiverValues(UA_Boolean started) {
+    const UA_NodeId privateKeyFormats =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS);
+    const UA_NodeId applicationTypes = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES);
+    const UA_NodeId userTokenTypes = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_CERTIFICATETYPES);
+    const UA_NodeId lastUpdateTime = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_LASTUPDATETIME);
+    const UA_NodeId writable = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITABLE);
+    const UA_NodeId size = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SIZE);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval = UA_Server_readValue(server, privateKeyFormats, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_STRING]));
+    ck_assert_uint_eq(value.arrayLength, (started ? 2 : 0));
+    UA_Variant_clear(&value);
+
+    retval = UA_Server_readValue(server, applicationTypes, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_NODEID]));
+    if(started)
+        ck_assert_uint_gt(value.arrayLength, 0);
+    else
+        ck_assert_uint_eq(value.arrayLength, 0);
+    UA_Variant_clear(&value);
+
+    /* The DefaultUserTokenGroup has no CertificateTypes (Part 12, 7.8.3.3) */
+    retval = UA_Server_readValue(server, userTokenTypes, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_NODEID]));
+    ck_assert_uint_eq(value.arrayLength, 0);
+    UA_Variant_clear(&value);
+
+    /* DateTime.MinValue without the receiver */
+    retval = UA_Server_readValue(server, lastUpdateTime, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    if(started)
+        ck_assert_int_ne(*(UA_DateTime*)value.data, 0);
+    else
+        ck_assert_int_eq(*(UA_DateTime*)value.data, 0);
+    UA_Variant_clear(&value);
+
+    retval = UA_Server_readValue(server, writable, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(*(UA_Boolean*)value.data == started);
+    UA_Variant_clear(&value);
+
+    /* The Size has no meaning for a TrustList (Part 12, 7.8.2.1) */
+    retval = UA_Server_readValue(server, size, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_Variant_clear(&value);
+}
+
+/* The ServerConfiguration returns to the values without the receiver when it
+ * stops */
+START_TEST(certificate_groups_after_restart) {
+    assertReceiverValues(true);
+
+    /* Stop the server with the receiver */
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    assertReceiverValues(false);
+
+    /* The restarted receiver writes its values again */
+    UA_atomic_store(&running, true);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    THREAD_CREATE(server_thread, serverloop);
+    assertReceiverValues(true);
+}
+END_TEST
+
 /* Exercise each callback contract directly, independently of method metadata. */
 START_TEST(gds_callback_argument_counts) {
     const struct {
@@ -2586,6 +2665,7 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
     tcase_add_test(tc_cert, trustlist_file_properties);
+    tcase_add_test(tc_cert, certificate_groups_after_restart);
     tcase_add_test(tc_cert, open_trustlist_with_mask);
     tcase_add_test(tc_cert, apply_changes_without_transaction);
     tcase_add_test(tc_cert, open_continues_transaction);
