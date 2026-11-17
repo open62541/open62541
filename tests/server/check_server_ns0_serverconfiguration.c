@@ -92,6 +92,21 @@ START_TEST(applicationNames) {
     UA_Variant_clear(&value);
 } END_TEST
 
+/* The server does not implement the application setup state */
+START_TEST(inApplicationSetup) {
+#ifdef UA_NS0ID_SERVERCONFIGURATION_INAPPLICATIONSETUP
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_INAPPLICATIONSETUP);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(!dv.hasStatus || dv.status == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&dv.value, &UA_TYPES[UA_TYPES_BOOLEAN]));
+    ck_assert(*(UA_Boolean*)dv.value.data == false);
+    UA_DataValue_clear(&dv);
+#endif
+} END_TEST
+
 /* The ServerCapabilities are read from the started server. The expected
  * identifiers are a comma-separated list in the order of the bits. */
 static void
@@ -125,6 +140,7 @@ testSuite_serverConfiguration(void) {
     tcase_add_test(tc, applicationUri);
     tcase_add_test(tc, productUri);
     tcase_add_test(tc, applicationNames);
+    tcase_add_test(tc, inApplicationSetup);
     tcase_add_test(tc, serverCapabilities);
 
     Suite *s = suite_create("NS0 ServerConfiguration");

@@ -1264,6 +1264,17 @@ configureNS0(UA_Server *server) {
                                    &hasSecureElement, &UA_TYPES[UA_TYPES_BOOLEAN]);
     }
 
+#ifdef UA_NS0ID_SERVERCONFIGURATION_INAPPLICATIONSETUP
+    /* ServerConfiguration - InApplicationSetup [optional]. The server does not
+     * implement the application setup state (Part 12, 7.10.3 and G.2). Without
+     * a value, the Read of the Boolean returns BadWaitingForInitialData. */
+    {
+        UA_Boolean inApplicationSetup = false;
+        retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_INAPPLICATIONSETUP,
+                                   &inApplicationSetup, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    }
+#endif
+
     /* ServerConfiguration - ApplicationUri, ProductUri and ApplicationType are
      * written at startup by writeNs0ApplicationDescription. ServerCapabilities
      * is written at startup by writeNs0ServerCapabilities. */
