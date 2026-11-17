@@ -128,9 +128,27 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
                                       const UA_ByteString *certificate2);
 
+/* Checks that the public key of the private key matches the public key of the
+ * certificate. Only the public components are compared. Use
+ * UA_CertificateUtils_checkPrivateKey to check the private components.
+ *
+ * @return UA_STATUSCODE_GOOD if the public keys match,
+ *         UA_STATUSCODE_BADSECURITYCHECKSFAILED if the private key does not
+ *         decode or the public keys do not match. */
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
                                  const UA_ByteString *privateKey);
+
+/* Checks the structure of a private key. The key must be properly DER or
+ * PEM encoded and must not be encrypted. In addition, the private and public
+ * components must form a valid key pair and the private components (for example
+ * d or p of an RSA key) must fit together.
+ *
+ * @return UA_STATUSCODE_GOOD if the private key is valid,
+ *         UA_STATUSCODE_BADSECURITYCHECKSFAILED if it does not decode or its
+ *         components do not form a key pair. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_checkPrivateKey(const UA_ByteString *privateKey);
 
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate);

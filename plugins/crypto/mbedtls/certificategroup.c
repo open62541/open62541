@@ -1210,6 +1210,19 @@ cleanup:
 }
 
 UA_StatusCode
+UA_CertificateUtils_checkPrivateKey(const UA_ByteString *privateKey) {
+    if(!certificateGroupValidByteString(privateKey))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    UA_StatusCode retval = UA_mbedTLS_LoadPrivateKey(privateKey, &pk);
+    if(retval == UA_STATUSCODE_GOOD && UA_mbedTLS_compat_checkPrivateKey(&pk) != 0)
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    mbedtls_pk_free(&pk);
+    return retval;
+}
+
+UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(!certificateGroupValidByteString(certificate))
         return UA_STATUSCODE_BADINVALIDARGUMENT;

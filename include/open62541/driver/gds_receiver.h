@@ -71,7 +71,10 @@ UA_GDSReceiver_new(void);
  * Receiver driver must be attached and started. If certificateGroupId is
  * null, the DefaultApplicationGroup is used. Returns BadInvalidArgument for a
  * null receiver or empty certificate and BadInvalidState if the receiver is
- * not attached and started. This function is thread-safe. */
+ * not attached and started. Returns BadNotSupported if the privateKey does not
+ * decode, is encrypted or its components do not form a key pair, and
+ * BadCertificateInvalid if a valid privateKey does not match the certificate.
+ * This function is thread-safe. */
 UA_EXPORT UA_StatusCode
 UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
                                 const UA_NodeId certificateGroupId,

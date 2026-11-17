@@ -93,6 +93,9 @@ START_TEST(CertificateUtils_StubsAreSafeWithoutEncryption) {
     rv = UA_CertificateUtils_checkKeyPair(&cert, &key);
     ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
 
+    rv = UA_CertificateUtils_checkPrivateKey(&key);
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
+
     rv = UA_CertificateUtils_checkCA(&cert);
     ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
 }

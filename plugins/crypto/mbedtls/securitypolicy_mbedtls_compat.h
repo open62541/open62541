@@ -19,6 +19,11 @@ UA_mbedTLS_compat_parsePrivateKey(mbedtls_pk_context *target,
                                   const unsigned char *password,
                                   size_t passwordLength);
 
+/* Checks that the components of a parsed private key form a key pair. Returns
+ * 0 if they do. */
+int
+UA_mbedTLS_compat_checkPrivateKey(const mbedtls_pk_context *key);
+
 UA_Boolean
 UA_mbedTLS_compat_isEccKeyPair(const mbedtls_pk_context *key);
 

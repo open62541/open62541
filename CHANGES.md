@@ -3,6 +3,20 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### UpdateCertificate checks the PrivateKey by itself
+
+The UpdateCertificate Method and `UA_GDSReceiver_updateCertificate` return
+`BadCertificateInvalid` instead of `BadNotSupported` if a valid PrivateKey does
+not match the certificate. `BadNotSupported` is now reserved for a PrivateKey
+that is invalid by itself: it does not decode, it is encrypted, or its
+components do not form a key pair. Before, a PrivateKey with changed private
+components (for example `d` or `p` of an RSA key) was accepted because its
+public key still matched the certificate.
+
+The new `UA_CertificateUtils_checkPrivateKey` in
+`open62541/plugin/certificategroup.h` performs this check.
+`UA_CertificateUtils_checkKeyPair` still compares only the public keys.
+
 ### A CertificateGroup without verifyCertificate accepts all certificates
 
 `UA_CertificateGroup_AcceptAll` now leaves `verifyCertificate` NULL, and the

@@ -37,6 +37,10 @@
 #include "certificates.h"
 #include "thread_wrapper.h"
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include <mbedtls/version.h>
+#endif
+
 /* memmem is a GNU extension (declared in <string.h> with _GNU_SOURCE on
  * glibc). Provide a portable fallback for MSVC and other non-glibc targets
  * so the PEM-header check below compiles on all platforms supported by the
@@ -213,6 +217,74 @@ START_TEST(check_key_pair_mismatch) {
     key.data = KEY_DER_DATA;
     UA_StatusCode retval = UA_CertificateUtils_checkKeyPair(&cert, &key);
     ck_assert(retval != UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(check_private_key_valid) {
+    UA_ByteString key = {KEY_DER_LENGTH, KEY_DER_DATA};
+    ck_assert_uint_eq(UA_CertificateUtils_checkPrivateKey(&key), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+/* The last byte of KEY_DER_DATA belongs to qInv, a private component of the
+ * RSA key. Its public key still matches CERT_DER_DATA. OpenSSL and mbedTLS 3
+ * still decode the key. Then only the check of the private key finds the
+ * change. mbedTLS 4 checks the private components when it decodes the key. */
+START_TEST(check_private_key_changed_component) {
+    UA_ByteString cert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString original = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_ByteString key;
+    ck_assert_uint_eq(UA_ByteString_copy(&original, &key), UA_STATUSCODE_GOOD);
+    key.data[key.length - 1] ^= 0xff;
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && MBEDTLS_VERSION_NUMBER >= 0x04000000
+    ck_assert_uint_eq(UA_CertificateUtils_checkKeyPair(&cert, &key),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+#else
+    ck_assert_uint_eq(UA_CertificateUtils_checkKeyPair(&cert, &key), UA_STATUSCODE_GOOD);
+#endif
+    ck_assert_uint_eq(UA_CertificateUtils_checkPrivateKey(&key),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    UA_ByteString_clear(&key);
+}
+END_TEST
+
+/* KEY_P256_DER_DATA is a SEC1 key that ends with the y coordinate of its
+ * public point Q = d*G. The y coordinate is replaced with p - y. The point
+ * -Q = (x, p - y) is on the curve, so the key still decodes. But -Q is not
+ * d*G. */
+START_TEST(check_private_key_ecc_wrong_public_point) {
+    static const UA_Byte p[32] = {
+        0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    UA_ByteString original = {KEY_P256_DER_LENGTH, KEY_P256_DER_DATA};
+    ck_assert_uint_eq(UA_CertificateUtils_checkPrivateKey(&original),
+                      UA_STATUSCODE_GOOD);
+    UA_ByteString key;
+    ck_assert_uint_eq(UA_ByteString_copy(&original, &key), UA_STATUSCODE_GOOD);
+    UA_Byte *y = &key.data[key.length - sizeof(p)];
+    unsigned borrow = 0;
+    for(size_t i = sizeof(p); i > 0; i--) {
+        unsigned diff = (unsigned)p[i - 1] - y[i - 1] - borrow;
+        y[i - 1] = (UA_Byte)diff;
+        borrow = (diff >> 8) & 1;
+    }
+    ck_assert_uint_eq(UA_CertificateUtils_checkPrivateKey(&key),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    UA_ByteString_clear(&key);
+}
+END_TEST
+
+/* A certificate is not a private key. An encrypted private key cannot be
+ * decoded without its password. */
+START_TEST(check_private_key_not_decodable) {
+    UA_ByteString cert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    ck_assert_uint_eq(UA_CertificateUtils_checkPrivateKey(&cert),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    UA_ByteString encrypted = {KEY_PEM_PASSWORD_3DES_LENGTH, KEY_PEM_PASSWORD_3DES_DATA};
+    ck_assert_uint_eq(UA_CertificateUtils_checkPrivateKey(&encrypted),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 }
 END_TEST
 
@@ -1046,6 +1118,10 @@ static Suite *testSuite_crypto_coverage(void) {
     tcase_add_test(tc_utils, compare_public_keys_different);
     tcase_add_test(tc_utils, check_key_pair_valid);
     tcase_add_test(tc_utils, check_key_pair_mismatch);
+    tcase_add_test(tc_utils, check_private_key_valid);
+    tcase_add_test(tc_utils, check_private_key_changed_component);
+    tcase_add_test(tc_utils, check_private_key_ecc_wrong_public_point);
+    tcase_add_test(tc_utils, check_private_key_not_decodable);
     tcase_add_test(tc_utils, check_ca_true);
     tcase_add_test(tc_utils, check_ca_false);
     tcase_add_test(tc_utils, decrypt_private_key_no_password);
