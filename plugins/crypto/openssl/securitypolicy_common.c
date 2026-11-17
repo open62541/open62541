@@ -1405,6 +1405,17 @@ cleanup:
     return retval;
 }
 
+/* Without a callback, OpenSSL asking for the password of an encrypted
+ * private key blocks the caller. */
+static int
+noPrivateKeyPassword(char *buf, int size, int rwflag, void *userdata) {
+    (void)buf;
+    (void)size;
+    (void)rwflag;
+    (void)userdata;
+    return -1;
+}
+
 EVP_PKEY *
 UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
     if(privateKey->length == 0)
@@ -1418,9 +1429,9 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
     result = d2i_PrivateKey_bio(bio, NULL);
 
     if(result == NULL) {
-        /* Try to read PEM encoded private key */
+        /* Try to read PEM encoded private key, skipping encrypted keys. */
         (void)BIO_reset(bio);
-        result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+        result = PEM_read_bio_PrivateKey(bio, NULL, noPrivateKeyPassword, NULL);
     }
     BIO_free(bio);
 

@@ -560,6 +560,42 @@ UA_Byte KEY_PEM_PASSWORD_3DES_DATA[KEY_PEM_PASSWORD_3DES_LENGTH] = {
     0x56, 0x41, 0x54, 0x45, 0x20, 0x4b, 0x45, 0x59, 0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x0a
 };
 
+/* KEY_DER_DATA, the key of CERT_DER_DATA, encrypted with the password
+ * pass1234. Generated via:
+ * openssl pkcs8 -topk8 -inform DER -v2 aes-256-cbc -in key.der -out key-encrypted.pem */
+UA_Byte KEY_ENCRYPTED_PEM_DATA[] =
+    "-----BEGIN ENCRYPTED PRIVATE KEY-----\n"
+    "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\n"
+    "-----END ENCRYPTED PRIVATE KEY-----\n";
+#define KEY_ENCRYPTED_PEM_LENGTH (sizeof(KEY_ENCRYPTED_PEM_DATA) - 1)
+
 #define ROOT_CERT_DER_LENGTH 2000
 UA_Byte ROOT_CERT_DER_DATA[2000] = {
   0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x42, 0x45, 0x47, 0x49, 0x4e, 0x20, 0x43, 0x45, 0x52, 0x54, 0x49,

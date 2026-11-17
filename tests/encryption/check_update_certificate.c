@@ -144,6 +144,23 @@ START_TEST(update_certificate_wrongKey) {
 }
 END_TEST
 
+/* Part 12, 7.10.5: Bad_NotSupported if the PrivateKey is invalid or its format
+ * is not supported. UpdateCertificate has no password argument. So the Server
+ * cannot use an encrypted PrivateKey, also if it matches the certificate. */
+START_TEST(update_certificate_encryptedKey) {
+    UA_ByteString newCertificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString encryptedKey = {KEY_ENCRYPTED_PEM_LENGTH, KEY_ENCRYPTED_PEM_DATA};
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, &encryptedKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+}
+END_TEST
+
 /* A changed byte in the public key of the certificate keeps the certificate
  * parseable. The certificate is verified before the PrivateKey is checked
  * against it. So the certificate is invalid and not the PrivateKey. */
@@ -419,6 +436,7 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, update_certificate);
     tcase_add_test(tc_cert, update_certificate_wrongKey);
+    tcase_add_test(tc_cert, update_certificate_encryptedKey);
     tcase_add_test(tc_cert, update_certificate_corruptedPublicKey);
     tcase_add_test(tc_cert, update_certificate_noKey);
     tcase_add_test(tc_cert, certificate_types_configured);
@@ -437,6 +455,7 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert_filestore, update_certificate);
     tcase_add_test(tc_cert_filestore, update_certificate_wrongKey);
+    tcase_add_test(tc_cert_filestore, update_certificate_encryptedKey);
     tcase_add_test(tc_cert_filestore, update_certificate_corruptedPublicKey);
     tcase_add_test(tc_cert_filestore, update_certificate_noKey);
     tcase_add_test(tc_cert_filestore, certificate_types_configured_filestore);
