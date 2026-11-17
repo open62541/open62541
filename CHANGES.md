@@ -3,6 +3,16 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### The ServerConfiguration Object needs the GDS receiver driver
+
+The ServerConfiguration Object (`ns=0;i=12637`) is only present if the server
+supports PushManagement (Part 12, 7.10.1). Builds without
+`UA_ENABLE_DRIVER_GDS_RECEIVER` no longer contain it. Before, they contained it
+with Variables without a value and Methods that returned `Bad_InternalError`.
+With `UA_ENABLE_DRIVER_GDS_RECEIVER`, all Variables of the ServerConfiguration
+have a value also while the driver is not started, and the driver restores
+these values when it stops.
+
 ### UpdateCertificate checks the PrivateKey by itself
 
 The UpdateCertificate Method and `UA_GDSReceiver_updateCertificate` return

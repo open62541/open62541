@@ -1306,6 +1306,13 @@ UA_Server_run_startup(UA_Server *server) {
                        "ServerConfiguration object (%s)",
                        UA_StatusCode_name(capRes));
 
+    UA_StatusCode tlRes = writeNs0MaxTrustListSize(server);
+    if(tlRes != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                       "Could not write the MaxTrustListSize to the "
+                       "ServerConfiguration object (%s)",
+                       UA_StatusCode_name(tlRes));
+
     /* Sample the start time and set it to the Server object */
     server->startTime = el->dateTime_now(el);
     UA_Variant_init(&var);
