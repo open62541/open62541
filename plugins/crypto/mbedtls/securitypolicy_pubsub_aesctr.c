@@ -23,7 +23,7 @@ typedef struct {
 } PubSubAesCtrPolicyContext;
 
 typedef struct {
-    UA_mbedTLS_PsaKey signingKey;
+    UA_mbedTLS_HmacState signing; /* HMAC-SHA256 */
     UA_mbedTLS_PsaKey encryptingKey;
     UA_Byte keyNonce[UA_PUBSUB_AESCTR_KEYNONCE_LENGTH];
     UA_Byte messageNonce[UA_PUBSUB_AESCTR_MESSAGENONCE_LENGTH];
@@ -45,9 +45,7 @@ verify(const UA_PubSubSecurityPolicy *policy, void *gContext,
     if(signature->length != UA_PUBSUB_AESCTR_SIGNING_KEY_LENGTH)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     PubSubAesCtrChannelContext *cc = (PubSubAesCtrChannelContext*)gContext;
-    return UA_mbedTLS_PsaMacVerify(cc->signingKey.id,
-                                  PSA_ALG_HMAC(PSA_ALG_SHA_256),
-                                  message, signature);
+    return UA_mbedTLS_HmacState_verify(&cc->signing, message, signature);
 }
 
 static UA_StatusCode
@@ -59,9 +57,7 @@ sign(const UA_PubSubSecurityPolicy *policy, void *gContext,
     if(signature->length != UA_PUBSUB_AESCTR_SIGNING_KEY_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
     PubSubAesCtrChannelContext *cc = (PubSubAesCtrChannelContext*)gContext;
-    return UA_mbedTLS_PsaMacCompute(cc->signingKey.id,
-                                   PSA_ALG_HMAC(PSA_ALG_SHA_256),
-                                   message, signature);
+    return UA_mbedTLS_HmacState_sign(&cc->signing, message, signature);
 }
 
 static size_t
@@ -143,7 +139,7 @@ deleteGroupContext(UA_PubSubSecurityPolicy *policy, void *gContext) {
     PubSubAesCtrChannelContext *cc = (PubSubAesCtrChannelContext*)gContext;
     if(!cc)
         return;
-    UA_mbedTLS_PsaKey_clear(&cc->signingKey);
+    UA_mbedTLS_HmacState_clear(&cc->signing);
     UA_mbedTLS_PsaKey_clear(&cc->encryptingKey);
     UA_free(cc);
 }
@@ -173,14 +169,13 @@ newGroupContext(UA_PubSubSecurityPolicy *policy,
         (PubSubAesCtrChannelContext*)UA_calloc(1, sizeof(*cc));
     if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_mbedTLS_PsaKey_init(&cc->signingKey);
+    UA_mbedTLS_HmacState_init(&cc->signing);
     UA_mbedTLS_PsaKey_init(&cc->encryptingKey);
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(signingKey)
-        res = UA_mbedTLS_PsaKey_import(&cc->signingKey, PSA_KEY_TYPE_HMAC,
-            PSA_KEY_USAGE_SIGN_MESSAGE | PSA_KEY_USAGE_VERIFY_MESSAGE,
-            PSA_ALG_HMAC(PSA_ALG_SHA_256), signingKey);
+        res = UA_mbedTLS_HmacState_setKey(&cc->signing, PSA_ALG_SHA_256,
+                                          signingKey);
     if(res == UA_STATUSCODE_GOOD && encryptingKey)
         res = UA_mbedTLS_PsaKey_import(&cc->encryptingKey, PSA_KEY_TYPE_AES,
             PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT,
@@ -211,30 +206,24 @@ setSecurityKeys(UA_PubSubSecurityPolicy *policy, void *gContext,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     PubSubAesCtrChannelContext *cc = (PubSubAesCtrChannelContext*)gContext;
-    UA_mbedTLS_PsaKey newSigningKey;
     UA_mbedTLS_PsaKey newEncryptingKey;
-    UA_mbedTLS_PsaKey_init(&newSigningKey);
     UA_mbedTLS_PsaKey_init(&newEncryptingKey);
-    UA_StatusCode res = UA_mbedTLS_PsaKey_import(&newSigningKey,
-        PSA_KEY_TYPE_HMAC,
-        PSA_KEY_USAGE_SIGN_MESSAGE | PSA_KEY_USAGE_VERIFY_MESSAGE,
-        PSA_ALG_HMAC(PSA_ALG_SHA_256), signingKey);
-    if(res == UA_STATUSCODE_GOOD)
-        res = UA_mbedTLS_PsaKey_import(&newEncryptingKey, PSA_KEY_TYPE_AES,
-            PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT,
-            PSA_ALG_CTR, encryptingKey);
-    if(res == UA_STATUSCODE_GOOD) {
-        UA_mbedTLS_PsaKey_clear(&cc->signingKey);
-        cc->signingKey = newSigningKey;
-        UA_mbedTLS_PsaKey_init(&newSigningKey);
-        UA_mbedTLS_PsaKey_clear(&cc->encryptingKey);
-        cc->encryptingKey = newEncryptingKey;
-        UA_mbedTLS_PsaKey_init(&newEncryptingKey);
-        memcpy(cc->keyNonce, keyNonce->data, keyNonce->length);
+    UA_StatusCode res = UA_mbedTLS_PsaKey_import(&newEncryptingKey,
+        PSA_KEY_TYPE_AES, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT,
+        PSA_ALG_CTR, encryptingKey);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* On failure the group has no signing key */
+    res = UA_mbedTLS_HmacState_setKey(&cc->signing, PSA_ALG_SHA_256, signingKey);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_mbedTLS_PsaKey_clear(&newEncryptingKey);
+        return res;
     }
-    UA_mbedTLS_PsaKey_clear(&newSigningKey);
-    UA_mbedTLS_PsaKey_clear(&newEncryptingKey);
-    return res;
+    UA_mbedTLS_PsaKey_clear(&cc->encryptingKey);
+    cc->encryptingKey = newEncryptingKey;
+    memcpy(cc->keyNonce, keyNonce->data, keyNonce->length);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
