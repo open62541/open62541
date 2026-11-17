@@ -329,6 +329,34 @@ START_TEST(parseRelativePathWithServer) {
     UA_Server_delete(server);
 } END_TEST
 
+START_TEST(parseRelativePathWithServerStringRefType) {
+    UA_Server *server = UA_Server_newForUnitTest();
+
+    /* Add a custom reference type with a string NodeId */
+    UA_NodeId refTypeId = UA_NODEID_STRING(1, "MyStringRef");
+    UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+    refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyStringRef");
+    refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMyString");
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyStringRef");
+    UA_StatusCode res =
+        UA_Server_addReferenceTypeNode(server, refTypeId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       browseName, refattr, NULL, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The parsed path owns the string NodeId of the reference type */
+    UA_RelativePath rp;
+    res = UA_RelativePath_parseWithServer(server, &rp,
+                                          UA_STRING("/1:Boiler<1:MyStringRef>1:HeatSensor"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rp.elementsSize, 2);
+    ck_assert(UA_NodeId_equal(&rp.elements[1].referenceTypeId, &refTypeId));
+    UA_RelativePath_clear(&rp);
+
+    UA_Server_delete(server);
+} END_TEST
+
 START_TEST(parseSimpleAttributeOperand) {
     UA_String sao1_str = UA_STRING("");
     UA_SimpleAttributeOperand sao1;
@@ -523,6 +551,7 @@ int main(void) {
     tcase_add_test(tc, parseRelativePath);
     tcase_add_test(tc, parseRelativePathMalformed);
     tcase_add_test(tc, parseRelativePathWithServer);
+    tcase_add_test(tc, parseRelativePathWithServerStringRefType);
     tcase_add_test(tc, parseSimpleAttributeOperand);
     tcase_add_test(tc, printSimpleAttributeOperand);
     tcase_add_test(tc, attributeOperandByteStringRoundtrip);

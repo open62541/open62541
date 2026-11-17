@@ -905,14 +905,15 @@ lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId) 
             if(UA_QualifiedName_equal(qn, &bn)) {
                 UA_QualifiedName_clear(&bn);
                 *outRefTypeId = results[i].nodeId;
-                UA_NodeId_clear(&results[i].nodeId);
-                UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_NODEID]);
+                UA_NodeId_init(&results[i].nodeId);
+                UA_Array_delete(results, resultsSize,
+                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
                 return UA_STATUSCODE_GOOD;
             }
             UA_QualifiedName_clear(&bn);
         }
 
-        UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     }
 
     return UA_STATUSCODE_BADNOTFOUND;
