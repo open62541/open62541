@@ -132,6 +132,18 @@ static void run(UA_EventLoop *el, UA_Boolean *done) {
     ck_assert(*done);
 }
 
+static void
+stopEventLoop(UA_EventLoop *el) {
+    el->stop(el);
+    /* run() may return immediately while LWS has pending work. Bound the
+     * asynchronous shutdown by elapsed time, not the number of iterations. */
+    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 10 * UA_DATETIME_SEC;
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+          UA_DateTime_nowMonotonic() < deadline)
+        ck_assert_uint_eq(el->run(el, 50), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+}
+
 static UA_ConnectionManager *
 findWebSocketConnectionManager(UA_EventLoop *el) {
     const UA_String websocket = UA_STRING_STATIC("websocket");
@@ -202,13 +214,7 @@ START_TEST(clientConnectionFailureIsNotReentrant) {
     run(el, &ctx.clientClosed);
     ck_assert(!ctx.closingWasReentrant);
 
-    el->stop(el);
-    UA_Boolean stopped = false;
-    for(size_t i = 0; i < 200 && !stopped; i++) {
-        el->run(el, 50);
-        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
-    }
-    ck_assert(stopped);
+    stopEventLoop(el);
     el->free(el);
 }
 END_TEST
@@ -331,10 +337,7 @@ START_TEST(clientServerBinary) {
                       UA_STATUSCODE_GOOD);
     run(el, &ctx.clientClosed);
 
-    el->stop(el);
-    UA_Boolean stopped = false;
-    for(size_t i = 0; i < 200 && !stopped; i++) { el->run(el, 50); stopped = el->state == UA_EVENTLOOPSTATE_STOPPED; }
-    ck_assert(stopped);
+    stopEventLoop(el);
     el->free(el);
 }
 END_TEST
@@ -914,13 +917,7 @@ START_TEST(clientServerRejectsPolicyMismatch) {
     }
     ck_assert(connected);
 
-    el->stop(el);
-    UA_Boolean stopped = false;
-    for(size_t i = 0; i < 200 && !stopped; i++) {
-        el->run(el, 50);
-        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
-    }
-    ck_assert(stopped);
+    stopEventLoop(el);
     el->free(el);
 }
 END_TEST
@@ -980,13 +977,7 @@ START_TEST(clientServerTlsCaCertificate) {
     ck_assert(connected);
     UA_ByteString_clear(&certificate);
 
-    el->stop(el);
-    UA_Boolean stopped = false;
-    for(size_t i = 0; i < 200 && !stopped; i++) {
-        el->run(el, 50);
-        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
-    }
-    ck_assert(stopped);
+    stopEventLoop(el);
     el->free(el);
 }
 END_TEST
