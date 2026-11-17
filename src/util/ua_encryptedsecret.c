@@ -423,6 +423,15 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         goto cleanecc;
     }
 
+    /* The policy header is decoded against the whole ByteString. It must end
+     * before the signature and leave at least one payload byte. */
+    if(offset >= signedDataLen) {
+        UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
+                             "Inconsistent payload / signature length");
+        res = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        goto cleanecc;
+    }
+
     UA_ByteString payload = {endOfSecret - offset - sigLen, es->data + offset};
 
     /* Deriving (remote) symmetric encryption key to decrypt the payload.
