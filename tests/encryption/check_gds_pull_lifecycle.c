@@ -2389,6 +2389,30 @@ START_TEST(reconnectDuringFinishRetryKeepsRequestBinding) {
     UA_NodeId_clear(&requestB);
 } END_TEST
 
+/* 6.3 only delays the second cycle. The first cycle starts when the driver is
+ * started and does not wait for the cycle interval. */
+#define FIRST_CYCLE_INTERVAL_MS 10000
+
+START_TEST(firstCycleStartsRightAway) {
+    setCycleInterval(FIRST_CYCLE_INTERVAL_MS);
+
+    UA_DateTime started = UA_DateTime_nowMonotonic();
+    startup();
+    ck_assert(runUntil(UA_GDSPULL_CYCLE_FINISHED, 1));
+    UA_DateTime first =
+        notifications[positionOf(UA_GDSPULL_CYCLE_STARTED, 1)].time - started;
+    printf("Start -> cycle 1: %lld ms\n", (long long)(first / UA_DATETIME_MSEC));
+
+    /* Generous bound for slow hosts. A first cycle that waits for the cycle
+     * interval takes 10 s. */
+    ck_assert_int_lt(first,
+                     (UA_DateTime)FIRST_CYCLE_INTERVAL_MS / 2 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(countNotifications(UA_GDSPULL_CYCLE_STARTED), 1);
+    ck_assert_uint_eq(snapshot().getCertificateGroups, 1);
+
+    shutdownRequester();
+} END_TEST
+
 /* 6.3: The second cycle starts with a random delay of 1% to 10% of the cycle
  * period, so that applications started at the same time do not contact the
  * CertificateManager at the same time in every cycle. The cycles after it keep
@@ -3156,6 +3180,7 @@ main(void) {
     tcase_add_test(tc, trustListUpdateClosesUntrustedChannels);
     tcase_add_test(tc, certificateNotMatchingKeyIsNotInstalled);
     tcase_add_test(tc, reconnectDuringFinishRetryKeepsRequestBinding);
+    tcase_add_test(tc, firstCycleStartsRightAway);
     tcase_add_test(tc, secondCycleStartsWithRandomDelay);
     tcase_add_test(tc, unassignedGroupIsJoinedBySigningRequest);
     tcase_add_test(tc, startSigningResponseAfterCycleTimeoutIsKept);

@@ -97,10 +97,11 @@ typedef void (*UA_GDSPullRequesterNotificationCallback)(
  * PullManagement method. Without it, no method is called: a cycle connects to
  * the CertificateManager, logs a warning and closes the connection again.
  *
- * The first cycle starts cycle-interval milliseconds after the driver is
- * started. The second cycle starts with an additional random delay of 1% to
- * 10% of cycle-interval (Part 12, 6.3), every later cycle one cycle-interval
- * after its predecessor. A cycle that has not finished cycle-timeout
+ * The first cycle starts as soon as the server's EventLoop runs after the
+ * driver is started, so every start (and restart) of the driver contacts the
+ * CertificateManager right away. The second cycle starts one cycle-interval
+ * plus a random delay of 1% to 10% of cycle-interval after the first one
+ * (Part 12, 6.3), every later cycle one cycle-interval after its predecessor. A cycle that has not finished cycle-timeout
  * milliseconds after it started is aborted and the connection to the
  * CertificateManager is closed. A cycle-interval or cycle-timeout of 0 selects
  * the default on the first start and keeps the current value on a later

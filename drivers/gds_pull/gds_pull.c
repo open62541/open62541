@@ -2591,6 +2591,7 @@ UA_GDSPull_runWorkflowCallback(UA_Server *server, void *data);
  * server and undo the random delay. */
 static UA_StatusCode
 UA_GDSPull_scheduleNextCycle(UA_Server *server, UA_GDSPullContext *ctx) {
+    UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_UInt32 interval = ctx->conf.cycleInterval;
     UA_DateTime delay = (UA_DateTime)interval * UA_DATETIME_MSEC;
     if(!ctx->secondCycleDelayed) {
@@ -2599,10 +2600,14 @@ UA_GDSPull_scheduleNextCycle(UA_Server *server, UA_GDSPullContext *ctx) {
         UA_UInt32 jitter = lo + UA_UInt32_random() % (hi - lo + 1);
         delay += (UA_DateTime)jitter * UA_DATETIME_MSEC;
         ctx->secondCycleDelayed = true;
+        /* The first cycle is due when the driver is started, but runs only
+         * when the EventLoop gets to it, e.g. after the rest of the server
+         * startup. Measure the delay from the actual start of the first cycle,
+         * so that this latency does not shorten the random delay. */
+        ctx->nextCycleTime = now;
     }
 
     /* Do not catch up with cycles that were missed */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
     ctx->nextCycleTime += delay;
     if(ctx->nextCycleTime < now)
         ctx->nextCycleTime = now + delay;
@@ -2917,9 +2922,11 @@ UA_GDSPull_start(UA_Driver *drv) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* The first cycle starts one period after the start */
-    ctx->nextCycleTime = UA_DateTime_nowMonotonic() +
-        (UA_DateTime)ctx->conf.cycleInterval * UA_DATETIME_MSEC;
+    /* The first cycle starts right away. Part 12, 6.3 only delays the second
+     * cycle. The cycle runs from the timer and not from here: the driver is
+     * STARTED only after this function returns, and start() can be called
+     * before the EventLoop runs. */
+    ctx->nextCycleTime = UA_DateTime_nowMonotonic();
     ctx->secondCycleDelayed = false;
     res = UA_Server_addTimedCallback(
         drv->server, UA_GDSPull_runWorkflowCallback, ctx, ctx->nextCycleTime,
