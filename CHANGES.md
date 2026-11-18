@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Explicit key-derivation direction
+
+`UA_SecurityPolicy.generateKey` takes `UA_KeyDerivationDirection` with
+`UA_KEYDERIVATION_LOCAL` for sending keys and `UA_KEYDERIVATION_REMOTE` for
+receiving keys. Its nonce arguments are always `localNonce, remoteNonce`.
+Custom policies must select the protocol's nonce order and derivation label
+from the direction, instead of inferring direction from the nonce values.
+
 ### Explicit sequence-number handling
 
 `UA_SecurityPolicy.legacySequenceNumbers` replaces the removed

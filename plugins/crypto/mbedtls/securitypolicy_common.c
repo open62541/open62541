@@ -676,45 +676,18 @@ psaEccGenerateSalt(size_t length, const UA_ByteString *label,
 
 UA_StatusCode
 UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
-                        const UA_ApplicationType applicationType,
                         const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
-                        const UA_ByteString *key1,
-                        const UA_ByteString *key2,
-                        UA_ByteString *output,
-                        UA_Boolean sessionSecret) {
-    if(!localEphemeralKeyPair || !mbedtlsValidByteString(key1) ||
-       !mbedtlsValidByteString(key2) || !mbedtlsValidByteString(output))
+                        const UA_ByteString *remotePublic,
+                        const UA_ByteString *firstNonce,
+                        const UA_ByteString *secondNonce,
+                        const UA_ByteString *label, UA_ByteString *output) {
+    if(!localEphemeralKeyPair || !mbedtlsValidByteString(firstNonce) ||
+       !mbedtlsValidByteString(secondNonce) || !mbedtlsValidByteString(output) ||
+       firstNonce->length == 0 || firstNonce->length != secondNonce->length)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_Byte encoded[PSA_EXPORT_PUBLIC_KEY_MAX_SIZE];
-    size_t encodedLength = 0;
-    if(psa_export_public_key(localEphemeralKeyPair->id, encoded, sizeof(encoded),
-                             &encodedLength) != PSA_SUCCESS ||
-       encodedLength != key1->length + 1 || encoded[0] != 0x04)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    UA_ByteString localPublic = {encodedLength - 1, encoded + 1};
-
-    const UA_ByteString *remotePublic = NULL;
-    const UA_ByteString *label = NULL;
-    static const UA_ByteString serverLabel = UA_STRING_STATIC("opcua-server");
-    static const UA_ByteString clientLabel = UA_STRING_STATIC("opcua-client");
-    static const UA_ByteString sessionLabel = UA_STRING_STATIC("opcua-secret");
-    if(sessionSecret) {
-        label = &sessionLabel;
-        remotePublic = (applicationType == UA_APPLICATIONTYPE_SERVER) ? key2 : key1;
-    } else if(UA_ByteString_equal(&localPublic, key1)) {
-        remotePublic = key2;
-        label = (applicationType == UA_APPLICATIONTYPE_SERVER) ?
-            &clientLabel : &serverLabel;
-    } else if(UA_ByteString_equal(&localPublic, key2)) {
-        remotePublic = key1;
-        label = (applicationType == UA_APPLICATIONTYPE_SERVER) ?
-            &serverLabel : &clientLabel;
-    } else {
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
 
     UA_Byte remoteEncoded[PSA_EXPORT_PUBLIC_KEY_MAX_SIZE];
-    if(remotePublic->length + 1 > sizeof(remoteEncoded))
+    if(remotePublic->length >= sizeof(remoteEncoded))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     remoteEncoded[0] = 0x04;
     memcpy(remoteEncoded + 1, remotePublic->data, remotePublic->length);
@@ -733,7 +706,7 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
     shared.length = sharedLength;
 
     UA_ByteString salt = UA_BYTESTRING_NULL;
-    res = psaEccGenerateSalt(output->length, label, key2, key1, &salt);
+    res = psaEccGenerateSalt(output->length, label, firstNonce, secondNonce, &salt);
     if(res != UA_STATUSCODE_GOOD) {
         UA_mbedTLS_clearSensitiveByteString(&shared);
         return res;

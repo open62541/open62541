@@ -160,17 +160,27 @@ eccGenerateEphemeralKey(const UA_SecurityPolicy *policy, void *channelContext,
 }
 
 static UA_StatusCode
-eccGenerateKey(const UA_SecurityPolicy *policy, void *channelContext,
-            const UA_ByteString *secret, const UA_ByteString *seed,
-            UA_ByteString *ikmInOut, UA_ByteString *output) {
+eccGenerateKey(const UA_SecurityPolicy *policy,
+               void *channelContext, UA_KeyDerivationDirection direction,
+               const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+               UA_ByteString *ikmInOut, UA_ByteString *output) {
     const EccPolicyContext *policyContext =
         policy ? (const EccPolicyContext*)policy->policyContext : NULL;
     EccChannelContext *context = (EccChannelContext*)channelContext;
     if(!policyContext || !context)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    static const UA_ByteString serverLabel = UA_STRING_STATIC("opcua-server");
+    static const UA_ByteString clientLabel = UA_STRING_STATIC("opcua-client");
+    UA_Boolean local = (direction == UA_KEYDERIVATION_LOCAL);
+    UA_Boolean senderIsServer =
+        (policyContext->applicationType == UA_APPLICATIONTYPE_SERVER) == local;
     return UA_mbedTLS_PsaEccDerive(
-        policyContext->config->hashAlgorithm, policyContext->applicationType,
-        &context->localEphemeralKeyPair, secret, seed, output, false);
+        policyContext->config->hashAlgorithm, &context->localEphemeralKeyPair,
+        remoteNonce, local ? localNonce : remoteNonce,
+        local ? remoteNonce : localNonce,
+        senderIsServer ? &serverLabel : &clientLabel, output);
 }
 
 static UA_StatusCode
@@ -183,10 +193,13 @@ eccGenerateEncryptedSecretKey(const UA_SecurityPolicy *policy, void *channelCont
     EccChannelContext *context = (EccChannelContext*)channelContext;
     if(!policyContext || !context)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    static const UA_ByteString label = UA_STRING_STATIC("opcua-secret");
+    const UA_ByteString *remote =
+        (policyContext->applicationType == UA_APPLICATIONTYPE_SERVER) ?
+        senderPublicKey : receiverPublicKey;
     return UA_mbedTLS_PsaEccDerive(
-        policyContext->config->hashAlgorithm, policyContext->applicationType,
-        &context->localEphemeralKeyPair, receiverPublicKey, senderPublicKey,
-        output, true);
+        policyContext->config->hashAlgorithm, &context->localEphemeralKeyPair,
+        remote, senderPublicKey, receiverPublicKey, &label, output);
 }
 
 static UA_StatusCode

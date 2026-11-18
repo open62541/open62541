@@ -525,10 +525,9 @@ UA_Sym_EccCurve448_generateEphemeralKey(const UA_SecurityPolicy *policy,
 
 static UA_StatusCode
 UA_Sym_EccCurve448_generateKey(const UA_SecurityPolicy *policy,
-                                void *channelContext,
-                                const UA_ByteString *secret,
-                                const UA_ByteString *seed,
-                                UA_ByteString *ikmInOut, UA_ByteString *out) {
+                            void *channelContext, UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
     Policy_Context_EccCurve448 *pctx =
         (Policy_Context_EccCurve448 *)policy->policyContext;
     Channel_Context_EccCurve448 *cc =
@@ -537,8 +536,8 @@ UA_Sym_EccCurve448_generateKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     return UA_OpenSSL_XDHE_DeriveKeys(EVP_PKEY_X448, "SHA256",
                                        pctx->applicationType,
-                                       cc->localEphemeralKeyPair,
-                                       secret, seed, NULL /* no IKM chaining */, out);
+                                       cc->localEphemeralKeyPair, direction,
+                                       localNonce, remoteNonce, NULL /* no IKM chaining */, out);
 }
 
 static UA_StatusCode

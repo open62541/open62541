@@ -241,7 +241,7 @@ exercisePolicy(PolicyInit init) {
     UA_ByteString seed = UA_BYTESTRING("fedcba9876543210fedcba9876543210");
     UA_ByteString derived;
     UA_ByteString_allocBuffer(&derived, 64);
-    rv = policy.generateKey(&policy, cc, &secret, &seed, NULL, &derived);
+    rv = policy.generateKey(&policy, cc, UA_KEYDERIVATION_LOCAL, &seed, &secret, NULL, &derived);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&derived);
 

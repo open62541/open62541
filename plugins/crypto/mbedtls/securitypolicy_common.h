@@ -88,12 +88,11 @@ UA_mbedTLS_PsaAsymmetricDecrypt(const mbedtls_pk_context *key,
  * key2 the client's (sender's) ephemeral public key. */
 UA_StatusCode
 UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
-                        const UA_ApplicationType applicationType,
                         const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
-                        const UA_ByteString *key1,
-                        const UA_ByteString *key2,
-                        UA_ByteString *output,
-                        UA_Boolean sessionSecret);
+                        const UA_ByteString *remotePublic,
+                        const UA_ByteString *firstNonce,
+                        const UA_ByteString *secondNonce,
+                        const UA_ByteString *label, UA_ByteString *output);
 
 UA_StatusCode
 UA_mbedTLS_EccGenerateEphemeralKey(const UA_SecurityPolicy *policy,

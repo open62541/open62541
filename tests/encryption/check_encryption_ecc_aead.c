@@ -579,7 +579,7 @@ START_TEST(key_derivation_ikm) {
     ck_assert_uint_le(sp->secretLength, sizeof(accumulator));
     UA_ByteString ikm = {sp->secretLength, accumulator};
     UA_ByteString out = {sizeof(unchained), unchained};
-    ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local, NULL, &out),
+    ck_assert_uint_eq(sp->generateKey(sp, localContext, UA_KEYDERIVATION_LOCAL, &local, &remote, NULL, &out),
                       UA_STATUSCODE_GOOD);
     /* Random generation must not replace the private key, even if its output
      * buffer contains the former marker and has the public-key length. */
@@ -594,21 +594,29 @@ START_TEST(key_derivation_ikm) {
                       UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert_uint_eq(sp->generateEphemeralKey(sp, localContext, &random),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
+    /* The two traffic directions use distinct labels and salt order. */
     out.data = chained;
-    ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local, &ikm, &out),
+    ck_assert_uint_eq(sp->generateKey(sp, localContext, UA_KEYDERIVATION_REMOTE,
+                                      &local, &remote, NULL, &out), UA_STATUSCODE_GOOD);
+    ck_assert(memcmp(unchained, chained, sizeof(chained)) != 0);
+    ck_assert_uint_eq(sp->generateKey(sp, localContext, (UA_KeyDerivationDirection)42,
+                                      &local, &remote, NULL, &out),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    out.data = chained;
+    ck_assert_uint_eq(sp->generateKey(sp, localContext, UA_KEYDERIVATION_LOCAL, &local, &remote, &ikm, &out),
                       UA_STATUSCODE_GOOD);
     ck_assert_mem_eq(unchained, chained, sizeof(chained));
     ck_assert_uint_eq(ikm.length, sp->secretLength);
     ck_assert_ptr_eq(ikm.data, accumulator);
     memset(accumulator, 0x5a, ikm.length);
-    ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local, &ikm, &out),
+    ck_assert_uint_eq(sp->generateKey(sp, localContext, UA_KEYDERIVATION_LOCAL, &local, &remote, &ikm, &out),
                       UA_STATUSCODE_GOOD);
     ck_assert(memcmp(unchained, chained, sizeof(chained)) != 0);
 
     UA_ByteString invalid[] = {{0, accumulator}, {sp->secretLength - 1, accumulator},
                               {sp->secretLength, NULL}};
     for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++)
-        ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local,
+        ck_assert_uint_eq(sp->generateKey(sp, localContext, UA_KEYDERIVATION_LOCAL, &local, &remote,
                                           &invalid[i], &out),
                           UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert_mem_eq(local.data, savedLocal, local.length);

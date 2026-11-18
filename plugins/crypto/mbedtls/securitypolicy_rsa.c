@@ -249,9 +249,16 @@ rsaSymmetricVerify(const UA_SecurityPolicy *policy, void *channelContext,
 }
 
 static UA_StatusCode
-rsaGenerateKey(const UA_SecurityPolicy *policy, void *channelContext,
-               const UA_ByteString *secret, const UA_ByteString *seed,
+rsaGenerateKey(const UA_SecurityPolicy *policy,
+               void *channelContext, UA_KeyDerivationDirection direction,
+               const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
                UA_ByteString *ikmInOut, UA_ByteString *output) {
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    const UA_ByteString *secret = (direction == UA_KEYDERIVATION_LOCAL) ?
+        remoteNonce : localNonce;
+    const UA_ByteString *seed = (direction == UA_KEYDERIVATION_LOCAL) ?
+        localNonce : remoteNonce;
     (void)channelContext;
     const UA_mbedTLS_RsaPolicyConfig *config = rsaGetConfig(policy);
     if(!config)
