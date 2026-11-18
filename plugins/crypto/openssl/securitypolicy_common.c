@@ -230,19 +230,6 @@ UA_Openssl_X509_GetCertificateThumbprint(const UA_ByteString *certficate,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Substring search on a (not necessarily null-terminated) UA_String. */
-static UA_Boolean
-policyUriContains(const UA_String *uri, const char *token) {
-    size_t n = strlen(token);
-    if(uri->length < n)
-        return false;
-    for(size_t i = 0; i + n <= uri->length; i++) {
-        if(memcmp(uri->data + i, token, n) == 0)
-            return true;
-    }
-    return false;
-}
-
 /* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
  * leaf, DER) with the policy's CertificateThumbprintAlgorithm, SHA-256 or
  * SHA-384 as declared by certThumbprintLength. Used to build the channel-bound
@@ -284,24 +271,6 @@ UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
     }
     X509_free(x509);
     return UA_STATUSCODE_GOOD;
-}
-
-/* Backend-agnostic SecurityPolicy property derived from the policy URI; see the
- * #None fallback in ua_securitypolicy_none.c used when no crypto backend is
- * built. */
-
-/* In the OPC UA reference stack the SequenceNumber handling depends on a
- * SecurityPolicy property `LegacySequenceNumbers`: false for all ECC policies
- * (and RSA-DH, which open62541 does not implement), true for None / RSA
- * (Basic*, Aes*_RsaOaep/RsaPss). Non-legacy starts the channel SequenceNumber
- * at 0 and wraps UA_UINT32_MAX -> 0; legacy starts at 1 with the "< 1024"
- * rollover. Detected from the policy URI (all ECC URIs carry the "ECC_"
- * fragment). A NULL policy is treated as legacy. */
-UA_Boolean
-UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
-    if(!policy)
-        return true;
-    return !policyUriContains(&policy->policyUri, "ECC_");
 }
 
 static UA_StatusCode

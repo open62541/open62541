@@ -600,6 +600,7 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
     sp->certificateTypeId = UA_NODEID_NUMERIC(0, 23543);
     sp->securityLevel = 0;
     sp->policyType = UA_SECURITYPOLICYTYPE_ECC_AEAD;
+    sp->legacySequenceNumbers = false;
 
     /* Asymmetric Signature (Ed448) */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;

@@ -76,7 +76,7 @@ setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy *sp,
     memcpy(channel->remoteCertificateThumbprint, thumbprint,
            sizeof(thumbprint));
     channel->enhancedSecurity = sp->secureChannelEnhancements;
-    channel->legacySequenceNumbers = UA_SecurityPolicy_useLegacySequenceNumbers(sp);
+    channel->legacySequenceNumbers = sp->legacySequenceNumbers;
     channel->securityMode = securityMode;
     return UA_STATUSCODE_GOOD;
 }

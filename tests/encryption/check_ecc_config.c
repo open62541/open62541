@@ -598,6 +598,7 @@ START_TEST(ecc_policies_declare_their_crypto_constants) {
         ck_assert_uint_eq(sp->secretLength, r->secretLength);
         ck_assert_uint_eq(sp->certThumbprintLength, r->certThumbprintLength);
         ck_assert_int_eq(sp->secureChannelEnhancements, r->enhanced);
+        ck_assert(!sp->legacySequenceNumbers);
 
         /* The AEAD cipher is both the symmetric signature and encryption */
         if(r->symUri) {

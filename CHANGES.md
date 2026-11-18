@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Explicit sequence-number handling
+
+`UA_SecurityPolicy.legacySequenceNumbers` replaces the removed
+`UA_SecurityPolicy_useLegacySequenceNumbers` helper. Custom policies must set
+this member: true for None and RSA, false for ECC. The core reads the member
+without inferring the behavior from the policy URI or type.
+
 ### Separate random nonces and ephemeral keys
 
 `UA_SecurityPolicy.generateNonce` always fills its output with random data.

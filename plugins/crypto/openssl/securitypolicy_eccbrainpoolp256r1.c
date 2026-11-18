@@ -529,6 +529,7 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *sp,
     sp->certificateTypeId = UA_NS0ID(ECCBRAINPOOLP256R1APPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 0;
     sp->policyType = UA_SECURITYPOLICYTYPE_ECC;
+    sp->legacySequenceNumbers = false;
 
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
     asymSig->uri = UA_STRING_NULL;

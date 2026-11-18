@@ -856,22 +856,6 @@ UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
     return UA_STATUSCODE_GOOD;
 }
 
-/* See the #None fallback in ua_securitypolicy_none.c used when no crypto
- * backend is built. */
-/* In the OPC UA reference stack the SequenceNumber handling depends on a
- * SecurityPolicy property `LegacySequenceNumbers`: false for all ECC policies
- * (and RSA-DH, which open62541 does not implement), true for None / RSA
- * (Basic*, Aes*_RsaOaep/RsaPss). Non-legacy starts the channel SequenceNumber
- * at 0 and wraps UA_UINT32_MAX -> 0; legacy starts at 1 with the "< 1024"
- * rollover. A NULL policy is treated as legacy. */
-UA_Boolean
-UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
-    if(!policy)
-        return true;
-    return policy->policyType != UA_SECURITYPOLICYTYPE_ECC &&
-           policy->policyType != UA_SECURITYPOLICYTYPE_ECC_AEAD;
-}
-
 UA_StatusCode
 UA_mbedTLS_thumbprintSha1(const UA_ByteString *certificate,
                         UA_ByteString *thumbprint) {

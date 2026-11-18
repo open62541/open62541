@@ -130,6 +130,21 @@ START_TEST(setSecurityPolicy_alreadyConfigured_rejected) {
     ck_assert_ptr_nonnull((void*)ch.securityPolicy);
 } END_TEST
 
+/* An explicit property must work independently of a custom policy URI. */
+START_TEST(setSecurityPolicy_explicitSequenceNumbers) {
+    UA_SecurityPolicy policy = *getNonePolicy();
+    ck_assert(policy.legacySequenceNumbers);
+    policy.legacySequenceNumbers = (_i % 2 == 0);
+    if(_i >= 2)
+        policy.policyUri = UA_STRING("urn:custom:ECC_policy");
+    UA_SecureChannel direct;
+    UA_SecureChannel_init(&direct);
+    ck_assert_uint_eq(UA_SecureChannel_setSecurityPolicy(&direct, &policy, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(direct.legacySequenceNumbers, policy.legacySequenceNumbers);
+    UA_SecureChannel_clear(&direct);
+} END_TEST
+
 START_TEST(setSecurityPolicyWithoutOPN_withoutCertificate_hasNoContext) {
     UA_SecureChannel direct;
     UA_SecureChannel_init(&direct);
@@ -144,7 +159,7 @@ START_TEST(setSecurityPolicyWithoutOPN_withoutCertificate_hasNoContext) {
     ck_assert_uint_eq(direct.enhancedSecurity,
                       policy->secureChannelEnhancements);
     ck_assert_uint_eq(direct.legacySequenceNumbers,
-                      UA_SecurityPolicy_useLegacySequenceNumbers(policy));
+                      policy->legacySequenceNumbers);
     UA_SecureChannel_clear(&direct);
 } END_TEST
 
@@ -431,6 +446,7 @@ testSuite(void) {
     tcase_add_test(tc_mode, setSecurityMode_nonePolicyWithSign_rejected);
     tcase_add_test(tc_mode, setSecurityMode_noneMode_accepted);
     tcase_add_test(tc_mode, setSecurityPolicy_alreadyConfigured_rejected);
+    tcase_add_loop_test(tc_mode, setSecurityPolicy_explicitSequenceNumbers, 0, 4);
     tcase_add_test(tc_mode,
                    setSecurityPolicyWithoutOPN_withoutCertificate_hasNoContext);
 #ifdef UA_ENABLE_ENCRYPTION
