@@ -64,7 +64,10 @@ typedef struct {
 
     /* Certificate and asymmetric signature */
     int certKeyType;               /* EVP_PKEY_EC/ED25519/ED448 */
-    size_t certThumbprintLength;   /* 32 for SHA-256, 48 for SHA-384 */
+    size_t certThumbprintLength;   /* Output size of the certificate hash */
+    UA_StatusCode (*hashCertificateForSignature)(const UA_SecurityPolicy *policy,
+                                                const UA_ByteString *certificate,
+                                                UA_ByteString *hash);
     size_t asymSignatureLength;
     UA_StatusCode (*asymSign)(const UA_ByteString *message, EVP_PKEY *privateKey,
                               UA_ByteString *signature);
@@ -84,7 +87,7 @@ static const UA_EccAeadParams eccNistP256AesGcmParams = {
     10,                                        /* securityLevel */
     ECC_AEAD_KEX_ECDH_NIST, "P-256", 0,        /* ECDH on P-256 */
     "SHA256", 64, 32,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_EC, 32, 64,                       /* certificate, thumbprint, signature */
+    EVP_PKEY_EC, 32, UA_OpenSSL_hashCertificateSHA256, 64,
     UA_Openssl_ECDSA_SHA256_Sign, UA_Openssl_ECDSA_SHA256_Verify,
     EVP_aes_128_gcm,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes128-gcm"), 16
@@ -97,7 +100,7 @@ static const UA_EccAeadParams eccNistP256ChaChaPolyParams = {
     10,                                        /* securityLevel */
     ECC_AEAD_KEX_ECDH_NIST, "P-256", 0,        /* ECDH on P-256 */
     "SHA256", 64, 32,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_EC, 32, 64,                       /* certificate, thumbprint, signature */
+    EVP_PKEY_EC, 32, UA_OpenSSL_hashCertificateSHA256, 64,
     UA_Openssl_ECDSA_SHA256_Sign, UA_Openssl_ECDSA_SHA256_Verify,
     EVP_chacha20_poly1305,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
@@ -110,7 +113,7 @@ static const UA_EccAeadParams eccBrainpoolP256r1AesGcmParams = {
     10,                                        /* securityLevel */
     ECC_AEAD_KEX_ECDH_OBJ, "brainpoolP256r1", 0,
     "SHA256", 64, 32,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_EC, 32, 64,                       /* certificate, thumbprint, signature */
+    EVP_PKEY_EC, 32, UA_OpenSSL_hashCertificateSHA256, 64,
     UA_Openssl_ECDSA_SHA256_Sign, UA_Openssl_ECDSA_SHA256_Verify,
     EVP_aes_128_gcm,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes128-gcm"), 16
@@ -123,7 +126,7 @@ static const UA_EccAeadParams eccBrainpoolP256r1ChaChaPolyParams = {
     10,                                        /* securityLevel */
     ECC_AEAD_KEX_ECDH_OBJ, "brainpoolP256r1", 0,
     "SHA256", 64, 32,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_EC, 32, 64,                       /* certificate, thumbprint, signature */
+    EVP_PKEY_EC, 32, UA_OpenSSL_hashCertificateSHA256, 64,
     UA_Openssl_ECDSA_SHA256_Sign, UA_Openssl_ECDSA_SHA256_Verify,
     EVP_chacha20_poly1305,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
@@ -147,7 +150,7 @@ static const UA_EccAeadParams eccNistP384AesGcmParams = {
     30,                                        /* securityLevel */
     ECC_AEAD_KEX_ECDH_NIST, "P-384", 0,        /* ECDH on P-384 */
     "SHA384", 96, 48,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_EC, 48, 96,                       /* certificate, thumbprint, signature */
+    EVP_PKEY_EC, 48, UA_OpenSSL_hashCertificateSHA384, 96,
     UA_Openssl_ECDSA_SHA384_Sign, UA_Openssl_ECDSA_SHA384_Verify,
     EVP_aes_256_gcm,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes256-gcm"), 32
@@ -160,7 +163,7 @@ static const UA_EccAeadParams eccNistP384ChaChaPolyParams = {
     30,                                        /* securityLevel */
     ECC_AEAD_KEX_ECDH_NIST, "P-384", 0,        /* ECDH on P-384 */
     "SHA384", 96, 48,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_EC, 48, 96,                       /* certificate, thumbprint, signature */
+    EVP_PKEY_EC, 48, UA_OpenSSL_hashCertificateSHA384, 96,
     UA_Openssl_ECDSA_SHA384_Sign, UA_Openssl_ECDSA_SHA384_Verify,
     EVP_chacha20_poly1305,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
@@ -173,7 +176,7 @@ static const UA_EccAeadParams eccBrainpoolP384r1AesGcmParams = {
     30,                                        /* securityLevel */
     ECC_AEAD_KEX_ECDH_OBJ, "brainpoolP384r1", 0,
     "SHA384", 96, 48,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_EC, 48, 96,                       /* certificate, thumbprint, signature */
+    EVP_PKEY_EC, 48, UA_OpenSSL_hashCertificateSHA384, 96,
     UA_Openssl_ECDSA_SHA384_Sign, UA_Openssl_ECDSA_SHA384_Verify,
     EVP_aes_256_gcm,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes256-gcm"), 32
@@ -186,7 +189,7 @@ static const UA_EccAeadParams eccBrainpoolP384r1ChaChaPolyParams = {
     30,                                        /* securityLevel */
     ECC_AEAD_KEX_ECDH_OBJ, "brainpoolP384r1", 0,
     "SHA384", 96, 48,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_EC, 48, 96,                       /* certificate, thumbprint, signature */
+    EVP_PKEY_EC, 48, UA_OpenSSL_hashCertificateSHA384, 96,
     UA_Openssl_ECDSA_SHA384_Sign, UA_Openssl_ECDSA_SHA384_Verify,
     EVP_chacha20_poly1305,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
@@ -204,7 +207,7 @@ static const UA_EccAeadParams eccCurve25519AesGcmParams = {
     10,                                        /* securityLevel */
     ECC_AEAD_KEX_XDH, NULL, EVP_PKEY_X25519,   /* X25519 key agreement */
     "SHA256", 32, 32,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_ED25519, 32, 64,                  /* certificate, thumbprint, signature */
+    EVP_PKEY_ED25519, 32, UA_OpenSSL_hashCertificateSHA256, 64,
     UA_OpenSSL_EdDSA_Ed25519_Sign, UA_OpenSSL_EdDSA_Ed25519_Verify,
     EVP_aes_128_gcm,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes128-gcm"), 16
@@ -217,7 +220,7 @@ static const UA_EccAeadParams eccCurve25519ChaChaPolyParams = {
     10,                                        /* securityLevel */
     ECC_AEAD_KEX_XDH, NULL, EVP_PKEY_X25519,   /* X25519 key agreement */
     "SHA256", 32, 32,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_ED25519, 32, 64,                  /* certificate, thumbprint, signature */
+    EVP_PKEY_ED25519, 32, UA_OpenSSL_hashCertificateSHA256, 64,
     UA_OpenSSL_EdDSA_Ed25519_Sign, UA_OpenSSL_EdDSA_Ed25519_Verify,
     EVP_chacha20_poly1305,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
@@ -230,7 +233,7 @@ static const UA_EccAeadParams eccCurve448AesGcmParams = {
     30,                                        /* securityLevel */
     ECC_AEAD_KEX_XDH, NULL, EVP_PKEY_X448,     /* X448 key agreement */
     "SHA384", 56, 56,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_ED448, 48, 114,                   /* certificate, thumbprint, signature */
+    EVP_PKEY_ED448, 48, UA_OpenSSL_hashCertificateSHA384, 114,
     UA_OpenSSL_EdDSA_Ed448_Sign, UA_OpenSSL_EdDSA_Ed448_Verify,
     EVP_aes_256_gcm,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/aes256-gcm"), 32
@@ -243,7 +246,7 @@ static const UA_EccAeadParams eccCurve448ChaChaPolyParams = {
     30,                                        /* securityLevel */
     ECC_AEAD_KEX_XDH, NULL, EVP_PKEY_X448,     /* X448 key agreement */
     "SHA384", 56, 56,                          /* HKDF, nonce, shared secret */
-    EVP_PKEY_ED448, 48, 114,                   /* certificate, thumbprint, signature */
+    EVP_PKEY_ED448, 48, UA_OpenSSL_hashCertificateSHA384, 114,
     UA_OpenSSL_EdDSA_Ed448_Sign, UA_OpenSSL_EdDSA_Ed448_Verify,
     EVP_chacha20_poly1305,
     UA_STRING_STATIC("http://opcfoundation.org/UA/security/chacha20-poly1305"), 32
@@ -1059,6 +1062,7 @@ eccAead_policy(UA_SecurityPolicy *sp, const UA_EccAeadParams *params,
     sp->nonceLength = params->nonceLength;
     sp->secretLength = params->secretLength;
     sp->certThumbprintLength = params->certThumbprintLength;
+    sp->hashCertificateForSignature = params->hashCertificateForSignature;
     sp->secureChannelEnhancements = true;
     sp->makeCertThumbprint = eccAead_makeCertificateThumbprint;
     sp->compareCertThumbprint = eccAead_compareCertificateThumbprint;

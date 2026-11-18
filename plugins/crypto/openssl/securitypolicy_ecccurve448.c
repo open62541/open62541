@@ -665,6 +665,7 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
     sp->nonceLength = UA_ECCCURVE448_NONCE_LENGTH_BYTES;
     sp->secretLength = 56;
     sp->certThumbprintLength = 48;
+    sp->hashCertificateForSignature = UA_OpenSSL_hashCertificateSHA384;
     sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccCurve448;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccCurve448;
