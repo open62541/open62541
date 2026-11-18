@@ -381,7 +381,7 @@ struct UA_SecurityPolicy {
                                                 const UA_ByteString *senderPublicKey,
                                                 UA_ByteString *out);
 
-    /* Random generator for generating nonces.
+    /* Random generator for generating nonces. Never generates a key pair.
      *
      * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context of the SecureChannel
@@ -389,6 +389,14 @@ struct UA_SecurityPolicy {
      *        allocated by the caller. The buffer is filled with random data. */
     UA_StatusCode (*generateNonce)(const UA_SecurityPolicy *policy,
                                    void *channelContext, UA_ByteString *out);
+
+    /* Generate a fresh ephemeral key pair in channelContext, replacing the
+     * previous key pair. The private key stays in the context; out receives the
+     * public key. The caller supplies a writable buffer of nonceLength bytes.
+     * The previous contents of out have no meaning. NULL for policies without
+     * ephemeral key agreement; their SecureChannel nonces use generateNonce. */
+    UA_StatusCode (*generateEphemeralKey)(const UA_SecurityPolicy *policy,
+                                          void *channelContext, UA_ByteString *out);
 
     /* The length of the nonce used in the SecureChannel */
     size_t nonceLength;

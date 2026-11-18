@@ -564,13 +564,13 @@ START_TEST(key_derivation_ikm) {
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(sp->newChannelContext(sp, &sp->localCertificate, &remoteContext),
                       UA_STATUSCODE_GOOD);
-    UA_Byte localBytes[96] = {'e', 'p', 'h'};
-    UA_Byte remoteBytes[96] = {'e', 'p', 'h'};
+    UA_Byte localBytes[96] = {0};
+    UA_Byte remoteBytes[96] = {0};
     ck_assert_uint_le(sp->nonceLength, sizeof(localBytes));
     UA_ByteString local = {sp->nonceLength, localBytes};
     UA_ByteString remote = {sp->nonceLength, remoteBytes};
-    ck_assert_uint_eq(sp->generateNonce(sp, localContext, &local), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(sp->generateNonce(sp, remoteContext, &remote), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sp->generateEphemeralKey(sp, localContext, &local), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sp->generateEphemeralKey(sp, remoteContext, &remote), UA_STATUSCODE_GOOD);
     UA_Byte savedLocal[96], savedRemote[96];
     memcpy(savedLocal, local.data, local.length);
     memcpy(savedRemote, remote.data, remote.length);
@@ -581,6 +581,19 @@ START_TEST(key_derivation_ikm) {
     UA_ByteString out = {sizeof(unchained), unchained};
     ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local, NULL, &out),
                       UA_STATUSCODE_GOOD);
+    /* Random generation must not replace the private key, even if its output
+     * buffer contains the former marker and has the public-key length. */
+    UA_Byte randomBytes[96] = {'e', 'p', 'h'};
+    UA_ByteString random = {sp->nonceLength, randomBytes};
+    ck_assert_uint_eq(sp->generateNonce(sp, localContext, &random), UA_STATUSCODE_GOOD);
+    random.length = 1;
+    ck_assert_uint_eq(sp->generateNonce(sp, NULL, &random), UA_STATUSCODE_GOOD);
+    random.length = 0;
+    ck_assert_uint_eq(sp->generateNonce(sp, NULL, &random), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sp->generateEphemeralKey(sp, NULL, &local),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(sp->generateEphemeralKey(sp, localContext, &random),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
     out.data = chained;
     ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local, &ikm, &out),
                       UA_STATUSCODE_GOOD);

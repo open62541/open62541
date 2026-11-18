@@ -127,7 +127,7 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
                             UA_ByteString *tokenData,
                             const UA_ByteString serverSessionNonce,
                             const UA_ByteString serverEphemeralPubKey) {
-    if(!sp->generateEncryptedSecretKey) {
+    if(!sp->generateEncryptedSecretKey || !sp->generateEphemeralKey) {
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: The "
                              "SecurityPolicy cannot derive the key material");
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
@@ -175,10 +175,7 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         UA_EccEncryptedSecretStruct_clear(&secret);
         return retval;
     }
-    secret.senderPublicKey.data[0] = 'e';
-    secret.senderPublicKey.data[1] = 'p';
-    secret.senderPublicKey.data[2] = 'h';
-    retval = sp->generateNonce(sp, spContext, &secret.senderPublicKey);
+    retval = sp->generateEphemeralKey(sp, spContext, &secret.senderPublicKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(logger, channel,
                      "EccEncryptedSecret: Failed to generate local ephemeral key");

@@ -386,6 +386,8 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     UA_assert(session->sessionSp && session->sessionSpContext);
     UA_SecurityPolicy *sp = session->sessionSp;
     void *spContext = session->sessionSpContext;
+    if(!sp->generateEphemeralKey)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     /* Allocate additional parameters */
     UA_AdditionalParametersType *ap = UA_AdditionalParametersType_new();
@@ -410,13 +412,7 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     UA_EphemeralKeyType ephKey;
     UA_EphemeralKeyType_init(&ephKey);
 
-    /* Allocate the ephemeral key buffer to the exact size of the ephemeral key
-     * for the used ECC policy so that the nonce generation function knows that
-     * it needs to generate an ephemeral key and not some other random byte
-     * string.
-     *
-     * TODO: There should be a more stable way to signal the generation of an
-     * ephemeral key */
+    /* Allocate the ephemeral public key buffer. */
     res = UA_ByteString_allocBuffer(&ephKey.publicKey, sp->nonceLength);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -431,10 +427,7 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     }
 
     /* Generate the ephemeral key and signature */
-    ephKey.publicKey.data[0] = 'e';
-    ephKey.publicKey.data[1] = 'p';
-    ephKey.publicKey.data[2] = 'h';
-    res |= sp->generateNonce(sp, spContext, &ephKey.publicKey);
+    res |= sp->generateEphemeralKey(sp, spContext, &ephKey.publicKey);
     res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey.publicKey,
                                            &ephKey.signature);
 

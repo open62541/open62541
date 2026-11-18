@@ -56,9 +56,8 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     }
 
     /* Generate the nonce */
-    channel->localNonce.data[0] = 'e';
-    channel->localNonce.data[1] = 'p';
-    channel->localNonce.data[2] = 'h';
+    if(sp->generateEphemeralKey)
+        return sp->generateEphemeralKey(sp, channel->channelContext, &channel->localNonce);
     return sp->generateNonce(sp, channel->channelContext, &channel->localNonce);
 }
 

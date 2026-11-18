@@ -615,30 +615,24 @@ eccAead_asymGetLocalKeyLength(const UA_SecurityPolicy *policy,
 /******************************/
 
 static UA_StatusCode
-eccAead_generateNonce(const UA_SecurityPolicy *policy,
+eccAead_generateEphemeralKey(const UA_SecurityPolicy *policy,
                       void *channelContext, UA_ByteString *out) {
+    if(!policy || !channelContext || !out || !out->data ||
+       out->length != policy->nonceLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     Policy_Context_EccAead *pctx = (Policy_Context_EccAead *)policy->policyContext;
     const UA_EccAeadParams *params = eccAead_params(policy);
     if(!pctx || !params)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    /* Detect if we want to create an ephemeral key or just cryptographic random
-     * data */
-    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
-        Channel_Context_EccAead *cctx = (Channel_Context_EccAead *)channelContext;
-        if(!cctx)
-            return UA_STATUSCODE_BADUNEXPECTEDERROR;
-        if(params->kexKind == ECC_AEAD_KEX_XDH) {
-            if(params->xdhKeyType == EVP_PKEY_X448)
-                return UA_OpenSSL_X448_GenerateKey(&cctx->localEphemeralKeyPair, out);
-            return UA_OpenSSL_X25519_GenerateKey(&cctx->localEphemeralKeyPair, out);
-        }
-        return UA_OpenSSL_ECC_GenerateKey(pctx->keyId,
-                                          &cctx->localEphemeralKeyPair, out);
+    Channel_Context_EccAead *cctx = (Channel_Context_EccAead *)channelContext;
+    if(params->kexKind == ECC_AEAD_KEX_XDH) {
+        if(params->xdhKeyType == EVP_PKEY_X448)
+            return UA_OpenSSL_X448_GenerateKey(&cctx->localEphemeralKeyPair, out);
+        return UA_OpenSSL_X25519_GenerateKey(&cctx->localEphemeralKeyPair, out);
     }
-
-    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
-    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_OpenSSL_ECC_GenerateKey(pctx->keyId,
+                                      &cctx->localEphemeralKeyPair, out);
 }
 
 static UA_StatusCode
@@ -1058,7 +1052,8 @@ eccAead_policy(UA_SecurityPolicy *sp, const UA_EccAeadParams *params,
     sp->compareCertificate = eccAead_compareCertificate;
     sp->generateKey = eccAead_generateKey;
     sp->generateEncryptedSecretKey = eccAead_generateEncryptedSecretKey;
-    sp->generateNonce = eccAead_generateNonce;
+    sp->generateNonce = UA_OpenSSL_generateNonce;
+    sp->generateEphemeralKey = eccAead_generateEphemeralKey;
     sp->nonceLength = params->nonceLength;
     sp->secretLength = params->secretLength;
     sp->certThumbprintLength = params->certThumbprintLength;

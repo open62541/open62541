@@ -23,6 +23,10 @@
 
 _UA_BEGIN_DECLS
 
+UA_StatusCode
+UA_OpenSSL_generateNonce(const UA_SecurityPolicy *policy,
+                         void *channelContext, UA_ByteString *out);
+
 
 #if !defined(OPENSSL_VERSION_NUMBER)
 #error "OPENSSL_VERSION_NUMBER is not defined."
