@@ -198,7 +198,7 @@ compareThumbprint_testing(const UA_SecurityPolicy *securityPolicy,
 static UA_StatusCode
 generateKey_testing(const UA_SecurityPolicy *policy,
                     void *channelContext, const UA_ByteString *secret,
-                    const UA_ByteString *seed, UA_ByteString *out) {
+                    const UA_ByteString *seed, UA_ByteString *ikmInOut, UA_ByteString *out) {
     ck_assert(secret != NULL);
     ck_assert(seed != NULL);
     ck_assert(out != NULL);

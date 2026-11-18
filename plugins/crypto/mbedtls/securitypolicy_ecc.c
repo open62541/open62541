@@ -162,7 +162,7 @@ eccGenerateNonce(const UA_SecurityPolicy *policy, void *channelContext,
 static UA_StatusCode
 eccGenerateKey(const UA_SecurityPolicy *policy, void *channelContext,
             const UA_ByteString *secret, const UA_ByteString *seed,
-            UA_ByteString *output) {
+            UA_ByteString *ikmInOut, UA_ByteString *output) {
     const EccPolicyContext *policyContext =
         policy ? (const EccPolicyContext*)policy->policyContext : NULL;
     EccChannelContext *context = (EccChannelContext*)channelContext;

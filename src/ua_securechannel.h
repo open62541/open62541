@@ -193,10 +193,9 @@ struct UA_SecureChannel {
      * accumulator for SecurityPolicies with secureChannelEnhancements =
      * true. The IKM is the size of the policy's shared secret (e.g. 32
      * bytes for P-256). On each renewal, the policy's generateKey
-     * wrapper XORs the new shared secret with this value and writes the
-     * result back. The SecureChannel passes this value as a prefix of
-     * the `secret` ByteString to the policy's generateKey, where the
-     * policy strips and updates it. Zero-length on the first OPN.
+     * callback XORs the new shared secret into a private copy passed as
+     * ikmInOut. The nonces are passed separately and remain unchanged.
+     * Zero-length on the first OPN (a zero-filled copy is passed).
      *
      * Two slots, because the two derivations of one OPN generation are not
      * adjacent in time. Both the local- and the remote-keys pass must derive

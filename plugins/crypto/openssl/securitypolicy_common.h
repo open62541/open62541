@@ -265,15 +265,6 @@ UA_OpenSSL_ECC_DeriveSessionKey(const int curveID,
                                 const UA_ByteString *senderPublicKey,
                                 UA_ByteString *out);
 
-/* Split the `secret` argument of UA_SecurityPolicy.generateKey into the IKM
- * accumulator the SecureChannel prepends for an enhanced policy and the nonce.
- * Without a prepend, `ikmInOut` is empty and `nonce` is the whole `secret`.
- * `ikmInOut` aliases `secret`: the updated accumulator is written back into
- * the SecureChannel's buffer. */
-void
-UA_OpenSSL_splitIKM(const UA_SecurityPolicy *policy, const UA_ByteString *secret,
-                    UA_ByteString *ikmInOut, UA_ByteString *nonce);
-
 UA_StatusCode
 UA_Openssl_ECDSA_SHA256_Sign (const UA_ByteString * message,
                               EVP_PKEY * privateKey,

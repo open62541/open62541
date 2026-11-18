@@ -251,7 +251,7 @@ rsaSymmetricVerify(const UA_SecurityPolicy *policy, void *channelContext,
 static UA_StatusCode
 rsaGenerateKey(const UA_SecurityPolicy *policy, void *channelContext,
                const UA_ByteString *secret, const UA_ByteString *seed,
-               UA_ByteString *output) {
+               UA_ByteString *ikmInOut, UA_ByteString *output) {
     (void)channelContext;
     const UA_mbedTLS_RsaPolicyConfig *config = rsaGetConfig(policy);
     if(!config)

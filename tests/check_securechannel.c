@@ -102,14 +102,14 @@ static size_t derivedLength;
 static UA_StatusCode
 (*testingGenerateKey)(const UA_SecurityPolicy *policy, void *channelContext,
                       const UA_ByteString *secret, const UA_ByteString *seed,
-                      UA_ByteString *out);
+                      UA_ByteString *ikmInOut, UA_ByteString *out);
 
 static UA_StatusCode
 recordGenerateKey(const UA_SecurityPolicy *policy, void *channelContext,
                   const UA_ByteString *secret, const UA_ByteString *seed,
-                  UA_ByteString *out) {
+                  UA_ByteString *ikmInOut, UA_ByteString *out) {
     derivedLength = out->length;
-    return testingGenerateKey(policy, channelContext, secret, seed, out);
+    return testingGenerateKey(policy, channelContext, secret, seed, ikmInOut, out);
 }
 
 static const struct {
@@ -148,6 +148,113 @@ START_TEST(SecureChannel_derivedKeyLength) {
     ck_assert_uint_eq(derivedLength, keyLengthCases[_i].derivedLength);
 
     dummyPolicy.generateKey = testingGenerateKey;
+} END_TEST
+
+/* Exercise the public callback contract independently of the crypto backend.
+ * A callback may overwrite its temporary accumulator even when it fails. */
+static UA_Boolean ikmLocalPass, ikmFail;
+static UA_Byte ikmPrevious;
+static size_t ikmCalls;
+
+static void
+assertIKMBytes(const UA_ByteString *ikm, UA_Byte expected) {
+    ck_assert_uint_eq(ikm->length, 32);
+    for(size_t i = 0; i < ikm->length; i++)
+        ck_assert_uint_eq(ikm->data[i], expected);
+}
+
+static UA_StatusCode
+recordIKM(const UA_SecurityPolicy *policy, void *channelContext,
+          const UA_ByteString *secret, const UA_ByteString *seed,
+          UA_ByteString *ikmInOut, UA_ByteString *out) {
+    ikmCalls++;
+    const UA_ByteString *expectedSecret = ikmLocalPass ?
+        &testChannel.remoteNonce : &testChannel.localNonce;
+    const UA_ByteString *expectedSeed = ikmLocalPass ?
+        &testChannel.localNonce : &testChannel.remoteNonce;
+    ck_assert_uint_eq(secret->length, expectedSecret->length);
+    ck_assert_ptr_eq(secret->data, expectedSecret->data);
+    ck_assert_uint_eq(seed->length, expectedSeed->length);
+    ck_assert_ptr_eq(seed->data, expectedSeed->data);
+    if(testChannel.enhancedSecurity) {
+        ck_assert_ptr_nonnull(ikmInOut);
+        ck_assert_ptr_ne(ikmInOut->data, testChannel.currentIKM.data);
+        ck_assert_ptr_ne(ikmInOut->data, testChannel.nextIKM.data);
+        assertIKMBytes(ikmInOut, ikmPrevious);
+        memset(ikmInOut->data, ikmPrevious ^ 0x5a, ikmInOut->length);
+    } else {
+        ck_assert_ptr_null(ikmInOut);
+    }
+    memset(out->data, 0, out->length);
+    return ikmFail ? UA_STATUSCODE_BADINTERNALERROR : UA_STATUSCODE_GOOD;
+}
+
+static void
+setupIKMCallback(UA_Boolean enhanced, UA_Boolean hasPrevious) {
+    dummyPolicy.generateKey = recordIKM;
+    dummyPolicy.secureChannelEnhancements = enhanced;
+    dummyPolicy.secretLength = enhanced ? 32 : 0;
+    testChannel.enhancedSecurity = enhanced;
+    testChannel.localNonce = UA_BYTESTRING_ALLOC("local nonce");
+    testChannel.remoteNonce = UA_BYTESTRING_ALLOC("remote nonce");
+    ikmPrevious = hasPrevious ? 0x35 : 0;
+    ikmCalls = 0;
+    ikmFail = false;
+    if(hasPrevious) {
+        ck_assert_uint_eq(UA_ByteString_allocBuffer(&testChannel.currentIKM, 32),
+                          UA_STATUSCODE_GOOD);
+        memset(testChannel.currentIKM.data, ikmPrevious, 32);
+    }
+}
+
+START_TEST(SecureChannel_IKM_explicitCallback) {
+    /* No chaining, the first OPN, and a subsequent OPN. */
+    setupIKMCallback(_i != 0, _i == 2);
+    ikmLocalPass = true;
+    ck_assert_uint_eq(UA_SecureChannel_generateLocalKeys(&testChannel),
+                      UA_STATUSCODE_GOOD);
+    if(_i != 0)
+        assertIKMBytes(&testChannel.nextIKM, ikmPrevious ^ 0x5a);
+
+    ikmLocalPass = false;
+    ck_assert_uint_eq(generateRemoteKeys(&testChannel), UA_STATUSCODE_GOOD);
+    if(_i == 2)
+        assertIKMBytes(&testChannel.currentIKM, ikmPrevious);
+    else
+        ck_assert_uint_eq(testChannel.currentIKM.length, 0);
+    if(_i != 0) {
+        assertIKMBytes(&testChannel.nextIKM, ikmPrevious ^ 0x5a);
+        /* A skipped token still advances exactly one generation. */
+        ikmPrevious ^= 0x5a;
+        ikmLocalPass = true;
+        ck_assert_uint_eq(UA_SecureChannel_advanceIKM(&testChannel),
+                          UA_STATUSCODE_GOOD);
+        assertIKMBytes(&testChannel.currentIKM, ikmPrevious);
+        assertIKMBytes(&testChannel.nextIKM, ikmPrevious ^ 0x5a);
+    } else {
+        ck_assert_uint_eq(testChannel.nextIKM.length, 0);
+    }
+    ck_assert_uint_eq(ikmCalls, _i != 0 ? 3 : 2);
+} END_TEST
+
+START_TEST(SecureChannel_IKM_failedDerivationDoesNotPublish) {
+    setupIKMCallback(true, true);
+    ikmLocalPass = (_i == 0);
+    if(!ikmLocalPass) {
+        ck_assert_uint_eq(UA_ByteString_allocBuffer(&testChannel.nextIKM, 32),
+                          UA_STATUSCODE_GOOD);
+        memset(testChannel.nextIKM.data, 0xa7, 32);
+    }
+    ikmFail = true;
+    UA_StatusCode res = ikmLocalPass ?
+        UA_SecureChannel_generateLocalKeys(&testChannel) : generateRemoteKeys(&testChannel);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+    assertIKMBytes(&testChannel.currentIKM, ikmPrevious);
+    if(ikmLocalPass)
+        ck_assert_uint_eq(testChannel.nextIKM.length, 0);
+    else
+        assertIKMBytes(&testChannel.nextIKM, 0xa7);
+    ck_assert_uint_eq(ikmCalls, 1);
 } END_TEST
 
 START_TEST(SecureChannel_initAndDelete) {
@@ -1034,14 +1141,14 @@ exportP256PublicXY(EVP_PKEY *kp, UA_Byte *out64) {
     return UA_STATUSCODE_GOOD;
 }
 
-START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
+START_TEST(SecureChannel_IKMChaining_accumulatorChainsOnRenewal) {
     /* Two ephemeral key pairs (P-256). The helper takes the accumulator as its
      * own argument, XORs it with the raw shared secret, and writes the chained
      * IKM back into that slot.
-     * We exercise the helper twice with different prepends on the
+     * We exercise the helper twice with different accumulators on the
      * same ephemeral key pair, and verify that the XOR difference
      * of the two resulting slot values equals the XOR difference
-     * of the two prepends (the shared secret is identical in both
+     * of the two accumulators (the shared secret is identical in both
      * calls, so it cancels out: (P1^SS) XOR (P2^SS) = P1 XOR P2). */
     EVP_PKEY *localKp = makeP256Key();
     EVP_PKEY *remoteKp = makeP256Key();
@@ -1053,43 +1160,28 @@ START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
     ck_assert_int_eq(exportP256PublicXY(localKp, localPubXY), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(exportP256PublicXY(remoteKp, remotePubXY), UA_STATUSCODE_GOOD);
 
-    /* Build two distinct 32-byte prepends. */
-    UA_Byte prepend1[32];
-    UA_Byte prepend2[32];
+    /* Build two distinct 32-byte accumulators. */
+    UA_Byte initial1[32];
+    UA_Byte initial2[32];
     for(int i = 0; i < 32; i++) {
-        prepend1[i] = (UA_Byte)(0xA0 + i);
-        prepend2[i] = (UA_Byte)(0x40 + i);
+        initial1[i] = (UA_Byte)(0xA0 + i);
+        initial2[i] = (UA_Byte)(0x40 + i);
     }
-    /* Slot buffers = [prepend | local ephemeral public key]. The
-     * helper identifies which arg is local by matching against the
-     * localEphemeralKeyPair's public key. So we put localPubXY as
-     * the suffix of the prepend, and the helper will then take
-     * key2 (== remotePubXY) as the remote ephemeral public key for
-     * the ECDH computation. */
-    UA_Byte slot1[32 + 64];
-    UA_Byte slot2[32 + 64];
-    memcpy(slot1, prepend1, 32);
-    memcpy(slot1 + 32, localPubXY, 64);
-    memcpy(slot2, prepend2, 32);
-    memcpy(slot2 + 32, localPubXY, 64);
-
-    /* The accumulator and the nonce are separate arguments now; both still
-     * live in one buffer, because the SecureChannel hands them over that way
-     * and the test checks what gets written back into the slot. */
-    UA_ByteString ikm1 = {32, slot1};
-    UA_ByteString nonce1 = {64, slot1 + 32};
-    UA_ByteString ikm2 = {32, slot2};
-    UA_ByteString nonce2 = {64, slot2 + 32};
-    /* seed (= key2) is the remote ephemeral public key — it must be
-     * the un-prefixed form because the helper uses it both for the
-     * salt and for ECDH when the prepend suffix matches local. */
-    UA_ByteString seed1 = {64, remotePubXY};
-    UA_ByteString seed2 = {64, remotePubXY};
+    /* The accumulator and nonces have independent storage. */
+    UA_Byte slot1[32], slot2[32];
+    memcpy(slot1, initial1, sizeof(slot1));
+    memcpy(slot2, initial2, sizeof(slot2));
+    UA_ByteString ikm1 = {sizeof(slot1), slot1};
+    UA_ByteString ikm2 = {sizeof(slot2), slot2};
+    UA_ByteString nonce1 = {sizeof(localPubXY), localPubXY};
+    UA_ByteString nonce2 = nonce1;
+    UA_ByteString seed1 = {sizeof(remotePubXY), remotePubXY};
+    UA_ByteString seed2 = seed1;
 
     UA_ByteString out;
     ck_assert_int_eq(UA_ByteString_allocBuffer(&out, 32), UA_STATUSCODE_GOOD);
 
-    /* First call: prepend1 -> chained IKM written back to slot1. */
+    /* First call: initial1 -> chained IKM written back to slot1. */
     ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(
                          EC_curve_nist2nid("P-256"), "SHA256",
                          UA_APPLICATIONTYPE_CLIENT, localKp,
@@ -1098,7 +1190,7 @@ START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
     UA_ByteString_clear(&out);
     ck_assert_int_eq(UA_ByteString_allocBuffer(&out, 32), UA_STATUSCODE_GOOD);
 
-    /* Second call: prepend2 -> chained IKM written back to slot2.
+    /* Second call: initial2 -> chained IKM written back to slot2.
      * Same ephemeral keys => same shared secret as call 1. */
     ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(
                          EC_curve_nist2nid("P-256"), "SHA256",
@@ -1107,26 +1199,26 @@ START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
                      UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&out);
 
-    /* slot1[i] = prepend1[i] XOR sharedSecret[i]
-     * slot2[i] = prepend2[i] XOR sharedSecret[i]
-     *   => slot1[i] XOR slot2[i] = prepend1[i] XOR prepend2[i] */
+    /* slot1[i] = initial1[i] XOR sharedSecret[i]
+     * slot2[i] = initial2[i] XOR sharedSecret[i]
+     *   => slot1[i] XOR slot2[i] = initial1[i] XOR initial2[i] */
     for(int i = 0; i < 32; i++) {
         UA_Byte xorSlots   = (UA_Byte)(slot1[i] ^ slot2[i]);
-        UA_Byte xorPrepends = (UA_Byte)(prepend1[i] ^ prepend2[i]);
-        ck_assert_msg(xorSlots == xorPrepends,
+        UA_Byte xorInitial = (UA_Byte)(initial1[i] ^ initial2[i]);
+        ck_assert_msg(xorSlots == xorInitial,
                       "IKM chaining invariant violated at byte %d: "
-                      "slot1^slot2=0x%02x, prepend1^prepend2=0x%02x",
-                      i, xorSlots, xorPrepends);
+                      "slot1^slot2=0x%02x, initial1^initial2=0x%02x",
+                      i, xorSlots, xorInitial);
     }
 
     /* Also: the slots must have changed (i.e. XOR actually happened).
      * Compare the buffers as a whole — a *per-byte* "changed" assertion
-     * would be flaky, since slot[i] == prepend[i] whenever the shared
+     * would be flaky, since slot[i] == initial[i] whenever the shared
      * secret byte ss[i] is 0x00 (a ~1/256 event per byte). The XOR only
      * leaves the whole 32-byte buffer unchanged in the astronomically
      * unlikely case that the entire shared secret is zero. */
-    ck_assert_msg(memcmp(slot1, prepend1, 32) != 0, "slot1 was not XORed");
-    ck_assert_msg(memcmp(slot2, prepend2, 32) != 0, "slot2 was not XORed");
+    ck_assert_msg(memcmp(slot1, initial1, 32) != 0, "slot1 was not XORed");
+    ck_assert_msg(memcmp(slot2, initial2, 32) != 0, "slot2 was not XORed");
 
     EVP_PKEY_free(localKp);
     EVP_PKEY_free(remoteKp);
@@ -1350,10 +1442,9 @@ newEphemeral(P256Ephemeral *e) {
     ck_assert_int_eq(exportP256PublicXY(e->kp, e->nonce), UA_STATUSCODE_GOOD);
 }
 
-/* One key derivation as the SecureChannel calls it: key1 = [accumulator |
- * nonce1], key2 = nonce2. Local keys pass (remote nonce, local nonce), remote
- * keys (local nonce, remote nonce). Without an accumulator there is no
- * chaining; with one, the chained IKM is written back into it. */
+/* One key derivation with a separate accumulator. Local keys pass (remote
+ * nonce, local nonce), remote keys (local nonce, remote nonce). Without an
+ * accumulator there is no chaining; with one, the chained IKM is written back. */
 static UA_StatusCode
 deriveP256(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
            const UA_Byte *nonce1, const UA_Byte *nonce2, UA_Byte *out32) {
@@ -1460,16 +1551,16 @@ newX25519Ephemeral(X25519Ephemeral *e) {
     e->kp = makeXdhKey(0, &pub); /* raw, no 0x04 point-format prefix */
 }
 
-/* One X25519 derivation, shaped as the SecureChannel calls it. `prefixLen`
+/* One X25519 derivation, shaped as the SecureChannel calls it. `accumulatorLength`
  * lets the test pass a deliberately wrong accumulator width. */
 static UA_StatusCode
 deriveX25519(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
-             size_t prefixLen, const UA_Byte *nonce1, const UA_Byte *nonce2,
+             size_t accumulatorLength, const UA_Byte *nonce1, const UA_Byte *nonce2,
              UA_Byte *out32) {
     UA_Byte ikmBuf[64];
     if(accumulator)
-        memcpy(ikmBuf, accumulator, prefixLen);
-    UA_ByteString ikm = {accumulator ? prefixLen : 0, ikmBuf};
+        memcpy(ikmBuf, accumulator, accumulatorLength);
+    UA_ByteString ikm = {accumulator ? accumulatorLength : 0, ikmBuf};
     UA_ByteString key1 = {32, (UA_Byte *)(uintptr_t)nonce1};
     UA_ByteString key2 = {32, (UA_Byte *)(uintptr_t)nonce2};
     UA_ByteString out = {32, out32};
@@ -1477,7 +1568,7 @@ deriveX25519(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
                                                    role, localKp, &key1, &key2,
                                                    &ikm, &out);
     if(accumulator && res == UA_STATUSCODE_GOOD)
-        memcpy(accumulator, ikmBuf, prefixLen);
+        memcpy(accumulator, ikmBuf, accumulatorLength);
     return res;
 }
 
@@ -1517,49 +1608,6 @@ START_TEST(SecureChannel_IKMChaining_x25519AccumulatorIsFullWidth) {
     EVP_PKEY_free(s.kp);
 } END_TEST
 
-
-/* UA_OpenSSL_splitIKM tells the SecureChannel's [accumulator | nonce] apart
- * from a bare nonce (the EccEncryptedSecret key of a UserIdentityToken) by the
- * exact length, and only for an enhanced policy */
-START_TEST(SecureChannel_IKMChaining_splitIKM) {
-    UA_SecurityPolicy sp;
-    memset(&sp, 0, sizeof(sp));
-    sp.nonceLength = 64;
-    sp.secretLength = 32;
-    sp.secureChannelEnhancements = true;
-
-    UA_Byte buf[96];
-    for(size_t i = 0; i < sizeof(buf); i++)
-        buf[i] = (UA_Byte)i;
-    UA_ByteString ikm, nonce;
-
-    /* [accumulator | nonce]: split, the accumulator aliases the buffer */
-    UA_ByteString prefixed = {96, buf};
-    UA_OpenSSL_splitIKM(&sp, &prefixed, &ikm, &nonce);
-    ck_assert_uint_eq(ikm.length, 32);
-    ck_assert_ptr_eq(ikm.data, buf);
-    ck_assert_uint_eq(nonce.length, 64);
-    ck_assert_ptr_eq(nonce.data, buf + 32);
-
-    /* A bare nonce carries no accumulator */
-    UA_ByteString bare = {64, buf};
-    UA_OpenSSL_splitIKM(&sp, &bare, &ikm, &nonce);
-    ck_assert_uint_eq(ikm.length, 0);
-    ck_assert_uint_eq(nonce.length, 64);
-    ck_assert_ptr_eq(nonce.data, buf);
-
-    /* Any other length is not split either */
-    UA_ByteString odd = {95, buf};
-    UA_OpenSSL_splitIKM(&sp, &odd, &ikm, &nonce);
-    ck_assert_uint_eq(ikm.length, 0);
-    ck_assert_uint_eq(nonce.length, 95);
-
-    /* A policy without SecureChannelEnhancements never chains */
-    sp.secureChannelEnhancements = false;
-    UA_OpenSSL_splitIKM(&sp, &prefixed, &ikm, &nonce);
-    ck_assert_uint_eq(ikm.length, 0);
-    ck_assert_uint_eq(nonce.length, 96);
-} END_TEST
 
 /* The key of an EccEncryptedSecret (UserIdentityToken): both peers derive the
  * same key material from (server key, client key) with the "opcua-secret"
@@ -1744,6 +1792,8 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_keys, setup_secureChannel, teardown_secureChannel);
     tcase_add_loop_test(tc_keys, SecureChannel_derivedKeyLength, 0,
                         sizeof(keyLengthCases) / sizeof(keyLengthCases[0]));
+    tcase_add_loop_test(tc_keys, SecureChannel_IKM_explicitCallback, 0, 3);
+    tcase_add_loop_test(tc_keys, SecureChannel_IKM_failedDerivationDoesNotPublish, 0, 2);
     suite_add_tcase(s, tc_keys);
 
     TCase *tc_open = tcase_create("OpenSecureChannel security modes");
@@ -1804,11 +1854,10 @@ testSuite_SecureChannel(void) {
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
     TCase *tc_ikmChaining = tcase_create("v1.05.07 IKM chaining on renewal");
-    tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_prependChainsOnRenewal);
+    tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_accumulatorChainsOnRenewal);
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_firstOpnAndPeersAgree);
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_accumulatesSharedSecrets);
     tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_x25519AccumulatorIsFullWidth);
-    tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_splitIKM);
     tcase_add_test(tc_ikmChaining, SecureChannel_EncryptedSecretKey_p256);
     tcase_add_test(tc_ikmChaining, SecureChannel_ECC_rejectsOverlongNonce);
     suite_add_tcase(s, tc_ikmChaining);

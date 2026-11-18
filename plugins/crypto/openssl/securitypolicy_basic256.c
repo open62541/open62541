@@ -244,7 +244,8 @@ UA_Sym_Basic256_generateNonce(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 UA_Sym_Basic256_generateKey(const UA_SecurityPolicy *policy,
                             void *channelContext, const UA_ByteString *secret,
-                            const UA_ByteString *seed, UA_ByteString *out) {
+                            const UA_ByteString *seed,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
     return UA_Openssl_Random_Key_PSHA1_Derive(secret, seed, out);
 }
 

@@ -350,11 +350,20 @@ struct UA_SecurityPolicy {
      * @param channelContext The context of the SecureChannel
      * @param secret Usually from the nonce. See part 6.
      * @param seed Usually from the nonce. See part 6.
+     * @param ikmInOut Optional IKM chaining accumulator. NULL disables chaining.
+     *        Otherwise the caller supplies a writable buffer of secretLength
+     *        bytes containing the previous accumulator (all zero on the first
+     *        OPN). On success it contains the accumulator XOR the new shared
+     *        secret. The callback must not resize or take ownership of it.
+     *        Its contents are unspecified on failure. Policies without
+     *        SecureChannelEnhancements ignore this parameter. The nonces in
+     *        secret and seed are never prefixed with accumulator data.
      * @param out An output to write the data to. The length defines the maximum
      *        number of output bytes that are produced. */
     UA_StatusCode (*generateKey)(const UA_SecurityPolicy *policy,
                                  void *channelContext, const UA_ByteString *secret,
-                                 const UA_ByteString *seed, UA_ByteString *out);
+                                 const UA_ByteString *seed, UA_ByteString *ikmInOut,
+                                 UA_ByteString *out);
 
     /* Derive the symmetric key material [EncryptionKey | IV] of an
      * EccEncryptedSecret (OPC UA Part 4, 7.41.x) with the "opcua-secret"

@@ -308,7 +308,8 @@ UA_SymSig_EccNistP256_getLocalKeyLength(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 UA_Sym_EccNistP256_generateKey(const UA_SecurityPolicy *policy,
                                void *channelContext, const UA_ByteString *secret,
-                               const UA_ByteString *seed, UA_ByteString *out) {
+                               const UA_ByteString *seed,
+                               UA_ByteString *ikmInOut, UA_ByteString *out) {
     Policy_Context_EccNistP256* pctx = (Policy_Context_EccNistP256 *)policy->policyContext;
     Channel_Context_EccNistP256 *cc = (Channel_Context_EccNistP256 *)channelContext;
     if(!pctx || !cc)
