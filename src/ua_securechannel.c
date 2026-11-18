@@ -68,14 +68,14 @@ setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy *sp,
         return res;
     }
 
-    /* Set the SecurityPolicy and cache the URI-derived properties (the policy
+    /* Set the SecurityPolicy and cache its properties (the policy
      * is fixed for the channel's lifetime). */
     channel->securityPolicy = sp;
     channel->channelContext = channelContext;
     channel->remoteCertificate = certificate;
     memcpy(channel->remoteCertificateThumbprint, thumbprint,
            sizeof(thumbprint));
-    channel->enhancedSecurity = UA_SecurityPolicy_isEnhancedSecurity(sp);
+    channel->enhancedSecurity = sp->secureChannelEnhancements;
     channel->legacySequenceNumbers = UA_SecurityPolicy_useLegacySequenceNumbers(sp);
     channel->securityMode = securityMode;
     return UA_STATUSCODE_GOOD;
@@ -98,7 +98,7 @@ UA_SecureChannel_setSecurityPolicyWithoutOPN(
     UA_MessageSecurityMode securityMode) {
     /* Enhanced SecurityPolicies bind Session signatures to values exchanged in
      * OPN. A direct transport cannot establish that binding. */
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp))
+    if(sp->secureChannelEnhancements)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
     UA_Boolean createContext =
         remoteCertificate && remoteCertificate->length > 0;

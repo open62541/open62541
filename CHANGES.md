@@ -36,8 +36,8 @@ shared secret, also the width of the v1.05.07 IKM accumulator),
 `secureChannelEnhancements`. Before, the core derived these from the policy URI
 and `nonceLength`, which does not hold for X25519/X448. Custom SecurityPolicies
 must set them; zero/false means "not applicable".
-`UA_SecurityPolicy_isEnhancedSecurity` is now an inline function over the new
-member and no longer an exported symbol.
+`UA_SecurityPolicy_isEnhancedSecurity` is removed. Read
+`policy->secureChannelEnhancements` directly instead.
 
 ### The ServerConfiguration Object needs the GDS receiver driver
 

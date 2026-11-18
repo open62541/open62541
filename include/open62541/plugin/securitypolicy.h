@@ -464,16 +464,6 @@ struct UA_SecurityPolicy {
     void (*clear)(UA_SecurityPolicy *policy);
 };
 
-/* True if the SecurityPolicy requires the OPC UA Part 6 v1.05.07
- * SecureChannelEnhancements behavior (see the conformance unit "Security
- * SecureChannelEnhancements True"). The changed behavior is implemented in the
- * core library, not in the SecurityPolicy itself; the policy only declares
- * that it applies. NULL-safe so call sites can pass an unset policy. */
-static UA_INLINE UA_Boolean
-UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
-    return policy != NULL && policy->secureChannelEnhancements;
-}
-
 /* True if the SecurityPolicy uses the legacy SequenceNumber handling (the OPC
  * UA reference stack's LegacySequenceNumbers = true): the channel SequenceNumber
  * starts at 1 and rolls over with the "< 1024" rule. This is the case for None
