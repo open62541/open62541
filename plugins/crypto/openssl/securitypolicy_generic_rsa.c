@@ -546,6 +546,7 @@ rsaPolicy(UA_SecurityPolicy *sp, const UA_RsaParams *params,
     sp->certificateTypeId = UA_NODEID_NUMERIC(0, params->certificateTypeId);
     sp->securityLevel = params->securityLevel;
     sp->policyType = UA_SECURITYPOLICYTYPE_RSA;
+    sp->legacySequenceNumbers = true;
 
     /* Asymmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;

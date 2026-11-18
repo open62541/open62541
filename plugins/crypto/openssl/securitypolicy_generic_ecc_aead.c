@@ -979,6 +979,7 @@ eccAead_policy(UA_SecurityPolicy *sp, const UA_EccAeadParams *params,
     sp->certificateTypeId = UA_NODEID_NUMERIC(0, params->certificateTypeId);
     sp->securityLevel = params->securityLevel;
     sp->policyType = UA_SECURITYPOLICYTYPE_ECC_AEAD;
+    sp->legacySequenceNumbers = false;
 
     int keyId = eccAead_resolveKeyId(params);
     if(keyId == 0 || keyId == NID_undef)

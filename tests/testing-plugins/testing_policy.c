@@ -357,6 +357,7 @@ TestingPolicy(UA_SecurityPolicy *sp, UA_ByteString localCertificate,
     sp->certificateTypeId = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 20;
     sp->policyType = UA_SECURITYPOLICYTYPE_RSA;
+    sp->legacySequenceNumbers = true;
 
     /* Asymmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;

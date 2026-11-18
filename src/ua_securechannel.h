@@ -180,7 +180,7 @@ struct UA_SecureChannel {
 
     /* Policy properties cached for the channel's lifetime. */
     UA_Boolean enhancedSecurity;      /* SecurityPolicy.secureChannelEnhancements */
-    UA_Boolean legacySequenceNumbers; /* UA_SecurityPolicy_useLegacySequenceNumbers */
+    UA_Boolean legacySequenceNumbers; /* Cached from the SecurityPolicy */
 
     /* OPC UA Part 6 v1.05.07 §6.7.5 "ChannelThumbprint" for
      * SecurityPolicies with secureChannelEnhancements = true.

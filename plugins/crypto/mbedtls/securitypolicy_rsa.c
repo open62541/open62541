@@ -278,6 +278,7 @@ UA_mbedTLS_SecurityPolicy_Rsa(UA_SecurityPolicy *policy,
     policy->certificateTypeId = UA_NODEID_NUMERIC(0, config->certificateTypeId);
     policy->securityLevel = config->securityLevel;
     policy->policyType = UA_SECURITYPOLICYTYPE_RSA;
+    policy->legacySequenceNumbers = true;
 
     UA_SecurityPolicySignatureAlgorithm *asymSig =
         &policy->asymSignatureAlgorithm;

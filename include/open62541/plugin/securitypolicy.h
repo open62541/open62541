@@ -424,6 +424,11 @@ struct UA_SecurityPolicy {
      * SignatureData. */
     UA_Boolean secureChannelEnhancements;
 
+    /* True for the legacy SequenceNumber handling: start at 1 and roll over
+     * with the "< 1024" rule. False starts at 0 and wraps UA_UINT32_MAX to 0.
+     * None and RSA policies use legacy handling; ECC policies do not. */
+    UA_Boolean legacySequenceNumbers;
+
     /* Generates a thumbprint for the specified certificate.
      *
      * @param policy The policy that generates the thumbprint.
@@ -480,17 +485,6 @@ struct UA_SecurityPolicy {
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);
 };
-
-/* True if the SecurityPolicy uses the legacy SequenceNumber handling (the OPC
- * UA reference stack's LegacySequenceNumbers = true): the channel SequenceNumber
- * starts at 1 and rolls over with the "< 1024" rule. This is the case for None
- * and the RSA policies (Basic*, Aes*_RsaOaep/RsaPss). The ECC policies use the
- * non-legacy scheme (start at 0, wrap UA_UINT32_MAX -> 0). Detected from the
- * policy URI so it does not depend on a struct member - this keeps the
- * SecurityPolicy layout stable across the 1.5 release family. A NULL policy is
- * treated as legacy. */
-UA_EXPORT UA_Boolean
-UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy);
 
 /* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
  * leaf, DER) with the policy's CertificateThumbprintAlgorithm - SHA-256 or
