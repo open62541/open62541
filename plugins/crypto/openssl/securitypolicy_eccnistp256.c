@@ -274,21 +274,17 @@ UA_AsymEn_EccNistP256_getRemoteKeyLength(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
-UA_Sym_EccNistP256_generateNonce(const UA_SecurityPolicy *policy,
+UA_Sym_EccNistP256_generateEphemeralKey(const UA_SecurityPolicy *policy,
                                  void *channelContext, UA_ByteString *out) {
+    if(!policy || !channelContext || !out || !out->data ||
+       out->length != policy->nonceLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     Policy_Context_EccNistP256* pctx = (Policy_Context_EccNistP256*)policy->policyContext;
     if(!pctx)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    /* Detect if we want to create an ephemeral key or just cryptographic random
-     * data */
-    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
-        Channel_Context_EccNistP256 *cctx = (Channel_Context_EccNistP256*)channelContext;
-        return UA_OpenSSL_ECC_NISTP256_GenerateKey(&cctx->localEphemeralKeyPair, out);
-    }
-
-    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
-    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    Channel_Context_EccNistP256 *cctx = (Channel_Context_EccNistP256*)channelContext;
+    return UA_OpenSSL_ECC_NISTP256_GenerateKey(&cctx->localEphemeralKeyPair, out);
 }
 
 static size_t
@@ -600,7 +596,8 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
     sp->compareCertificate = EccNistP256_compareCertificate;
     sp->generateKey = UA_Sym_EccNistP256_generateKey;
     sp->generateEncryptedSecretKey = UA_Sym_EccNistP256_generateEncryptedSecretKey;
-    sp->generateNonce = UA_Sym_EccNistP256_generateNonce;
+    sp->generateNonce = UA_OpenSSL_generateNonce;
+    sp->generateEphemeralKey = UA_Sym_EccNistP256_generateEphemeralKey;
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP256_NONCE_LENGTH_BYTES;
     sp->secretLength = 32;
     sp->certThumbprintLength = 32;

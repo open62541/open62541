@@ -357,7 +357,7 @@ UA_mbedTLS_PsaRandom(UA_ByteString *output) {
 }
 
 UA_StatusCode
-UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
+UA_mbedTLS_EccGenerateEphemeralKey(const UA_SecurityPolicy *policy,
                             UA_mbedTLS_PsaKey *ephemeralKey,
                             psa_ecc_family_t family, size_t bits,
                             UA_ByteString *output) {
@@ -365,11 +365,7 @@ UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
        (output->length > 0 && !output->data))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    if(output->length < 3 || output->data[0] != 'e' ||
-       output->data[1] != 'p' || output->data[2] != 'h')
-        return UA_mbedTLS_PsaRandom(output);
-
-    if(!ephemeralKey)
+    if(!ephemeralKey || output->length != policy->nonceLength || !output->data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     return UA_mbedTLS_PsaEccGenerate(family, bits, ephemeralKey, output);
 }

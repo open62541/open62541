@@ -2022,9 +2022,6 @@ createSessionAsync(UA_Client *client) {
             if(res != UA_STATUSCODE_GOOD)
                 return res;
         }
-        /* Ensure data[0] is not the 'e' of the "eph" ECC ephemeral-key
-         * trigger, so generateNonce produces plain random data. */
-        client->clientSessionNonce.data[0] = 0;
         res = sp->generateNonce(sp, client->channel.channelContext,
                                 &client->clientSessionNonce);
         if(res != UA_STATUSCODE_GOOD) {

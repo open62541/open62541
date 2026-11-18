@@ -37,6 +37,18 @@
 
 #include <limits.h>
 
+UA_StatusCode
+UA_OpenSSL_generateNonce(const UA_SecurityPolicy *policy,
+                         void *channelContext, UA_ByteString *out) {
+    if(!policy || !out || (out->length > 0 && !out->data) ||
+       out->length > INT_MAX)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(out->length == 0)
+        return UA_STATUSCODE_GOOD;
+    return RAND_bytes(out->data, (int)out->length) == 1 ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+}
+
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 #define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
 

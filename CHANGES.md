@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Separate random nonces and ephemeral keys
+
+`UA_SecurityPolicy.generateNonce` always fills its output with random data.
+ECC policies must implement the new `generateEphemeralKey` callback, which
+stores a fresh private key in the channel context and writes the public key
+to a caller-allocated `nonceLength` buffer. The old `"eph"` output-buffer
+marker is removed. Policies without key agreement leave the callback NULL.
+
 ### All twelve ECC AEAD SecurityPolicies of OPC UA Part 7
 
 The OpenSSL backend now implements the ten ECC AEAD SecurityPolicies that were

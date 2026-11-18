@@ -614,8 +614,7 @@ START_TEST(encryption_update_certificate) {
     ck_assert(sp->updateCertificate != NULL);
 
     UA_StatusCode retval;
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    /* Short random nonces must not be interpreted as the "eph" marker. */
+    /* Random generation accepts short buffers and ignores the old marker. */
     UA_Byte shortNonceData[2] = {0, 0};
     UA_ByteString shortNonce = {1, shortNonceData};
     retval = sp->generateNonce(sp, NULL, &shortNonce);
@@ -631,8 +630,9 @@ START_TEST(encryption_update_certificate) {
     UA_Byte ephMarker[3] = {'e', 'p', 'h'};
     UA_ByteString ephemeralNonce = {3, ephMarker};
     retval = sp->generateNonce(sp, NULL, &ephemeralNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = sp->generateEphemeralKey(sp, NULL, &ephemeralNonce);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
-#endif
 
     /* Update with the same cert and key (should succeed) */
     UA_ByteString certificate;

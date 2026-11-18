@@ -515,20 +515,17 @@ EccCurve25519_compareCertificate(const UA_SecurityPolicy *policy,
 /* --- Nonce Generation (X25519 ephemeral key) --- */
 
 static UA_StatusCode
-UA_Sym_EccCurve25519_generateNonce(const UA_SecurityPolicy *policy,
+UA_Sym_EccCurve25519_generateEphemeralKey(const UA_SecurityPolicy *policy,
                                     void *channelContext, UA_ByteString *out) {
+    if(!policy || !channelContext || !out || !out->data ||
+       out->length != policy->nonceLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!policy->policyContext)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    /* Detect ephemeral key generation request */
-    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
-        Channel_Context_EccCurve25519 *cc =
-            (Channel_Context_EccCurve25519 *)channelContext;
-        return UA_OpenSSL_X25519_GenerateKey(&cc->localEphemeralKeyPair, out);
-    }
-
-    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
-    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    Channel_Context_EccCurve25519 *cc =
+        (Channel_Context_EccCurve25519 *)channelContext;
+    return UA_OpenSSL_X25519_GenerateKey(&cc->localEphemeralKeyPair, out);
 }
 
 /* --- Key Derivation (XDHE + HKDF) --- */
@@ -670,7 +667,8 @@ UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *sp,
     sp->compareCertificate = EccCurve25519_compareCertificate;
     sp->generateKey = UA_Sym_EccCurve25519_generateKey;
     sp->generateEncryptedSecretKey = UA_Sym_EccCurve25519_generateEncryptedSecretKey;
-    sp->generateNonce = UA_Sym_EccCurve25519_generateNonce;
+    sp->generateNonce = UA_OpenSSL_generateNonce;
+    sp->generateEphemeralKey = UA_Sym_EccCurve25519_generateEphemeralKey;
     sp->nonceLength = UA_ECCCURVE25519_NONCE_LENGTH_BYTES;
     sp->secretLength = 32;
     sp->certThumbprintLength = 32;

@@ -508,19 +508,17 @@ EccCurve448_compareCertificate(const UA_SecurityPolicy *policy,
 /* --- Nonce Generation (X448 ephemeral key) --- */
 
 static UA_StatusCode
-UA_Sym_EccCurve448_generateNonce(const UA_SecurityPolicy *policy,
+UA_Sym_EccCurve448_generateEphemeralKey(const UA_SecurityPolicy *policy,
                                   void *channelContext, UA_ByteString *out) {
+    if(!policy || !channelContext || !out || !out->data ||
+       out->length != policy->nonceLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!policy->policyContext)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
-        Channel_Context_EccCurve448 *cc =
-            (Channel_Context_EccCurve448 *)channelContext;
-        return UA_OpenSSL_X448_GenerateKey(&cc->localEphemeralKeyPair, out);
-    }
-
-    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
-    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    Channel_Context_EccCurve448 *cc =
+        (Channel_Context_EccCurve448 *)channelContext;
+    return UA_OpenSSL_X448_GenerateKey(&cc->localEphemeralKeyPair, out);
 }
 
 /* --- Key Derivation (XDHE + HKDF) --- */
@@ -662,7 +660,8 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
     sp->compareCertificate = EccCurve448_compareCertificate;
     sp->generateKey = UA_Sym_EccCurve448_generateKey;
     sp->generateEncryptedSecretKey = UA_Sym_EccCurve448_generateEncryptedSecretKey;
-    sp->generateNonce = UA_Sym_EccCurve448_generateNonce;
+    sp->generateNonce = UA_OpenSSL_generateNonce;
+    sp->generateEphemeralKey = UA_Sym_EccCurve448_generateEphemeralKey;
     sp->nonceLength = UA_ECCCURVE448_NONCE_LENGTH_BYTES;
     sp->secretLength = 56;
     sp->certThumbprintLength = 48;

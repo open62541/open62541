@@ -96,7 +96,7 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
                         UA_Boolean sessionSecret);
 
 UA_StatusCode
-UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
+UA_mbedTLS_EccGenerateEphemeralKey(const UA_SecurityPolicy *policy,
                             UA_mbedTLS_PsaKey *ephemeralKey,
                             psa_ecc_family_t family, size_t bits,
                             UA_ByteString *output);

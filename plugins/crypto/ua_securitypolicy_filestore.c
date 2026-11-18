@@ -558,6 +558,14 @@ generateNonce_filestore(const UA_SecurityPolicy *sp,
 }
 
 static UA_StatusCode
+generateEphemeralKey_filestore(const UA_SecurityPolicy *sp,
+                           void *channelContext, UA_ByteString *out) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->generateEphemeralKey(isp, channelContext, out);
+}
+
+static UA_StatusCode
 compareCertificate_filestore(const UA_SecurityPolicy *sp,
                                 const void *channelContext,
                                 const UA_ByteString *certificate) {
@@ -740,6 +748,8 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     if(isp->generateEncryptedSecretKey)
         sp->generateEncryptedSecretKey = generateEncryptedSecretKey_filestore;
     sp->generateNonce = generateNonce_filestore;
+    sp->generateEphemeralKey = isp->generateEphemeralKey ?
+        generateEphemeralKey_filestore : NULL;
     sp->nonceLength = isp->nonceLength;
     /* Forward the remaining scalar policy properties. Missing one here makes a
      * wrapped policy silently misreport itself - e.g. an enhanced policy that
