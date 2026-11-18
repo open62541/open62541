@@ -264,7 +264,7 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
      * SignatureData shall be NULL or empty and receivers shall
      * ignore the value. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+    if(!sp->secureChannelEnhancements)
         retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -275,7 +275,7 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+    if(sp->secureChannelEnhancements) {
         /* Channel-bound v1.05.07 ClientSignature (see the cert-role table at
          * UA_SecureChannel_buildActivateSessionSignatureData). */
         UA_ByteString signData = UA_BYTESTRING_NULL;
@@ -328,8 +328,8 @@ signUserTokenSignature(UA_Client *client,
      * private key (utpSp context). Used only when BOTH the SecureChannel AND the
      * user-token SecurityPolicy are enhanced; a legacy RSA / old-ECC user token
      * uses the legacy layout even over an enhanced (AesGcm) SecureChannel. */
-    if(UA_SecurityPolicy_isEnhancedSecurity(channel->securityPolicy) &&
-       UA_SecurityPolicy_isEnhancedSecurity(utpSp)) {
+    if(channel->securityPolicy->secureChannelEnhancements &&
+       utpSp->secureChannelEnhancements) {
         const UA_ByteString *clientCert = &channel->securityPolicy->localCertificate;
         UA_ByteString signData = UA_BYTESTRING_NULL;
         retval = UA_SecureChannel_buildUserTokenSignatureData(
@@ -429,7 +429,7 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
 
     UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
     UA_StatusCode retval;
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+    if(sp->secureChannelEnhancements) {
         /* Channel-bound v1.05.07 CreateSession ServerSignature (see the
          * cert-role table at UA_SecureChannel_buildCreateSessionSignatureData). */
         retval = UA_SecureChannel_buildCreateSessionSignatureData(

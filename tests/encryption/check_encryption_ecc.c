@@ -734,7 +734,7 @@ computeClientSignatureForTest(UA_Client *client, UA_SignatureData *sd) {
     const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+    if(!sp->secureChannelEnhancements)
         retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -743,7 +743,7 @@ computeClientSignatureForTest(UA_Client *client, UA_SignatureData *sd) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+    if(sp->secureChannelEnhancements) {
         UA_ByteString signData = UA_BYTESTRING_NULL;
         retval = UA_SecureChannel_buildActivateSessionSignatureData(
             channel, &client->serverSessionNonce, &client->clientSessionNonce,

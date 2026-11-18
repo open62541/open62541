@@ -631,7 +631,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
          * bound to a secured SecureChannel - they must never be used to secure
          * an auth token over #None. Only the static-RSA encryption policies
          * (e.g. Basic256Sha256, Aes*_RsaOaep/RsaPss) qualify. */
-        if(UA_SecurityPolicy_isEcc(sp) || UA_SecurityPolicy_isEnhancedSecurity(sp))
+        if(UA_SecurityPolicy_isEcc(sp) || sp->secureChannelEnhancements)
             continue;
         /* Return early with Basic256Sha256 when available. "Secure enough" and
          * most clients support it.*/

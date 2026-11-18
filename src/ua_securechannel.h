@@ -178,11 +178,8 @@ struct UA_SecureChannel {
     UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
 
-    /* Properties derived from the SecurityPolicy URI, cached when the policy is
-     * set (it is fixed for the channel's lifetime). This avoids re-evaluating
-     * UA_SecurityPolicy_isEnhancedSecurity / _useLegacySequenceNumbers (which
-     * scan the policy URI) on the per-chunk send and receive paths. */
-    UA_Boolean enhancedSecurity;      /* UA_SecurityPolicy_isEnhancedSecurity */
+    /* Policy properties cached for the channel's lifetime. */
+    UA_Boolean enhancedSecurity;      /* SecurityPolicy.secureChannelEnhancements */
     UA_Boolean legacySequenceNumbers; /* UA_SecurityPolicy_useLegacySequenceNumbers */
 
     /* OPC UA Part 6 v1.05.07 §6.7.5 "ChannelThumbprint" for

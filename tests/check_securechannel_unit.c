@@ -142,7 +142,7 @@ START_TEST(setSecurityPolicyWithoutOPN_withoutCertificate_hasNoContext) {
     ck_assert_ptr_null(direct.channelContext);
     ck_assert_uint_eq(direct.remoteCertificate.length, 0);
     ck_assert_uint_eq(direct.enhancedSecurity,
-                      UA_SecurityPolicy_isEnhancedSecurity(policy));
+                      policy->secureChannelEnhancements);
     ck_assert_uint_eq(direct.legacySequenceNumbers,
                       UA_SecurityPolicy_useLegacySequenceNumbers(policy));
     UA_SecureChannel_clear(&direct);
@@ -154,7 +154,6 @@ START_TEST(setSecurityPolicyWithoutOPN_enhancedPolicy_rejected) {
     UA_SecureChannel_init(&direct);
     UA_SecurityPolicy policy = *getNonePolicy();
     policy.secureChannelEnhancements = true;
-    ck_assert(UA_SecurityPolicy_isEnhancedSecurity(&policy));
     ck_assert_uint_eq(
         UA_SecureChannel_setSecurityPolicyWithoutOPN(
             &direct, &policy, NULL, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT),

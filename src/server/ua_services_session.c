@@ -279,7 +279,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
      * secureChannelEnhancements = true, the algorithm field in
      * SignatureData shall be NULL or empty and receivers shall
      * ignore the value. */
-    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+    if(!sp->secureChannelEnhancements)
         retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
@@ -287,7 +287,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
     /* Build the data to sign. */
     UA_ByteString dataToSign = UA_BYTESTRING_NULL;
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+    if(sp->secureChannelEnhancements) {
         /* Channel-bound v1.05.07 signature (see the cert-role table at
          * UA_SecureChannel_buildCreateSessionSignatureData). */
         retval = UA_SecureChannel_buildCreateSessionSignatureData(
@@ -1057,8 +1057,8 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
      * used only when BOTH the SecureChannel AND the user-token SecurityPolicy
      * are enhanced; a legacy RSA / old-ECC user token uses the legacy layout
      * even over an enhanced (AesGcm) SecureChannel. */
-    if(UA_SecurityPolicy_isEnhancedSecurity(channel->securityPolicy) &&
-       UA_SecurityPolicy_isEnhancedSecurity(tokenSp)) {
+    if(channel->securityPolicy->secureChannelEnhancements &&
+       tokenSp->secureChannelEnhancements) {
         if(tokenSignature->signature.length == 0) {
             res = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
             goto out;
@@ -1256,7 +1256,7 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     /* Check the client signature */
     if(UA_SecureChannel_hasApplicationSecurity(channel)) {
         const UA_SecurityPolicy *csp = channel->securityPolicy;
-        if(UA_SecurityPolicy_isEnhancedSecurity(csp)) {
+        if(csp->secureChannelEnhancements) {
             /* Channel-bound v1.05.07 ClientSignature (see the cert-role table at
              * UA_SecureChannel_buildActivateSessionSignatureData). clientNonce is
              * the ClientNonce stored at CreateSession. */

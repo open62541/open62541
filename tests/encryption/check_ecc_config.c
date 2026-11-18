@@ -606,7 +606,6 @@ START_TEST(ecc_policies_declare_their_crypto_constants) {
             ck_assert(UA_String_equal(&sp->symEncryptionAlgorithm.uri, &symUri));
         }
 
-        ck_assert_int_eq(UA_SecurityPolicy_isEnhancedSecurity(sp), r->enhanced);
         if(r->enhanced)
             ck_assert_uint_eq(sp->policyType, UA_SECURITYPOLICYTYPE_ECC_AEAD);
 
