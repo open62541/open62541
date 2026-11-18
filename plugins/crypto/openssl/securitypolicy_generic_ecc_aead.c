@@ -644,34 +644,31 @@ eccAead_generateNonce(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 eccAead_generateKey(const UA_SecurityPolicy *policy,
                     void *channelContext, const UA_ByteString *secret,
-                    const UA_ByteString *seed, UA_ByteString *out) {
+                    const UA_ByteString *seed, UA_ByteString *ikmInOut, UA_ByteString *out) {
     Policy_Context_EccAead *pctx = (Policy_Context_EccAead *)policy->policyContext;
     Channel_Context_EccAead *cc = (Channel_Context_EccAead *)channelContext;
     const UA_EccAeadParams *params = eccAead_params(policy);
     if(!pctx || !cc || !params)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    /* The SecureChannel prepends the IKM accumulator to `secret` on an enhanced
-     * policy. Peel it off here, where policy->secretLength says how wide it is,
-     * instead of letting the derivation infer it from a length mismatch. */
-    UA_ByteString ikmInOut, nonce;
-    UA_OpenSSL_splitIKM(policy, secret, &ikmInOut, &nonce);
+    if(ikmInOut && (ikmInOut->length != policy->secretLength ||
+                    !ikmInOut->data))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     if(params->kexKind == ECC_AEAD_KEX_XDH)
         return UA_OpenSSL_XDHE_DeriveKeys(pctx->keyId, params->hkdfHash,
                                           pctx->applicationType,
                                           cc->localEphemeralKeyPair,
-                                          &nonce, seed, &ikmInOut, out);
+                                          secret, seed, ikmInOut, out);
 
     return UA_OpenSSL_ECC_DeriveKeys(pctx->keyId,
                                      (char *)(uintptr_t)params->hkdfHash,
                                      pctx->applicationType,
                                      cc->localEphemeralKeyPair,
-                                     &nonce, seed, &ikmInOut, out);
+                                     secret, seed, ikmInOut, out);
 }
 
-/* The key of an EccEncryptedSecret is derived without IKM chaining, so the
- * input is not split like in eccAead_generateKey */
+/* The key of an EccEncryptedSecret is derived without IKM chaining. */
 static UA_StatusCode
 eccAead_generateEncryptedSecretKey(const UA_SecurityPolicy *policy,
                                    void *channelContext,

@@ -553,6 +553,57 @@ START_TEST(update_certificate) {
     connectReadClose(createClient(UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, false));
 } END_TEST
 
+/* The policy callback accepts independent nonces and an optional accumulator.
+ * Check this for every curve, including X25519/X448 whose nonce and shared
+ * secret have the same length. */
+START_TEST(key_derivation_ikm) {
+    UA_SecurityPolicy *sp = serverPolicy();
+    ck_assert_ptr_nonnull(sp);
+    void *localContext = NULL, *remoteContext = NULL;
+    ck_assert_uint_eq(sp->newChannelContext(sp, &sp->localCertificate, &localContext),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sp->newChannelContext(sp, &sp->localCertificate, &remoteContext),
+                      UA_STATUSCODE_GOOD);
+    UA_Byte localBytes[96] = {'e', 'p', 'h'};
+    UA_Byte remoteBytes[96] = {'e', 'p', 'h'};
+    ck_assert_uint_le(sp->nonceLength, sizeof(localBytes));
+    UA_ByteString local = {sp->nonceLength, localBytes};
+    UA_ByteString remote = {sp->nonceLength, remoteBytes};
+    ck_assert_uint_eq(sp->generateNonce(sp, localContext, &local), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sp->generateNonce(sp, remoteContext, &remote), UA_STATUSCODE_GOOD);
+    UA_Byte savedLocal[96], savedRemote[96];
+    memcpy(savedLocal, local.data, local.length);
+    memcpy(savedRemote, remote.data, remote.length);
+
+    UA_Byte unchained[32], chained[32], accumulator[56] = {0};
+    ck_assert_uint_le(sp->secretLength, sizeof(accumulator));
+    UA_ByteString ikm = {sp->secretLength, accumulator};
+    UA_ByteString out = {sizeof(unchained), unchained};
+    ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local, NULL, &out),
+                      UA_STATUSCODE_GOOD);
+    out.data = chained;
+    ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local, &ikm, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_mem_eq(unchained, chained, sizeof(chained));
+    ck_assert_uint_eq(ikm.length, sp->secretLength);
+    ck_assert_ptr_eq(ikm.data, accumulator);
+    memset(accumulator, 0x5a, ikm.length);
+    ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local, &ikm, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(memcmp(unchained, chained, sizeof(chained)) != 0);
+
+    UA_ByteString invalid[] = {{0, accumulator}, {sp->secretLength - 1, accumulator},
+                              {sp->secretLength, NULL}};
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++)
+        ck_assert_uint_eq(sp->generateKey(sp, localContext, &remote, &local,
+                                          &invalid[i], &out),
+                          UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_mem_eq(local.data, savedLocal, local.length);
+    ck_assert_mem_eq(remote.data, savedRemote, remote.length);
+    sp->deleteChannelContext(sp, localContext);
+    sp->deleteChannelContext(sp, remoteContext);
+} END_TEST
+
 /********/
 /* AEAD */
 /********/
@@ -665,6 +716,7 @@ testSuite_eccAead(void) {
         tcase_add_test(tc, csr_generation);
         tcase_add_test(tc, update_certificate);
         tcase_add_test(tc, aead_rejects_tampering);
+        tcase_add_test(tc, key_derivation_ikm);
 
         /* Not specific to the policy, and each one a full handshake: only for
          * the first row (ECDH, AES-GCM) and the last (XDH, ChaCha20-Poly1305).

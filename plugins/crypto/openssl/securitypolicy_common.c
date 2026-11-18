@@ -2093,32 +2093,6 @@ deriveChainedIkm(UA_ByteString *ikmInOut, const UA_ByteString *sharedSecret,
     return UA_STATUSCODE_GOOD;
 }
 
-void
-UA_OpenSSL_splitIKM(const UA_SecurityPolicy *policy, const UA_ByteString *secret,
-                    UA_ByteString *ikmInOut, UA_ByteString *nonce) {
-    size_t prefix = (policy && policy->secureChannelEnhancements) ?
-        policy->secretLength : 0;
-
-    /* Only the SecureChannel prepends, and when it does the buffer is exactly
-     * [accumulator | nonce]. Anything of another length comes from a caller
-     * that derives outside a SecureChannel - the EccEncryptedSecret key of a
-     * UserIdentityToken - and carries no accumulator. Testing for the exact
-     * length keeps those two apart without probing the ephemeral key. */
-    if(prefix == 0 || secret->length != prefix + policy->nonceLength) {
-        *ikmInOut = UA_BYTESTRING_NULL;
-        *nonce = *secret;
-        return;
-    }
-
-    /* The SecureChannel allocated this buffer (prepareKeyInput) and reads the
-     * updated accumulator back out of it, so writing through it is the
-     * contract, not an accident. This cast is the single place it happens. */
-    ikmInOut->data = (UA_Byte *)(uintptr_t)secret->data;
-    ikmInOut->length = prefix;
-    nonce->data = secret->data + prefix;
-    nonce->length = secret->length - prefix;
-}
-
 /* `sessionSecret` selects the "opcua-secret" label of an EccEncryptedSecret.
  * Then key1 is the server's (receiver's) and key2 the client's (sender's)
  * ephemeral public key. */
@@ -2157,7 +2131,7 @@ eccDeriveKeys(const int curveID, const char *hashAlgorithm,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* `key1` is the nonce and nothing else: the IKM accumulator arrives in its
-     * own argument (see UA_OpenSSL_splitIKM). */
+     * own argument. */
     UA_ByteString key1Effective = *key1;
 
     /* The order of ephemeral public keys (key1 and key2) tells us whether we

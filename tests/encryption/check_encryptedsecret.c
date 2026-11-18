@@ -117,7 +117,7 @@ getRemoteBlockSize(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 generateKey(const UA_SecurityPolicy *policy, void *channelContext,
             const UA_ByteString *secret, const UA_ByteString *seed,
-            UA_ByteString *out) {
+            UA_ByteString *ikmInOut, UA_ByteString *out) {
     return UA_STATUSCODE_GOOD;
 }
 

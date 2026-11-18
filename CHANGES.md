@@ -28,6 +28,17 @@ the key material of an EccEncryptedSecret (UserIdentityToken) with the
 into the output buffer of `generateKey` to select that label. Custom ECC
 SecurityPolicies must implement the new callback; others leave it NULL.
 
+### Explicit IKM accumulator in SecurityPolicy key derivation
+
+`UA_SecurityPolicy.generateKey` takes an additional `UA_ByteString *ikmInOut`
+parameter immediately before `out`. NULL disables IKM chaining; otherwise it
+points to a writable, caller-owned buffer of `secretLength` bytes containing
+the previous accumulator. A successful call updates it with the new chained
+IKM. `secret` and `seed` now always contain the original nonces, without an
+IKM prefix. Custom SecurityPolicies must update their callback signature;
+policies without SecureChannelEnhancements can ignore the new parameter.
+The separate `UA_PubSubSecurityPolicy.generateKey` interface is unchanged.
+
 ### SecurityPolicies declare their key-agreement properties
 
 `UA_SecurityPolicy` has three new members: `secretLength` (the key-agreement

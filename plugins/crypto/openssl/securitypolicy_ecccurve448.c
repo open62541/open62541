@@ -530,7 +530,7 @@ UA_Sym_EccCurve448_generateKey(const UA_SecurityPolicy *policy,
                                 void *channelContext,
                                 const UA_ByteString *secret,
                                 const UA_ByteString *seed,
-                                UA_ByteString *out) {
+                                UA_ByteString *ikmInOut, UA_ByteString *out) {
     Policy_Context_EccCurve448 *pctx =
         (Policy_Context_EccCurve448 *)policy->policyContext;
     Channel_Context_EccCurve448 *cc =
