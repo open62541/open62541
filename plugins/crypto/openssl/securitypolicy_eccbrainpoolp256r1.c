@@ -284,9 +284,9 @@ UA_SymSig_EccBrainpoolP256r1_getLocalKeyLength(const UA_SecurityPolicy *policy,
 
 static UA_StatusCode
 UA_Sym_EccBrainpoolP256r1_generateKey(const UA_SecurityPolicy *policy,
-                                      void *channelContext, const UA_ByteString *secret,
-                                      const UA_ByteString *seed,
-                                      UA_ByteString *ikmInOut, UA_ByteString *out) {
+                            void *channelContext, UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
     Policy_Context_EccBrainpoolP256r1 *pctx =
         (Policy_Context_EccBrainpoolP256r1 *)policy->policyContext;
     Channel_Context_EccBrainpoolP256r1 *cc =
@@ -294,8 +294,8 @@ UA_Sym_EccBrainpoolP256r1_generateKey(const UA_SecurityPolicy *policy,
     if(!pctx || !cc)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     return UA_OpenSSL_ECC_DeriveKeys(OBJ_txt2nid("brainpoolP256r1"), "SHA256",
-                                     pctx->applicationType, cc->localEphemeralKeyPair,
-                                     secret, seed, NULL /* no IKM chaining */, out);
+                                     pctx->applicationType, cc->localEphemeralKeyPair, direction,
+                                     localNonce, remoteNonce, NULL /* no IKM chaining */, out);
 }
 
 static UA_StatusCode

@@ -100,16 +100,18 @@ teardown_key_sizes(void) {
  * generateKey call of the SecurityPolicy gets L as the output length. */
 static size_t derivedLength;
 static UA_StatusCode
-(*testingGenerateKey)(const UA_SecurityPolicy *policy, void *channelContext,
-                      const UA_ByteString *secret, const UA_ByteString *seed,
+(*testingGenerateKey)(const UA_SecurityPolicy *policy,
+                      void *channelContext, UA_KeyDerivationDirection direction,
+                      const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
                       UA_ByteString *ikmInOut, UA_ByteString *out);
 
 static UA_StatusCode
-recordGenerateKey(const UA_SecurityPolicy *policy, void *channelContext,
-                  const UA_ByteString *secret, const UA_ByteString *seed,
+recordGenerateKey(const UA_SecurityPolicy *policy,
+                  void *channelContext, UA_KeyDerivationDirection direction,
+                  const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
                   UA_ByteString *ikmInOut, UA_ByteString *out) {
     derivedLength = out->length;
-    return testingGenerateKey(policy, channelContext, secret, seed, ikmInOut, out);
+    return testingGenerateKey(policy, channelContext, direction, localNonce, remoteNonce, ikmInOut, out);
 }
 
 static const struct {
@@ -164,18 +166,17 @@ assertIKMBytes(const UA_ByteString *ikm, UA_Byte expected) {
 }
 
 static UA_StatusCode
-recordIKM(const UA_SecurityPolicy *policy, void *channelContext,
-          const UA_ByteString *secret, const UA_ByteString *seed,
+recordIKM(const UA_SecurityPolicy *policy,
+          void *channelContext, UA_KeyDerivationDirection direction,
+          const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
           UA_ByteString *ikmInOut, UA_ByteString *out) {
     ikmCalls++;
-    const UA_ByteString *expectedSecret = ikmLocalPass ?
-        &testChannel.remoteNonce : &testChannel.localNonce;
-    const UA_ByteString *expectedSeed = ikmLocalPass ?
-        &testChannel.localNonce : &testChannel.remoteNonce;
-    ck_assert_uint_eq(secret->length, expectedSecret->length);
-    ck_assert_ptr_eq(secret->data, expectedSecret->data);
-    ck_assert_uint_eq(seed->length, expectedSeed->length);
-    ck_assert_ptr_eq(seed->data, expectedSeed->data);
+    ck_assert_int_eq(direction, ikmLocalPass ? UA_KEYDERIVATION_LOCAL :
+                                               UA_KEYDERIVATION_REMOTE);
+    ck_assert_uint_eq(localNonce->length, testChannel.localNonce.length);
+    ck_assert_ptr_eq(localNonce->data, testChannel.localNonce.data);
+    ck_assert_uint_eq(remoteNonce->length, testChannel.remoteNonce.length);
+    ck_assert_ptr_eq(remoteNonce->data, testChannel.remoteNonce.data);
     if(testChannel.enhancedSecurity) {
         ck_assert_ptr_nonnull(ikmInOut);
         ck_assert_ptr_ne(ikmInOut->data, testChannel.currentIKM.data);
@@ -1182,20 +1183,18 @@ START_TEST(SecureChannel_IKMChaining_accumulatorChainsOnRenewal) {
     ck_assert_int_eq(UA_ByteString_allocBuffer(&out, 32), UA_STATUSCODE_GOOD);
 
     /* First call: initial1 -> chained IKM written back to slot1. */
-    ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(
-                         EC_curve_nist2nid("P-256"), "SHA256",
-                         UA_APPLICATIONTYPE_CLIENT, localKp,
-                         &nonce1, &seed1, &ikm1, &out),
+    ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, localKp, UA_KEYDERIVATION_REMOTE,
+        &nonce1, &seed1, &ikm1, &out),
                      UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&out);
     ck_assert_int_eq(UA_ByteString_allocBuffer(&out, 32), UA_STATUSCODE_GOOD);
 
     /* Second call: initial2 -> chained IKM written back to slot2.
      * Same ephemeral keys => same shared secret as call 1. */
-    ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(
-                         EC_curve_nist2nid("P-256"), "SHA256",
-                         UA_APPLICATIONTYPE_CLIENT, localKp,
-                         &nonce2, &seed2, &ikm2, &out),
+    ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, localKp, UA_KEYDERIVATION_REMOTE,
+        &nonce2, &seed2, &ikm2, &out),
                      UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&out);
 
@@ -1264,17 +1263,21 @@ START_TEST(SecureChannel_XDH_clientServerAgreement) {
 
     /* A sender's local keys must match the receiver's remote keys. */
     ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
-        UA_APPLICATIONTYPE_SERVER, serverKey, &clientPublic, &serverPublic, NULL, &keys[0]),
+        UA_APPLICATIONTYPE_SERVER, serverKey, UA_KEYDERIVATION_LOCAL,
+        &serverPublic, &clientPublic, NULL, &keys[0]),
         UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
-        UA_APPLICATIONTYPE_CLIENT, clientKey, &clientPublic, &serverPublic, NULL, &keys[1]),
+        UA_APPLICATIONTYPE_CLIENT, clientKey, UA_KEYDERIVATION_REMOTE,
+        &clientPublic, &serverPublic, NULL, &keys[1]),
         UA_STATUSCODE_GOOD);
     ck_assert(UA_ByteString_equal(&keys[0], &keys[1]));
     ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
-        UA_APPLICATIONTYPE_CLIENT, clientKey, &serverPublic, &clientPublic, NULL, &keys[2]),
+        UA_APPLICATIONTYPE_CLIENT, clientKey, UA_KEYDERIVATION_LOCAL,
+        &clientPublic, &serverPublic, NULL, &keys[2]),
         UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
-        UA_APPLICATIONTYPE_SERVER, serverKey, &serverPublic, &clientPublic, NULL, &keys[3]),
+        UA_APPLICATIONTYPE_SERVER, serverKey, UA_KEYDERIVATION_REMOTE,
+        &serverPublic, &clientPublic, NULL, &keys[3]),
         UA_STATUSCODE_GOOD);
     ck_assert(UA_ByteString_equal(&keys[2], &keys[3]));
     ck_assert(!UA_ByteString_equal(&keys[0], &keys[2]));
@@ -1325,17 +1328,17 @@ START_TEST(SecureChannel_XDH_chainedRenewals) {
         UA_Byte serverOutput[64] = {0}, clientOutput[64] = {0};
         UA_ByteString serverKeys = {sizeof(serverOutput), serverOutput};
         UA_ByteString clientKeys = {sizeof(clientOutput), clientOutput};
-        /* The SecureChannel hands over [accumulator | nonce] in one buffer */
+        /* Accumulator and nonce are passed as separate byte strings. */
         UA_ByteString serverIkm = {keyLength, serverSlot};
         UA_ByteString serverNonce = {keyLength, serverSlot + keyLength};
         UA_ByteString clientIkm = {keyLength, clientSlot};
         UA_ByteString clientNonce = {keyLength, clientSlot + keyLength};
         ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
-            UA_APPLICATIONTYPE_SERVER, serverKey, &serverNonce, &serverPublic,
-            &serverIkm, &serverKeys), UA_STATUSCODE_GOOD);
+        UA_APPLICATIONTYPE_SERVER, serverKey, UA_KEYDERIVATION_LOCAL,
+        &serverPublic, &serverNonce, &serverIkm, &serverKeys), UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], "SHA256",
-            UA_APPLICATIONTYPE_CLIENT, clientKey, &clientNonce, &serverPublic,
-            &clientIkm, &clientKeys), UA_STATUSCODE_GOOD);
+        UA_APPLICATIONTYPE_CLIENT, clientKey, UA_KEYDERIVATION_REMOTE,
+        &clientNonce, &serverPublic, &clientIkm, &clientKeys), UA_STATUSCODE_GOOD);
         ck_assert(UA_ByteString_equal(&serverKeys, &clientKeys));
         ck_assert(UA_ByteString_equal(&serverSecret, &clientSecret));
         ck_assert_mem_eq(serverSlot + keyLength, clientPublic.data, keyLength);
@@ -1360,8 +1363,9 @@ START_TEST(SecureChannel_XDH_rejectsInvalidInputs) {
     EVP_PKEY *localKey = makeXdhKey(curve, &local);
     EVP_PKEY *remoteKey = makeXdhKey(curve, &remote);
     const char *hash = "SHA256";
+    UA_KeyDerivationDirection direction = UA_KEYDERIVATION_REMOTE;
     if(scenario == 0) {
-        local = remote; /* Neither input identifies the local key. */
+        direction = (UA_KeyDerivationDirection)42; /* Invalid enum value. */
     } else if(scenario == 1) {
         remote.length--;
     } else if(scenario == 2) {
@@ -1376,8 +1380,9 @@ START_TEST(SecureChannel_XDH_rejectsInvalidInputs) {
     memcpy(original, output, sizeof(output));
     UA_ByteString out = {sizeof(output), output};
     ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[curve], hash,
-        UA_APPLICATIONTYPE_CLIENT, localKey, &local, &remote, ikm, &out),
-        UA_STATUSCODE_BADINTERNALERROR);
+        UA_APPLICATIONTYPE_CLIENT, localKey, direction,
+        &local, &remote, ikm, &out),
+        scenario == 0 ? UA_STATUSCODE_BADINVALIDARGUMENT : UA_STATUSCODE_BADINTERNALERROR);
     ck_assert_uint_eq(out.length, sizeof(output));
     ck_assert_ptr_eq(out.data, output);
     ck_assert_mem_eq(output, original, sizeof(output));
@@ -1394,7 +1399,8 @@ START_TEST(SecureChannel_XDH_rejectsNonRawLocalKey) {
     UA_ByteString publicKey = {xdhKeyLengths[_i], keyBytes};
     UA_ByteString out = {sizeof(output), output};
     ck_assert_uint_eq(UA_OpenSSL_XDHE_DeriveKeys(xdhKeyTypes[_i], "SHA256",
-        UA_APPLICATIONTYPE_CLIENT, key, &publicKey, &publicKey, NULL, &out),
+        UA_APPLICATIONTYPE_CLIENT, key, UA_KEYDERIVATION_REMOTE,
+        &publicKey, &publicKey, NULL, &out),
         UA_STATUSCODE_BADINTERNALERROR);
     for(size_t i = 0; i < sizeof(output); i++)
         ck_assert_uint_eq(output[i], 0);
@@ -1442,12 +1448,11 @@ newEphemeral(P256Ephemeral *e) {
     ck_assert_int_eq(exportP256PublicXY(e->kp, e->nonce), UA_STATUSCODE_GOOD);
 }
 
-/* One key derivation with a separate accumulator. Local keys pass (remote
- * nonce, local nonce), remote keys (local nonce, remote nonce). Without an
- * accumulator there is no chaining; with one, the chained IKM is written back. */
+/* One key derivation with an explicit direction and separate accumulator.
+ * Nonces are always passed in local/remote order. */
 static UA_StatusCode
-deriveP256(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
-           const UA_Byte *nonce1, const UA_Byte *nonce2, UA_Byte *out32) {
+deriveP256(UA_ApplicationType role, EVP_PKEY *localKp, UA_KeyDerivationDirection direction,
+        UA_Byte *accumulator, const UA_Byte *nonce1, const UA_Byte *nonce2, UA_Byte *out32) {
     UA_Byte ikmBuf[32];
     if(accumulator)
         memcpy(ikmBuf, accumulator, 32);
@@ -1457,7 +1462,8 @@ deriveP256(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
     UA_ByteString out = {32, out32};
     UA_StatusCode res =
         UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
-                                  role, localKp, &key1, &key2, &ikm, &out);
+        role, localKp, direction,
+        &key1, &key2, &ikm, &out);
     if(accumulator)
         memcpy(accumulator, ikmBuf, 32);
     return res;
@@ -1477,27 +1483,27 @@ START_TEST(SecureChannel_IKMChaining_firstOpnAndPeersAgree) {
     UA_Byte accC[32] = {0};
     UA_Byte accS[32] = {0};
     UA_Byte clientLocal[32], serverRemote[32];
-    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, accC, s.nonce,
-                                 c.nonce, clientLocal), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_SERVER, s.kp, accS, s.nonce,
-                                 c.nonce, serverRemote), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        accC, c.nonce, s.nonce, clientLocal), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_SERVER, s.kp, UA_KEYDERIVATION_REMOTE,
+        accS, s.nonce, c.nonce, serverRemote), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(memcmp(clientLocal, serverRemote, 32), 0);
     ck_assert_int_eq(memcmp(accC, ss, 32), 0);
     ck_assert_int_eq(memcmp(accS, ss, 32), 0);
 
     /* Server to client */
     UA_Byte serverLocal[32], clientRemote[32];
-    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_SERVER, s.kp, NULL, c.nonce,
-                                 s.nonce, serverLocal), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, NULL, c.nonce,
-                                 s.nonce, clientRemote), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_SERVER, s.kp, UA_KEYDERIVATION_LOCAL,
+        NULL, s.nonce, c.nonce, serverLocal), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_REMOTE,
+        NULL, c.nonce, s.nonce, clientRemote), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(memcmp(serverLocal, clientRemote, 32), 0);
     ck_assert_int_ne(memcmp(serverLocal, clientLocal, 32), 0);
 
     /* No chaining at all gives the same keys as the zero accumulator */
     UA_Byte unchained[32];
-    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, NULL, s.nonce,
-                                 c.nonce, unchained), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        NULL, c.nonce, s.nonce, unchained), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(memcmp(unchained, clientLocal, 32), 0);
 
     EVP_PKEY_free(c.kp);
@@ -1520,11 +1526,11 @@ START_TEST(SecureChannel_IKMChaining_accumulatesSharedSecrets) {
             expected[i] ^= ss[i];
 
         UA_Byte keys[32], unchained[32];
-        ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, acc, s.nonce,
-                                     c.nonce, keys), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        acc, c.nonce, s.nonce, keys), UA_STATUSCODE_GOOD);
         ck_assert_int_eq(memcmp(acc, expected, 32), 0);
-        ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, NULL, s.nonce,
-                                     c.nonce, unchained), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(deriveP256(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        NULL, c.nonce, s.nonce, unchained), UA_STATUSCODE_GOOD);
         if(opn == 0)
             ck_assert_int_eq(memcmp(keys, unchained, 32), 0);
         else
@@ -1554,9 +1560,8 @@ newX25519Ephemeral(X25519Ephemeral *e) {
 /* One X25519 derivation, shaped as the SecureChannel calls it. `accumulatorLength`
  * lets the test pass a deliberately wrong accumulator width. */
 static UA_StatusCode
-deriveX25519(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
-             size_t accumulatorLength, const UA_Byte *nonce1, const UA_Byte *nonce2,
-             UA_Byte *out32) {
+deriveX25519(UA_ApplicationType role, EVP_PKEY *localKp, UA_KeyDerivationDirection direction,
+        UA_Byte *accumulator, size_t accumulatorLength, const UA_Byte *nonce1, const UA_Byte *nonce2, UA_Byte *out32) {
     UA_Byte ikmBuf[64];
     if(accumulator)
         memcpy(ikmBuf, accumulator, accumulatorLength);
@@ -1565,8 +1570,8 @@ deriveX25519(UA_ApplicationType role, EVP_PKEY *localKp, UA_Byte *accumulator,
     UA_ByteString key2 = {32, (UA_Byte *)(uintptr_t)nonce2};
     UA_ByteString out = {32, out32};
     UA_StatusCode res = UA_OpenSSL_XDHE_DeriveKeys(EVP_PKEY_X25519, "SHA256",
-                                                   role, localKp, &key1, &key2,
-                                                   &ikm, &out);
+        role, localKp, direction,
+        &key1, &key2, &ikm, &out);
     if(accumulator && res == UA_STATUSCODE_GOOD)
         memcpy(accumulator, ikmBuf, accumulatorLength);
     return res;
@@ -1581,18 +1586,18 @@ START_TEST(SecureChannel_IKMChaining_x25519AccumulatorIsFullWidth) {
      * changes the derived keys once it is non-zero. */
     UA_Byte acc[32] = {0};
     UA_Byte first[32], second[32], unchained[32];
-    ck_assert_uint_eq(deriveX25519(UA_APPLICATIONTYPE_CLIENT, c.kp, acc, 32,
-                                   s.nonce, c.nonce, first),
+    ck_assert_uint_eq(deriveX25519(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        acc, 32, c.nonce, s.nonce, first),
                       UA_STATUSCODE_GOOD);
     /* First OPN: a zero accumulator is the same as no chaining at all */
-    ck_assert_uint_eq(deriveX25519(UA_APPLICATIONTYPE_CLIENT, c.kp, NULL, 0,
-                                   s.nonce, c.nonce, unchained),
+    ck_assert_uint_eq(deriveX25519(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        NULL, 0, c.nonce, s.nonce, unchained),
                       UA_STATUSCODE_GOOD);
     ck_assert_int_eq(memcmp(first, unchained, 32), 0);
     /* The accumulator now holds the shared secret, so the next derivation
      * with it differs from the unchained one. */
-    ck_assert_uint_eq(deriveX25519(UA_APPLICATIONTYPE_CLIENT, c.kp, acc, 32,
-                                   s.nonce, c.nonce, second),
+    ck_assert_uint_eq(deriveX25519(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        acc, 32, c.nonce, s.nonce, second),
                       UA_STATUSCODE_GOOD);
     ck_assert_int_ne(memcmp(second, unchained, 32), 0);
 
@@ -1600,8 +1605,8 @@ START_TEST(SecureChannel_IKMChaining_x25519AccumulatorIsFullWidth) {
      * refused, not silently reinterpreted as part of the public key. */
     UA_Byte halfAcc[16] = {0};
     UA_Byte ignored[32];
-    ck_assert_uint_ne(deriveX25519(UA_APPLICATIONTYPE_CLIENT, c.kp, halfAcc, 16,
-                                   s.nonce, c.nonce, ignored),
+    ck_assert_uint_ne(deriveX25519(UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        halfAcc, 16, c.nonce, s.nonce, ignored),
                       UA_STATUSCODE_GOOD);
 
     EVP_PKEY_free(c.kp);
@@ -1639,19 +1644,17 @@ START_TEST(SecureChannel_EncryptedSecretKey_p256) {
      * output buffer starts with the former marker */
     UA_Byte channelKey[32] = {0x03, 0x03, 0x04};
     out.data = channelKey;
-    ck_assert_uint_eq(UA_OpenSSL_ECC_DeriveKeys(
-                          EC_curve_nist2nid("P-256"), "SHA256",
-                          UA_APPLICATIONTYPE_CLIENT, c.kp,
-                          &serverPub, &clientPub, NULL, &out),
+    ck_assert_uint_eq(UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        &clientPub, &serverPub, NULL, &out),
                       UA_STATUSCODE_GOOD);
     ck_assert_int_ne(memcmp(channelKey, clientKey, 32), 0);
 
     UA_Byte channelKeyZero[32] = {0};
     out.data = channelKeyZero;
-    ck_assert_uint_eq(UA_OpenSSL_ECC_DeriveKeys(
-                          EC_curve_nist2nid("P-256"), "SHA256",
-                          UA_APPLICATIONTYPE_CLIENT, c.kp,
-                          &serverPub, &clientPub, NULL, &out),
+    ck_assert_uint_eq(UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_LOCAL,
+        &clientPub, &serverPub, NULL, &out),
                       UA_STATUSCODE_GOOD);
     ck_assert_int_eq(memcmp(channelKey, channelKeyZero, 32), 0);
 
@@ -1659,9 +1662,7 @@ START_TEST(SecureChannel_EncryptedSecretKey_p256) {
     EVP_PKEY_free(s.kp);
 } END_TEST
 
-/* A nonce comes from the remote side and can be longer than the local
- * ephemeral key. It must not match the local key (and must not make the
- * comparison read past the encoded key), so the derivation fails. */
+/* Reject nonces whose length does not match the selected curve. */
 START_TEST(SecureChannel_ECC_rejectsOverlongNonce) {
     P256Ephemeral c, s;
     newEphemeral(&c);
@@ -1676,24 +1677,20 @@ START_TEST(SecureChannel_ECC_rejectsOverlongNonce) {
 
     UA_Byte keyBytes[32];
     UA_ByteString out = {32, keyBytes};
-    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(
-                          EC_curve_nist2nid("P-256"), "SHA256",
-                          UA_APPLICATIONTYPE_CLIENT, c.kp,
-                          &overlong, &remote, NULL, &out),
+    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_REMOTE,
+        &overlong, &remote, NULL, &out),
                       UA_STATUSCODE_GOOD);
-    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(
-                          EC_curve_nist2nid("P-256"), "SHA256",
-                          UA_APPLICATIONTYPE_CLIENT, c.kp,
-                          &remote, &overlong, NULL, &out),
+    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_REMOTE,
+        &remote, &overlong, NULL, &out),
                       UA_STATUSCODE_GOOD);
 
-    /* The other key matches the local one, so the overlong nonce is taken as
-     * the remote key - and rejected by the ECDH */
+    /* Check an overlong remote nonce with a correctly sized local nonce. */
     UA_ByteString local = {64, c.nonce};
-    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(
-                          EC_curve_nist2nid("P-256"), "SHA256",
-                          UA_APPLICATIONTYPE_CLIENT, c.kp,
-                          &overlong, &local, NULL, &out),
+    ck_assert_uint_ne(UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+        UA_APPLICATIONTYPE_CLIENT, c.kp, UA_KEYDERIVATION_REMOTE,
+        &overlong, &local, NULL, &out),
                       UA_STATUSCODE_GOOD);
 
     EVP_PKEY_free(c.kp);

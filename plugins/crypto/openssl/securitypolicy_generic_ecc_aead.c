@@ -637,8 +637,9 @@ eccAead_generateEphemeralKey(const UA_SecurityPolicy *policy,
 
 static UA_StatusCode
 eccAead_generateKey(const UA_SecurityPolicy *policy,
-                    void *channelContext, const UA_ByteString *secret,
-                    const UA_ByteString *seed, UA_ByteString *ikmInOut, UA_ByteString *out) {
+                    void *channelContext, UA_KeyDerivationDirection direction,
+                    const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                    UA_ByteString *ikmInOut, UA_ByteString *out) {
     Policy_Context_EccAead *pctx = (Policy_Context_EccAead *)policy->policyContext;
     Channel_Context_EccAead *cc = (Channel_Context_EccAead *)channelContext;
     const UA_EccAeadParams *params = eccAead_params(policy);
@@ -652,14 +653,14 @@ eccAead_generateKey(const UA_SecurityPolicy *policy,
     if(params->kexKind == ECC_AEAD_KEX_XDH)
         return UA_OpenSSL_XDHE_DeriveKeys(pctx->keyId, params->hkdfHash,
                                           pctx->applicationType,
-                                          cc->localEphemeralKeyPair,
-                                          secret, seed, ikmInOut, out);
+                                          cc->localEphemeralKeyPair, direction,
+                                          localNonce, remoteNonce, ikmInOut, out);
 
     return UA_OpenSSL_ECC_DeriveKeys(pctx->keyId,
-                                     (char *)(uintptr_t)params->hkdfHash,
+                                     params->hkdfHash,
                                      pctx->applicationType,
-                                     cc->localEphemeralKeyPair,
-                                     secret, seed, ikmInOut, out);
+                                     cc->localEphemeralKeyPair, direction,
+                                     localNonce, remoteNonce, ikmInOut, out);
 }
 
 /* The key of an EccEncryptedSecret is derived without IKM chaining. */

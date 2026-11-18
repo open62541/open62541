@@ -153,7 +153,8 @@ deriveLocalKeys(UA_SecureChannel *channel, UA_Boolean install) {
     res = prepareIKM(channel, &ikm);
     UA_CHECK_STATUS(res, goto error);
 
-    res = sp->generateKey(sp, cc, &channel->remoteNonce, &channel->localNonce,
+    res = sp->generateKey(sp, cc, UA_KEYDERIVATION_LOCAL,
+                          &channel->localNonce, &channel->remoteNonce,
                           channel->enhancedSecurity ? &ikm : NULL, &derived);
     UA_CHECK_STATUS(res, goto error);
 
@@ -231,7 +232,8 @@ generateRemoteKeys(UA_SecureChannel *channel) {
     res = prepareIKM(channel, &ikm);
     UA_CHECK_STATUS(res, goto error);
 
-    res = sp->generateKey(sp, cc, &channel->localNonce, &channel->remoteNonce,
+    res = sp->generateKey(sp, cc, UA_KEYDERIVATION_REMOTE,
+                          &channel->localNonce, &channel->remoteNonce,
                           channel->enhancedSecurity ? &ikm : NULL, &derived);
     UA_CHECK_STATUS(res, goto error);
 

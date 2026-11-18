@@ -498,9 +498,16 @@ rsa_generateNonce(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
-rsa_generateKey(const UA_SecurityPolicy *policy, void *channelContext,
-                const UA_ByteString *secret, const UA_ByteString *seed,
+rsa_generateKey(const UA_SecurityPolicy *policy,
+                void *channelContext, UA_KeyDerivationDirection direction,
+                const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
                 UA_ByteString *ikmInOut, UA_ByteString *out) {
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    const UA_ByteString *secret = (direction == UA_KEYDERIVATION_LOCAL) ?
+        remoteNonce : localNonce;
+    const UA_ByteString *seed = (direction == UA_KEYDERIVATION_LOCAL) ?
+        localNonce : remoteNonce;
     return UA_Openssl_Random_Key_PSHA256_Derive(secret, seed, out);
 }
 

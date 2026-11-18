@@ -244,19 +244,18 @@ UA_StatusCode
 UA_OpenSSL_ECC_NISTP256_GenerateKey (EVP_PKEY ** keyPairOut,
                                      UA_ByteString * keyPublicEncOut);
 
-/* ECDH key agreement and HKDF key derivation. `key1` and `key2` are the
+/* ECDH key agreement and HKDF key derivation. localNonce and remoteNonce are the
  * nonces (ephemeral public keys). `ikmInOut` is the v1.05.07 IKM accumulator of
  * an enhanced policy: IKM_n-1 on entry, IKM_n on return. NULL for policies
  * without IKM chaining and for derivations outside a SecureChannel. */
 UA_StatusCode
-UA_OpenSSL_ECC_DeriveKeys (const int curveID,
-                           char * hashAlgorithm,
-                           const UA_ApplicationType applicationType,
-                           EVP_PKEY * localEphemeralKeyPair,
-                           const UA_ByteString * key1,
-                           const UA_ByteString * key2,
-                           UA_ByteString * ikmInOut,
-                           UA_ByteString * out);
+UA_OpenSSL_ECC_DeriveKeys(const int curveID, const char *hashAlgorithm,
+                            UA_ApplicationType applicationType,
+                            EVP_PKEY *localEphemeralKeyPair,
+                            UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce,
+                            const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out);
 
 /* Derive the key material of an EccEncryptedSecret: ECDH and HKDF with the
  * "opcua-secret" label and no IKM chaining */
@@ -476,14 +475,13 @@ UA_OpenSSL_X25519_GenerateKey(EVP_PKEY **keyPairOut,
 
 /* X25519/X448 ECDH key agreement and HKDF key derivation */
 UA_StatusCode
-UA_OpenSSL_XDHE_DeriveKeys(int keyType,
-                            const char *hashAlgorithm,
+UA_OpenSSL_XDHE_DeriveKeys(int keyType, const char *hashAlgorithm,
                             UA_ApplicationType applicationType,
                             EVP_PKEY *localEphemeralKeyPair,
-                            const UA_ByteString *key1,
-                            const UA_ByteString *key2,
-                            UA_ByteString *ikmInOut,
-                            UA_ByteString *out);
+                            UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce,
+                            const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out);
 
 /* X25519/X448 counterpart of UA_OpenSSL_ECC_DeriveSessionKey */
 UA_StatusCode

@@ -530,11 +530,12 @@ setMessageSecurityParameters_filestore(const UA_SecurityPolicy *sp,
 
 static UA_StatusCode
 generateKey_filestore(const UA_SecurityPolicy *sp,
-                         void *channelContext, const UA_ByteString *secret,
-                         const UA_ByteString *seed, UA_ByteString *ikmInOut, UA_ByteString *out) {
+                      void *channelContext, UA_KeyDerivationDirection direction,
+                      const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                      UA_ByteString *ikmInOut, UA_ByteString *out) {
     Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
     UA_SecurityPolicy *isp = pc->innerPolicy;
-    return isp->generateKey(isp, channelContext, secret, seed, ikmInOut, out);
+    return isp->generateKey(isp, channelContext, direction, localNonce, remoteNonce, ikmInOut, out);
 }
 
 static UA_StatusCode

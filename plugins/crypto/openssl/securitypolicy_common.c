@@ -2074,94 +2074,39 @@ deriveChainedIkm(UA_ByteString *ikmInOut, const UA_ByteString *sharedSecret,
     return UA_STATUSCODE_GOOD;
 }
 
-/* `sessionSecret` selects the "opcua-secret" label of an EccEncryptedSecret.
- * Then key1 is the server's (receiver's) and key2 the client's (sender's)
- * ephemeral public key. */
+/* The label identifies the endpoint sending messages in this direction. */
+static const UA_ByteString *
+keyDerivationLabel(UA_ApplicationType applicationType,
+                   UA_KeyDerivationDirection direction) {
+    static const UA_ByteString serverLabel = UA_STRING_STATIC("opcua-server");
+    static const UA_ByteString clientLabel = UA_STRING_STATIC("opcua-client");
+    UA_Boolean senderIsServer = (applicationType == UA_APPLICATIONTYPE_SERVER) ==
+        (direction == UA_KEYDERIVATION_LOCAL);
+    return senderIsServer ? &serverLabel : &clientLabel;
+}
+
 static UA_StatusCode
 eccDeriveKeys(const int curveID, const char *hashAlgorithm,
-              const UA_ApplicationType applicationType,
               EVP_PKEY *localEphemeralKeyPair,
-              const UA_ByteString *key1, const UA_ByteString *key2,
-              UA_ByteString *ikmInOut, UA_ByteString *out,
-              UA_Boolean sessionSecret) {
+              const UA_ByteString *remoteEphPubKey,
+              const UA_ByteString *firstNonce, const UA_ByteString *secondNonce,
+              const UA_ByteString *label, UA_ByteString *ikmInOut,
+              UA_ByteString *out) {
 #if defined(LIBRESSL_VERSION_NUMBER)
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
-
+    if(!localEphemeralKeyPair || !firstNonce || !secondNonce || !out ||
+       !firstNonce->data || !secondNonce->data || (out->length && !out->data))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t nonceLength = 2 * (((size_t)EVP_PKEY_bits(localEphemeralKeyPair) + 7) / 8);
+    if(nonceLength == 0 || firstNonce->length != nonceLength ||
+       secondNonce->length != nonceLength)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
     UA_ByteString ikm = UA_BYTESTRING_NULL;
-    const UA_ByteString *secret = NULL; /* &sharedSecret or &ikm */
-
-    /* Get the local ephemeral public key to use in comparison. This function
-     * handles the Weierstrass curves only (X25519/X448 use xdheDeriveKeys).
-     * The encoded form begins with a single 0x04 byte (for uncompressed
-     * points) followed by the X and Y coordinates. The comparison below
-     * starts at &keyPubEnc[1], so a nonce can only match if its length is
-     * (keyPubEncSize - 1). The nonces come from the remote side; check the
-     * length first so that memcmp does not read past keyPubEnc. */
-    UA_Byte *keyPubEnc = NULL;
-#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
-    size_t keyPubEncSize =
-        EVP_PKEY_get1_encoded_public_key(localEphemeralKeyPair, &keyPubEnc);
-#else
-    size_t keyPubEncSize =
-        EVP_PKEY_get1_tls_encodedpoint(localEphemeralKeyPair, &keyPubEnc);
-#endif
-    if(keyPubEncSize <= 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* `key1` is the nonce and nothing else: the IKM accumulator arrives in its
-     * own argument. */
-    UA_ByteString key1Effective = *key1;
-
-    /* The order of ephemeral public keys (key1 and key2) tells us whether we
-     * need to generate the local keys or the remote keys. To figure that out,
-     * we compare the public part of localEphemeralKeyPair with key1 and
-     * key2. */
-
-    /* Determine the label for salt generation, remote ephemeral public key for
-     * ECDH, and info for HKDF */
-    UA_ByteString* label = NULL;
-    const UA_ByteString * remoteEphPubKey = NULL;
-    static UA_String serverLabel = UA_STRING_STATIC("opcua-server");
-    static UA_String clientLabel = UA_STRING_STATIC("opcua-client");
-    static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
-
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(sessionSecret) {
-        label = &sessionLabel;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
-            remoteEphPubKey = key2;
-        } else {
-            remoteEphPubKey = &key1Effective;
-        }
-    }
-    /* Comparing from the second byte since the first byte has 0x04 from the encoding */
-    else if(keyPubEncSize - 1 == key1Effective.length &&
-            memcmp(&keyPubEnc[1], key1Effective.data, key1Effective.length) == 0) {
-        /* Key 1 is local ephemeral public key => generating remote keys */
-        remoteEphPubKey = key2;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
-            label = &clientLabel;
-        } else {
-            label = &serverLabel;
-        }
-    }
-    else if(keyPubEncSize - 1 == key2->length &&
-            memcmp(&keyPubEnc[1], key2->data, key2->length) == 0) {
-        /* Key 2 is local ephemeral public key => generating local keys */
-        remoteEphPubKey = &key1Effective;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
-            label = &serverLabel;
-        } else {
-            label = &clientLabel;
-        }
-    } else {
-        /* invalid */
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
+    const UA_ByteString *secret = NULL;
+    UA_StatusCode ret;
 
     /* Use ECDH to calculate shared secret */
     ret = UA_OpenSSL_ECDH(curveID, localEphemeralKeyPair, remoteEphPubKey, &sharedSecret);
@@ -2176,15 +2121,8 @@ eccDeriveKeys(const int curveID, const char *hashAlgorithm,
     if(ret != UA_STATUSCODE_GOOD)
         goto errout;
 
-    /* Calculate salt. The order of the (ephemeral public) keys (key1, key2) is
-     * reversed because the caller sends [remote, local] for local key
-     * computation and [local, remote] for remote key computation. According to
-     * 6.8.1., the local salt computation appends the keys in order [local |
-     * remote] and the remote salt computation [remote | local]. Therefore, no
-     * additional logic is required, reversing the order is sufficient. The
-     * `key1` argument here is the un-prefixed nonce (key1Effective) so the
-     * salt only contains the actual nonce data. */
-    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, &key1Effective, &salt);
+    /* Salt order is sender nonce, receiver nonce for this direction. */
+    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, firstNonce, secondNonce, &salt);
     if(ret != UA_STATUSCODE_GOOD) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -2199,7 +2137,6 @@ eccDeriveKeys(const int curveID, const char *hashAlgorithm,
     }
 
 errout:
-    OPENSSL_free(keyPubEnc);
     clearSecret(&sharedSecret);
     UA_ByteString_clear(&salt);
     clearSecret(&ikm);
@@ -2208,25 +2145,34 @@ errout:
 }
 
 UA_StatusCode
-UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
-                          const UA_ApplicationType applicationType,
-                          EVP_PKEY *localEphemeralKeyPair,
-                          const UA_ByteString *key1, const UA_ByteString *key2,
-                          UA_ByteString *ikmInOut, UA_ByteString *out) {
-    return eccDeriveKeys(curveID, hashAlgorithm, applicationType,
-                         localEphemeralKeyPair, key1, key2, ikmInOut, out, false);
+UA_OpenSSL_ECC_DeriveKeys(const int curveID, const char *hashAlgorithm,
+                            UA_ApplicationType applicationType,
+                            EVP_PKEY *localEphemeralKeyPair,
+                            UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce,
+                            const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Boolean local = (direction == UA_KEYDERIVATION_LOCAL);
+    const UA_ByteString *label = keyDerivationLabel(applicationType, direction);
+    return eccDeriveKeys(curveID, hashAlgorithm, localEphemeralKeyPair, remoteNonce,
+                         local ? localNonce : remoteNonce,
+                         local ? remoteNonce : localNonce, label, ikmInOut, out);
 }
 
 UA_StatusCode
 UA_OpenSSL_ECC_DeriveSessionKey(const int curveID, const char *hashAlgorithm,
-                                const UA_ApplicationType applicationType,
-                                EVP_PKEY *localEphemeralKeyPair,
-                                const UA_ByteString *receiverPublicKey,
-                                const UA_ByteString *senderPublicKey,
-                                UA_ByteString *out) {
-    return eccDeriveKeys(curveID, hashAlgorithm, applicationType,
-                         localEphemeralKeyPair, receiverPublicKey,
-                         senderPublicKey, NULL, out, true);
+                                  UA_ApplicationType applicationType,
+                                  EVP_PKEY *localEphemeralKeyPair,
+                                  const UA_ByteString *receiverPublicKey,
+                                  const UA_ByteString *senderPublicKey,
+                                  UA_ByteString *out) {
+    static const UA_ByteString label = UA_STRING_STATIC("opcua-secret");
+    const UA_ByteString *remote = (applicationType == UA_APPLICATIONTYPE_SERVER) ?
+        senderPublicKey : receiverPublicKey;
+    return eccDeriveKeys(curveID, hashAlgorithm, localEphemeralKeyPair, remote,
+                         senderPublicKey, receiverPublicKey, &label, NULL, out);
 }
 
 UA_StatusCode
@@ -2803,67 +2749,28 @@ errout:
     return ret;
 }
 
-/* See eccDeriveKeys for `sessionSecret` */
+/* Raw X25519/X448 counterpart of eccDeriveKeys. */
 static UA_StatusCode
 xdheDeriveKeys(int keyType, const char *hashAlgorithm,
-               UA_ApplicationType applicationType,
-               EVP_PKEY *localEphemeralKeyPair,
-               const UA_ByteString *key1, const UA_ByteString *key2,
-               UA_ByteString *ikmInOut, UA_ByteString *out,
-               UA_Boolean sessionSecret) {
+              EVP_PKEY *localEphemeralKeyPair,
+              const UA_ByteString *remoteEphPubKey,
+              const UA_ByteString *firstNonce, const UA_ByteString *secondNonce,
+              const UA_ByteString *label, UA_ByteString *ikmInOut,
+              UA_ByteString *out) {
+    if(!localEphemeralKeyPair || !firstNonce || !secondNonce || !out ||
+       !firstNonce->data || !secondNonce->data || (out->length && !out->data))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_PKEY_base_id(localEphemeralKeyPair) != keyType)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t nonceLength = (keyType == EVP_PKEY_X448) ? 56 : 32;
+    if(nonceLength == 0 || firstNonce->length != nonceLength ||
+       secondNonce->length != nonceLength)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
     UA_ByteString ikm = UA_BYTESTRING_NULL;
-    const UA_ByteString *secret = NULL; /* &sharedSecret or &ikm */
-
-    /* Get the local ephemeral public key for comparison */
-    size_t pubKeyLen = 0;
-    if(EVP_PKEY_get_raw_public_key(localEphemeralKeyPair, NULL, &pubKeyLen) != 1)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_Byte keyPubEnc[64]; /* Max 56 bytes for X448 */
-    if(pubKeyLen > sizeof(keyPubEnc))
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_PKEY_get_raw_public_key(localEphemeralKeyPair, keyPubEnc, &pubKeyLen) != 1)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* `key1` is the nonce and nothing else, see UA_OpenSSL_ECC_DeriveKeys */
-    UA_ByteString key1Effective = *key1;
-
-    /* Determine label and remote ephemeral public key */
-    UA_ByteString *label = NULL;
-    const UA_ByteString *remoteEphPubKey = NULL;
-    static UA_String serverLabel = UA_STRING_STATIC("opcua-server");
-    static UA_String clientLabel = UA_STRING_STATIC("opcua-client");
-    static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
-
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(sessionSecret) {
-        label = &sessionLabel;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
-            remoteEphPubKey = key2;
-        } else {
-            remoteEphPubKey = &key1Effective;
-        }
-    } else if(pubKeyLen == key1Effective.length &&
-              memcmp(keyPubEnc, key1Effective.data, key1Effective.length) == 0) {
-        /* Key 1 is local ephemeral public key => generating remote keys */
-        remoteEphPubKey = key2;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER)
-            label = &clientLabel;
-        else
-            label = &serverLabel;
-    } else if(pubKeyLen == key2->length &&
-              memcmp(keyPubEnc, key2->data, key2->length) == 0) {
-        /* Key 2 is local ephemeral public key => generating local keys */
-        remoteEphPubKey = &key1Effective;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER)
-            label = &serverLabel;
-        else
-            label = &clientLabel;
-    } else {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    const UA_ByteString *secret = NULL;
+    UA_StatusCode ret;
 
     /* XDHE key agreement */
     ret = UA_OpenSSL_XDHE(keyType, localEphemeralKeyPair, remoteEphPubKey, &sharedSecret);
@@ -2876,7 +2783,7 @@ xdheDeriveKeys(int keyType, const char *hashAlgorithm,
         goto errout;
 
     /* Generate salt */
-    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, &key1Effective, &salt);
+    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, firstNonce, secondNonce, &salt);
     if(ret != UA_STATUSCODE_GOOD)
         goto errout;
 
@@ -2891,28 +2798,34 @@ errout:
 }
 
 UA_StatusCode
-UA_OpenSSL_XDHE_DeriveKeys(int keyType,
-                            const char *hashAlgorithm,
+UA_OpenSSL_XDHE_DeriveKeys(int keyType, const char *hashAlgorithm,
                             UA_ApplicationType applicationType,
                             EVP_PKEY *localEphemeralKeyPair,
-                            const UA_ByteString *key1,
-                            const UA_ByteString *key2,
-                            UA_ByteString *ikmInOut,
-                            UA_ByteString *out) {
-    return xdheDeriveKeys(keyType, hashAlgorithm, applicationType,
-                          localEphemeralKeyPair, key1, key2, ikmInOut, out, false);
+                            UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce,
+                            const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Boolean local = (direction == UA_KEYDERIVATION_LOCAL);
+    const UA_ByteString *label = keyDerivationLabel(applicationType, direction);
+    return xdheDeriveKeys(keyType, hashAlgorithm, localEphemeralKeyPair, remoteNonce,
+                         local ? localNonce : remoteNonce,
+                         local ? remoteNonce : localNonce, label, ikmInOut, out);
 }
 
 UA_StatusCode
 UA_OpenSSL_XDHE_DeriveSessionKey(int keyType, const char *hashAlgorithm,
-                                 UA_ApplicationType applicationType,
-                                 EVP_PKEY *localEphemeralKeyPair,
-                                 const UA_ByteString *receiverPublicKey,
-                                 const UA_ByteString *senderPublicKey,
-                                 UA_ByteString *out) {
-    return xdheDeriveKeys(keyType, hashAlgorithm, applicationType,
-                          localEphemeralKeyPair, receiverPublicKey,
-                          senderPublicKey, NULL, out, true);
+                                  UA_ApplicationType applicationType,
+                                  EVP_PKEY *localEphemeralKeyPair,
+                                  const UA_ByteString *receiverPublicKey,
+                                  const UA_ByteString *senderPublicKey,
+                                  UA_ByteString *out) {
+    static const UA_ByteString label = UA_STRING_STATIC("opcua-secret");
+    const UA_ByteString *remote = (applicationType == UA_APPLICATIONTYPE_SERVER) ?
+        senderPublicKey : receiverPublicKey;
+    return xdheDeriveKeys(keyType, hashAlgorithm, localEphemeralKeyPair, remote,
+                         senderPublicKey, receiverPublicKey, &label, NULL, out);
 }
 
 /* A context with the key set up. A message only sets the IV. */

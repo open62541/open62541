@@ -205,6 +205,12 @@ typedef struct {
                                const void *channelContext);
 } UA_SecurityPolicyEncryptionAlgorithm;
 
+/* Direction relative to this endpoint, independently of its client/server role. */
+typedef enum {
+    UA_KEYDERIVATION_LOCAL,  /* Keys for messages sent by this endpoint */
+    UA_KEYDERIVATION_REMOTE  /* Keys for messages received by this endpoint */
+} UA_KeyDerivationDirection;
+
 typedef enum {
     UA_SECURITYPOLICYTYPE_NONE = 0,
     UA_SECURITYPOLICYTYPE_RSA = 1,
@@ -348,8 +354,10 @@ struct UA_SecurityPolicy {
      *
      * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context of the SecureChannel
-     * @param secret Usually from the nonce. See part 6.
-     * @param seed Usually from the nonce. See part 6.
+     * @param direction Whether to derive keys for sending or receiving.
+     * @param localNonce This endpoint's nonce (ephemeral public key for ECC).
+     * @param remoteNonce The peer's nonce (ephemeral public key for ECC).
+     *        The nonce arguments keep this order for both directions.
      * @param ikmInOut Optional IKM chaining accumulator. NULL disables chaining.
      *        Otherwise the caller supplies a writable buffer of secretLength
      *        bytes containing the previous accumulator (all zero on the first
@@ -357,13 +365,15 @@ struct UA_SecurityPolicy {
      *        secret. The callback must not resize or take ownership of it.
      *        Its contents are unspecified on failure. Policies without
      *        SecureChannelEnhancements ignore this parameter. The nonces in
-     *        secret and seed are never prefixed with accumulator data.
+     *        localNonce and remoteNonce are never prefixed with accumulator data.
      * @param out An output to write the data to. The length defines the maximum
      *        number of output bytes that are produced. */
     UA_StatusCode (*generateKey)(const UA_SecurityPolicy *policy,
-                                 void *channelContext, const UA_ByteString *secret,
-                                 const UA_ByteString *seed, UA_ByteString *ikmInOut,
-                                 UA_ByteString *out);
+                                 void *channelContext,
+                                 UA_KeyDerivationDirection direction,
+                                 const UA_ByteString *localNonce,
+                                 const UA_ByteString *remoteNonce,
+                                 UA_ByteString *ikmInOut, UA_ByteString *out);
 
     /* Derive the symmetric key material [EncryptionKey | IV] of an
      * EccEncryptedSecret (OPC UA Part 4, 7.41.x) with the "opcua-secret"

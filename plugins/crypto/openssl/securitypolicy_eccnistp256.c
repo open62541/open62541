@@ -303,16 +303,16 @@ UA_SymSig_EccNistP256_getLocalKeyLength(const UA_SecurityPolicy *policy,
 
 static UA_StatusCode
 UA_Sym_EccNistP256_generateKey(const UA_SecurityPolicy *policy,
-                               void *channelContext, const UA_ByteString *secret,
-                               const UA_ByteString *seed,
-                               UA_ByteString *ikmInOut, UA_ByteString *out) {
+                            void *channelContext, UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
     Policy_Context_EccNistP256* pctx = (Policy_Context_EccNistP256 *)policy->policyContext;
     Channel_Context_EccNistP256 *cc = (Channel_Context_EccNistP256 *)channelContext;
     if(!pctx || !cc)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     return UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
-                                     pctx->applicationType, cc->localEphemeralKeyPair,
-                                     secret, seed, NULL /* no IKM chaining */, out);
+                                     pctx->applicationType, cc->localEphemeralKeyPair, direction,
+                                     localNonce, remoteNonce, NULL /* no IKM chaining */, out);
 }
 
 static UA_StatusCode

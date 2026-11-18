@@ -60,8 +60,9 @@ compareThumbprint_none(const UA_SecurityPolicy *policy,
 
 static UA_StatusCode
 generateKey_none(const UA_SecurityPolicy *policy,
-                 void *channelContext, const UA_ByteString *secret,
-                 const UA_ByteString *seed, UA_ByteString *ikmInOut, UA_ByteString *out) {
+                 void *channelContext, UA_KeyDerivationDirection direction,
+                 const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                 UA_ByteString *ikmInOut, UA_ByteString *out) {
     return UA_STATUSCODE_GOOD;
 }
 

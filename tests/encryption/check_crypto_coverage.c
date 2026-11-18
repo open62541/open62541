@@ -567,7 +567,7 @@ START_TEST(policy_none_channel_context) {
     /* generateKey */
     UA_ByteString out;
     UA_ByteString_allocBuffer(&out, 32);
-    retval = sp.generateKey(&sp, ctx, &key, &key, NULL, &out);
+    retval = sp.generateKey(&sp, ctx, UA_KEYDERIVATION_LOCAL, &key, &key, NULL, &out);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&out);
 
