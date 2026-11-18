@@ -5124,6 +5124,45 @@ START_TEST(UA_Variant_ExtensionObjectArray_json_decode) {
 }
 END_TEST
 
+/* The UaTypeId token of the ExtensionObject array is at a token index above
+ * UINT16_MAX. The truncated index would point into the filler strings. */
+START_TEST(UA_Variant_ExtensionObjectArray_largeTokenIndex_json_decode) {
+    const char *head = "{\"UaType\":24,\"Value\":["
+        "{\"UaType\":12,\"Value\":[";
+    const char *filler = "\"i=1\",";
+    const char *tail = "\"i=1\"]},"
+        "{\"UaType\":22,\"Value\":[{\"UaTypeId\":\"i=511\","
+        "\"ViewId\":\"i=99999\",\"ViewVersion\":1236}]}]}";
+    size_t fillerCount = 65535;
+    size_t len = strlen(head) + fillerCount * strlen(filler) + strlen(tail);
+    UA_ByteString buf;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&buf, len), UA_STATUSCODE_GOOD);
+    char *pos = (char*)buf.data;
+    memcpy(pos, head, strlen(head));
+    pos += strlen(head);
+    for(size_t i = 0; i < fillerCount; i++) {
+        memcpy(pos, filler, strlen(filler));
+        pos += strlen(filler);
+    }
+    memcpy(pos, tail, strlen(tail));
+
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_StatusCode retval =
+        UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    UA_ByteString_clear(&buf);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    UA_Variant *members = (UA_Variant*)out.data;
+    ck_assert(members[1].type == &UA_TYPES[UA_TYPES_VIEWDESCRIPTION]);
+    ck_assert_uint_eq(members[1].arrayLength, 1);
+    UA_ViewDescription *view = (UA_ViewDescription*)members[1].data;
+    ck_assert_uint_eq(view->viewId.identifier.numeric, 99999);
+    ck_assert_uint_eq(view->viewVersion, 1236);
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_Variant_MixedExtensionObjectArray_json_decode) {
     // given
     UA_Variant out;
@@ -5708,6 +5747,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_VariantStringArray_WithoutDimension_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_BooleanArray_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectArray_json_decode);
+    tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectArray_largeTokenIndex_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_MixedExtensionObjectArray_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_bad1_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectWrap_json_decode);
