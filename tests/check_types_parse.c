@@ -150,6 +150,39 @@ START_TEST(parseExpandedNodeIdIntegerFailNSU2) {
     ck_assert_int_eq(id.nodeId.identifier.numeric, 0);
 } END_TEST
 
+START_TEST(parseExpandedNodeIdEscapedNSU) {
+    UA_ExpandedNodeId id;
+    UA_StatusCode res =
+        UA_ExpandedNodeId_parse(&id, UA_STRING("nsu=urn:a%20b%0a;i=1"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(id.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_uint_eq(id.nodeId.identifier.numeric, 1);
+    UA_String nsu = UA_STRING("urn:a b\n");
+    ck_assert(UA_String_equal(&id.namespaceUri, &nsu));
+    UA_ExpandedNodeId_clear(&id);
+} END_TEST
+
+START_TEST(parseExpandedNodeIdBadEscapeNSU) {
+    UA_ExpandedNodeId id;
+    UA_StatusCode res =
+        UA_ExpandedNodeId_parse(&id, UA_STRING("nsu=urn:a%2;i=1"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_eq(id.namespaceUri.data, NULL);
+} END_TEST
+
+START_TEST(parseExpandedNodeIdEscapedSVU) {
+    UA_String serverUris[2] = {UA_STRING("urn:s0"), UA_STRING("urn:s v")};
+    UA_ExpandedNodeId id;
+    UA_StatusCode res =
+        UA_ExpandedNodeId_parseEx(&id, UA_STRING("svu=urn:s%20v;i=1"),
+                                  NULL, 2, serverUris);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(id.serverIndex, 1);
+    ck_assert_int_eq(id.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_uint_eq(id.nodeId.identifier.numeric, 1);
+    UA_ExpandedNodeId_clear(&id);
+} END_TEST
+
 START_TEST(parseRelativePath) {
     UA_RelativePath rp;
     UA_String ex = UA_STRING("");
@@ -479,6 +512,9 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
+    tcase_add_test(tc, parseExpandedNodeIdEscapedNSU);
+    tcase_add_test(tc, parseExpandedNodeIdBadEscapeNSU);
+    tcase_add_test(tc, parseExpandedNodeIdEscapedSVU);
     tcase_add_test(tc, parseRelativePath);
     tcase_add_test(tc, parseRelativePathMalformed);
     tcase_add_test(tc, parseRelativePathWithServer);

@@ -4576,6 +4576,45 @@ START_TEST(UA_ExpandedNodeId_String_Namespace_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_ExpandedNodeId_EscapedUris_json_roundtrip) {
+    UA_String serverUris[2] = {UA_STRING("urn:s0"), UA_STRING("urn:s v")};
+
+    UA_ExpandedNodeId src;
+    UA_ExpandedNodeId_init(&src);
+    src.nodeId = UA_NODEID_NUMERIC(0, 1);
+    src.namespaceUri = UA_STRING_ALLOC("urn:a b\n");
+    src.serverIndex = 1;
+
+    UA_EncodeJsonOptions encOptions;
+    memset(&encOptions, 0, sizeof(UA_EncodeJsonOptions));
+    encOptions.serverUris = serverUris;
+    encOptions.serverUrisSize = 2;
+
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode retval =
+        UA_encodeJson(&src, &UA_TYPES[UA_TYPES_EXPANDEDNODEID], &buf, &encOptions);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_DecodeJsonOptions decOptions;
+    memset(&decOptions, 0, sizeof(UA_DecodeJsonOptions));
+    decOptions.serverUris = serverUris;
+    decOptions.serverUrisSize = 2;
+
+    UA_ExpandedNodeId out;
+    UA_ExpandedNodeId_init(&out);
+    retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_EXPANDEDNODEID], &decOptions);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&out.namespaceUri, &src.namespaceUri));
+    ck_assert_uint_eq(out.serverIndex, 1);
+    ck_assert_int_eq(out.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_uint_eq(out.nodeId.identifier.numeric, 1);
+
+    UA_ExpandedNodeId_clear(&out);
+    UA_ByteString_clear(&buf);
+    UA_ExpandedNodeId_clear(&src);
+}
+END_TEST
+
 START_TEST(UA_ExpandedNodeId_String_NamespaceAsIndex_json_decode) {
     // given
     UA_ExpandedNodeId out;
@@ -5702,6 +5741,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_Nummeric_json_decode);
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_String_json_decode);
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_String_Namespace_json_decode);
+    tcase_add_test(tc_json_decode, UA_ExpandedNodeId_EscapedUris_json_roundtrip);
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_String_NamespaceAsIndex_json_decode);
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_String_Namespace_ServerUri_json_decode);
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_ByteString_json_decode);

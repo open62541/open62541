@@ -617,11 +617,17 @@ yy39:
     if(svu) {
         /* ServerUri */
         UA_String serverUri = {(size_t)(sve - svu), (UA_Byte*)(uintptr_t)svu};
+        UA_String tmp = serverUri;
+        UA_StatusCode res = UA_String_unescape(&serverUri, true, UA_ESCAPING_PERCENT);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
         size_t i = 0;
         for(; i < serverUrisSize; i++) {
             if(UA_String_equal(&serverUri, &serverUris[i]))
                 break;
         }
+        if(tmp.data != serverUri.data)
+            UA_String_clear(&serverUri);
         if(i == serverUrisSize) {
             /* The ServerUri cannot be mapped. Return the entire input as a
              * string NodeId. */
@@ -645,8 +651,12 @@ yy39:
          * If this fails, keep the full NamespaceUri. */
         if(id->serverIndex == 0)
             res = escapedUri2Index(nsuri, &id->nodeId.namespaceIndex, nsMapping);
-        if(res != UA_STATUSCODE_GOOD)
-            res = UA_String_copy(&nsuri, &id->namespaceUri); /* Keep the Uri without mapping */
+        if(res != UA_STATUSCODE_GOOD) {
+            /* Keep the unescaped Uri without mapping */
+            res = UA_String_copy(&nsuri, &id->namespaceUri);
+            if(res == UA_STATUSCODE_GOOD)
+                res = UA_String_unescape(&id->namespaceUri, false, UA_ESCAPING_PERCENT);
+        }
         if(res != UA_STATUSCODE_GOOD)
             return res;
     } else if(ns) {
