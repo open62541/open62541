@@ -24,6 +24,15 @@
 _UA_BEGIN_DECLS
 
 UA_StatusCode
+UA_OpenSSL_hashCertificateSHA256(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash);
+
+UA_StatusCode
+UA_OpenSSL_hashCertificateSHA384(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash);
+
+
+UA_StatusCode
 UA_OpenSSL_generateNonce(const UA_SecurityPolicy *policy,
                          void *channelContext, UA_ByteString *out);
 

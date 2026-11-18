@@ -259,26 +259,6 @@ generateRemoteKeys(UA_SecureChannel *channel) {
  * prepending the ChannelThumbprint and including certificate hashes (not the
  * raw certs). */
 
-/* The certificate hash is provided by the crypto backend via the global
- * UA_SecurityPolicy_hashCertificate (the algorithm is derived from the policy
- * URI). Wrapped here so this file links without a crypto backend - the
- * builders below are only reached at runtime for enhanced-security policies,
- * which only exist when encryption is enabled. */
-#ifdef UA_ENABLE_ENCRYPTION
-static UA_StatusCode
-hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
-         UA_ByteString *hash) {
-    return UA_SecurityPolicy_hashCertificate(sp, cert, hash);
-}
-#else
-static UA_StatusCode
-hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
-         UA_ByteString *hash) {
-    (void)sp; (void)cert; (void)hash;
-    return UA_STATUSCODE_BADINTERNALERROR;
-}
-#endif
-
 /* Assemble a channel-bound SignatureData (OPC UA Part 6 v1.05.07,
  * SecureChannelEnhancements). All three share the shape
  *   channelThumbprint | nonceA | H(cert_0) .. H(cert_n-1) | nonceB
@@ -293,7 +273,7 @@ hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
  *     TP | serverNonce | H(serverAppCert) | H(serverChannelCert) |
  *                        H(clientAppCert) | H(clientChannelCert) | clientNonce
  *
- * H() = the policy's curve hash of the leaf DER. Both peers must produce the
+ * H() = the policy's certificate hash of the leaf DER. Both peers must produce the
  * SAME bytes, so each side maps the logical certificate roles onto its own
  * local vs. remote view (the certs are channel-scoped: app == channel cert in
  * open62541, hence the duplicated hashes). The user/X.509-token certificate is
@@ -316,10 +296,12 @@ buildChannelBoundSignatureData(const UA_SecureChannel *channel,
     if(!sp || !channel->enhancedSecurity || certCount > UA_MAX_SIGDATA_CERTS ||
        channel->channelThumbprint.length == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(!sp->hashCertificateForSignature || sp->certThumbprintLength == 0)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     /* Hash the certificates. The inputs may be DER chains (e.g. the OPN
      * SenderCertificate stored in remoteCertificate), so hash only the leaf -
-     * independent of how a given crypto backend's hashCert handles a chain. */
+     * the policy callback receives exactly one DER certificate. */
     UA_ByteString hashes[UA_MAX_SIGDATA_CERTS];
     for(size_t i = 0; i < UA_MAX_SIGDATA_CERTS; i++)
         hashes[i] = UA_BYTESTRING_NULL;
@@ -327,7 +309,10 @@ buildChannelBoundSignatureData(const UA_SecureChannel *channel,
     size_t hashesLen = 0;
     for(size_t i = 0; i < certCount && res == UA_STATUSCODE_GOOD; i++) {
         UA_ByteString leaf = getLeafCertificate(*certs[i]);
-        res = hashCert(sp, &leaf, &hashes[i]);
+        res = sp->hashCertificateForSignature(sp, &leaf, &hashes[i]);
+        if(res == UA_STATUSCODE_GOOD &&
+           (hashes[i].length != sp->certThumbprintLength || !hashes[i].data))
+            res = UA_STATUSCODE_BADINTERNALERROR;
         hashesLen += hashes[i].length;
     }
     if(res != UA_STATUSCODE_GOOD)

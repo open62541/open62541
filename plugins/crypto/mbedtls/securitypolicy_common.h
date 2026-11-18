@@ -87,6 +87,10 @@ UA_mbedTLS_PsaAsymmetricDecrypt(const mbedtls_pk_context *key,
  * of an EccEncryptedSecret is used; then key1 is the server's (receiver's) and
  * key2 the client's (sender's) ephemeral public key. */
 UA_StatusCode
+UA_mbedTLS_hashCertificate(const UA_ByteString *certificate,
+                           psa_algorithm_t hashAlgorithm, UA_ByteString *hash);
+
+UA_StatusCode
 UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
                         const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
                         const UA_ByteString *remotePublic,

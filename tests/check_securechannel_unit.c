@@ -145,6 +145,57 @@ START_TEST(setSecurityPolicy_explicitSequenceNumbers) {
     UA_SecureChannel_clear(&direct);
 } END_TEST
 
+static unsigned hashCalls;
+static int hashMode;
+
+static UA_StatusCode
+customCertificateHash(const UA_SecurityPolicy *policy,
+                       const UA_ByteString *certificate, UA_ByteString *hash) {
+    hashCalls++;
+    /* The core must strip the chain before calling the custom policy. */
+    ck_assert_uint_eq(certificate->length, 5);
+    ck_assert_uint_eq(certificate->data[4], 0xa1);
+    ck_assert_uint_eq(hash->length, 0);
+    if(hashMode == 1)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode res = UA_ByteString_allocBuffer(hash, hashMode == 3 ? 2 : 1);
+    if(res == UA_STATUSCODE_GOOD)
+        memset(hash->data, 'H', hash->length);
+    return res;
+}
+
+START_TEST(channelBoundSignature_usesPolicyHash) {
+    UA_SecurityPolicy policy = *getNonePolicy();
+    policy.secureChannelEnhancements = true;
+    policy.certThumbprintLength = 1; /* A custom digest, no SHA-size inference */
+    policy.hashCertificateForSignature = (_i == 2) ? NULL : customCertificateHash;
+    UA_SecureChannel direct;
+    UA_SecureChannel_init(&direct);
+    direct.securityPolicy = &policy;
+    direct.enhancedSecurity = true;
+    direct.channelThumbprint = UA_BYTESTRING_ALLOC("TP");
+    UA_Byte chainBytes[] = {0x30, 0x82, 0, 1, 0xa1, 0x30, 0x82, 0, 1, 0xb2};
+    UA_ByteString chain = {sizeof(chainBytes), chainBytes};
+    UA_ByteString clientNonce = UA_BYTESTRING("C"), serverNonce = UA_BYTESTRING("S");
+    UA_ByteString out = UA_BYTESTRING_NULL;
+    hashCalls = 0;
+    hashMode = _i;
+    UA_StatusCode res = UA_SecureChannel_buildCreateSessionSignatureData(
+        &direct, &clientNonce, &serverNonce, &chain, &chain, &out);
+    const UA_StatusCode expected[] = {UA_STATUSCODE_GOOD, UA_STATUSCODE_BADOUTOFMEMORY,
+        UA_STATUSCODE_BADSECURITYPOLICYREJECTED, UA_STATUSCODE_BADINTERNALERROR};
+    ck_assert_uint_eq(res, expected[_i]);
+    ck_assert_uint_eq(hashCalls, _i == 0 ? 2 : (_i == 2 ? 0 : 1));
+    if(_i == 0) {
+        UA_ByteString expectedData = UA_BYTESTRING("TPCHHS");
+        ck_assert(UA_ByteString_equal(&out, &expectedData));
+    } else {
+        ck_assert_uint_eq(out.length, 0);
+    }
+    UA_ByteString_clear(&out);
+    UA_SecureChannel_clear(&direct);
+} END_TEST
+
 START_TEST(setSecurityPolicyWithoutOPN_withoutCertificate_hasNoContext) {
     UA_SecureChannel direct;
     UA_SecureChannel_init(&direct);
@@ -447,6 +498,7 @@ testSuite(void) {
     tcase_add_test(tc_mode, setSecurityMode_noneMode_accepted);
     tcase_add_test(tc_mode, setSecurityPolicy_alreadyConfigured_rejected);
     tcase_add_loop_test(tc_mode, setSecurityPolicy_explicitSequenceNumbers, 0, 4);
+    tcase_add_loop_test(tc_mode, channelBoundSignature_usesPolicyHash, 0, 4);
     tcase_add_test(tc_mode,
                    setSecurityPolicyWithoutOPN_withoutCertificate_hasNoContext);
 #ifdef UA_ENABLE_ENCRYPTION

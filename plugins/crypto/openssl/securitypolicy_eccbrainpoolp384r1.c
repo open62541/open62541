@@ -583,6 +583,7 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *sp,
     sp->nonceLength = UA_SECURITYPOLICY_ECCBRAINPOOLP384R1_NONCE_LENGTH_BYTES;
     sp->secretLength = 48;
     sp->certThumbprintLength = 48;
+    sp->hashCertificateForSignature = UA_OpenSSL_hashCertificateSHA384;
     sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccBrainpoolP384r1;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccBrainpoolP384r1;

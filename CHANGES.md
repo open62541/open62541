@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Policy-provided certificate hash for session signatures
+
+`UA_SecurityPolicy.hashCertificateForSignature` replaces the global
+`UA_SecurityPolicy_hashCertificate` helper. Enhanced policies must implement
+this function pointer to hash a leaf DER certificate and allocate the result.
+`certThumbprintLength` describes the output size; it no longer selects the
+algorithm. `makeCertThumbprint` continues to handle the OPN-header thumbprint.
+
 ### Explicit key-derivation direction
 
 `UA_SecurityPolicy.generateKey` takes `UA_KeyDerivationDirection` with

@@ -789,44 +789,21 @@ UA_mbedTLS_PolicyContext_clear(mbedtls_PolicyContext *context) {
     mbedtls_pk_free(&context->csrLocalPrivateKey);
 }
 
-/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
- * leaf, DER) with the policy's CertificateThumbprintAlgorithm, SHA-256 or
- * SHA-384 as declared by certThumbprintLength. Used to build the channel-bound
- * CreateSession / ActivateSession SignatureData.
- *
- * This is NOT the OPN-header Certificate thumbprint: that thumbprint is SHA-1
- * (Part 6 Table 58) and is produced by makeCertThumbprint. */
 UA_StatusCode
-UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
-                                  const UA_ByteString *certificate,
-                                  UA_ByteString *hash) {
-    if(!policy || !mbedtlsValidByteString(certificate) || !hash)
+UA_mbedTLS_hashCertificate(const UA_ByteString *certificate,
+                           psa_algorithm_t hashAlgorithm, UA_ByteString *hash) {
+    if(!mbedtlsValidByteString(certificate) || !hash || !PSA_ALG_IS_HASH(hashAlgorithm))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* The digest is the one the policy declares */
-    mbedtls_md_type_t mdType;
-    size_t hashLen = policy->certThumbprintLength;
-    if(hashLen == 48)
-        mdType = MBEDTLS_MD_SHA384;
-    else if(hashLen == 32)
-        mdType = MBEDTLS_MD_SHA256;
-    else
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-
-    const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(mdType);
-    if(mdInfo == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_StatusCode ret = UA_ByteString_allocBuffer(hash, hashLen);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
-    UA_ByteString cert = {certificate->length, certificate->data};
-    psa_algorithm_t psaAlgorithm = (mdType == MBEDTLS_MD_SHA384) ?
-        PSA_ALG_SHA_384 : PSA_ALG_SHA_256;
-    if(UA_mbedTLS_PsaHashCompute(psaAlgorithm, &cert, hash) != UA_STATUSCODE_GOOD) {
+    size_t hashLength = PSA_HASH_LENGTH(hashAlgorithm);
+    if(hashLength == 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_StatusCode res = UA_ByteString_allocBuffer(hash, hashLength);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = UA_mbedTLS_PsaHashCompute(hashAlgorithm, certificate, hash);
+    if(res != UA_STATUSCODE_GOOD)
         UA_ByteString_clear(hash);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 UA_StatusCode

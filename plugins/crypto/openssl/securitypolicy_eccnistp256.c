@@ -602,6 +602,7 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP256_NONCE_LENGTH_BYTES;
     sp->secretLength = 32;
     sp->certThumbprintLength = 32;
+    sp->hashCertificateForSignature = UA_OpenSSL_hashCertificateSHA256;
     sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP256;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP256;

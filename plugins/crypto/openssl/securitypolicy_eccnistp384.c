@@ -567,6 +567,7 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *sp,
     sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP384_NONCE_LENGTH_BYTES;
     sp->secretLength = 48;
     sp->certThumbprintLength = 48;
+    sp->hashCertificateForSignature = UA_OpenSSL_hashCertificateSHA384;
     sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP384;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP384;

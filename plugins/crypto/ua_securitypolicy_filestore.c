@@ -551,6 +551,15 @@ generateEncryptedSecretKey_filestore(const UA_SecurityPolicy *sp,
 }
 
 static UA_StatusCode
+hashCertificateForSignature_filestore(const UA_SecurityPolicy *sp,
+                                       const UA_ByteString *certificate,
+                                       UA_ByteString *hash) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->hashCertificateForSignature(isp, certificate, hash);
+}
+
+static UA_StatusCode
 generateNonce_filestore(const UA_SecurityPolicy *sp,
                            void *channelContext, UA_ByteString *out) {
     Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
@@ -758,6 +767,8 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
      * loses secureChannelEnhancements would skip the IKM chaining. */
     sp->secretLength = isp->secretLength;
     sp->certThumbprintLength = isp->certThumbprintLength;
+    sp->hashCertificateForSignature = isp->hashCertificateForSignature ?
+        hashCertificateForSignature_filestore : NULL;
     sp->secureChannelEnhancements = isp->secureChannelEnhancements;
     sp->makeCertThumbprint = makeThumbprint_filestore;
     sp->compareCertThumbprint = compareCertificateThumbprint_filestore;

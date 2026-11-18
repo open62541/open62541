@@ -230,31 +230,13 @@ UA_Openssl_X509_GetCertificateThumbprint(const UA_ByteString *certficate,
     return UA_STATUSCODE_GOOD;
 }
 
-/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
- * leaf, DER) with the policy's CertificateThumbprintAlgorithm, SHA-256 or
- * SHA-384 as declared by certThumbprintLength. Used to build the channel-bound
- * CreateSession / ActivateSession SignatureData.
- *
- * This is NOT the OPN-header Certificate thumbprint: that thumbprint is SHA-1
- * (Part 6 Table 58) and is produced by makeCertThumbprint /
- * UA_Openssl_X509_GetCertificateThumbprint. */
-UA_StatusCode
-UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
-                                  const UA_ByteString *certificate,
-                                  UA_ByteString *hash) {
-    if(policy == NULL || certificate == NULL || hash == NULL)
+/* Channel-bound certificate hashes are distinct from OPN SHA-1 thumbprints. */
+static UA_StatusCode
+hashCertificate(const UA_ByteString *certificate, const EVP_MD *md,
+                 UA_ByteString *hash) {
+    if(!certificate || !hash || !md)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* The digest is the one the policy declares */
-    const EVP_MD *md;
-    size_t hashLen = policy->certThumbprintLength;
-    if(hashLen == 48)
-        md = EVP_sha384();
-    else if(hashLen == 32)
-        md = EVP_sha256();
-    else
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-
+    size_t hashLen = (size_t)EVP_MD_size(md);
     X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(x509 == NULL)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
@@ -271,6 +253,18 @@ UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
     }
     X509_free(x509);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_OpenSSL_hashCertificateSHA256(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash) {
+    return hashCertificate(certificate, EVP_sha256(), hash);
+}
+
+UA_StatusCode
+UA_OpenSSL_hashCertificateSHA384(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash) {
+    return hashCertificate(certificate, EVP_sha384(), hash);
 }
 
 static UA_StatusCode

@@ -160,6 +160,15 @@ eccGenerateEphemeralKey(const UA_SecurityPolicy *policy, void *channelContext,
 }
 
 static UA_StatusCode
+eccHashCertificateForSignature(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash) {
+    const UA_mbedTLS_EccPolicyConfig *config = eccGetConfig(policy);
+    if(!config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return UA_mbedTLS_hashCertificate(certificate, config->hashAlgorithm, hash);
+}
+
+static UA_StatusCode
 eccGenerateKey(const UA_SecurityPolicy *policy,
                void *channelContext, UA_KeyDerivationDirection direction,
                const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
@@ -344,6 +353,7 @@ UA_mbedTLS_SecurityPolicy_Ecc(UA_SecurityPolicy *policy,
     /* The Weierstrass ephemeral key is X||Y, the shared secret one coordinate */
     policy->secretLength = config->nonceLength / 2;
     policy->certThumbprintLength = config->hashLength;
+    policy->hashCertificateForSignature = eccHashCertificateForSignature;
     policy->secureChannelEnhancements = false;
     policy->makeCertThumbprint = UA_mbedTLS_makeCertificateThumbprint_generic;
     policy->compareCertThumbprint =

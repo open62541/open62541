@@ -427,6 +427,18 @@ struct UA_SecurityPolicy {
      * policy has no certificate thumbprint algorithm. */
     size_t certThumbprintLength;
 
+    /* Hash a leaf DER certificate for channel-bound CreateSession and
+     * ActivateSession signatures. The core passes only the leaf certificate.
+     * The callback selects the policy's CertificateThumbprintAlgorithm and
+     * allocates hash (initialized empty by the caller) to certThumbprintLength
+     * bytes. The caller clears it, including on error. Required for policies
+     * with secureChannelEnhancements; otherwise may be NULL.
+     * The OPN-header SHA-1 thumbprint is handled separately by makeCertThumbprint. */
+    UA_StatusCode (*hashCertificateForSignature)(const UA_SecurityPolicy *policy,
+                                                 const UA_ByteString *certificate,
+                                                 UA_ByteString *hash);
+
+
     /* True if the policy uses the OPC UA Part 6 v1.05.07
      * SecureChannelEnhancements: the ChannelThumbprint in the OpenSecureChannel
      * response signature, IKM chaining on renewal, channel-bound
@@ -495,23 +507,6 @@ struct UA_SecurityPolicy {
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);
 };
-
-/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
- * leaf, DER) with the policy's CertificateThumbprintAlgorithm - SHA-256 or
- * SHA-384, as declared by certThumbprintLength. Used to build the channel-bound
- * CreateSession / ActivateSession SignatureData.
- *
- * This is NOT the OPN-header Certificate thumbprint: that thumbprint is SHA-1
- * (Part 6 Table 58) and is produced by makeCertThumbprint. The implementation
- * is provided by the crypto backend.
- *
- * @param policy The policy whose certThumbprintLength selects the hash.
- * @param certificate The certificate to hash (DER; leaf is used).
- * @param hash Output buffer; allocated by the callee. */
-UA_EXPORT UA_StatusCode
-UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
-                                  const UA_ByteString *certificate,
-                                  UA_ByteString *hash);
 
 /**
  * PubSub SecurityPolicy
