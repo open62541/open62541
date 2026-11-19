@@ -329,6 +329,32 @@ START_TEST(parseRelativePathWithServer) {
     UA_Server_delete(server);
 } END_TEST
 
+START_TEST(parseRelativePathWithServerStringRefType) {
+    UA_Server *server = UA_Server_newForUnitTest();
+
+    /* Reference type with a NodeId that has a heap-allocated identifier */
+    UA_NodeId refTypeId = UA_NODEID_STRING(1, "MyRefIdentifierString");
+    UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+    refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
+    UA_StatusCode res =
+        UA_Server_addReferenceTypeNode(server, refTypeId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       UA_QUALIFIEDNAME(1, "MyRef"), refattr, NULL, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The parsed path must own a copy of the identifier. Run under
+     * valgrind/ASan to detect a use-after-free or double free. */
+    UA_RelativePath rp;
+    res = UA_RelativePath_parseWithServer(server, &rp, UA_STRING("<1:MyRef>1:Foo"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rp.elementsSize, 1);
+    ck_assert(UA_NodeId_equal(&rp.elements[0].referenceTypeId, &refTypeId));
+    UA_RelativePath_clear(&rp);
+
+    UA_Server_delete(server);
+} END_TEST
+
 START_TEST(parseSimpleAttributeOperand) {
     UA_String sao1_str = UA_STRING("");
     UA_SimpleAttributeOperand sao1;
@@ -482,6 +508,7 @@ int main(void) {
     tcase_add_test(tc, parseRelativePath);
     tcase_add_test(tc, parseRelativePathMalformed);
     tcase_add_test(tc, parseRelativePathWithServer);
+    tcase_add_test(tc, parseRelativePathWithServerStringRefType);
     tcase_add_test(tc, parseSimpleAttributeOperand);
     tcase_add_test(tc, printSimpleAttributeOperand);
     tcase_add_test(tc, parseDateTime);
