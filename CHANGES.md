@@ -241,6 +241,14 @@ Before, a connection that closed before the SecureChannel opened was re-dialed
 without delay, and a refused re-dial ended the connection at once. The comment
 above these fields in `UA_ClientConfig` describes the full connect behavior.
 
+### Client recovers retained notifications before resuming Publish
+
+After an automatic reconnect reactivates an existing Session, the client asks
+for consecutive retained notifications starting after the last delivered
+sequence number of each Subscription. It delivers them to the usual callbacks
+and queues their acknowledgements before refilling the automatic Publish
+pipeline. Servers without Republish support resume normal Publish service.
+
 ### Asynchronous client requests need an activated Session
 
 Asynchronous requests bound to a Session return `BadSessionNotActivated` while
