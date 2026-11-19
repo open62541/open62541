@@ -22,6 +22,12 @@
 #include "ua_session.h"
 #include "ua_subscription.h"
 
+/* The ServerConfiguration Object is only present if the Server supports
+ * PushManagement (Part 12, 7.10.1). The GDS receiver driver implements it. */
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_DRIVER_GDS_RECEIVER)
+#define UA_NS0_SERVERCONFIGURATION
+#endif
+
 static UA_StatusCode
 ns0_addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
             UA_UInt32 nodeId, char *name, void *attributes,
@@ -897,6 +903,69 @@ writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *ty
     UA_Variant_setScalar(&var, v, type);
     return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
 }
+
+#ifdef UA_NS0_SERVERCONFIGURATION
+/* The CertificateGroups are kept for the GDS receiver driver. Without the
+ * started driver, no Certificate can be assigned and no TrustList can be
+ * opened. While the driver runs, it writes the CertificateTypes and the
+ * LastUpdateTime and serves the FileType Properties of the TrustLists. The
+ * DefaultUserTokenGroup keeps the empty CertificateTypes (Part 12, 7.8.3.3). */
+static UA_StatusCode
+writeNs0CertificateGroups(UA_Server *server) {
+    static const struct {
+        UA_UInt32 certificateTypes;
+        UA_UInt32 size;
+        UA_UInt32 writable;
+        UA_UInt32 userWritable;
+        UA_UInt32 openCount;
+        UA_UInt32 lastUpdateTime;
+    } groups[2] = {
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SIZE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITABLE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_USERWRITABLE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENCOUNT,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_LASTUPDATETIME},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_CERTIFICATETYPES,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SIZE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITABLE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_USERWRITABLE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENCOUNT,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_LASTUPDATETIME}
+    };
+
+    UA_Boolean writable = false;
+    UA_UInt16 openCount = 0;
+    /* DateTime.MinValue if the LastUpdateTime is unknown (Part 12, 7.8.2.1) */
+    UA_UtcTime lastUpdateTime = 0;
+    /* The Size has no meaning for a TrustList and returns the error code of
+     * Part 20, 4.2.1 (Part 12, 7.8.2.1) */
+    UA_DataValue size;
+    UA_DataValue_init(&size);
+    size.hasStatus = true;
+    size.status = UA_STATUSCODE_BADNOTSUPPORTED;
+
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < 2; i++) {
+        retVal |= writeNs0VariableArray(server, groups[i].certificateTypes,
+                                        UA_EMPTY_ARRAY_SENTINEL, 0,
+                                        &UA_TYPES[UA_TYPES_NODEID]);
+        UA_NodeId sizeId = UA_NODEID_NUMERIC(0, groups[i].size);
+        retVal |= writeAttribute(server, &server->adminSession, &sizeId,
+                                 UA_ATTRIBUTEID_VALUE, &size,
+                                 &UA_TYPES[UA_TYPES_DATAVALUE]);
+        retVal |= writeNs0Variable(server, groups[i].writable,
+                                   &writable, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retVal |= writeNs0Variable(server, groups[i].userWritable,
+                                   &writable, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retVal |= writeNs0Variable(server, groups[i].openCount,
+                                   &openCount, &UA_TYPES[UA_TYPES_UINT16]);
+        retVal |= writeNs0Variable(server, groups[i].lastUpdateTime,
+                                   &lastUpdateTime, &UA_TYPES[UA_TYPES_UTCTIME]);
+    }
+    return retVal;
+}
+#endif
 #endif
 
 #ifndef UA_GENERATED_NAMESPACE_ZERO
@@ -1023,7 +1092,7 @@ addModellingRules(UA_Server *server) {
 static UA_StatusCode
 addMissingOptionalNodes(UA_Server *server) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+#ifdef UA_NS0_SERVERCONFIGURATION
     /* ServerConfiguration - ApplicationNames [optional] */
     UA_NodeId applicationNamesId = UA_NS0ID(SERVERCONFIGURATION_APPLICATIONNAMES);
     const UA_Node *node =
@@ -1213,7 +1282,6 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(SERVER_LOCALTIME), true);
     deleteNode(server, UA_NS0ID(SERVER_REQUESTSERVERSTATECHANGE), true);
     deleteNode(server, UA_NS0ID(SERVER_SETSUBSCRIPTIONDURABLE), true);
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTHTTPSGROUP), true);
 #ifdef UA_NS0ID_SERVERLOG
     deleteNode(server, UA_NS0ID(SERVERLOG), true);
 #endif
@@ -1222,13 +1290,17 @@ configureNS0(UA_Server *server) {
 #endif
     deleteNode(server, UA_NS0ID(PROVISIONABLEDEVICE), true);
     deleteNode(server, UA_NS0ID(USERMANAGEMENT), true);
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
+    /* Parts of the ServerConfiguration that the GDS receiver does not support */
+    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTHTTPSGROUP), true);
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_TRANSACTIONDIAGNOSTICS), true);
 #ifdef UA_NS0ID_SERVERCONFIGURATION_CONFIGURATIONFILE
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CONFIGURATIONFILE), true);
 #endif
-#ifndef UA_ENABLE_DRIVER_GDS_RECEIVER
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP), true);
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP), true);
+#else
+    /* Without PushManagement, the Server has no ServerConfiguration Object
+     * (Part 12, 7.10.1). Its Methods would have no implementation. */
+    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION), true);
 #endif
 
 #ifndef UA_ENABLE_DIAGNOSTICS
@@ -1249,14 +1321,12 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(PUBLISHSUBSCRIBE), true);
 #endif
 
+#ifdef UA_NS0_SERVERCONFIGURATION
     /* ServerConfiguration - MulticastDnsEnabled */
-#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
                                &server->config.serversOnNetworkEnabled,
                                &UA_TYPES[UA_TYPES_BOOLEAN]);
-#endif
 
-#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     /* ServerConfiguration - HasSecureElement [optional] */
     {
         UA_Boolean hasSecureElement = false;
@@ -1264,10 +1334,34 @@ configureNS0(UA_Server *server) {
                                    &hasSecureElement, &UA_TYPES[UA_TYPES_BOOLEAN]);
     }
 
+#ifdef UA_NS0ID_SERVERCONFIGURATION_INAPPLICATIONSETUP
+    /* ServerConfiguration - InApplicationSetup [optional]. The server does not
+     * implement the application setup state (Part 12, 7.10.3 and G.2). Without
+     * a value, the Read of the Boolean returns BadWaitingForInitialData. */
+    {
+        UA_Boolean inApplicationSetup = false;
+        retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_INAPPLICATIONSETUP,
+                                   &inApplicationSetup, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    }
+#endif
+
+    /* The values below are the state without the started GDS receiver driver.
+     * The driver restores them when it stops. */
+
+    /* ServerConfiguration - SupportedPrivateKeyFormats [mandatory]. The array
+     * is empty if Clients cannot update the PrivateKey (Part 12, 7.10.3). */
+    retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS,
+                                    UA_EMPTY_ARRAY_SENTINEL, 0, &UA_TYPES[UA_TYPES_STRING]);
+
+    retVal |= writeNs0CertificateGroups(server);
+
     /* ServerConfiguration - ApplicationUri, ProductUri and ApplicationType are
      * written at startup by writeNs0ApplicationDescription. ServerCapabilities
-     * is written at startup by writeNs0ServerCapabilities. */
+     * is written at startup by writeNs0ServerCapabilities. MaxTrustListSize is
+     * written at startup by writeNs0MaxTrustListSize. */
+#endif
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     /* OPCUANamespaceMetadata - DefaultAccessRestrictions */
     {
         UA_AccessRestrictionType defaultAccessRestrictions = UA_ACCESSRESTRICTIONTYPE_NONE;
@@ -1538,7 +1632,7 @@ UA_StatusCode
 writeNs0ApplicationDescription(UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+#ifdef UA_NS0_SERVERCONFIGURATION
     UA_ApplicationDescription *ad = &server->config.applicationDescription;
 
     /* ServerConfiguration - ApplicationUri [optional] */
@@ -1565,12 +1659,25 @@ UA_StatusCode
 writeNs0ServerCapabilities(UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+#ifdef UA_NS0_SERVERCONFIGURATION
     /* ServerConfiguration - ServerCapabilities [mandatory] */
     UA_String caps[UA_SERVERCAPABILITIES_MAX];
     size_t capsSize = getServerCapabilityIdentifiers(server->serverCapabilities, caps);
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVERCONFIGURATION_SERVERCAPABILITIES,
                                     caps, capsSize, &UA_TYPES[UA_TYPES_STRING]);
+#endif
+    return retVal;
+}
+
+UA_StatusCode
+writeNs0MaxTrustListSize(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_NS0_SERVERCONFIGURATION
+    /* ServerConfiguration - MaxTrustListSize [mandatory] */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MAXTRUSTLISTSIZE,
+                               &server->config.maxTrustListSize,
+                               &UA_TYPES[UA_TYPES_UINT32]);
 #endif
     return retVal;
 }

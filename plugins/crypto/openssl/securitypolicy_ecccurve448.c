@@ -43,21 +43,10 @@ typedef struct {
     UA_UInt32 tokenId;
     UA_UInt32 previousSequenceNumber;
     UA_ByteString additionalAuthData;
+
+    UA_OpenSSL_SymContexts sym;
 } Channel_Context_EccCurve448;
 
-static void
-computeMaskedIv448(UA_Byte *iv_out, const UA_ByteString *base_iv,
-                   UA_UInt32 tokenId, UA_UInt32 seqNo) {
-    memcpy(iv_out, base_iv->data, 12);
-    iv_out[0] ^= (UA_Byte)(tokenId & 0xFF);
-    iv_out[1] ^= (UA_Byte)((tokenId >> 8) & 0xFF);
-    iv_out[2] ^= (UA_Byte)((tokenId >> 16) & 0xFF);
-    iv_out[3] ^= (UA_Byte)((tokenId >> 24) & 0xFF);
-    iv_out[4] ^= (UA_Byte)(seqNo & 0xFF);
-    iv_out[5] ^= (UA_Byte)((seqNo >> 8) & 0xFF);
-    iv_out[6] ^= (UA_Byte)((seqNo >> 16) & 0xFF);
-    iv_out[7] ^= (UA_Byte)((seqNo >> 24) & 0xFF);
-}
 
 /* --- Policy Context --- */
 
@@ -178,6 +167,7 @@ EccCurve448_New_Context(const UA_SecurityPolicy *securityPolicy,
         UA_calloc(1, sizeof(Channel_Context_EccCurve448));
     if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_OpenSSL_SymContexts_init(&cc->sym);
 
     UA_StatusCode retval =
         UA_copyCertificate(&cc->remoteCertificate, remoteCertificate);
@@ -215,6 +205,7 @@ EccCurve448_Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymIv);
     UA_ByteString_clear(&cc->additionalAuthData);
     EVP_PKEY_free(cc->localEphemeralKeyPair);
+    UA_OpenSSL_SymContexts_clear(&cc->sym);
     UA_free(cc);
 }
 
@@ -331,111 +322,49 @@ UA_SymSig_EccCurve448_getRemoteKeyLength(const UA_SecurityPolicy *p,
 
 static UA_StatusCode
 UA_SymSig_EccCurve448_sign(const UA_SecurityPolicy *policy,
-                            void *channelContext, const UA_ByteString *message,
-                            UA_ByteString *signature) {
+                           void *channelContext,
+                           const UA_ByteString *message,
+                           UA_ByteString *signature) {
     if(!channelContext || !message || !signature)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccCurve448 *cc =
         (Channel_Context_EccCurve448 *)channelContext;
-
-    /* Compute masked IV (same nonce derivation as encrypt mode) */
-    UA_Byte maskedIv[12];
-    computeMaskedIv448(maskedIv, &cc->localSymIv,
-                       cc->tokenId, cc->previousSequenceNumber);
-
-    /* Use ChaCha20-Poly1305 AEAD to compute the Poly1305 tag.
-     * For sign-only: treat entire message as AAD (no encryption). */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
-        goto errout;
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto errout;
-    if(EVP_EncryptInit_ex(ctx, NULL, NULL,
-                          cc->localSymSigningKey.data, maskedIv) != 1)
-        goto errout;
-
-    /* Process the entire message as AAD (authenticated, not encrypted) */
-    int outl = 0;
-    if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                         message->data, (int)message->length) != 1)
-        goto errout;
-
-    /* Finalize with no plaintext */
-    UA_Byte dummy;
-    if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
-        goto errout;
-
-    /* Get the 16-byte Poly1305 authentication tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16,
-                           signature->data) != 1)
-        goto errout;
-    signature->length = 16;
-    ret = UA_STATUSCODE_GOOD;
-
-errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    UA_Byte ivData[12];
+    UA_ByteString iv = {12, ivData};
+    UA_StatusCode res =
+        UA_OpenSSL_aeadMessageIv(&cc->localSymIv, cc->tokenId,
+                                 cc->previousSequenceNumber, ivData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_OpenSSL_Sym_aeadSign(&cc->sym, EVP_chacha20_poly1305(),
+                                   &cc->localSymSigningKey, &iv, message,
+                                   signature);
 }
+
+
 
 static UA_StatusCode
 UA_SymSig_EccCurve448_verify(const UA_SecurityPolicy *policy,
-                              void *channelContext, const UA_ByteString *message,
-                              const UA_ByteString *signature) {
+                             void *channelContext,
+                             const UA_ByteString *message,
+                             const UA_ByteString *signature) {
     if(!channelContext || !message || !signature)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccCurve448 *cc =
         (Channel_Context_EccCurve448 *)channelContext;
-
-    if(signature->length < 16)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
-    /* Compute masked IV using remote IV */
-    UA_Byte maskedIv[12];
-    computeMaskedIv448(maskedIv, &cc->remoteSymIv,
-                       cc->tokenId, cc->previousSequenceNumber);
-
-    /* Use ChaCha20-Poly1305 AEAD to verify the Poly1305 tag.
-     * Treat entire message as AAD (sign-only). */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
-        goto errout;
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto errout;
-    if(EVP_DecryptInit_ex(ctx, NULL, NULL,
-                          cc->remoteSymSigningKey.data, maskedIv) != 1)
-        goto errout;
-
-    /* Set the expected tag for verification */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16,
-                           (void*)(uintptr_t)signature->data) != 1)
-        goto errout;
-
-    /* Process the entire message as AAD */
-    int outl = 0;
-    if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                         message->data, (int)message->length) != 1)
-        goto errout;
-
-    /* Finalize triggers tag verification */
-    UA_Byte dummy;
-    if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
-        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto errout;
-    }
-    ret = UA_STATUSCODE_GOOD;
-
-errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    UA_Byte ivData[12];
+    UA_ByteString iv = {12, ivData};
+    UA_StatusCode res =
+        UA_OpenSSL_aeadMessageIv(&cc->remoteSymIv, cc->tokenId,
+                                 cc->previousSequenceNumber, ivData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_OpenSSL_Sym_aeadVerify(&cc->sym, EVP_chacha20_poly1305(),
+                                     &cc->remoteSymSigningKey, &iv, message,
+                                     signature);
 }
+
+
 
 /* --- Symmetric Encryption (ChaCha20-Poly1305 AEAD) --- */
 
@@ -465,39 +394,47 @@ UA_SymEn_EccCurve448_getIvLength(const UA_SecurityPolicy *p,
 
 static UA_StatusCode
 UA_SymEn_EccCurve448_encrypt(const UA_SecurityPolicy *policy,
-                              void *channelContext, UA_ByteString *data) {
+                             void *channelContext,
+                             UA_ByteString *data) {
     if(!channelContext || !data)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccCurve448 *cc =
         (Channel_Context_EccCurve448 *)channelContext;
-
-    UA_Byte maskedIv[12];
-    computeMaskedIv448(maskedIv, &cc->localSymIv,
-                       cc->tokenId, cc->previousSequenceNumber);
-    UA_ByteString ivBs = {12, maskedIv};
-
-    return UA_OpenSSL_ChaCha20Poly1305_Encrypt(
-        &ivBs, &cc->localSymEncryptingKey, &cc->additionalAuthData,
-        data, true);
+    UA_Byte ivData[12];
+    UA_ByteString iv = {12, ivData};
+    UA_StatusCode res =
+        UA_OpenSSL_aeadMessageIv(&cc->localSymIv, cc->tokenId,
+                                 cc->previousSequenceNumber, ivData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_OpenSSL_Sym_aeadEncrypt(&cc->sym, EVP_chacha20_poly1305(),
+                                      &cc->localSymEncryptingKey, &iv,
+                                      &cc->additionalAuthData, data);
 }
+
+
 
 static UA_StatusCode
 UA_SymEn_EccCurve448_decrypt(const UA_SecurityPolicy *policy,
-                              void *channelContext, UA_ByteString *data) {
+                             void *channelContext,
+                             UA_ByteString *data) {
     if(!channelContext || !data)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccCurve448 *cc =
         (Channel_Context_EccCurve448 *)channelContext;
-
-    UA_Byte maskedIv[12];
-    computeMaskedIv448(maskedIv, &cc->remoteSymIv,
-                       cc->tokenId, cc->previousSequenceNumber);
-    UA_ByteString ivBs = {12, maskedIv};
-
-    return UA_OpenSSL_ChaCha20Poly1305_Decrypt(
-        &ivBs, &cc->remoteSymEncryptingKey, &cc->additionalAuthData,
-        data, true);
+    UA_Byte ivData[12];
+    UA_ByteString iv = {12, ivData};
+    UA_StatusCode res =
+        UA_OpenSSL_aeadMessageIv(&cc->remoteSymIv, cc->tokenId,
+                                 cc->previousSequenceNumber, ivData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_OpenSSL_Sym_aeadDecrypt(&cc->sym, EVP_chacha20_poly1305(),
+                                      &cc->remoteSymEncryptingKey, &iv,
+                                      &cc->additionalAuthData, data);
 }
+
+
 
 /* --- Key Setters --- */
 
@@ -506,8 +443,8 @@ EccCurve448_setLocalSymSigningKey(const UA_SecurityPolicy *p,
                                    void *ctx, const UA_ByteString *key) {
     if(!key || !ctx) return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccCurve448 *cc = (Channel_Context_EccCurve448 *)ctx;
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+    return UA_OpenSSL_Sym_setSigningKey(&cc->sym, true,
+                                        &cc->localSymSigningKey, key);
 }
 
 static UA_StatusCode
@@ -515,8 +452,8 @@ EccCurve448_setLocalSymEncryptingKey(const UA_SecurityPolicy *p,
                                       void *ctx, const UA_ByteString *key) {
     if(!key || !ctx) return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccCurve448 *cc = (Channel_Context_EccCurve448 *)ctx;
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+    return UA_OpenSSL_Sym_setEncryptingKey(&cc->sym, true,
+                                           &cc->localSymEncryptingKey, key);
 }
 
 static UA_StatusCode
@@ -533,8 +470,8 @@ EccCurve448_setRemoteSymSigningKey(const UA_SecurityPolicy *p,
                                     void *ctx, const UA_ByteString *key) {
     if(!key || !ctx) return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccCurve448 *cc = (Channel_Context_EccCurve448 *)ctx;
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+    return UA_OpenSSL_Sym_setSigningKey(&cc->sym, false,
+                                        &cc->remoteSymSigningKey, key);
 }
 
 static UA_StatusCode
@@ -542,8 +479,8 @@ EccCurve448_setRemoteSymEncryptingKey(const UA_SecurityPolicy *p,
                                        void *ctx, const UA_ByteString *key) {
     if(!key || !ctx) return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccCurve448 *cc = (Channel_Context_EccCurve448 *)ctx;
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+    return UA_OpenSSL_Sym_setEncryptingKey(&cc->sym, false,
+                                           &cc->remoteSymEncryptingKey, key);
 }
 
 static UA_StatusCode
@@ -571,29 +508,26 @@ EccCurve448_compareCertificate(const UA_SecurityPolicy *policy,
 /* --- Nonce Generation (X448 ephemeral key) --- */
 
 static UA_StatusCode
-UA_Sym_EccCurve448_generateNonce(const UA_SecurityPolicy *policy,
+UA_Sym_EccCurve448_generateEphemeralKey(const UA_SecurityPolicy *policy,
                                   void *channelContext, UA_ByteString *out) {
+    if(!policy || !channelContext || !out || !out->data ||
+       out->length != policy->nonceLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!policy->policyContext)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
-        Channel_Context_EccCurve448 *cc =
-            (Channel_Context_EccCurve448 *)channelContext;
-        return UA_OpenSSL_X448_GenerateKey(&cc->localEphemeralKeyPair, out);
-    }
-
-    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
-    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    Channel_Context_EccCurve448 *cc =
+        (Channel_Context_EccCurve448 *)channelContext;
+    return UA_OpenSSL_X448_GenerateKey(&cc->localEphemeralKeyPair, out);
 }
 
 /* --- Key Derivation (XDHE + HKDF) --- */
 
 static UA_StatusCode
 UA_Sym_EccCurve448_generateKey(const UA_SecurityPolicy *policy,
-                                void *channelContext,
-                                const UA_ByteString *secret,
-                                const UA_ByteString *seed,
-                                UA_ByteString *out) {
+                            void *channelContext, UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
     Policy_Context_EccCurve448 *pctx =
         (Policy_Context_EccCurve448 *)policy->policyContext;
     Channel_Context_EccCurve448 *cc =
@@ -602,8 +536,26 @@ UA_Sym_EccCurve448_generateKey(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     return UA_OpenSSL_XDHE_DeriveKeys(EVP_PKEY_X448, "SHA256",
                                        pctx->applicationType,
-                                       cc->localEphemeralKeyPair,
-                                       secret, seed, out);
+                                       cc->localEphemeralKeyPair, direction,
+                                       localNonce, remoteNonce, NULL /* no IKM chaining */, out);
+}
+
+static UA_StatusCode
+UA_Sym_EccCurve448_generateEncryptedSecretKey(const UA_SecurityPolicy *policy,
+                                              void *channelContext,
+                                              const UA_ByteString *receiverPublicKey,
+                                              const UA_ByteString *senderPublicKey,
+                                              UA_ByteString *out) {
+    Policy_Context_EccCurve448 *pctx =
+        (Policy_Context_EccCurve448 *)policy->policyContext;
+    Channel_Context_EccCurve448 *cc =
+        (Channel_Context_EccCurve448 *)channelContext;
+    if(!pctx || !cc)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_OpenSSL_XDHE_DeriveSessionKey(EVP_PKEY_X448, "SHA256",
+                                            pctx->applicationType,
+                                            cc->localEphemeralKeyPair,
+                                            receiverPublicKey, senderPublicKey, out);
 }
 
 /* --- Thumbprint --- */
@@ -641,12 +593,13 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
                    "SecurityPolicy ECC_curve448 is deprecated (OPC UA Part 7); "
                    "use ECC_nistP256_AesGcm or ECC_nistP256_ChaChaPoly instead");
     sp->policyUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448\0");
+        UA_STRING(UA_SECURITYPOLICY_URI_ECC_CURVE448);
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NODEID_NUMERIC(0, 23543);
     sp->securityLevel = 0;
     sp->policyType = UA_SECURITYPOLICYTYPE_ECC_AEAD;
+    sp->legacySequenceNumbers = false;
 
     /* Asymmetric Signature (Ed448) */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
@@ -706,8 +659,14 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
     sp->setMessageSecurityParameters = EccCurve448_setMessageSecurityParameters;
     sp->compareCertificate = EccCurve448_compareCertificate;
     sp->generateKey = UA_Sym_EccCurve448_generateKey;
-    sp->generateNonce = UA_Sym_EccCurve448_generateNonce;
+    sp->generateEncryptedSecretKey = UA_Sym_EccCurve448_generateEncryptedSecretKey;
+    sp->generateNonce = UA_OpenSSL_generateNonce;
+    sp->generateEphemeralKey = UA_Sym_EccCurve448_generateEphemeralKey;
     sp->nonceLength = UA_ECCCURVE448_NONCE_LENGTH_BYTES;
+    sp->secretLength = 56;
+    sp->certThumbprintLength = 48;
+    sp->hashCertificateForSignature = UA_OpenSSL_hashCertificateSHA384;
+    sp->secureChannelEnhancements = false;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccCurve448;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccCurve448;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccCurve448;

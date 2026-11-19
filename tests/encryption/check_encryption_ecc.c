@@ -572,11 +572,14 @@ START_TEST(encryption_csr_generation) {
     UA_StatusCode retval = sp->createSigningRequest(sp, &subjectName,
                                                      NULL, NULL,
                                                      &csr, NULL);
-    /* Curve25519/448 may not support standard CSR generation */
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+#else
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&csr);
         return;
     }
+#endif
     ck_assert(csr.length > 0);
     UA_ByteString_clear(&csr);
 
@@ -611,8 +614,7 @@ START_TEST(encryption_update_certificate) {
     ck_assert(sp->updateCertificate != NULL);
 
     UA_StatusCode retval;
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    /* Short random nonces must not be interpreted as the "eph" marker. */
+    /* Random generation accepts short buffers and ignores the old marker. */
     UA_Byte shortNonceData[2] = {0, 0};
     UA_ByteString shortNonce = {1, shortNonceData};
     retval = sp->generateNonce(sp, NULL, &shortNonce);
@@ -628,8 +630,9 @@ START_TEST(encryption_update_certificate) {
     UA_Byte ephMarker[3] = {'e', 'p', 'h'};
     UA_ByteString ephemeralNonce = {3, ephMarker};
     retval = sp->generateNonce(sp, NULL, &ephemeralNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = sp->generateEphemeralKey(sp, NULL, &ephemeralNonce);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
-#endif
 
     /* Update with the same cert and key (should succeed) */
     UA_ByteString certificate;
@@ -731,7 +734,7 @@ computeClientSignatureForTest(UA_Client *client, UA_SignatureData *sd) {
     const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+    if(!sp->secureChannelEnhancements)
         retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -740,7 +743,7 @@ computeClientSignatureForTest(UA_Client *client, UA_SignatureData *sd) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+    if(sp->secureChannelEnhancements) {
         UA_ByteString signData = UA_BYTESTRING_NULL;
         retval = UA_SecureChannel_buildActivateSessionSignatureData(
             channel, &client->serverSessionNonce, &client->clientSessionNonce,

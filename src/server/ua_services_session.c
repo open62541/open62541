@@ -279,7 +279,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
      * secureChannelEnhancements = true, the algorithm field in
      * SignatureData shall be NULL or empty and receivers shall
      * ignore the value. */
-    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+    if(!sp->secureChannelEnhancements)
         retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
@@ -287,7 +287,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
     /* Build the data to sign. */
     UA_ByteString dataToSign = UA_BYTESTRING_NULL;
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+    if(sp->secureChannelEnhancements) {
         /* Channel-bound v1.05.07 signature (see the cert-role table at
          * UA_SecureChannel_buildCreateSessionSignatureData). */
         retval = UA_SecureChannel_buildCreateSessionSignatureData(
@@ -386,6 +386,8 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     UA_assert(session->sessionSp && session->sessionSpContext);
     UA_SecurityPolicy *sp = session->sessionSp;
     void *spContext = session->sessionSpContext;
+    if(!sp->generateEphemeralKey)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     /* Allocate additional parameters */
     UA_AdditionalParametersType *ap = UA_AdditionalParametersType_new();
@@ -410,13 +412,7 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     UA_EphemeralKeyType ephKey;
     UA_EphemeralKeyType_init(&ephKey);
 
-    /* Allocate the ephemeral key buffer to the exact size of the ephemeral key
-     * for the used ECC policy so that the nonce generation function knows that
-     * it needs to generate an ephemeral key and not some other random byte
-     * string.
-     *
-     * TODO: There should be a more stable way to signal the generation of an
-     * ephemeral key */
+    /* Allocate the ephemeral public key buffer. */
     res = UA_ByteString_allocBuffer(&ephKey.publicKey, sp->nonceLength);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -431,10 +427,7 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     }
 
     /* Generate the ephemeral key and signature */
-    ephKey.publicKey.data[0] = 'e';
-    ephKey.publicKey.data[1] = 'p';
-    ephKey.publicKey.data[2] = 'h';
-    res |= sp->generateNonce(sp, spContext, &ephKey.publicKey);
+    res |= sp->generateEphemeralKey(sp, spContext, &ephKey.publicKey);
     res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey.publicKey,
                                            &ephKey.signature);
 
@@ -1057,8 +1050,8 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
      * used only when BOTH the SecureChannel AND the user-token SecurityPolicy
      * are enhanced; a legacy RSA / old-ECC user token uses the legacy layout
      * even over an enhanced (AesGcm) SecureChannel. */
-    if(UA_SecurityPolicy_isEnhancedSecurity(channel->securityPolicy) &&
-       UA_SecurityPolicy_isEnhancedSecurity(tokenSp)) {
+    if(channel->securityPolicy->secureChannelEnhancements &&
+       tokenSp->secureChannelEnhancements) {
         if(tokenSignature->signature.length == 0) {
             res = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
             goto out;
@@ -1256,7 +1249,7 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     /* Check the client signature */
     if(UA_SecureChannel_hasApplicationSecurity(channel)) {
         const UA_SecurityPolicy *csp = channel->securityPolicy;
-        if(UA_SecurityPolicy_isEnhancedSecurity(csp)) {
+        if(csp->secureChannelEnhancements) {
             /* Channel-bound v1.05.07 ClientSignature (see the cert-role table at
              * UA_SecureChannel_buildActivateSessionSignatureData). clientNonce is
              * the ClientNonce stored at CreateSession. */

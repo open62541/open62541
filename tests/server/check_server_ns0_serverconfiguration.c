@@ -5,7 +5,9 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Bastian Engel)
  */
 
-/* Values of the ServerConfiguration Object (OPC UA Part 12, 7.10.3) */
+/* Values of the ServerConfiguration Object (OPC UA Part 12, 7.10.3). The
+ * Object is only present with the PushManagement of the GDS receiver driver
+ * (Part 12, 7.10.1). */
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -35,6 +37,9 @@ setup(void) {
     ad->productUri = UA_STRING_ALLOC("http://open62541.org/unittest/serverconfiguration");
     UA_LocalizedText_clear(&ad->applicationName);
     ad->applicationName = UA_LOCALIZEDTEXT_ALLOC("en-US", "ServerConfiguration Test");
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_Server_getConfig(server)->maxTrustListSize = 4242;
+#endif
 
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
 }
@@ -45,6 +50,7 @@ teardown(void) {
     UA_Server_delete(server);
 }
 
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
 static void
 readServerConfigurationValue(UA_UInt32 id, UA_Variant *out) {
     UA_Variant_init(out);
@@ -92,17 +98,218 @@ START_TEST(applicationNames) {
     UA_Variant_clear(&value);
 } END_TEST
 
-/* The ServerCapabilities are read from the started server. The expected
+/* The server does not implement the application setup state */
+START_TEST(inApplicationSetup) {
+#ifdef UA_NS0ID_SERVERCONFIGURATION_INAPPLICATIONSETUP
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_INAPPLICATIONSETUP);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(!dv.hasStatus || dv.status == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&dv.value, &UA_TYPES[UA_TYPES_BOOLEAN]));
+    ck_assert(*(UA_Boolean*)dv.value.data == false);
+    UA_DataValue_clear(&dv);
+#endif
+} END_TEST
+
+START_TEST(maxTrustListSize) {
+    UA_Variant value;
+    readServerConfigurationValue(UA_NS0ID_SERVERCONFIGURATION_MAXTRUSTLISTSIZE, &value);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)value.data, 4242);
+    UA_Variant_clear(&value);
+} END_TEST
+
+/* An empty array and not a null Variant */
+static void
+assertEmptyArray(UA_UInt32 id, const UA_DataType *type) {
+    UA_Variant value;
+    readServerConfigurationValue(id, &value);
+    ck_assert(UA_Variant_hasArrayType(&value, type));
+    ck_assert_uint_eq(value.arrayLength, 0);
+    ck_assert_ptr_eq(value.data, UA_EMPTY_ARRAY_SENTINEL);
+    UA_Variant_clear(&value);
+}
+
+/* Clients cannot update the PrivateKey without the GDS receiver driver */
+START_TEST(supportedPrivateKeyFormats) {
+    assertEmptyArray(UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS,
+                     &UA_TYPES[UA_TYPES_STRING]);
+} END_TEST
+
+/* Without the started GDS receiver driver, no Certificate can be assigned and
+ * the TrustLists cannot be opened */
+START_TEST(certificateGroupsWithoutReceiver) {
+    const UA_UInt32 certificateTypes[2] = {
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_CERTIFICATETYPES
+    };
+    const UA_UInt32 writable[4] = {
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITABLE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_USERWRITABLE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITABLE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_USERWRITABLE
+    };
+    const UA_UInt32 openCount[2] = {
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENCOUNT,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENCOUNT
+    };
+    const UA_UInt32 lastUpdateTime[2] = {
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_LASTUPDATETIME,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_LASTUPDATETIME
+    };
+    const UA_UInt32 size[2] = {
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SIZE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SIZE
+    };
+
+    UA_Variant value;
+    for(size_t i = 0; i < 2; i++)
+        assertEmptyArray(certificateTypes[i], &UA_TYPES[UA_TYPES_NODEID]);
+    for(size_t i = 0; i < 4; i++) {
+        readServerConfigurationValue(writable[i], &value);
+        ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_BOOLEAN]));
+        ck_assert(*(UA_Boolean*)value.data == false);
+        UA_Variant_clear(&value);
+    }
+    for(size_t i = 0; i < 2; i++) {
+        readServerConfigurationValue(openCount[i], &value);
+        ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT16]));
+        ck_assert_uint_eq(*(UA_UInt16*)value.data, 0);
+        UA_Variant_clear(&value);
+
+        /* DateTime.MinValue if unknown (Part 12, 7.8.2.1) */
+        readServerConfigurationValue(lastUpdateTime[i], &value);
+        ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UTCTIME]) ||
+                  UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME]));
+        ck_assert_int_eq(*(UA_DateTime*)value.data, 0);
+        UA_Variant_clear(&value);
+
+        /* The Size has no meaning for a TrustList (Part 12, 7.8.2.1) */
+        UA_Variant_init(&value);
+        UA_StatusCode res =
+            UA_Server_readValue(server, UA_NODEID_NUMERIC(0, size[i]), &value);
+        ck_assert_str_eq(UA_StatusCode_name(res),
+                         UA_StatusCode_name(UA_STATUSCODE_BADNOTSUPPORTED));
+        UA_Variant_clear(&value);
+    }
+} END_TEST
+
+/* Every Variable of the ServerConfiguration has a value. The Size of the
+ * TrustLists is the only exception (Part 12, 7.8.2.1). */
+static void
+assertVariablesHaveValues(const UA_NodeId *parent, size_t depth) {
+    ck_assert_uint_lt(depth, 10);
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *parent;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_str_eq(UA_StatusCode_name(br.statusCode),
+                     UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        const UA_ReferenceDescription *rd = &br.references[i];
+        const UA_NodeId *id = &rd->nodeId.nodeId;
+        if(rd->nodeClass == UA_NODECLASS_VARIABLE) {
+            UA_ReadValueId rvi;
+            UA_ReadValueId_init(&rvi);
+            rvi.nodeId = *id;
+            rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+            UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+            UA_StatusCode res = dv.hasStatus ? dv.status : UA_STATUSCODE_GOOD;
+            UA_QualifiedName sizeName = UA_QUALIFIEDNAME(0, "Size");
+            if(UA_QualifiedName_equal(&rd->browseName, &sizeName)) {
+                ck_assert_msg(res == UA_STATUSCODE_BADNOTSUPPORTED,
+                              "Size ns=0;i=%u returns %s", id->identifier.numeric,
+                              UA_StatusCode_name(res));
+            } else {
+                ck_assert_msg(res == UA_STATUSCODE_GOOD && dv.hasValue &&
+                              !UA_Variant_isEmpty(&dv.value),
+                              "%.*s ns=0;i=%u has no value (%s)",
+                              (int)rd->browseName.name.length,
+                              (const char*)rd->browseName.name.data,
+                              id->identifier.numeric, UA_StatusCode_name(res));
+            }
+            UA_DataValue_clear(&dv);
+        }
+        /* The Arguments of the Methods are Properties as well */
+        if(rd->nodeClass == UA_NODECLASS_OBJECT ||
+           rd->nodeClass == UA_NODECLASS_VARIABLE ||
+           rd->nodeClass == UA_NODECLASS_METHOD)
+            assertVariablesHaveValues(id, depth + 1);
+    }
+    UA_BrowseResult_clear(&br);
+}
+
+START_TEST(allVariablesHaveValues) {
+    UA_NodeId serverConfiguration = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
+    assertVariablesHaveValues(&serverConfiguration, 0);
+} END_TEST
+
+#else
+
+/* Without PushManagement, the Server has no ServerConfiguration Object and no
+ * reference to it (Part 12, 7.10.1) */
+START_TEST(serverConfigurationAbsent) {
+    const UA_UInt32 ids[] = {
+        UA_NS0ID_SERVERCONFIGURATION,
+        UA_NS0ID_SERVERCONFIGURATION_SERVERCAPABILITIES,
+        UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE_INPUTARGUMENTS,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN
+    };
+    for(size_t i = 0; i < sizeof(ids) / sizeof(ids[0]); i++) {
+        UA_NodeClass nodeClass;
+        UA_StatusCode res =
+            UA_Server_readNodeClass(server, UA_NODEID_NUMERIC(0, ids[i]), &nodeClass);
+        ck_assert_msg(res == UA_STATUSCODE_BADNODEIDUNKNOWN,
+                      "ns=0;i=%u exists (%s)", ids[i], UA_StatusCode_name(res));
+    }
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCES);
+    bd.includeSubtypes = true;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    const UA_NodeId serverConfiguration =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
+    for(size_t i = 0; i < br.referencesSize; i++)
+        ck_assert(!UA_NodeId_equal(&br.references[i].nodeId.nodeId,
+                                   &serverConfiguration));
+    UA_BrowseResult_clear(&br);
+} END_TEST
+
+#endif /* UA_ENABLE_DRIVER_GDS_RECEIVER */
+
+/* The ServerCapabilities derived from the config at startup. The expected
  * identifiers are a comma-separated list in the order of the bits. */
 static void
 assertServerCapabilities(const char *expected) {
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
+    /* Read from the ServerConfiguration */
     UA_Variant value;
     readServerConfigurationValue(UA_NS0ID_SERVERCONFIGURATION_SERVERCAPABILITIES, &value);
     ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_STRING]));
+    const UA_String *capabilities = (const UA_String*)value.data;
+    size_t capabilitiesSize = value.arrayLength;
+#else
+    /* Without the ServerConfiguration, only the derivation is checked */
+    UA_String capabilities[UA_SERVERCAPABILITIES_MAX];
+    size_t capabilitiesSize =
+        getServerCapabilityIdentifiers(server->serverCapabilities, capabilities);
+#endif
     char actual[256] = {0};
     size_t pos = 0;
-    const UA_String *capabilities = (const UA_String*)value.data;
-    for(size_t i = 0; i < value.arrayLength; i++) {
+    for(size_t i = 0; i < capabilitiesSize; i++) {
         ck_assert_uint_lt(pos + capabilities[i].length + 1, sizeof(actual));
         if(i > 0)
             actual[pos++] = ',';
@@ -110,7 +317,9 @@ assertServerCapabilities(const char *expected) {
         pos += capabilities[i].length;
     }
     ck_assert_str_eq(actual, expected);
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
     UA_Variant_clear(&value);
+#endif
 }
 
 /* No capabilities are configured by default */
@@ -122,9 +331,18 @@ static Suite *
 testSuite_serverConfiguration(void) {
     TCase *tc = tcase_create("ServerConfiguration");
     tcase_add_checked_fixture(tc, setup, teardown);
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
     tcase_add_test(tc, applicationUri);
     tcase_add_test(tc, productUri);
     tcase_add_test(tc, applicationNames);
+    tcase_add_test(tc, inApplicationSetup);
+    tcase_add_test(tc, maxTrustListSize);
+    tcase_add_test(tc, supportedPrivateKeyFormats);
+    tcase_add_test(tc, certificateGroupsWithoutReceiver);
+    tcase_add_test(tc, allVariablesHaveValues);
+#else
+    tcase_add_test(tc, serverConfigurationAbsent);
+#endif
     tcase_add_test(tc, serverCapabilities);
 
     Suite *s = suite_create("NS0 ServerConfiguration");

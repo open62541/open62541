@@ -109,6 +109,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     UA_UInt16 keySizeBits = 4096;
     /* Default to 1 year */
     UA_UInt16 expiresInDays = 365;
+    /* Default to the creation time */
+    const UA_DateTime *validFrom = NULL;
     /* Key type: 0 = RSA (default), 1 = EC */
     int keyTypeEC = 0;
     UA_String eccCurve = UA_STRING_STATIC("prime256v1");
@@ -123,6 +125,9 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
             params, UA_QUALIFIEDNAME(0, "expires-in-days"), &UA_TYPES[UA_TYPES_UINT16]);
         if(expiresInDaysValue)
             expiresInDays = *expiresInDaysValue;
+
+        validFrom = (const UA_DateTime *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "valid-from"), &UA_TYPES[UA_TYPES_DATETIME]);
 
         const UA_String *keyTypeValue = (const UA_String *)UA_KeyValueMap_getScalar(
             params, UA_QUALIFIEDNAME(0, "key-type"), &UA_TYPES[UA_TYPES_STRING]);
@@ -394,11 +399,17 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     /* Use the verifier's clock. On Linux, time() can briefly lag behind
      * gettimeofday() at a second boundary, making a new certificate appear
      * not yet valid. Keep the reentrant open62541 UTC conversion. */
-    UA_DateTime currentTime = UA_DateTime_fromUnixTime((UA_Int64)mbedtls_time(NULL));
-    UA_DateTime futureTime = currentTime +
+    UA_DateTime startTime = validFrom ? *validFrom :
+        UA_DateTime_fromUnixTime((UA_Int64)mbedtls_time(NULL));
+    UA_DateTime validityDuration =
         (UA_DateTime)expiresInDays * 24 * 60 * 60 * UA_DATETIME_SEC;
-    char current_timestamp[15]; /* YYYYMMDDhhmmss + '\0' */
-    if(!formatCertificateTime(currentTime, current_timestamp)) {
+    if(startTime > UA_INT64_MAX - validityDuration) {
+        errRet = UA_STATUSCODE_BADINVALIDARGUMENT;
+        goto cleanup;
+    }
+    UA_DateTime futureTime = startTime + validityDuration;
+    char start_timestamp[15]; /* YYYYMMDDhhmmss + '\0' */
+    if(!formatCertificateTime(startTime, start_timestamp)) {
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
@@ -408,7 +419,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    if(mbedtls_x509write_crt_set_validity(&crt, current_timestamp, future_timestamp) != 0) {
+    if(mbedtls_x509write_crt_set_validity(&crt, start_timestamp, future_timestamp) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Setting 'not before' and 'not after' failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
@@ -422,12 +433,15 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    /* ECC certificates need keyAgreement for ECDH instead of keyEncipherment */
+    /* ECC certificates need keyAgreement for ECDH instead of keyEncipherment.
+     * The certificate is self-signed and therefore also includes keyCertSign
+     * (Part 6, 6.2.2). */
     unsigned int keyUsageFlags = keyTypeEC
         ? (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION |
-           MBEDTLS_X509_KU_KEY_AGREEMENT)
+           MBEDTLS_X509_KU_KEY_AGREEMENT | MBEDTLS_X509_KU_KEY_CERT_SIGN)
         : (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION |
-           MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT);
+           MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT |
+           MBEDTLS_X509_KU_KEY_CERT_SIGN);
     if(mbedtls_x509write_crt_set_key_usage(&crt, keyUsageFlags) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Setting key usage failed.");

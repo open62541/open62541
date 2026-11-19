@@ -110,16 +110,13 @@ writeGroupVariables(UA_GDSReceiverContext *ctx) {
     UA_String supportedPrivateKeyFormats[2] =
         {UA_STRING("PEM"), UA_STRING("PKCS8")};
     size_t supportedPrivateKeyFormatsSize = 2;
-    UA_UInt32 maxTrustListSize = config->maxTrustListSize;
 
-    /* Set variables */
+    /* Set variables. The server writes the MaxTrustListSize of the config at
+     * startup. Update savedVariableIds when more variables are written. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= writeGDSNs0VariableArray(server, UA_NS0ID(SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS),
                                        supportedPrivateKeyFormats, supportedPrivateKeyFormatsSize,
                                        &UA_TYPES[UA_TYPES_STRING]);
-
-    retval |= writeGDSNs0Variable(server, UA_NS0ID(SERVERCONFIGURATION_MAXTRUSTLISTSIZE),
-                                  &maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
 
     retval |= writeGDSNs0VariableArray(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES),
                                        certificateTypes, certificateTypesSize,
@@ -370,9 +367,59 @@ setMethodCallback(UA_GDSReceiverContext *ctx, UA_NodeId methodId,
     return UA_Server_setMethodNodeCallback(server, methodId, callback);
 }
 
+/* The ServerConfiguration Variables that writeGroupVariables and
+ * writeLastUpdateVariable write. The server initializes them to the state
+ * without the receiver (no updatable Certificates and PrivateKeys, unknown
+ * LastUpdateTime). */
+static const UA_UInt32 savedVariableIds[UA_GDSRECEIVER_SAVEDVARIABLES] = {
+    UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS,
+    UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES,
+    UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_LASTUPDATETIME,
+    UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_LASTUPDATETIME
+};
+
+static void
+saveVariables(UA_GDSReceiverContext *ctx) {
+    UA_Server *server = ctx->drv.server;
+    for(size_t i = 0; i < UA_GDSRECEIVER_SAVEDVARIABLES; i++) {
+        UA_Variant *saved = &ctx->savedVariables[i];
+        UA_Variant_clear(saved);
+        if(UA_Server_readValue(server, UA_NODEID_NUMERIC(0, savedVariableIds[i]),
+                               saved) != UA_STATUSCODE_GOOD)
+            UA_Variant_clear(saved);
+    }
+}
+
+static void
+restoreVariables(UA_GDSReceiverContext *ctx) {
+    UA_Server *server = ctx->drv.server;
+    for(size_t i = 0; i < UA_GDSRECEIVER_SAVEDVARIABLES; i++) {
+        UA_Variant *saved = &ctx->savedVariables[i];
+        if(UA_Variant_isEmpty(saved))
+            continue;
+        UA_StatusCode res =
+            UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, savedVariableIds[i]), *saved);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_ServerConfig *sc = UA_Server_getConfig(server);
+            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                           "Could not restore the ServerConfiguration variable "
+                           "ns=0;i=%u (%s)", (unsigned)savedVariableIds[i],
+                           UA_StatusCode_name(res));
+        }
+        UA_Variant_clear(saved);
+    }
+}
+
+void
+UA_GDSReceiver_clearSavedVariables(UA_GDSReceiverContext *ctx) {
+    for(size_t i = 0; i < UA_GDSRECEIVER_SAVEDVARIABLES; i++)
+        UA_Variant_clear(&ctx->savedVariables[i]);
+}
+
 UA_StatusCode
 initNS0PushManagement(UA_GDSReceiverContext *ctx) {
     /* Set variables */
+    saveVariables(ctx);
     UA_StatusCode retval = writeGroupVariables(ctx);
 
     /* Set method callbacks */
@@ -416,6 +463,10 @@ clearNS0PushManagement(UA_GDSReceiverContext *ctx) {
         UA_Server_setMethodNodeCallback(server, methodId, NULL);
         UA_Server_setNodeContext(server, methodId, NULL);
     }
+
+    /* The FileType Properties of the TrustLists are restored by the file
+     * transfer drivers */
+    restoreVariables(ctx);
 }
 
 #ifdef UA_ENABLE_RBAC

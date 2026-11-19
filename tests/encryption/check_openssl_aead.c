@@ -11,12 +11,26 @@
 typedef UA_StatusCode (*AeadOperation)(const UA_ByteString *, const UA_ByteString *,
                                       const UA_ByteString *, UA_ByteString *, UA_Boolean);
 
+/* AES-256-GCM has no named wrapper; it goes through the generic functions */
+static UA_StatusCode
+aes256GcmEncrypt(const UA_ByteString *iv, const UA_ByteString *key,
+                 const UA_ByteString *aad, UA_ByteString *data, UA_Boolean encryptData) {
+    return UA_OpenSSL_AEAD_Encrypt(EVP_aes_256_gcm(), iv, key, aad, data, encryptData);
+}
+
+static UA_StatusCode
+aes256GcmDecrypt(const UA_ByteString *iv, const UA_ByteString *key,
+                 const UA_ByteString *aad, UA_ByteString *data, UA_Boolean decryptData) {
+    return UA_OpenSSL_AEAD_Decrypt(EVP_aes_256_gcm(), iv, key, aad, data, decryptData);
+}
+
 static AeadOperation encryptOperations[] = {
-    UA_OpenSSL_AES_128_GCM_Encrypt, UA_OpenSSL_ChaCha20Poly1305_Encrypt
+    UA_OpenSSL_AES_128_GCM_Encrypt, UA_OpenSSL_ChaCha20Poly1305_Encrypt, aes256GcmEncrypt
 };
 static AeadOperation decryptOperations[] = {
-    UA_OpenSSL_AES_128_GCM_Decrypt, UA_OpenSSL_ChaCha20Poly1305_Decrypt
+    UA_OpenSSL_AES_128_GCM_Decrypt, UA_OpenSSL_ChaCha20Poly1305_Decrypt, aes256GcmDecrypt
 };
+static const size_t keyLengths[] = {16, 32, 32};
 
 /* NIST GCM-AES128 examples 2 and 3:
  * https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/AES_GCM.pdf */
@@ -124,12 +138,117 @@ START_TEST(chachaPoly_encrypt_knownAnswer) {
 }
 END_TEST
 
+/* NIST GCM-AES256 test cases 13, 15 and 16 from the same document */
+static UA_Byte gcm256Key[] = {
+    0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c,
+    0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08,
+    0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c,
+    0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08
+};
+static const char gcm256Plain[] =
+    "\xd9\x31\x32\x25\xf8\x84\x06\xe5\xa5\x59\x09\xc5\xaf\xf5\x26\x9a"
+    "\x86\xa7\xa9\x53\x15\x34\xf7\xda\x2e\x4c\x30\x3d\x8a\x31\x8a\x72"
+    "\x1c\x3c\x0c\x95\x95\x68\x09\x53\x2f\xcf\x0e\x24\x49\xa6\xb5\x25"
+    "\xb1\x6a\xed\xf5\xaa\x0d\xe6\x57\xba\x63\x7b\x39\x1a\xaf\xd2\x55";
+static const char gcm256Cipher[] =
+    "\x52\x2d\xc1\xf0\x99\x56\x7d\x07\xf4\x7f\x37\xa3\x2a\x84\x42\x7d"
+    "\x64\x3a\x8c\xdc\xbf\xe5\xc0\xc9\x75\x98\xa2\xbd\x25\x55\xd1\xaa"
+    "\x8c\xb0\x8e\x48\x59\x0d\xbb\x3d\xa7\xb0\x8b\x10\x56\x82\x88\x38"
+    "\xc5\xf6\x1e\x63\x93\xba\x7a\x0a\xbc\xc9\xf6\x62\x89\x80\x15\xad";
+
+START_TEST(aes256Gcm_encrypt_knownAnswer) {
+    /* Test case 15: 64-byte plaintext, no AAD */
+    UA_ByteString key = {sizeof(gcm256Key), gcm256Key};
+    UA_ByteString iv = {sizeof(gcmIv), gcmIv};
+    const UA_Byte tag[] = {
+        0xb0, 0x94, 0xda, 0xc5, 0xd9, 0x34, 0x71, 0xbd,
+        0xec, 0x1a, 0x50, 0x22, 0x70, 0xe3, 0xcc, 0x6c
+    };
+    UA_Byte buffer[80];
+    memcpy(buffer, gcm256Plain, 64);
+    UA_ByteString data = {sizeof(buffer), buffer};
+    ck_assert_uint_eq(aes256GcmEncrypt(&iv, &key, NULL, &data, true), UA_STATUSCODE_GOOD);
+    ck_assert_mem_eq(buffer, gcm256Cipher, 64);
+    ck_assert_mem_eq(buffer + 64, tag, sizeof(tag));
+    ck_assert_uint_eq(aes256GcmDecrypt(&iv, &key, NULL, &data, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 64);
+    ck_assert_mem_eq(buffer, gcm256Plain, 64);
+}
+END_TEST
+
+START_TEST(aes256Gcm_encryptWithAad_knownAnswer) {
+    /* Test case 16: the first 60 bytes of the plaintext, with AAD */
+    UA_ByteString key = {sizeof(gcm256Key), gcm256Key};
+    UA_ByteString iv = {sizeof(gcmIv), gcmIv};
+    UA_Byte aadBytes[] = {
+        0xfe, 0xed, 0xfa, 0xce, 0xde, 0xad, 0xbe, 0xef, 0xfe, 0xed,
+        0xfa, 0xce, 0xde, 0xad, 0xbe, 0xef, 0xab, 0xad, 0xda, 0xd2
+    };
+    UA_ByteString aad = {sizeof(aadBytes), aadBytes};
+    const UA_Byte tag[] = {
+        0x76, 0xfc, 0x6e, 0xce, 0x0f, 0x4e, 0x17, 0x68,
+        0xcd, 0xdf, 0x88, 0x53, 0xbb, 0x2d, 0x55, 0x1b
+    };
+    UA_Byte buffer[76];
+    memcpy(buffer, gcm256Plain, 60);
+    UA_ByteString data = {sizeof(buffer), buffer};
+    ck_assert_uint_eq(aes256GcmEncrypt(&iv, &key, &aad, &data, true), UA_STATUSCODE_GOOD);
+    ck_assert_mem_eq(buffer, gcm256Cipher, 60);
+    ck_assert_mem_eq(buffer + 60, tag, sizeof(tag));
+    ck_assert_uint_eq(aes256GcmDecrypt(&iv, &key, &aad, &data, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 60);
+    ck_assert_mem_eq(buffer, gcm256Plain, 60);
+}
+END_TEST
+
+START_TEST(aes256Gcm_signOnly_knownAnswer) {
+    /* Test case 13: zero key and IV, nothing to authenticate. The tag of the
+     * sign-only path is the GMAC of the (empty) AAD. */
+    UA_Byte keyBytes[32] = {0}, ivBytes[12] = {0};
+    UA_ByteString key = {sizeof(keyBytes), keyBytes};
+    UA_ByteString iv = {sizeof(ivBytes), ivBytes};
+    const UA_Byte tag[] = {
+        0x53, 0x0f, 0x8a, 0xfb, 0xc7, 0x45, 0x36, 0xb9,
+        0xa9, 0x63, 0xb4, 0xf1, 0xc4, 0xcb, 0x73, 0x8b
+    };
+    UA_Byte buffer[16];
+    UA_ByteString data = {sizeof(buffer), buffer};
+    ck_assert_uint_eq(aes256GcmEncrypt(&iv, &key, NULL, &data, false), UA_STATUSCODE_GOOD);
+    ck_assert_mem_eq(buffer, tag, sizeof(tag));
+    ck_assert_uint_eq(aes256GcmDecrypt(&iv, &key, NULL, &data, false), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(data.length, 0);
+}
+END_TEST
+
+/* The key length follows the cipher: a 16-byte key is rejected for AES-256-GCM
+ * and a 32-byte key for AES-128-GCM */
+START_TEST(aead_keyLengthFollowsCipher) {
+    UA_Byte keyBytes[32] = {1}, ivBytes[12] = {2}, buffer[32];
+    memset(buffer, 0xa5, sizeof(buffer));
+    UA_ByteString iv = {sizeof(ivBytes), ivBytes};
+    UA_ByteString data = {sizeof(buffer), buffer};
+    UA_ByteString shortKey = {16, keyBytes};
+    UA_ByteString longKey = {32, keyBytes};
+    ck_assert_uint_eq(UA_OpenSSL_AEAD_Encrypt(EVP_aes_256_gcm(), &iv, &shortKey,
+                                              NULL, &data, true),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(UA_OpenSSL_AEAD_Encrypt(EVP_aes_128_gcm(), &iv, &longKey,
+                                              NULL, &data, true),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(UA_OpenSSL_AEAD_Encrypt(NULL, &iv, &longKey,
+                                              NULL, &data, true),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    for(size_t i = 0; i < sizeof(buffer); i++)
+        ck_assert_uint_eq(buffer[i], 0xa5);
+}
+END_TEST
+
 START_TEST(aead_emptyInputsAndModes) {
     size_t algorithm = (size_t)_i / 12;
     UA_Boolean encryptData = (_i / 6) % 2 != 0;
     size_t shape = (size_t)_i % 6;
     UA_Byte keyBytes[32] = {1}, ivBytes[12] = {2};
-    UA_ByteString key = {algorithm == 0 ? 16 : 32, keyBytes};
+    UA_ByteString key = {keyLengths[algorithm], keyBytes};
     UA_ByteString iv = {sizeof(ivBytes), ivBytes};
     UA_ByteString aad = shape % 3 == 2 ? UA_BYTESTRING("header") : UA_BYTESTRING_NULL;
     const UA_ByteString *aadPtr = shape % 3 == 0 ? NULL : &aad;
@@ -161,7 +280,7 @@ START_TEST(aead_rejectsTampering) {
     UA_Boolean encryptData = (_i / 6) % 2 != 0;
     size_t corruption = (size_t)_i % 6;
     UA_Byte keyBytes[32] = {1}, ivBytes[12] = {2}, aadBytes[13] = {3};
-    UA_ByteString key = {algorithm == 0 ? 16 : 32, keyBytes};
+    UA_ByteString key = {keyLengths[algorithm], keyBytes};
     UA_ByteString iv = {sizeof(ivBytes), ivBytes};
     UA_ByteString aad = {sizeof(aadBytes), aadBytes};
     UA_Byte buffer[47];
@@ -194,7 +313,7 @@ START_TEST(aead_rejectsInvalidSizes) {
     size_t invalidField = (size_t)_i % 3;
     UA_Byte keyBytes[32] = {1}, ivBytes[12] = {2}, buffer[32];
     memset(buffer, 0xa5, sizeof(buffer));
-    UA_ByteString key = {algorithm == 0 ? 16 : 32, keyBytes};
+    UA_ByteString key = {keyLengths[algorithm], keyBytes};
     UA_ByteString iv = {sizeof(ivBytes), ivBytes};
     UA_ByteString data = {sizeof(buffer), buffer};
     if(invalidField == 0)
@@ -219,9 +338,13 @@ int main(void) {
     tcase_add_loop_test(tc, aesGcm_signOnly_knownAnswer, 0, 3);
     tcase_add_test(tc, aesGcm_encrypt_knownAnswer);
     tcase_add_test(tc, chachaPoly_encrypt_knownAnswer);
-    tcase_add_loop_test(tc, aead_emptyInputsAndModes, 0, 24);
-    tcase_add_loop_test(tc, aead_rejectsTampering, 0, 24);
-    tcase_add_loop_test(tc, aead_rejectsInvalidSizes, 0, 12);
+    tcase_add_test(tc, aes256Gcm_encrypt_knownAnswer);
+    tcase_add_test(tc, aes256Gcm_encryptWithAad_knownAnswer);
+    tcase_add_test(tc, aes256Gcm_signOnly_knownAnswer);
+    tcase_add_test(tc, aead_keyLengthFollowsCipher);
+    tcase_add_loop_test(tc, aead_emptyInputsAndModes, 0, 36);
+    tcase_add_loop_test(tc, aead_rejectsTampering, 0, 36);
+    tcase_add_loop_test(tc, aead_rejectsInvalidSizes, 0, 18);
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

@@ -1975,7 +1975,7 @@ getExtensionObjectType(ParseCtx *ctx) {
         return NULL;
 
     size_t oldIndex = ctx->index;
-    ctx->index = (UA_UInt16)typeIdIndex;
+    ctx->index = typeIdIndex;
 
     /* Decode the type NodeId */
     UA_NodeId typeId;
@@ -3019,8 +3019,9 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
 
     ret = decodeJsonJumpTable[type->typeKind](&ctx, dst, type);
 
-    /* Boundary decoding intentionally stops after the first JSON value. */
-    if((!options || !options->decodedLength) &&
+    /* Boundary decoding intentionally stops after the first JSON value.
+     * Preserve decoding failures, especially allocation errors. */
+    if(ret == UA_STATUSCODE_GOOD && (!options || !options->decodedLength) &&
        ctx.index != ctx.tokensSize)
         ret = UA_STATUSCODE_BADDECODINGERROR;
 

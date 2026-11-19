@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "custom_memory_manager.h"
+
 #include <cstdint>
 #include <cstddef>
 
@@ -14,6 +16,10 @@
 
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    /* The last four bytes set the memory limit */
+    if(!UA_memoryManager_setLimitFromLast4Bytes(data, size))
+        return 0;
+    size -= 4;
     if(size == 0)
         return 0;
 

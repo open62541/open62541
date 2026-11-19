@@ -787,9 +787,9 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode result = UA_KeyValueRestriction_validate(
-        el->eventLoop.logger, "UDP", udpConnectionParams,
-        UDP_CONNECTION_PARAMS, params);
+    UA_StatusCode result = UA_KeyValueMap_validate(
+        params, udpConnectionParams, UDP_CONNECTION_PARAMS, false,
+        el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "UDP");
     if(result != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return result;
@@ -934,9 +934,9 @@ UDP_eventSourceStart(UA_EventSource *eventSource) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode result = UA_KeyValueRestriction_validate(
-        el->eventLoop.logger, "UDP", udpManagerParams,
-        UDP_MANAGER_PARAMS, &eventSource->params);
+    UA_StatusCode result = UA_KeyValueMap_validate(
+        &eventSource->params, udpManagerParams, UDP_MANAGER_PARAMS, false,
+        el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "UDP");
     if(result == UA_STATUSCODE_GOOD)
         result = UA_IOCP_configureConnectionManager(&manager->base);
     if(result == UA_STATUSCODE_GOOD)

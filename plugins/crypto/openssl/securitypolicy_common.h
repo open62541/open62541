@@ -23,6 +23,19 @@
 
 _UA_BEGIN_DECLS
 
+UA_StatusCode
+UA_OpenSSL_hashCertificateSHA256(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash);
+
+UA_StatusCode
+UA_OpenSSL_hashCertificateSHA384(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash);
+
+
+UA_StatusCode
+UA_OpenSSL_generateNonce(const UA_SecurityPolicy *policy,
+                         void *channelContext, UA_ByteString *out);
+
 
 #if !defined(OPENSSL_VERSION_NUMBER)
 #error "OPENSSL_VERSION_NUMBER is not defined."
@@ -52,6 +65,40 @@ _UA_BEGIN_DECLS
 #define get_error_line_data(pFile, pLine, pData, pFlags) ERR_get_error_all(pFile, pLine, NULL, pData, pFlags)
 #endif
 
+/* HMAC with the key absorbed. A message copies inner and outer into work. */
+typedef struct {
+    EVP_MD_CTX *inner;
+    EVP_MD_CTX *outer;
+    EVP_MD_CTX *work;
+} UA_OpenSSL_HmacState;
+
+/* Per-key state of a channel, built on the first use and freed when the key
+ * is replaced. Local: sign/encrypt, remote: verify/decrypt. Not locked, see
+ * the channel setters in securitypolicy.h. */
+typedef struct {
+    UA_OpenSSL_HmacState localMac;
+    UA_OpenSSL_HmacState remoteMac;
+    EVP_CIPHER_CTX *localCipher; /* CBC, or AEAD with the encrypting key */
+    EVP_CIPHER_CTX *remoteCipher;
+    EVP_CIPHER_CTX *localTag; /* AEAD sign-only tags */
+    EVP_CIPHER_CTX *remoteTag;
+} UA_OpenSSL_SymContexts;
+
+void
+UA_OpenSSL_SymContexts_init(UA_OpenSSL_SymContexts *sym);
+
+void
+UA_OpenSSL_SymContexts_clear(UA_OpenSSL_SymContexts *sym);
+
+/* Stores a copy of key and frees the state built with the old key */
+UA_StatusCode
+UA_OpenSSL_Sym_setSigningKey(UA_OpenSSL_SymContexts *sym, UA_Boolean local,
+                             UA_ByteString *stored, const UA_ByteString *key);
+
+UA_StatusCode
+UA_OpenSSL_Sym_setEncryptingKey(UA_OpenSSL_SymContexts *sym, UA_Boolean local,
+                                UA_ByteString *stored, const UA_ByteString *key);
+
 typedef struct {
     UA_ByteString localSymSigningKey;
     UA_ByteString localSymEncryptingKey;
@@ -62,7 +109,29 @@ typedef struct {
 
     UA_ByteString remoteCertificate;
     X509 *remoteCertificateX509; /* X509 */
+
+    UA_OpenSSL_SymContexts sym;
 } openssl_ChannelContext;
+
+UA_StatusCode
+UA_OpenSSL_Sym_sign(UA_OpenSSL_SymContexts *sym, const EVP_MD *md,
+                    const UA_ByteString *key, const UA_ByteString *message,
+                    UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_Sym_verify(UA_OpenSSL_SymContexts *sym, const EVP_MD *md,
+                      const UA_ByteString *key, const UA_ByteString *message,
+                      const UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_Sym_encrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                       const UA_ByteString *key, const UA_ByteString *iv,
+                       UA_ByteString *data);
+
+UA_StatusCode
+UA_OpenSSL_Sym_decrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                       const UA_ByteString *key, const UA_ByteString *iv,
+                       UA_ByteString *data);
 
 typedef struct {
     EVP_PKEY *localPrivateKey;
@@ -75,7 +144,44 @@ typedef struct {
     /* EVP_PKEY_ED25519 */
     /* EVP_PKEY_ED448 */
     int keyType;
+
+    /* Set by the generic RSA module: its UA_RsaParams row. NULL for the
+     * hand-written policies that do not use that module. */
+    const void *rsaParams;
 } openssl_PolicyContext;
+
+/* The contexts of the ECC AEAD policies (securitypolicy_generic_ecc_aead.c) */
+typedef struct {
+    EVP_PKEY *localPrivateKey;
+    EVP_PKEY *csrLocalPrivateKey;
+    UA_ByteString localCertThumbprint;
+    UA_ApplicationType applicationType;
+
+    /* The UA_EccAeadParams row of the policy and the key-agreement identifier
+     * resolved from it: a curve NID for ECDH, or EVP_PKEY_X25519/EVP_PKEY_X448
+     * for the Edwards curves */
+    const void *aeadParams;
+    int keyId;
+} openssl_EccPolicyContext;
+
+typedef struct {
+    EVP_PKEY *localEphemeralKeyPair;
+    UA_ByteString localSymSigningKey;
+    UA_ByteString localSymEncryptingKey;
+    UA_ByteString localSymIv;
+    UA_ByteString remoteSymSigningKey;
+    UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString remoteSymIv;
+
+    UA_ByteString remoteCertificate;
+    X509 *remoteCertificateX509;
+
+    /* AEAD message context, set by setMessageSecurityParameters */
+    UA_UInt32 tokenId;
+    UA_UInt32 previousSequenceNumber;
+    UA_ByteString additionalAuthData;
+    UA_OpenSSL_SymContexts sym;
+} openssl_EccAeadChannelContext;
 
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
 void UA_Openssl_Init(void);
@@ -134,18 +240,42 @@ UA_Openssl_RSA_PSS_SHA256_Sign (const UA_ByteString * message,
                                 EVP_PKEY * privateKey,
                                 UA_ByteString *       outSignature);
 
+/* Generate an ephemeral ECDH key pair on the given curve and write its
+ * encoded public key (without the leading 0x04 point-format byte) to
+ * `keyPublicEncOut`. The named wrappers are the common curves; the generic ECC
+ * AEAD module passes the curve NID it resolved from its policy parameters. */
+UA_StatusCode
+UA_OpenSSL_ECC_GenerateKey(const int curveId,
+                           EVP_PKEY **keyPairOut,
+                           UA_ByteString *keyPublicEncOut);
+
 UA_StatusCode
 UA_OpenSSL_ECC_NISTP256_GenerateKey (EVP_PKEY ** keyPairOut,
                                      UA_ByteString * keyPublicEncOut);
 
+/* ECDH key agreement and HKDF key derivation. localNonce and remoteNonce are the
+ * nonces (ephemeral public keys). `ikmInOut` is the v1.05.07 IKM accumulator of
+ * an enhanced policy: IKM_n-1 on entry, IKM_n on return. NULL for policies
+ * without IKM chaining and for derivations outside a SecureChannel. */
 UA_StatusCode
-UA_OpenSSL_ECC_DeriveKeys (const int curveID,
-                           char * hashAlgorithm,
-                           const UA_ApplicationType applicationType,
-                           EVP_PKEY * localEphemeralKeyPair,
-                           const UA_ByteString * key1,
-                           const UA_ByteString * key2,
-                           UA_ByteString * out);
+UA_OpenSSL_ECC_DeriveKeys(const int curveID, const char *hashAlgorithm,
+                            UA_ApplicationType applicationType,
+                            EVP_PKEY *localEphemeralKeyPair,
+                            UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce,
+                            const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out);
+
+/* Derive the key material of an EccEncryptedSecret: ECDH and HKDF with the
+ * "opcua-secret" label and no IKM chaining */
+UA_StatusCode
+UA_OpenSSL_ECC_DeriveSessionKey(const int curveID,
+                                const char *hashAlgorithm,
+                                const UA_ApplicationType applicationType,
+                                EVP_PKEY *localEphemeralKeyPair,
+                                const UA_ByteString *receiverPublicKey,
+                                const UA_ByteString *senderPublicKey,
+                                UA_ByteString *out);
 
 UA_StatusCode
 UA_Openssl_ECDSA_SHA256_Sign (const UA_ByteString * message,
@@ -166,16 +296,6 @@ UA_StatusCode
 UA_OpenSSL_HMAC_SHA256_Sign(const UA_ByteString *message,
                             const UA_ByteString *key,
                             UA_ByteString *signature);
-
-UA_StatusCode
-UA_OpenSSL_AES_256_CBC_Decrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key,
-                               UA_ByteString *data  /* [in/out]*/);
-
-UA_StatusCode
-UA_OpenSSL_AES_256_CBC_Encrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key,
-                               UA_ByteString *data  /* [in/out]*/);
 
 UA_StatusCode
 UA_OpenSSL_X509_compare(const UA_ByteString *cert, const X509 *b);
@@ -215,16 +335,6 @@ UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_Encrypt(UA_ByteString *data,
                                  size_t paddingSize,
                                  X509 *publicX509);
-
-UA_StatusCode
-UA_OpenSSL_AES_128_CBC_Decrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key,
-                               UA_ByteString *data  /* [in/out]*/);
-
-UA_StatusCode
-UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key,
-                               UA_ByteString *data  /* [in/out]*/);
 
 UA_StatusCode
 UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
@@ -374,17 +484,58 @@ UA_OpenSSL_X25519_GenerateKey(EVP_PKEY **keyPairOut,
 
 /* X25519/X448 ECDH key agreement and HKDF key derivation */
 UA_StatusCode
-UA_OpenSSL_XDHE_DeriveKeys(int keyType,
-                            const char *hashAlgorithm,
+UA_OpenSSL_XDHE_DeriveKeys(int keyType, const char *hashAlgorithm,
                             UA_ApplicationType applicationType,
                             EVP_PKEY *localEphemeralKeyPair,
-                            const UA_ByteString *key1,
-                            const UA_ByteString *key2,
-                            UA_ByteString *out);
+                            UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce,
+                            const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out);
 
-/* ChaCha20-Poly1305 AEAD encrypt/decrypt.
+/* X25519/X448 counterpart of UA_OpenSSL_ECC_DeriveSessionKey */
+UA_StatusCode
+UA_OpenSSL_XDHE_DeriveSessionKey(int keyType,
+                                 const char *hashAlgorithm,
+                                 UA_ApplicationType applicationType,
+                                 EVP_PKEY *localEphemeralKeyPair,
+                                 const UA_ByteString *receiverPublicKey,
+                                 const UA_ByteString *senderPublicKey,
+                                 UA_ByteString *out);
+
+/* Every ECC AEAD SecurityPolicy uses a 12-byte IV and a 16-byte tag
+ * (OPC UA Part 6: InitializationVectorLength 96 bits, SignatureLength 128 bits). */
+#define UA_OPENSSL_AEAD_IV_LENGTH 12
+#define UA_OPENSSL_AEAD_TAG_LENGTH 16
+
+/* Generic AEAD encrypt/decrypt for the ECC AEAD SecurityPolicies.
+ *
+ * The cipher selects the algorithm and, through EVP_CIPHER_key_length(), the
+ * expected key length: AES-128-GCM (16), AES-256-GCM (32) and
+ * ChaCha20-Poly1305 (32) all share this code path. The IV is always 12 bytes
+ * and the authentication tag is the last 16 bytes of `data`.
+ *
  * If encryptData/decryptData is true, the data part is encrypted or decrypted.
- * Otherwise, only the authentication tag is computed/verified. */
+ * Otherwise all of it is treated as additional authenticated data, so only the
+ * tag is computed/verified (the sign-only message security mode). On decrypt
+ * the tag is stripped from data->length. */
+UA_StatusCode
+UA_OpenSSL_AEAD_Encrypt(const EVP_CIPHER *cipher,
+                        const UA_ByteString *iv,
+                        const UA_ByteString *key,
+                        const UA_ByteString *aad,
+                        UA_ByteString *data,
+                        UA_Boolean encryptData);
+
+UA_StatusCode
+UA_OpenSSL_AEAD_Decrypt(const EVP_CIPHER *cipher,
+                        const UA_ByteString *iv,
+                        const UA_ByteString *key,
+                        const UA_ByteString *aad,
+                        UA_ByteString *data,
+                        UA_Boolean decryptData);
+
+/* ChaCha20-Poly1305 AEAD encrypt/decrypt. Thin wrappers over
+ * UA_OpenSSL_AEAD_Encrypt/Decrypt. */
 UA_StatusCode
 UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
                                     const UA_ByteString *key,
@@ -399,9 +550,8 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
                                     UA_ByteString *data,
                                     UA_Boolean decryptData);
 
-/* AES-128-GCM AEAD encrypt/decrypt.
- * If encryptData/decryptData is true, the data part is encrypted or decrypted.
- * Otherwise, only the authentication tag is computed/verified. */
+/* AES-128-GCM AEAD encrypt/decrypt. Thin wrappers over
+ * UA_OpenSSL_AEAD_Encrypt/Decrypt. */
 UA_StatusCode
 UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
                                const UA_ByteString *key,
@@ -415,6 +565,36 @@ UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
                                const UA_ByteString *aad,
                                UA_ByteString *data,
                                UA_Boolean decryptData);
+
+/* The per-message AEAD IV: the base IV XORed with the TokenId and the
+ * previous SequenceNumber */
+UA_StatusCode
+UA_OpenSSL_aeadMessageIv(const UA_ByteString *baseIv, UA_UInt32 tokenId,
+                         UA_UInt32 previousSequenceNumber, UA_Byte iv[12]);
+
+/* AEAD with the per-channel contexts. Encrypt and decrypt use the last 16
+ * bytes of data for the tag. Sign and verify compute a tag over the message
+ * without encrypting it. */
+UA_StatusCode
+UA_OpenSSL_Sym_aeadEncrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                           const UA_ByteString *key, const UA_ByteString *iv,
+                           const UA_ByteString *aad, UA_ByteString *data);
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadDecrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                           const UA_ByteString *key, const UA_ByteString *iv,
+                           const UA_ByteString *aad, UA_ByteString *data);
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadSign(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                        const UA_ByteString *key, const UA_ByteString *iv,
+                        const UA_ByteString *message, UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_Sym_aeadVerify(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                          const UA_ByteString *key, const UA_ByteString *iv,
+                          const UA_ByteString *message,
+                          const UA_ByteString *signature);
 
 
 /* EdDSA Ed448 signing and verification */

@@ -1222,6 +1222,9 @@ UA_StatusCode writeNs0ServerProfileArray(UA_Server *server, UA_Boolean startup);
 /* Write the ServerCapabilities derived during startup */
 UA_StatusCode writeNs0ServerCapabilities(UA_Server *server);
 
+/* Write the MaxTrustListSize of the server config */
+UA_StatusCode writeNs0MaxTrustListSize(UA_Server *server);
+
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);
 

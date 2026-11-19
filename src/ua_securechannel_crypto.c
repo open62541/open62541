@@ -56,58 +56,43 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     }
 
     /* Generate the nonce */
-    channel->localNonce.data[0] = 'e';
-    channel->localNonce.data[1] = 'p';
-    channel->localNonce.data[2] = 'h';
+    if(sp->generateEphemeralKey)
+        return sp->generateEphemeralKey(sp, channel->channelContext, &channel->localNonce);
     return sp->generateNonce(sp, channel->channelContext, &channel->localNonce);
 }
 
-/* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining (enhanced
- * policies only). The IKM is XORed with the new shared secret on each renewal;
- * the accumulator is the curve's coordinate size (half the nonceLength, e.g. 32
- * bytes for P-256). It is carried through sp->generateKey without changing that
- * signature by prepending it to the `secret` ByteString: the backend's
- * DeriveKeys helper detects the prepend (key1 longer than the ephemeral public
- * key), XORs, and writes the chained IKM back into the slot. */
-#define IKM_PREPEND_LENGTH(channel) \
-    ((channel)->enhancedSecurity ? ((channel)->securityPolicy->nonceLength / 2) : 0)
-
-/* Allocate and fill the prepend buffer [currentIKM | nonce] when
- * chaining is active; otherwise point *outInput at the original
- * nonce. The caller frees *outCombined with UA_ByteString_clear. */
+/* Both key-derivation passes of an OPN start from the same previous IKM.
+ * Give the policy a private copy so advancing it cannot change currentIKM.
+ * The first OPN starts with a zero accumulator. */
 static UA_StatusCode
-prepareKeyInput(UA_SecureChannel *channel, const UA_ByteString *nonce,
-                UA_ByteString *outInput, UA_ByteString *outCombined) {
-    size_t ikmLen = IKM_PREPEND_LENGTH(channel);
-    if(ikmLen == 0) {
-        *outInput = *nonce;
-        *outCombined = UA_BYTESTRING_NULL;
+prepareIKM(const UA_SecureChannel *channel, UA_ByteString *ikm) {
+    if(!channel->enhancedSecurity)
         return UA_STATUSCODE_GOOD;
+    size_t ikmLen = channel->securityPolicy->secretLength;
+    if(ikmLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(channel->currentIKM.length > 0) {
+        if(channel->currentIKM.length != ikmLen)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_ByteString_copy(&channel->currentIKM, ikm);
     }
-    UA_StatusCode res =
-        UA_ByteString_allocBuffer(outCombined, ikmLen + nonce->length);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    if(channel->currentIKM.length == ikmLen)
-        memcpy(outCombined->data, channel->currentIKM.data, ikmLen);
-    else
-        memset(outCombined->data, 0, ikmLen);
-    memcpy(outCombined->data + ikmLen, nonce->data, nonce->length);
-    *outInput = *outCombined;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_ByteString_allocBuffer(ikm, ikmLen);
+    if(res == UA_STATUSCODE_GOOD)
+        memset(ikm->data, 0, ikmLen);
+    return res;
 }
 
-/* Pull the (possibly updated) IKM from the prepend slot and store
- * it as channel->currentIKM. Called only by the local-keys pass;
- * the remote-keys pass leaves the accumulator untouched. */
-static UA_StatusCode
-captureIKMSlot(UA_SecureChannel *channel, const UA_ByteString *combined) {
-    size_t ikmLen = IKM_PREPEND_LENGTH(channel);
-    if(ikmLen == 0)
-        return UA_STATUSCODE_GOOD;
+/* Move IKM_n into place as the accumulator of the generation that starts now.
+ * Called at the top of the local-keys pass, so both passes of a generation see
+ * the same value and each generation advances exactly once, whether or not the
+ * peer ever sent anything under the previous token. */
+static void
+promoteIKM(UA_SecureChannel *channel) {
+    if(channel->nextIKM.length == 0)
+        return;
     UA_ByteString_clear(&channel->currentIKM);
-    UA_ByteString ikmSlot = {ikmLen, combined->data};
-    return UA_ByteString_copy(&ikmSlot, &channel->currentIKM);
+    channel->currentIKM = channel->nextIKM;
+    UA_ByteString_init(&channel->nextIKM);
 }
 
 /* OPC UA Part 6, 6.8.1 Step 1: "When not using AuthenticatedEncryption with
@@ -125,14 +110,24 @@ derivedKeyMaterialLength(const UA_SecureChannel *channel, size_t signKL,
     return totalLength;
 }
 
-UA_StatusCode
-UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
+/* The local-keys pass of an OPN generation. With install = false, only the IKM
+ * accumulator advances and the derived keys are discarded. */
+static UA_StatusCode
+deriveLocalKeys(UA_SecureChannel *channel, UA_Boolean install) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local keys");
+    if(install)
+        UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local keys");
+    else
+        UA_LOG_DEBUG_CHANNEL(sp->logger, channel,
+                             "Advancing the IKM of a skipped SecurityToken");
 
     void *cc = channel->channelContext;
     const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
+
+    /* This pass opens a new OPN generation: the IKM computed by the previous
+     * one becomes the accumulator both passes of this one derive against. */
+    promoteIKM(channel);
 
     /* Generate symmetric key buffer of the required length. The block size is
      * identical for local/remote. For AEAD ciphers the IV length differs from
@@ -154,33 +149,29 @@ UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
     UA_ByteString derived = {
         derivedKeyMaterialLength(channel, signKL, buf.length), buf.data};
 
-    /* Build the IKM-prefixed `secret` input (the helper detects
-     * the prepend via the length mismatch against the local
-     * ephemeral public key). The `seed` arg is passed unchanged —
-     * the helper uses it as the alternate ephemeral public key
-     * candidate and as part of the salt, so the prepend must not
-     * appear there. */
-    UA_ByteString secretInput, seedInput = channel->localNonce;
-    UA_ByteString secretCombined = UA_BYTESTRING_NULL;
-    res = prepareKeyInput(channel, &channel->remoteNonce,
-                         &secretInput, &secretCombined);
+    UA_ByteString ikm = UA_BYTESTRING_NULL;
+    res = prepareIKM(channel, &ikm);
     UA_CHECK_STATUS(res, goto error);
 
-    /* Generate key. The policy's wrapper detects the prepend (via the
-     * length mismatch in key1 vs the local ephemeral public key) and
-     * performs the IKM chaining, deriving against the *previous*
-     * accumulator (channel->currentIKM). The new accumulator is NOT
-     * promoted here: the local- and remote-keys passes of one OPN must
-     * both derive against the same previous accumulator, so the
-     * advance to IKM_n happens exactly once, in generateRemoteKeys
-     * (the last of the two passes). */
-    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &derived);
+    res = sp->generateKey(sp, cc, UA_KEYDERIVATION_LOCAL,
+                          &channel->localNonce, &channel->remoteNonce,
+                          channel->enhancedSecurity ? &ikm : NULL, &derived);
     UA_CHECK_STATUS(res, goto error);
+
+    /* Park the successful result. The remote-keys pass still needs currentIKM
+     * from before this OPN; promotion happens at the next local-keys pass. */
+    if(channel->enhancedSecurity) {
+        UA_ByteString_clear(&channel->nextIKM);
+        channel->nextIKM = ikm;
+        ikm = UA_BYTESTRING_NULL;
+    }
 
     /* Set the channel context */
-    res |= sp->setLocalSymSigningKey(sp, cc, &localSigningKey);
-    res |= sp->setLocalSymEncryptingKey(sp, cc, &localEncryptingKey);
-    res |= sp->setLocalSymIv(sp, cc, &localIv);
+    if(install) {
+        res |= sp->setLocalSymSigningKey(sp, cc, &localSigningKey);
+        res |= sp->setLocalSymEncryptingKey(sp, cc, &localEncryptingKey);
+        res |= sp->setLocalSymIv(sp, cc, &localIv);
+    }
 
  error:
     if(res != UA_STATUSCODE_GOOD) {
@@ -189,8 +180,21 @@ UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
                              UA_StatusCode_name(res));
     }
     UA_ByteString_clear(&buf);
-    UA_ByteString_clear(&secretCombined);
+    UA_ByteString_memZero(&ikm);
+    UA_ByteString_clear(&ikm);
     return res;
+}
+
+UA_StatusCode
+UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
+    return deriveLocalKeys(channel, true);
+}
+
+UA_StatusCode
+UA_SecureChannel_advanceIKM(UA_SecureChannel *channel) {
+    if(!channel->enhancedSecurity)
+        return UA_STATUSCODE_GOOD;
+    return deriveLocalKeys(channel, false);
 }
 
 UA_StatusCode
@@ -222,34 +226,16 @@ generateRemoteKeys(UA_SecureChannel *channel) {
     UA_ByteString derived = {
         derivedKeyMaterialLength(channel, signKL, buf.length), buf.data};
 
-    /* Build the IKM-prefixed `secret` input. Both the local- and
-     * remote-keys passes of one OPN derive against the *same* previous
-     * accumulator (channel->currentIKM); generateLocalKeys deliberately
-     * did not advance it. The `seed` arg is passed unchanged — the
-     * helper uses it as the alternate ephemeral public key candidate
-     * and as part of the salt, so the prepend must not appear there. */
-    UA_ByteString secretInput, seedInput = channel->remoteNonce;
-    UA_ByteString secretCombined = UA_BYTESTRING_NULL;
-    res = prepareKeyInput(channel, &channel->localNonce,
-                         &secretInput, &secretCombined);
+    /* Derive from the same previous accumulator as the local-keys pass.
+     * Discard this pass's advanced copy; nextIKM is already saved. */
+    UA_ByteString ikm = UA_BYTESTRING_NULL;
+    res = prepareIKM(channel, &ikm);
     UA_CHECK_STATUS(res, goto error);
 
-    /* Generate key. The policy's wrapper XORs the previous accumulator
-     * with the new shared secret and writes the result (IKM_n) back
-     * into secretCombined. */
-    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &derived);
+    res = sp->generateKey(sp, cc, UA_KEYDERIVATION_REMOTE,
+                          &channel->localNonce, &channel->remoteNonce,
+                          channel->enhancedSecurity ? &ikm : NULL, &derived);
     UA_CHECK_STATUS(res, goto error);
-
-    /* This is the last derivation of the OPN: promote the just-updated
-     * IKM slot into channel->currentIKM so the next renewal chains from
-     * IKM_n. (On the first OPN currentIKM was empty, so IKM_0 == the raw
-     * shared secret for both passes — matching the spec's "no chaining
-     * on the first OpenSecureChannel".) */
-    res = captureIKMSlot(channel, &secretCombined);
-    if(res != UA_STATUSCODE_GOOD) {
-        res = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto error;
-    }
 
     /* Set the channel context */
     res |= sp->setRemoteSymSigningKey(sp, cc, &remoteSigningKey);
@@ -263,7 +249,8 @@ generateRemoteKeys(UA_SecureChannel *channel) {
                                UA_StatusCode_name(res));
     }
     UA_ByteString_clear(&buf);
-    UA_ByteString_clear(&secretCombined);
+    UA_ByteString_memZero(&ikm);
+    UA_ByteString_clear(&ikm);
     return res;
 }
 
@@ -271,26 +258,6 @@ generateRemoteKeys(UA_SecureChannel *channel) {
  * CreateSession / ActivateSession signatures are bound to the SecureChannel by
  * prepending the ChannelThumbprint and including certificate hashes (not the
  * raw certs). */
-
-/* The certificate hash is provided by the crypto backend via the global
- * UA_SecurityPolicy_hashCertificate (the algorithm is derived from the policy
- * URI). Wrapped here so this file links without a crypto backend - the
- * builders below are only reached at runtime for enhanced-security policies,
- * which only exist when encryption is enabled. */
-#ifdef UA_ENABLE_ENCRYPTION
-static UA_StatusCode
-hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
-         UA_ByteString *hash) {
-    return UA_SecurityPolicy_hashCertificate(sp, cert, hash);
-}
-#else
-static UA_StatusCode
-hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
-         UA_ByteString *hash) {
-    (void)sp; (void)cert; (void)hash;
-    return UA_STATUSCODE_BADINTERNALERROR;
-}
-#endif
 
 /* Assemble a channel-bound SignatureData (OPC UA Part 6 v1.05.07,
  * SecureChannelEnhancements). All three share the shape
@@ -306,7 +273,7 @@ hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
  *     TP | serverNonce | H(serverAppCert) | H(serverChannelCert) |
  *                        H(clientAppCert) | H(clientChannelCert) | clientNonce
  *
- * H() = the policy's curve hash of the leaf DER. Both peers must produce the
+ * H() = the policy's certificate hash of the leaf DER. Both peers must produce the
  * SAME bytes, so each side maps the logical certificate roles onto its own
  * local vs. remote view (the certs are channel-scoped: app == channel cert in
  * open62541, hence the duplicated hashes). The user/X.509-token certificate is
@@ -329,10 +296,12 @@ buildChannelBoundSignatureData(const UA_SecureChannel *channel,
     if(!sp || !channel->enhancedSecurity || certCount > UA_MAX_SIGDATA_CERTS ||
        channel->channelThumbprint.length == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(!sp->hashCertificateForSignature || sp->certThumbprintLength == 0)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     /* Hash the certificates. The inputs may be DER chains (e.g. the OPN
      * SenderCertificate stored in remoteCertificate), so hash only the leaf -
-     * independent of how a given crypto backend's hashCert handles a chain. */
+     * the policy callback receives exactly one DER certificate. */
     UA_ByteString hashes[UA_MAX_SIGDATA_CERTS];
     for(size_t i = 0; i < UA_MAX_SIGDATA_CERTS; i++)
         hashes[i] = UA_BYTESTRING_NULL;
@@ -340,7 +309,10 @@ buildChannelBoundSignatureData(const UA_SecureChannel *channel,
     size_t hashesLen = 0;
     for(size_t i = 0; i < certCount && res == UA_STATUSCODE_GOOD; i++) {
         UA_ByteString leaf = getLeafCertificate(*certs[i]);
-        res = hashCert(sp, &leaf, &hashes[i]);
+        res = sp->hashCertificateForSignature(sp, &leaf, &hashes[i]);
+        if(res == UA_STATUSCODE_GOOD &&
+           (hashes[i].length != sp->certThumbprintLength || !hashes[i].data))
+            res = UA_STATUSCODE_BADINTERNALERROR;
         hashesLen += hashes[i].length;
     }
     if(res != UA_STATUSCODE_GOOD)
@@ -703,24 +675,22 @@ signAndEncryptSym(UA_MessageContext *messageContext,
      * both authentication and encryption. */
     if(UA_SecurityPolicy_isAead(sp)) {
         /* Set AEAD parameters: tokenId, previous seqNo, AAD */
-        if(sp->setMessageSecurityParameters) {
-            UA_ByteString aad;
-            aad.data = messageContext->messageBuffer.data;
-            aad.length = UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
-                         UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
-            /* The AEAD nonce is masked with the PREVIOUS sequence number: the
-             * receiver masks with its receiveSequenceNumber, which is still the
-             * prior chunk's number at decrypt time (incremented only after
-             * decryption). sendSequenceNumber is the post-increment counter, so
-             * the value just emitted is (sendSequenceNumber - 1) and the
-             * previous one is (sendSequenceNumber - 2). ECC_AEAD always uses the
-             * non-legacy counter (first emitted number is 0). */
-            UA_UInt32 prevSeqNo = channel->sendSequenceNumber >= 2 ?
-                (UA_UInt32)(channel->sendSequenceNumber - 2) : 0;
-            UA_StatusCode res = sp->setMessageSecurityParameters(
-                sp, cc, channel->securityToken.tokenId, prevSeqNo, &aad);
-            UA_CHECK_STATUS(res, return res);
-        }
+        UA_ByteString aad;
+        aad.data = messageContext->messageBuffer.data;
+        aad.length = UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+                     UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
+        /* The AEAD nonce is masked with the PREVIOUS sequence number: the
+         * receiver masks with its receiveSequenceNumber, which is still the
+         * prior chunk's number at decrypt time (incremented only after
+         * decryption). sendSequenceNumber is the post-increment counter, so
+         * the value just emitted is (sendSequenceNumber - 1) and the
+         * previous one is (sendSequenceNumber - 2). ECC_AEAD always uses the
+         * non-legacy counter (first emitted number is 0). */
+        UA_UInt32 prevSeqNo = channel->sendSequenceNumber >= 2 ?
+            (UA_UInt32)(channel->sendSequenceNumber - 2) : 0;
+        UA_StatusCode res = sp->setMessageSecurityParameters(
+            sp, cc, channel->securityToken.tokenId, prevSeqNo, &aad);
+        UA_CHECK_STATUS(res, return res);
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
             /* Full AEAD: encrypt + compute auth tag. Data includes
@@ -878,17 +848,15 @@ decryptAndVerifyChunk(UA_SecureChannel *channel,
          * still secure messages with the old token (Part 4 §5.5.2) while the
          * channel already holds the new token. Using the wrong TokenId here
          * makes the AEAD tag verification fail. */
-        if(sp->setMessageSecurityParameters) {
-            UA_ByteString aad = {offset, chunk->data};
-            size_t tokenOffset = UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
-            UA_UInt32 msgTokenId = channel->securityToken.tokenId;
-            if(offset >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH)
-                UA_UInt32_decodeBinary(chunk, &tokenOffset, &msgTokenId);
-            res = sp->setMessageSecurityParameters(
-                sp, cc, msgTokenId,
-                channel->receiveSequenceNumber, &aad);
-            UA_CHECK_STATUS(res, return res);
-        }
+        UA_ByteString aad = {offset, chunk->data};
+        size_t tokenOffset = UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
+        UA_UInt32 msgTokenId = channel->securityToken.tokenId;
+        if(offset >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH)
+            UA_UInt32_decodeBinary(chunk, &tokenOffset, &msgTokenId);
+        res = sp->setMessageSecurityParameters(
+            sp, cc, msgTokenId,
+            channel->receiveSequenceNumber, &aad);
+        UA_CHECK_STATUS(res, return res);
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
             /* Full AEAD decrypt + verify. The decrypt callback processes

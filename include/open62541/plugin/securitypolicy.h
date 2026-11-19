@@ -18,6 +18,39 @@
 
 _UA_BEGIN_DECLS
 
+#define UA_SECURITYPOLICY_URI_NONE \
+    "http://opcfoundation.org/UA/SecurityPolicy#None"
+#define UA_SECURITYPOLICY_URI_BASIC128RSA15 \
+    "http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15"
+#define UA_SECURITYPOLICY_URI_BASIC256 \
+    "http://opcfoundation.org/UA/SecurityPolicy#Basic256"
+#define UA_SECURITYPOLICY_URI_BASIC256SHA256 \
+    "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256"
+#define UA_SECURITYPOLICY_URI_AES128_SHA256_RSAOAEP \
+    "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep"
+#define UA_SECURITYPOLICY_URI_AES256_SHA256_RSAPSS \
+    "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss"
+#define UA_SECURITYPOLICY_URI_ECC_NISTP256 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256"
+#define UA_SECURITYPOLICY_URI_ECC_NISTP384 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384"
+#define UA_SECURITYPOLICY_URI_ECC_BRAINPOOLP256R1 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1"
+#define UA_SECURITYPOLICY_URI_ECC_BRAINPOOLP384R1 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1"
+#define UA_SECURITYPOLICY_URI_ECC_CURVE25519 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519"
+#define UA_SECURITYPOLICY_URI_ECC_CURVE448 \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448"
+#define UA_SECURITYPOLICY_URI_ECC_NISTP256_AESGCM \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm"
+#define UA_SECURITYPOLICY_URI_ECC_NISTP256_CHACHAPOLY \
+    "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly"
+#define UA_SECURITYPOLICY_URI_PUBSUB_AES128_CTR \
+    "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes128-CTR"
+#define UA_SECURITYPOLICY_URI_PUBSUB_AES256_CTR \
+    "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR"
+
 extern UA_EXPORT const UA_String UA_SECURITY_POLICY_NONE_URI;
 
 struct UA_SecurityPolicy;
@@ -172,6 +205,12 @@ typedef struct {
                                const void *channelContext);
 } UA_SecurityPolicyEncryptionAlgorithm;
 
+/* Direction relative to this endpoint, independently of its client/server role. */
+typedef enum {
+    UA_KEYDERIVATION_LOCAL,  /* Keys for messages sent by this endpoint */
+    UA_KEYDERIVATION_REMOTE  /* Keys for messages received by this endpoint */
+} UA_KeyDerivationDirection;
+
 typedef enum {
     UA_SECURITYPOLICYTYPE_NONE = 0,
     UA_SECURITYPOLICYTYPE_RSA = 1,
@@ -281,7 +320,8 @@ struct UA_SecurityPolicy {
 
     /* Sets the message security parameters for AEAD nonce derivation.
      * Called before each symmetric encrypt/decrypt for ECC_AEAD policies.
-     * NULL for non-AEAD policies.
+     * Mandatory for ECC_AEAD policies (called without a NULL check). NULL for
+     * non-AEAD policies.
      *
      * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to work on.
@@ -314,15 +354,44 @@ struct UA_SecurityPolicy {
      *
      * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context of the SecureChannel
-     * @param secret Usually from the nonce. See part 6.
-     * @param seed Usually from the nonce. See part 6.
+     * @param direction Whether to derive keys for sending or receiving.
+     * @param localNonce This endpoint's nonce (ephemeral public key for ECC).
+     * @param remoteNonce The peer's nonce (ephemeral public key for ECC).
+     *        The nonce arguments keep this order for both directions.
+     * @param ikmInOut Optional IKM chaining accumulator. NULL disables chaining.
+     *        Otherwise the caller supplies a writable buffer of secretLength
+     *        bytes containing the previous accumulator (all zero on the first
+     *        OPN). On success it contains the accumulator XOR the new shared
+     *        secret. The callback must not resize or take ownership of it.
+     *        Its contents are unspecified on failure. Policies without
+     *        SecureChannelEnhancements ignore this parameter. The nonces in
+     *        localNonce and remoteNonce are never prefixed with accumulator data.
      * @param out An output to write the data to. The length defines the maximum
      *        number of output bytes that are produced. */
     UA_StatusCode (*generateKey)(const UA_SecurityPolicy *policy,
-                                 void *channelContext, const UA_ByteString *secret,
-                                 const UA_ByteString *seed, UA_ByteString *out);
+                                 void *channelContext,
+                                 UA_KeyDerivationDirection direction,
+                                 const UA_ByteString *localNonce,
+                                 const UA_ByteString *remoteNonce,
+                                 UA_ByteString *ikmInOut, UA_ByteString *out);
 
-    /* Random generator for generating nonces.
+    /* Derive the symmetric key material [EncryptionKey | IV] of an
+     * EccEncryptedSecret (OPC UA Part 4, 7.41.x) with the "opcua-secret"
+     * label. NULL for policies without ephemeral key agreement.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context that holds the local ephemeral key
+     * @param receiverPublicKey The ephemeral public key of the server
+     * @param senderPublicKey The ephemeral public key of the client
+     * @param out An output to write the data to. The length defines the
+     *        number of output bytes that are produced. */
+    UA_StatusCode (*generateEncryptedSecretKey)(const UA_SecurityPolicy *policy,
+                                                void *channelContext,
+                                                const UA_ByteString *receiverPublicKey,
+                                                const UA_ByteString *senderPublicKey,
+                                                UA_ByteString *out);
+
+    /* Random generator for generating nonces. Never generates a key pair.
      *
      * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context of the SecureChannel
@@ -331,8 +400,56 @@ struct UA_SecurityPolicy {
     UA_StatusCode (*generateNonce)(const UA_SecurityPolicy *policy,
                                    void *channelContext, UA_ByteString *out);
 
+    /* Generate a fresh ephemeral key pair in channelContext, replacing the
+     * previous key pair. The private key stays in the context; out receives the
+     * public key. The caller supplies a writable buffer of nonceLength bytes.
+     * The previous contents of out have no meaning. NULL for policies without
+     * ephemeral key agreement; their SecureChannel nonces use generateNonce. */
+    UA_StatusCode (*generateEphemeralKey)(const UA_SecurityPolicy *policy,
+                                          void *channelContext, UA_ByteString *out);
+
     /* The length of the nonce used in the SecureChannel */
     size_t nonceLength;
+
+    /* The length of the key-agreement shared secret (ECDH / XDH). This is also
+     * the width of the OPC UA Part 6 v1.05.07 IKM accumulator that enhanced
+     * policies chain across renewals. Zero for policies without key agreement.
+     *
+     * It is not derivable from nonceLength: for the Weierstrass curves the
+     * nonce is the ephemeral public key X||Y, i.e. twice the secret, but for
+     * X25519/X448 the nonce is the whole raw public key and equals the secret.
+     * Each policy therefore states it explicitly. */
+    size_t secretLength;
+
+    /* The length of the certificate thumbprint that goes into the
+     * channel-bound SignatureData of the enhanced policies: 32 for SHA-256, 48
+     * for SHA-384 (OPC UA Part 6, CertificateThumbprintAlgorithm). Zero if the
+     * policy has no certificate thumbprint algorithm. */
+    size_t certThumbprintLength;
+
+    /* Hash a leaf DER certificate for channel-bound CreateSession and
+     * ActivateSession signatures. The core passes only the leaf certificate.
+     * The callback selects the policy's CertificateThumbprintAlgorithm and
+     * allocates hash (initialized empty by the caller) to certThumbprintLength
+     * bytes. The caller clears it, including on error. Required for policies
+     * with secureChannelEnhancements; otherwise may be NULL.
+     * The OPN-header SHA-1 thumbprint is handled separately by makeCertThumbprint. */
+    UA_StatusCode (*hashCertificateForSignature)(const UA_SecurityPolicy *policy,
+                                                 const UA_ByteString *certificate,
+                                                 UA_ByteString *hash);
+
+
+    /* True if the policy uses the OPC UA Part 6 v1.05.07
+     * SecureChannelEnhancements: the ChannelThumbprint in the OpenSecureChannel
+     * response signature, IKM chaining on renewal, channel-bound
+     * CreateSession/ActivateSession signatures, and an empty algorithm field in
+     * SignatureData. */
+    UA_Boolean secureChannelEnhancements;
+
+    /* True for the legacy SequenceNumber handling: start at 1 and roll over
+     * with the "< 1024" rule. False starts at 0 and wraps UA_UINT32_MAX to 0.
+     * None and RSA policies use legacy handling; ECC policies do not. */
+    UA_Boolean legacySequenceNumbers;
 
     /* Generates a thumbprint for the specified certificate.
      *
@@ -390,44 +507,6 @@ struct UA_SecurityPolicy {
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);
 };
-
-/* True if the SecurityPolicy requires the OPC UA Part 6 v1.05.07
- * SecureChannelEnhancements behavior (see the conformance unit "Security
- * SecureChannelEnhancements True"). The changed behavior is implemented in the
- * core library, not in the SecurityPolicy itself. Detected from the policy URI
- * so it does not depend on a struct member - this keeps the SecurityPolicy
- * layout stable across the 1.5 release family. */
-UA_EXPORT UA_Boolean
-UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy);
-
-/* True if the SecurityPolicy uses the legacy SequenceNumber handling (the OPC
- * UA reference stack's LegacySequenceNumbers = true): the channel SequenceNumber
- * starts at 1 and rolls over with the "< 1024" rule. This is the case for None
- * and the RSA policies (Basic*, Aes*_RsaOaep/RsaPss). The ECC policies use the
- * non-legacy scheme (start at 0, wrap UA_UINT32_MAX -> 0). Detected from the
- * policy URI so it does not depend on a struct member - this keeps the
- * SecurityPolicy layout stable across the 1.5 release family. A NULL policy is
- * treated as legacy. */
-UA_EXPORT UA_Boolean
-UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy);
-
-/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
- * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
- * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
- * CreateSession / ActivateSession SignatureData.
- *
- * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
- * SecurityPolicy's CertificateThumbprintAlgorithm (SHA-1 by default) and is
- * produced by makeCertThumbprint. The digest here is selected from the policy
- * URI's curve; the implementation is provided by the crypto backend.
- *
- * @param policy The policy whose curve selects the hash algorithm.
- * @param certificate The certificate to hash (DER; leaf is used).
- * @param hash Output buffer; allocated by the callee. */
-UA_EXPORT UA_StatusCode
-UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
-                                  const UA_ByteString *certificate,
-                                  UA_ByteString *hash);
 
 /**
  * PubSub SecurityPolicy

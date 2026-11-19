@@ -611,7 +611,7 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
 /****************/
 
 static UA_String basic256Sha256Uri =
-    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_STRING_STATIC(UA_SECURITYPOLICY_URI_BASIC256SHA256);
 
 /* Get an encrypted policy or NULL if no encrypted policy is defined */
 UA_SecurityPolicy *
@@ -631,7 +631,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
          * bound to a secured SecureChannel - they must never be used to secure
          * an auth token over #None. Only the static-RSA encryption policies
          * (e.g. Basic256Sha256, Aes*_RsaOaep/RsaPss) qualify. */
-        if(UA_SecurityPolicy_isEcc(sp) || UA_SecurityPolicy_isEnhancedSecurity(sp))
+        if(UA_SecurityPolicy_isEcc(sp) || sp->secureChannelEnhancements)
             continue;
         /* Return early with Basic256Sha256 when available. "Secure enough" and
          * most clients support it.*/

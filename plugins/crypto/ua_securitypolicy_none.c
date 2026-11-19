@@ -16,23 +16,6 @@
 #include "openssl/securitypolicy_common.h"
 #endif
 
-#ifndef UA_ENABLE_ENCRYPTION
-/* The URI-derived SecurityPolicy property helpers are normally provided by the
- * crypto backend's securitypolicy_common.c. With no crypto backend the only
- * SecurityPolicy is #None, so they reduce to constants. */
-UA_Boolean
-UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
-    (void)policy;
-    return false;
-}
-
-UA_Boolean
-UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
-    (void)policy;
-    return true;
-}
-#endif
-
 static UA_StatusCode
 verify_none(const UA_SecurityPolicy *policy, void *channelContext,
             const UA_ByteString *message, const UA_ByteString *signature) {
@@ -77,8 +60,9 @@ compareThumbprint_none(const UA_SecurityPolicy *policy,
 
 static UA_StatusCode
 generateKey_none(const UA_SecurityPolicy *policy,
-                 void *channelContext, const UA_ByteString *secret,
-                 const UA_ByteString *seed, UA_ByteString *out) {
+                 void *channelContext, UA_KeyDerivationDirection direction,
+                 const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                 UA_ByteString *ikmInOut, UA_ByteString *out) {
     return UA_STATUSCODE_GOOD;
 }
 
@@ -181,11 +165,12 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *sp, const UA_ByteString localCertifica
 
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
-    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    sp->policyUri = UA_STRING(UA_SECURITYPOLICY_URI_NONE);
     sp->certificateGroupId = UA_NODEID_NULL;
     sp->certificateTypeId = UA_NODEID_NULL;
     sp->securityLevel = 0;
     sp->policyType = UA_SECURITYPOLICYTYPE_NONE;
+    sp->legacySequenceNumbers = true;
 
     /* Symmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *symSig = &sp->symSignatureAlgorithm;

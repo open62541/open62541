@@ -35,6 +35,20 @@
 
 #include "securitypolicy_common.h"
 
+#include <limits.h>
+
+UA_StatusCode
+UA_OpenSSL_generateNonce(const UA_SecurityPolicy *policy,
+                         void *channelContext, UA_ByteString *out) {
+    if(!policy || !out || (out->length > 0 && !out->data) ||
+       out->length > INT_MAX)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(out->length == 0)
+        return UA_STATUSCODE_GOOD;
+    return RAND_bytes(out->data, (int)out->length) == 1 ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+}
+
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 #define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
 
@@ -216,49 +230,13 @@ UA_Openssl_X509_GetCertificateThumbprint(const UA_ByteString *certficate,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Substring search on a (not necessarily null-terminated) UA_String. */
-static UA_Boolean
-policyUriContains(const UA_String *uri, const char *token) {
-    size_t n = strlen(token);
-    if(uri->length < n)
-        return false;
-    for(size_t i = 0; i + n <= uri->length; i++) {
-        if(memcmp(uri->data + i, token, n) == 0)
-            return true;
-    }
-    return false;
-}
-
-/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
- * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
- * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
- * CreateSession / ActivateSession SignatureData.
- *
- * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
- * policy's CertificateThumbprintAlgorithm (SHA-1 by default) and is produced by
- * makeCertThumbprint / UA_Openssl_X509_GetCertificateThumbprint. The digest
- * here is selected from the policy URI's curve. */
-UA_StatusCode
-UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
-                                  const UA_ByteString *certificate,
-                                  UA_ByteString *hash) {
-    if(policy == NULL || certificate == NULL || hash == NULL)
+/* Channel-bound certificate hashes are distinct from OPN SHA-1 thumbprints. */
+static UA_StatusCode
+hashCertificate(const UA_ByteString *certificate, const EVP_MD *md,
+                 UA_ByteString *hash) {
+    if(!certificate || !hash || !md)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* Select the digest from the policy's elliptic curve, not a fixed
-     * algorithm. */
-    const EVP_MD *md;
-    size_t hashLen;
-    if(policyUriContains(&policy->policyUri, "P384")) {
-        md = EVP_sha384();
-        hashLen = 48;
-    } else if(policyUriContains(&policy->policyUri, "P256")) {
-        md = EVP_sha256();
-        hashLen = 32;
-    } else {
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-    }
-
+    size_t hashLen = (size_t)EVP_MD_size(md);
     X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(x509 == NULL)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
@@ -277,37 +255,16 @@ UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Backend-agnostic SecurityPolicy properties derived from the policy URI. Kept
- * out of the UA_SecurityPolicy struct (so its layout stays stable across the
- * 1.5 release family); see the #None fallback in ua_securitypolicy_none.c used
- * when no crypto backend is built. */
-
-/* True if the policy requires the OPC UA Part 6 v1.05.07
- * SecureChannelEnhancements behavior (the ECC_nistP256_* policies). */
-UA_Boolean
-UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
-    if(!policy)
-        return false;
-    static const UA_String eccNistP256AesGcm =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm");
-    static const UA_String eccNistP256ChaChaPoly =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly");
-    return UA_String_equal(&policy->policyUri, &eccNistP256AesGcm) ||
-           UA_String_equal(&policy->policyUri, &eccNistP256ChaChaPoly);
+UA_StatusCode
+UA_OpenSSL_hashCertificateSHA256(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash) {
+    return hashCertificate(certificate, EVP_sha256(), hash);
 }
 
-/* In the OPC UA reference stack the SequenceNumber handling depends on a
- * SecurityPolicy property `LegacySequenceNumbers`: false for all ECC policies
- * (and RSA-DH, which open62541 does not implement), true for None / RSA
- * (Basic*, Aes*_RsaOaep/RsaPss). Non-legacy starts the channel SequenceNumber
- * at 0 and wraps UA_UINT32_MAX -> 0; legacy starts at 1 with the "< 1024"
- * rollover. Detected from the policy URI (all ECC URIs carry the "ECC_"
- * fragment). A NULL policy is treated as legacy. */
-UA_Boolean
-UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
-    if(!policy)
-        return true;
-    return !policyUriContains(&policy->policyUri, "ECC_");
+UA_StatusCode
+UA_OpenSSL_hashCertificateSHA384(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash) {
+    return hashCertificate(certificate, EVP_sha384(), hash);
 }
 
 static UA_StatusCode
@@ -730,156 +687,206 @@ UA_OpenSSL_HMAC_SHA256_Sign(const UA_ByteString *message,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-UA_OpenSSL_Decrypt(const UA_ByteString *iv,
-                   const UA_ByteString *key,
-                   const EVP_CIPHER *cipherAlg,
-                   UA_ByteString *data  /* [in/out]*/) {
-    UA_ByteString    ivCopy    = {0, NULL};
-    UA_ByteString    cipherTxt = {0, NULL};
-    EVP_CIPHER_CTX * ctx       = NULL;
-    UA_StatusCode    ret;
-    int              opensslRet;
-    int              outLen;
-    int              tmpLen;
-
-    /* copy the IV because the AES_cbc_encrypt function overwrites it. */
-
-    ret = UA_ByteString_copy(iv, &ivCopy);
-    if(ret != UA_STATUSCODE_GOOD)
-        goto errout;
-
-    ret = UA_ByteString_copy(data, &cipherTxt);
-    if(ret != UA_STATUSCODE_GOOD)
-        goto errout;
-
-    ctx = EVP_CIPHER_CTX_new();
-    if(ctx == NULL) {
-        ret = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto errout;
-    }
-
-    /* call EVP_* to decrypt */
-    opensslRet = EVP_DecryptInit_ex(ctx, cipherAlg, NULL, key->data, ivCopy.data);
-    if(opensslRet != 1) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-    /* EVP_DecryptFinal() will return an error code if padding is enabled
-     * and the final block is not correctly formatted.
-     */
-    EVP_CIPHER_CTX_set_padding(ctx, 0);
-    opensslRet = EVP_DecryptUpdate(ctx, data->data, &outLen,
-                                   cipherTxt.data, (int) cipherTxt.length);
-    if(opensslRet != 1) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-    opensslRet = EVP_DecryptFinal_ex(ctx, data->data + outLen, &tmpLen);
-    if(opensslRet != 1) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-    outLen += tmpLen;
-    data->length = (size_t) outLen;
-    ret = UA_STATUSCODE_GOOD;
-
-errout:
-    UA_ByteString_clear(&ivCopy);
-    UA_ByteString_clear(&cipherTxt);
-    if(ctx != NULL) {
-        EVP_CIPHER_CTX_free(ctx);
-    }
-    return ret;
+void
+UA_OpenSSL_SymContexts_init(UA_OpenSSL_SymContexts *sym) {
+    memset(sym, 0, sizeof(*sym));
 }
 
-static UA_StatusCode
-UA_OpenSSL_Encrypt(const UA_ByteString * iv,
-                   const UA_ByteString * key,
-                   const EVP_CIPHER *    cipherAlg,
-                   UA_ByteString *       data  /* [in/out]*/) {
-    UA_ByteString    ivCopy   = {0, NULL};
-    UA_ByteString    plainTxt = {0, NULL};
-    EVP_CIPHER_CTX * ctx      = NULL;
-    int              opensslRet;
-    int              outLen;
-    int              tmpLen;
+static void
+freeCipherCtx(EVP_CIPHER_CTX **ctx) {
+    EVP_CIPHER_CTX_free(*ctx);
+    *ctx = NULL;
+}
 
-    /* copy the IV because the AES_cbc_encrypt function overwrites it. */
-    UA_StatusCode ret = UA_ByteString_copy(iv, &ivCopy);
-    if(ret != UA_STATUSCODE_GOOD) {
-        goto errout;
-    }
+static void
+clearHmacState(UA_OpenSSL_HmacState *hs) {
+    EVP_MD_CTX_destroy(hs->inner);
+    EVP_MD_CTX_destroy(hs->outer);
+    EVP_MD_CTX_destroy(hs->work);
+    memset(hs, 0, sizeof(*hs));
+}
 
-    ret = UA_ByteString_copy(data, &plainTxt);
-    if(ret != UA_STATUSCODE_GOOD) {
-        goto errout;
-    }
-
-    ctx = EVP_CIPHER_CTX_new();
-    if(ctx == NULL) {
-        ret = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto errout;
-    }
-
-    /* call EVP_* to encrypt */
-
-    opensslRet = EVP_EncryptInit_ex(ctx, cipherAlg, NULL, key->data, ivCopy.data);
-    if(opensslRet != 1) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-
-    /* Disable padding. Padding is done in the stack before calling encryption.
-     * Ensure that we have a multiple of the block size */
-    if(data->length % (size_t)EVP_CIPHER_CTX_block_size(ctx)) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-    opensslRet = EVP_CIPHER_CTX_set_padding(ctx, 0);
-    if(opensslRet != 1) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-
-    /* Encrypt the data */
-    opensslRet = EVP_EncryptUpdate(ctx, data->data, &outLen,
-                                    plainTxt.data, (int) plainTxt.length);
-    if(opensslRet != 1) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-
-    /* Encrypt-final does nothing as padding is disabled */
-    opensslRet = EVP_EncryptFinal_ex(ctx, data->data + outLen, &tmpLen);
-    if(opensslRet != 1) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-    outLen += tmpLen;
-    data->length = (size_t) outLen;
-    ret = UA_STATUSCODE_GOOD;
-
-errout:
-    UA_ByteString_clear(&ivCopy);
-    UA_ByteString_clear(&plainTxt);
-    if(ctx != NULL)
-        EVP_CIPHER_CTX_free(ctx);
-    return ret;
+/* OpenSSL clears the key material of the contexts when freeing them */
+void
+UA_OpenSSL_SymContexts_clear(UA_OpenSSL_SymContexts *sym) {
+    clearHmacState(&sym->localMac);
+    clearHmacState(&sym->remoteMac);
+    freeCipherCtx(&sym->localCipher);
+    freeCipherCtx(&sym->remoteCipher);
+    freeCipherCtx(&sym->localTag);
+    freeCipherCtx(&sym->remoteTag);
 }
 
 UA_StatusCode
-UA_OpenSSL_AES_256_CBC_Decrypt(const UA_ByteString * iv,
-                               const UA_ByteString * key,
-                               UA_ByteString *       data  /* [in/out]*/) {
-    return UA_OpenSSL_Decrypt(iv, key, EVP_aes_256_cbc(), data);
+UA_OpenSSL_Sym_setSigningKey(UA_OpenSSL_SymContexts *sym, UA_Boolean local,
+                             UA_ByteString *stored, const UA_ByteString *key) {
+    clearHmacState(local ? &sym->localMac : &sym->remoteMac);
+    freeCipherCtx(local ? &sym->localTag : &sym->remoteTag);
+    UA_ByteString_clear(stored);
+    return UA_ByteString_copy(key, stored);
 }
 
 UA_StatusCode
-UA_OpenSSL_AES_256_CBC_Encrypt(const UA_ByteString * iv,
-                               const UA_ByteString * key,
-                               UA_ByteString *       data  /* [in/out]*/) {
-    return UA_OpenSSL_Encrypt(iv, key, EVP_aes_256_cbc(), data);
+UA_OpenSSL_Sym_setEncryptingKey(UA_OpenSSL_SymContexts *sym, UA_Boolean local,
+                                UA_ByteString *stored, const UA_ByteString *key) {
+    freeCipherCtx(local ? &sym->localCipher : &sym->remoteCipher);
+    /* Some AEAD policies compute the tags with the encrypting key */
+    freeCipherCtx(local ? &sym->localTag : &sym->remoteTag);
+    UA_ByteString_clear(stored);
+    return UA_ByteString_copy(key, stored);
+}
+
+#define UA_OPENSSL_HMAC_MAX_BLOCK 144 /* SHA-3 */
+
+/* RFC 2104: inner absorbs the key block XOR 0x36, outer XOR 0x5c */
+static UA_StatusCode
+setupHmacState(UA_OpenSSL_HmacState *hs, const EVP_MD *md,
+               const UA_ByteString *key) {
+    unsigned char block[UA_OPENSSL_HMAC_MAX_BLOCK] = {0};
+    int blockSize = EVP_MD_block_size(md);
+    if(blockSize <= 0 || (size_t)blockSize > sizeof(block))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* A key longer than a block is replaced by its hash */
+    int ok = 1;
+    if(key->length > (size_t)blockSize)
+        ok = EVP_Digest(key->data, key->length, block, NULL, md, NULL) == 1;
+    else if(key->length > 0)
+        memcpy(block, key->data, key->length);
+
+    hs->inner = EVP_MD_CTX_create();
+    hs->outer = EVP_MD_CTX_create();
+    hs->work = EVP_MD_CTX_create();
+    ok = ok && hs->inner && hs->outer && hs->work;
+
+    for(int i = 0; i < blockSize; i++)
+        block[i] ^= 0x36;
+    ok = ok && EVP_DigestInit_ex(hs->inner, md, NULL) == 1 &&
+        EVP_MD_CTX_copy_ex(hs->outer, hs->inner) == 1 &&
+        EVP_DigestUpdate(hs->inner, block, (size_t)blockSize) == 1;
+    for(int i = 0; i < blockSize; i++)
+        block[i] ^= 0x36 ^ 0x5c;
+    ok = ok && EVP_DigestUpdate(hs->outer, block, (size_t)blockSize) == 1;
+
+    OPENSSL_cleanse(block, sizeof(block));
+    if(!ok) {
+        clearHmacState(hs);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* HMAC = H(outer, H(inner, message)). Restarting an EVP_MAC context instead
+ * is broken in OpenSSL 3.0.0 to 3.0.2. */
+static UA_StatusCode
+keyedHmac(UA_OpenSSL_HmacState *hs, const EVP_MD *md, const UA_ByteString *key,
+          const UA_ByteString *message, unsigned char *out, size_t outSize,
+          size_t *outLength) {
+    int mdSize = EVP_MD_size(md);
+    if(mdSize <= 0 || outSize < (size_t)mdSize)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!hs->inner) {
+        UA_StatusCode res = setupHmacState(hs, md, key);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    unsigned char innerHash[EVP_MAX_MD_SIZE];
+    unsigned int length = 0;
+    int ok = EVP_MD_CTX_copy_ex(hs->work, hs->inner) == 1 &&
+        EVP_DigestUpdate(hs->work, message->data, message->length) == 1 &&
+        EVP_DigestFinal_ex(hs->work, innerHash, &length) == 1 &&
+        EVP_MD_CTX_copy_ex(hs->work, hs->outer) == 1 &&
+        EVP_DigestUpdate(hs->work, innerHash, length) == 1 &&
+        EVP_DigestFinal_ex(hs->work, out, &length) == 1;
+    OPENSSL_cleanse(innerHash, sizeof(innerHash));
+    if(!ok) {
+        clearHmacState(hs); /* rebuilt on the next use */
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    *outLength = length;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_sign(UA_OpenSSL_SymContexts *sym, const EVP_MD *md,
+                    const UA_ByteString *key, const UA_ByteString *message,
+                    UA_ByteString *signature) {
+    size_t outLength = 0;
+    UA_StatusCode res = keyedHmac(&sym->localMac, md, key, message,
+                                  signature->data, signature->length,
+                                  &outLength);
+    if(res == UA_STATUSCODE_GOOD)
+        signature->length = outLength;
+    return res;
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_verify(UA_OpenSSL_SymContexts *sym, const EVP_MD *md,
+                      const UA_ByteString *key, const UA_ByteString *message,
+                      const UA_ByteString *signature) {
+    unsigned char buf[EVP_MAX_MD_SIZE];
+    size_t macLength = 0;
+    UA_StatusCode res = keyedHmac(&sym->remoteMac, md, key, message,
+                                  buf, sizeof(buf), &macLength);
+    if(res == UA_STATUSCODE_GOOD &&
+       (signature->length != macLength ||
+        !UA_constantTimeEqual(signature->data, buf, macLength)))
+        res = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    OPENSSL_cleanse(buf, sizeof(buf));
+    return res;
+}
+
+/* The context keeps the key schedule, a message only sets the IV. In place:
+ * OpenSSL allows identical input and output buffers. */
+static UA_StatusCode
+symCrypt(EVP_CIPHER_CTX **slot, const EVP_CIPHER *cipher,
+         const UA_ByteString *key, const UA_ByteString *iv,
+         UA_ByteString *data, int encrypt) {
+    /* EVP reads exactly the IV length and key length from the pointers */
+    if(iv->length != (size_t)EVP_CIPHER_iv_length(cipher) ||
+       data->length > INT_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!*slot) {
+        if(key->length != (size_t)EVP_CIPHER_key_length(cipher))
+            return UA_STATUSCODE_BADINTERNALERROR;
+        *slot = EVP_CIPHER_CTX_new();
+        if(!*slot)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        if(EVP_CipherInit_ex(*slot, cipher, NULL, key->data, NULL, encrypt) != 1 ||
+           EVP_CIPHER_CTX_set_padding(*slot, 0) != 1) {
+            freeCipherCtx(slot);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+
+    EVP_CIPHER_CTX *ctx = *slot;
+    int outLength = 0;
+    int finalLength = 0;
+    if(EVP_CipherInit_ex(ctx, NULL, NULL, NULL, iv->data, encrypt) != 1 ||
+       EVP_CipherUpdate(ctx, data->data, &outLength,
+                        data->data, (int)data->length) != 1 ||
+       EVP_CipherFinal_ex(ctx, data->data + outLength, &finalLength) != 1 ||
+       (size_t)outLength + (size_t)finalLength != data->length) {
+        freeCipherCtx(slot); /* rebuilt on the next use */
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_encrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                       const UA_ByteString *key, const UA_ByteString *iv,
+                       UA_ByteString *data) {
+    return symCrypt(&sym->localCipher, cipher, key, iv, data, 1);
+}
+
+UA_StatusCode
+UA_OpenSSL_Sym_decrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                       const UA_ByteString *key, const UA_ByteString *iv,
+                       UA_ByteString *data) {
+    return symCrypt(&sym->remoteCipher, cipher, key, iv, data, 0);
 }
 
 UA_StatusCode
@@ -1051,20 +1058,6 @@ UA_Openssl_RSA_PKCS1_V15_Encrypt(UA_ByteString * data,
     return ret;
 }
 
-UA_StatusCode
-UA_OpenSSL_AES_128_CBC_Decrypt(const UA_ByteString * iv,
-                               const UA_ByteString * key,
-                               UA_ByteString *       data  /* [in/out]*/) {
-    return UA_OpenSSL_Decrypt(iv, key, EVP_aes_128_cbc(), data);
-}
-
-UA_StatusCode
-UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString * iv,
-                               const UA_ByteString * key,
-                               UA_ByteString *       data  /* [in/out]*/) {
-    return UA_OpenSSL_Encrypt(iv, key, EVP_aes_128_cbc(), data);
-}
-
 #ifdef _WIN32
 #define strtok_r strtok_s
 #endif
@@ -1134,6 +1127,18 @@ UA_OpenSSL_writePrivateKeyDer(EVP_PKEY *key, UA_ByteString *outPrivateKey) {
         return UA_STATUSCODE_BADINTERNALERROR;
 
     return UA_STATUSCODE_GOOD;
+}
+
+/* The digest to sign a CSR with. PureEdDSA hashes the message itself and takes
+ * no digest. */
+static const EVP_MD *
+csrDigest(EVP_PKEY *key) {
+#if !defined(LIBRESSL_VERSION_NUMBER)
+    int keyType = EVP_PKEY_base_id(key);
+    if(keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_ED448)
+        return NULL;
+#endif
+    return EVP_sha256();
 }
 
 UA_StatusCode
@@ -1294,6 +1299,18 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                 goto cleanup;
             }
 #endif
+#if !defined(LIBRESSL_VERSION_NUMBER)
+        } else if(keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_ED448) {
+            /* Generate a new EdDSA key of the same type as the local key */
+            EVP_PKEY_CTX *kctx = EVP_PKEY_CTX_new_id(keyType, NULL);
+            if(!kctx || EVP_PKEY_keygen_init(kctx) != 1 ||
+               EVP_PKEY_keygen(kctx, &csrKey) != 1) {
+                EVP_PKEY_CTX_free(kctx);
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+            EVP_PKEY_CTX_free(kctx);
+#endif
         } else {
             /* Generate a new RSA key */
             size_t keySize = 0;
@@ -1352,7 +1369,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             goto cleanup;
         }
 
-        if(!X509_REQ_sign(request, csrKey, EVP_sha256())) {
+        if(!X509_REQ_sign(request, csrKey, csrDigest(csrKey))) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
@@ -1368,7 +1385,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
             EVP_PKEY_free(pubkey);
             goto cleanup;
         }
-        if(!X509_REQ_sign(request, localPrivateKey, EVP_sha256())) {
+        if(!X509_REQ_sign(request, localPrivateKey, csrDigest(localPrivateKey))) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             EVP_PKEY_free(pubkey);
             goto cleanup;
@@ -1405,6 +1422,17 @@ cleanup:
     return retval;
 }
 
+/* Without a callback, OpenSSL asking for the password of an encrypted
+ * private key blocks the caller. */
+static int
+noPrivateKeyPassword(char *buf, int size, int rwflag, void *userdata) {
+    (void)buf;
+    (void)size;
+    (void)rwflag;
+    (void)userdata;
+    return -1;
+}
+
 EVP_PKEY *
 UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
     if(privateKey->length == 0)
@@ -1418,9 +1446,9 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
     result = d2i_PrivateKey_bio(bio, NULL);
 
     if(result == NULL) {
-        /* Try to read PEM encoded private key */
+        /* Try to read PEM encoded private key, skipping encrypted keys. */
         (void)BIO_reset(bio);
-        result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+        result = PEM_read_bio_PrivateKey(bio, NULL, noPrivateKeyPassword, NULL);
     }
     BIO_free(bio);
 
@@ -1549,8 +1577,8 @@ UA_OpenSSL_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+    return UA_OpenSSL_Sym_setSigningKey(&cc->sym, true,
+                                        &cc->localSymSigningKey, key);
 }
 
 UA_StatusCode
@@ -1560,8 +1588,8 @@ UA_OpenSSL_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+    return UA_OpenSSL_Sym_setEncryptingKey(&cc->sym, true,
+                                           &cc->localSymEncryptingKey, key);
 }
 
 UA_StatusCode
@@ -1582,8 +1610,8 @@ UA_OpenSSL_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+    return UA_OpenSSL_Sym_setSigningKey(&cc->sym, false,
+                                        &cc->remoteSymSigningKey, key);
 }
 
 UA_StatusCode
@@ -1593,8 +1621,8 @@ UA_OpenSSL_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+    return UA_OpenSSL_Sym_setEncryptingKey(&cc->sym, false,
+                                           &cc->remoteSymEncryptingKey, key);
 }
 
 UA_StatusCode
@@ -1641,7 +1669,7 @@ UA_OpenSSL_Policy_newContext_generic(UA_SecurityPolicy *securityPolicy,
                                      int keyType,
                                      const UA_Logger *logger) {
     openssl_PolicyContext *context = (openssl_PolicyContext *)
-        UA_malloc(sizeof(openssl_PolicyContext));
+        UA_calloc(1, sizeof(openssl_PolicyContext));
     if(context == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     context->keyType = keyType;
@@ -1998,102 +2026,81 @@ errout:
 }
 #endif
 
-UA_StatusCode
-UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
-                          const UA_ApplicationType applicationType,
-                          EVP_PKEY *localEphemeralKeyPair,
-                          const UA_ByteString *key1, const UA_ByteString *key2,
-                          UA_ByteString *out) {
+/* Wipe a secret before releasing it */
+static void
+clearSecret(UA_ByteString *s) {
+    if(s->data)
+        OPENSSL_cleanse(s->data, s->length);
+    UA_ByteString_clear(s);
+}
+
+/* IKM chaining, OPC UA Part 6 v1.05.07 6.8.1 step 2 "Extract":
+ * IKM_n = IKM_n-1 XOR ss_n.
+ *
+ * `ikmInOut` is the caller's accumulator slot: it holds IKM_n-1 on entry and
+ * receives IKM_n, which is what the SecureChannel reads back. NULL or empty
+ * means the policy does not chain (no SecureChannelEnhancements), and the raw
+ * shared secret is the IKM. `*secretOut` points at whichever of the two the
+ * HKDF should consume. */
+static UA_StatusCode
+deriveChainedIkm(UA_ByteString *ikmInOut, const UA_ByteString *sharedSecret,
+                 UA_ByteString *ikm, const UA_ByteString **secretOut) {
+    if(!ikmInOut || ikmInOut->length == 0) {
+        *secretOut = sharedSecret;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* The accumulator is the width of the shared secret by construction
+     * (UA_SecurityPolicy.secretLength). A mismatch means the policy and the
+     * SecureChannel disagree - fail rather than derive a key nobody can
+     * reproduce. */
+    if(ikmInOut->length != sharedSecret->length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode res = UA_ByteString_allocBuffer(ikm, sharedSecret->length);
+    if(res != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    for(size_t i = 0; i < sharedSecret->length; i++)
+        ikm->data[i] = (UA_Byte)(ikmInOut->data[i] ^ sharedSecret->data[i]);
+
+    memcpy(ikmInOut->data, ikm->data, ikm->length);
+    *secretOut = ikm;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The label identifies the endpoint sending messages in this direction. */
+static const UA_ByteString *
+keyDerivationLabel(UA_ApplicationType applicationType,
+                   UA_KeyDerivationDirection direction) {
+    static const UA_ByteString serverLabel = UA_STRING_STATIC("opcua-server");
+    static const UA_ByteString clientLabel = UA_STRING_STATIC("opcua-client");
+    UA_Boolean senderIsServer = (applicationType == UA_APPLICATIONTYPE_SERVER) ==
+        (direction == UA_KEYDERIVATION_LOCAL);
+    return senderIsServer ? &serverLabel : &clientLabel;
+}
+
+static UA_StatusCode
+eccDeriveKeys(const int curveID, const char *hashAlgorithm,
+              EVP_PKEY *localEphemeralKeyPair,
+              const UA_ByteString *remoteEphPubKey,
+              const UA_ByteString *firstNonce, const UA_ByteString *secondNonce,
+              const UA_ByteString *label, UA_ByteString *ikmInOut,
+              UA_ByteString *out) {
 #if defined(LIBRESSL_VERSION_NUMBER)
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
-
+    if(!localEphemeralKeyPair || !firstNonce || !secondNonce || !out ||
+       !firstNonce->data || !secondNonce->data || (out->length && !out->data))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t nonceLength = 2 * (((size_t)EVP_PKEY_bits(localEphemeralKeyPair) + 7) / 8);
+    if(nonceLength == 0 || firstNonce->length != nonceLength ||
+       secondNonce->length != nonceLength)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
     UA_ByteString ikm = UA_BYTESTRING_NULL;
-    UA_ByteString ikmPrev = UA_BYTESTRING_NULL;
-    UA_ByteString *secret = NULL; /* points to either &sharedSecret or &ikm */
-
-    /* Get the local ephemeral public key to use in comparison. The
-     * encoded form begins with a single 0x04 byte (for uncompressed
-     * points) followed by the X and Y coordinates. The comparison
-     * below uses &keyPubEnc[1] as the start, so the expected length
-     * of `key1` is (keyPubEncSize - 1). */
-    UA_Byte *keyPubEnc = NULL;
-#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
-    size_t keyPubEncSize =
-        EVP_PKEY_get1_encoded_public_key(localEphemeralKeyPair, &keyPubEnc);
-#else
-    size_t keyPubEncSize =
-        EVP_PKEY_get1_tls_encodedpoint(localEphemeralKeyPair, &keyPubEnc);
-#endif
-    if(keyPubEncSize <= 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    size_t expectedKey1Len = keyPubEncSize - 1;
-
-    /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" (IKM chaining
-     * on renewal): the SecureChannel may prepend the previous IKM
-     * accumulator to `key1`. Detect this by checking if `key1` is
-     * longer than expected. The prepend length is `key1->length -
-     * expectedKey1Len` and the IKM is a chain of XORs with the
-     * shared secret. */
-    UA_ByteString key1Effective = *key1;
-    size_t ikmPrependLength = 0;
-    if(key1->length > expectedKey1Len) {
-        ikmPrependLength = key1->length - expectedKey1Len;
-        ikmPrev.data = (UA_Byte*)(uintptr_t)key1->data;
-        ikmPrev.length = ikmPrependLength;
-        key1Effective.data += ikmPrependLength;
-        key1Effective.length -= ikmPrependLength;
-    }
-
-    /* The order of ephemeral public keys (key1 and key2) tells us whether we
-     * need to generate the local keys or the remote keys. To figure that out,
-     * we compare the public part of localEphemeralKeyPair with key1 and
-     * key2. */
-
-    /* Determine the label for salt generation, remote ephemeral public key for
-     * ECDH, and info for HKDF */
-    UA_ByteString* label = NULL;
-    const UA_ByteString * remoteEphPubKey = NULL;
-    static UA_String serverLabel = UA_STRING_STATIC("opcua-server");
-    static UA_String clientLabel = UA_STRING_STATIC("opcua-client");
-    static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
-
-    /* (Temporary) measure to signal salt generation for sessions. out should
-     * always be allocated before this check, so it shouldn't cause problems. */
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(out->data[0] == 0x03 && out->data[1] == 0x03 && out->data[2] == 0x04 ) {
-        label = &sessionLabel;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
-            remoteEphPubKey = key2;
-        } else {
-            remoteEphPubKey = &key1Effective;
-        }
-    }
-    /* Comparing from the second byte since the first byte has 0x04 from the encoding */
-    else if(memcmp(&keyPubEnc[1], key1Effective.data, key1Effective.length) == 0) {
-        /* Key 1 is local ephemeral public key => generating remote keys */
-        remoteEphPubKey = key2;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
-            label = &clientLabel;
-        } else {
-            label = &serverLabel;
-        }
-    }
-    else if(memcmp(&keyPubEnc[1], key2->data, key2->length) == 0) {
-        /* Key 2 is local ephemeral public key => generating local keys */
-        remoteEphPubKey = &key1Effective;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
-            label = &serverLabel;
-        } else {
-            label = &clientLabel;
-        }
-    } else {
-        /* invalid */
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
+    const UA_ByteString *secret = NULL;
+    UA_StatusCode ret;
 
     /* Use ECDH to calculate shared secret */
     ret = UA_OpenSSL_ECDH(curveID, localEphemeralKeyPair, remoteEphPubKey, &sharedSecret);
@@ -2102,40 +2109,14 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
         goto errout;
     }
 
-    /* IKM chaining: when the SecureChannel provided a previous
-     * accumulator, XOR it with the raw shared secret to form the new
-     * IKM. The new IKM is then written back into the prefix slot of
-     * `key1` so the SecureChannel can pick it up after this call. */
-    if(ikmPrependLength > 0) {
-        if(ikmPrev.length != sharedSecret.length) {
-            ret = UA_STATUSCODE_BADINTERNALERROR;
-            goto errout;
-        }
-        UA_StatusCode alloc = UA_ByteString_allocBuffer(&ikm, sharedSecret.length);
-        if(alloc != UA_STATUSCODE_GOOD) {
-            ret = UA_STATUSCODE_BADINTERNALERROR;
-            goto errout;
-        }
-        for(size_t i = 0; i < sharedSecret.length; i++)
-            ikm.data[i] = (UA_Byte)(ikmPrev.data[i] ^ sharedSecret.data[i]);
-        /* Write the new accumulator back into the prefix slot. The
-         * SecureChannel reads it from there to update its own
-         * channel->currentIKM. */
-        memcpy(ikmPrev.data, ikm.data, ikm.length);
-        secret = &ikm;
-    } else {
-        secret = &sharedSecret;
-    }
+    /* IKM chaining (enhanced policies). The new accumulator is written back
+     * to ikmInOut for the SecureChannel to pick up. */
+    ret = deriveChainedIkm(ikmInOut, &sharedSecret, &ikm, &secret);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
 
-    /* Calculate salt. The order of the (ephemeral public) keys (key1, key2) is
-     * reversed because the caller sends [remote, local] for local key
-     * computation and [local, remote] for remote key computation. According to
-     * 6.8.1., the local salt computation appends the keys in order [local |
-     * remote] and the remote salt computation [remote | local]. Therefore, no
-     * additional logic is required, reversing the order is sufficient. The
-     * `key1` argument here is the un-prefixed nonce (key1Effective) so the
-     * salt only contains the actual nonce data. */
-    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, &key1Effective, &salt);
+    /* Salt order is sender nonce, receiver nonce for this direction. */
+    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, firstNonce, secondNonce, &salt);
     if(ret != UA_STATUSCODE_GOOD) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -2143,22 +2124,52 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
 
     /* Call HKDF to derive keys */
     /* Salt is given as the info argument (check 6.8.1., tables 66 and 67) */
-    ret = UA_OpenSSL_HKDF(hashAlgorithm, secret, &salt, &salt, out);
+    ret = UA_OpenSSL_HKDF((char *)(uintptr_t)hashAlgorithm, secret, &salt, &salt, out);
     if(ret != UA_STATUSCODE_GOOD) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
 errout:
-    OPENSSL_free(keyPubEnc);
-    UA_ByteString_clear(&sharedSecret);
+    clearSecret(&sharedSecret);
     UA_ByteString_clear(&salt);
-    UA_ByteString_clear(&ikm);
+    clearSecret(&ikm);
 
     return ret;
 }
 
-static UA_StatusCode
+UA_StatusCode
+UA_OpenSSL_ECC_DeriveKeys(const int curveID, const char *hashAlgorithm,
+                            UA_ApplicationType applicationType,
+                            EVP_PKEY *localEphemeralKeyPair,
+                            UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce,
+                            const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Boolean local = (direction == UA_KEYDERIVATION_LOCAL);
+    const UA_ByteString *label = keyDerivationLabel(applicationType, direction);
+    return eccDeriveKeys(curveID, hashAlgorithm, localEphemeralKeyPair, remoteNonce,
+                         local ? localNonce : remoteNonce,
+                         local ? remoteNonce : localNonce, label, ikmInOut, out);
+}
+
+UA_StatusCode
+UA_OpenSSL_ECC_DeriveSessionKey(const int curveID, const char *hashAlgorithm,
+                                  UA_ApplicationType applicationType,
+                                  EVP_PKEY *localEphemeralKeyPair,
+                                  const UA_ByteString *receiverPublicKey,
+                                  const UA_ByteString *senderPublicKey,
+                                  UA_ByteString *out) {
+    static const UA_ByteString label = UA_STRING_STATIC("opcua-secret");
+    const UA_ByteString *remote = (applicationType == UA_APPLICATIONTYPE_SERVER) ?
+        senderPublicKey : receiverPublicKey;
+    return eccDeriveKeys(curveID, hashAlgorithm, localEphemeralKeyPair, remote,
+                         senderPublicKey, receiverPublicKey, &label, NULL, out);
+}
+
+UA_StatusCode
 UA_OpenSSL_ECC_GenerateKey(const int curveId,
                            EVP_PKEY ** keyPairOut,
                            UA_ByteString * keyPublicEncOut) {
@@ -2732,106 +2743,41 @@ errout:
     return ret;
 }
 
-UA_StatusCode
-UA_OpenSSL_XDHE_DeriveKeys(int keyType,
-                            const char *hashAlgorithm,
-                            UA_ApplicationType applicationType,
-                            EVP_PKEY *localEphemeralKeyPair,
-                            const UA_ByteString *key1,
-                            const UA_ByteString *key2,
-                            UA_ByteString *out) {
+/* Raw X25519/X448 counterpart of eccDeriveKeys. */
+static UA_StatusCode
+xdheDeriveKeys(int keyType, const char *hashAlgorithm,
+              EVP_PKEY *localEphemeralKeyPair,
+              const UA_ByteString *remoteEphPubKey,
+              const UA_ByteString *firstNonce, const UA_ByteString *secondNonce,
+              const UA_ByteString *label, UA_ByteString *ikmInOut,
+              UA_ByteString *out) {
+    if(!localEphemeralKeyPair || !firstNonce || !secondNonce || !out ||
+       !firstNonce->data || !secondNonce->data || (out->length && !out->data))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_PKEY_base_id(localEphemeralKeyPair) != keyType)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t nonceLength = (keyType == EVP_PKEY_X448) ? 56 : 32;
+    if(nonceLength == 0 || firstNonce->length != nonceLength ||
+       secondNonce->length != nonceLength)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
     UA_ByteString ikm = UA_BYTESTRING_NULL;
-    UA_ByteString ikmPrev = UA_BYTESTRING_NULL;
-    UA_ByteString *secret = NULL;
-
-    /* Get the local ephemeral public key for comparison */
-    size_t pubKeyLen = 0;
-    if(EVP_PKEY_get_raw_public_key(localEphemeralKeyPair, NULL, &pubKeyLen) != 1)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_Byte keyPubEnc[64]; /* Max 56 bytes for X448 */
-    if(pubKeyLen > sizeof(keyPubEnc))
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_PKEY_get_raw_public_key(localEphemeralKeyPair, keyPubEnc, &pubKeyLen) != 1)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 IKM chaining. See the
-     * matching comment in UA_OpenSSL_ECC_DeriveKeys. The prepend is
-     * detected by `key1` being longer than the expected ephemeral
-     * public key length. */
-    UA_ByteString key1Effective = *key1;
-    size_t ikmPrependLength = 0;
-    if(key1->length > pubKeyLen) {
-        ikmPrependLength = key1->length - pubKeyLen;
-        ikmPrev.data = (UA_Byte*)(uintptr_t)key1->data;
-        ikmPrev.length = ikmPrependLength;
-        key1Effective.data += ikmPrependLength;
-        key1Effective.length -= ikmPrependLength;
-    }
-
-    /* Determine label and remote ephemeral public key */
-    UA_ByteString *label = NULL;
-    const UA_ByteString *remoteEphPubKey = NULL;
-    static UA_String serverLabel = UA_STRING_STATIC("opcua-server");
-    static UA_String clientLabel = UA_STRING_STATIC("opcua-client");
-    static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
-
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(out->data[0] == 0x03 && out->data[1] == 0x03 && out->data[2] == 0x04) {
-        label = &sessionLabel;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
-            remoteEphPubKey = key2;
-        } else {
-            remoteEphPubKey = &key1Effective;
-        }
-    } else if(pubKeyLen == key1Effective.length &&
-              memcmp(keyPubEnc, key1Effective.data, key1Effective.length) == 0) {
-        /* Key 1 is local ephemeral public key => generating remote keys */
-        remoteEphPubKey = key2;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER)
-            label = &clientLabel;
-        else
-            label = &serverLabel;
-    } else if(pubKeyLen == key2->length &&
-              memcmp(keyPubEnc, key2->data, key2->length) == 0) {
-        /* Key 2 is local ephemeral public key => generating local keys */
-        remoteEphPubKey = &key1Effective;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER)
-            label = &serverLabel;
-        else
-            label = &clientLabel;
-    } else {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    const UA_ByteString *secret = NULL;
+    UA_StatusCode ret;
 
     /* XDHE key agreement */
     ret = UA_OpenSSL_XDHE(keyType, localEphemeralKeyPair, remoteEphPubKey, &sharedSecret);
     if(ret != UA_STATUSCODE_GOOD)
         goto errout;
 
-    /* IKM chaining */
-    if(ikmPrependLength > 0) {
-        if(ikmPrev.length != sharedSecret.length) {
-            ret = UA_STATUSCODE_BADINTERNALERROR;
-            goto errout;
-        }
-        UA_StatusCode alloc = UA_ByteString_allocBuffer(&ikm, sharedSecret.length);
-        if(alloc != UA_STATUSCODE_GOOD) {
-            ret = UA_STATUSCODE_BADINTERNALERROR;
-            goto errout;
-        }
-        for(size_t i = 0; i < sharedSecret.length; i++)
-            ikm.data[i] = (UA_Byte)(ikmPrev.data[i] ^ sharedSecret.data[i]);
-        memcpy(ikmPrev.data, ikm.data, ikm.length);
-        secret = &ikm;
-    } else {
-        secret = &sharedSecret;
-    }
+    /* IKM chaining (enhanced policies) */
+    ret = deriveChainedIkm(ikmInOut, &sharedSecret, &ikm, &secret);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
 
     /* Generate salt */
-    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, &key1Effective, &salt);
+    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, firstNonce, secondNonce, &salt);
     if(ret != UA_STATUSCODE_GOOD)
         goto errout;
 
@@ -2839,13 +2785,145 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
     ret = UA_OpenSSL_HKDF((char*)(uintptr_t)hashAlgorithm, secret, &salt, &salt, out);
 
 errout:
-    UA_ByteString_clear(&sharedSecret);
+    clearSecret(&sharedSecret);
     UA_ByteString_clear(&salt);
-    UA_ByteString_clear(&ikm);
+    clearSecret(&ikm);
     return ret;
 }
 
-/* ChaCha20-Poly1305 AEAD Encrypt */
+UA_StatusCode
+UA_OpenSSL_XDHE_DeriveKeys(int keyType, const char *hashAlgorithm,
+                            UA_ApplicationType applicationType,
+                            EVP_PKEY *localEphemeralKeyPair,
+                            UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce,
+                            const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Boolean local = (direction == UA_KEYDERIVATION_LOCAL);
+    const UA_ByteString *label = keyDerivationLabel(applicationType, direction);
+    return xdheDeriveKeys(keyType, hashAlgorithm, localEphemeralKeyPair, remoteNonce,
+                         local ? localNonce : remoteNonce,
+                         local ? remoteNonce : localNonce, label, ikmInOut, out);
+}
+
+UA_StatusCode
+UA_OpenSSL_XDHE_DeriveSessionKey(int keyType, const char *hashAlgorithm,
+                                  UA_ApplicationType applicationType,
+                                  EVP_PKEY *localEphemeralKeyPair,
+                                  const UA_ByteString *receiverPublicKey,
+                                  const UA_ByteString *senderPublicKey,
+                                  UA_ByteString *out) {
+    static const UA_ByteString label = UA_STRING_STATIC("opcua-secret");
+    const UA_ByteString *remote = (applicationType == UA_APPLICATIONTYPE_SERVER) ?
+        senderPublicKey : receiverPublicKey;
+    return xdheDeriveKeys(keyType, hashAlgorithm, localEphemeralKeyPair, remote,
+                         senderPublicKey, receiverPublicKey, &label, NULL, out);
+}
+
+/* A context with the key set up. A message only sets the IV. */
+static EVP_CIPHER_CTX *
+newAeadCtx(const EVP_CIPHER *cipher, const UA_ByteString *key, int seal) {
+    if(key->length != (size_t)EVP_CIPHER_key_length(cipher))
+        return NULL;
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return NULL;
+    if(EVP_CipherInit_ex(ctx, cipher, NULL, NULL, NULL, seal) != 1 ||
+       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN,
+                           UA_OPENSSL_AEAD_IV_LENGTH, NULL) != 1 ||
+       EVP_CipherInit_ex(ctx, NULL, NULL, key->data, NULL, seal) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+/* The tag covers aad and data. data is encrypted or decrypted in place only
+ * with crypt; otherwise it is authenticated like aad. */
+static UA_StatusCode
+aeadRun(EVP_CIPHER_CTX *ctx, int seal, const UA_Byte *iv,
+        const UA_ByteString *aad, UA_Byte *data, size_t length,
+        UA_Boolean crypt, UA_Byte *tag) {
+    if((aad && aad->length > INT_MAX) || length > INT_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    int outLength = 0;
+    UA_Byte finalOut[EVP_MAX_BLOCK_LENGTH];
+    if(EVP_CipherInit_ex(ctx, NULL, NULL, NULL, iv, seal) != 1 ||
+       (!seal && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
+                                     UA_OPENSSL_AEAD_TAG_LENGTH, tag) != 1) ||
+       (aad && aad->length > 0 &&
+        EVP_CipherUpdate(ctx, NULL, &outLength,
+                         aad->data, (int)aad->length) != 1) ||
+       (length > 0 &&
+        EVP_CipherUpdate(ctx, crypt ? data : NULL, &outLength,
+                         data, (int)length) != 1))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_CipherFinal_ex(ctx, finalOut, &outLength) != 1)
+        return seal ? UA_STATUSCODE_BADINTERNALERROR
+                    : UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    if(seal && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG,
+                                   UA_OPENSSL_AEAD_TAG_LENGTH, tag) != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Runs in the context of the slot, built on the first use */
+static UA_StatusCode
+aeadPrepared(EVP_CIPHER_CTX **slot, const EVP_CIPHER *cipher,
+             const UA_ByteString *key, int seal,
+             const UA_ByteString *iv, const UA_ByteString *aad,
+             UA_Byte *data, size_t length, UA_Boolean crypt, UA_Byte *tag) {
+    if(iv->length != UA_OPENSSL_AEAD_IV_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!*slot)
+        *slot = newAeadCtx(cipher, key, seal);
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    if(*slot)
+        res = aeadRun(*slot, seal, iv->data, aad, data, length, crypt, tag);
+    if(res == UA_STATUSCODE_BADINTERNALERROR)
+        freeCipherCtx(slot); /* rebuilt on the next use */
+    return res;
+}
+
+/* data ends with the tag */
+static UA_StatusCode
+aeadOneShot(const EVP_CIPHER *cipher, int seal, const UA_ByteString *iv,
+            const UA_ByteString *key, const UA_ByteString *aad,
+            UA_ByteString *data, UA_Boolean crypt) {
+    if(data->length < UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t length = data->length - UA_OPENSSL_AEAD_TAG_LENGTH;
+    EVP_CIPHER_CTX *ctx = NULL;
+    UA_StatusCode res = aeadPrepared(&ctx, cipher, key, seal, iv, aad, data->data,
+                                     length, crypt, data->data + length);
+    EVP_CIPHER_CTX_free(ctx);
+    if(res == UA_STATUSCODE_GOOD && !seal)
+        data->length = length;
+    return res;
+}
+
+/* Generic entry points share the prepared-context implementation. */
+UA_StatusCode
+UA_OpenSSL_AEAD_Encrypt(const EVP_CIPHER *cipher,
+                        const UA_ByteString *iv, const UA_ByteString *key,
+                        const UA_ByteString *aad, UA_ByteString *data,
+                        UA_Boolean encryptData) {
+    if(!cipher)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return aeadOneShot(cipher, 1, iv, key, aad, data, encryptData);
+}
+
+UA_StatusCode
+UA_OpenSSL_AEAD_Decrypt(const EVP_CIPHER *cipher,
+                        const UA_ByteString *iv, const UA_ByteString *key,
+                        const UA_ByteString *aad, UA_ByteString *data,
+                        UA_Boolean decryptData) {
+    if(!cipher)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return aeadOneShot(cipher, 0, iv, key, aad, data, decryptData);
+}
 
 UA_StatusCode
 UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
@@ -2853,102 +2931,9 @@ UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
                                     const UA_ByteString *aad,
                                     UA_ByteString *data,
                                     UA_Boolean encryptData) {
-    if(iv->length != 12 || key->length != 32)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* The last 16 bytes of data are reserved for the Poly1305 tag */
-    if(data->length < 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    size_t plainLen = data->length - 16;
-    UA_Byte *tagPos = data->data + plainLen;
-
-    if(!encryptData) {
-        /* Sign-only mode: use ChaCha20-Poly1305 AEAD to compute the
-         * Poly1305 tag. Treat all data (AAD + plaintext) as AAD so
-         * nothing is encrypted, but the AEAD derives a proper one-time
-         * Poly1305 key from the ChaCha20 keystream with the nonce. */
-        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        if(!ctx)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(),
-                              NULL, NULL, NULL) != 1)
-            goto so_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-            goto so_errout;
-        if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-            goto so_errout;
-
-        int outl = 0;
-        /* Include AAD header */
-        if(aad && aad->length > 0) {
-            if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                                 aad->data, (int)aad->length) != 1)
-                goto so_errout;
-        }
-        /* Include plaintext as additional AAD (not encrypted) */
-        if(plainLen > 0) {
-            if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                                 data->data, (int)plainLen) != 1)
-                goto so_errout;
-        }
-
-        UA_Byte dummy;
-        if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
-            goto so_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
-            goto so_errout;
-
-        ret = UA_STATUSCODE_GOOD;
-    so_errout:
-        EVP_CIPHER_CTX_free(ctx);
-        return ret;
-    }
-
-    /* SignAndEncrypt mode: full ChaCha20-Poly1305 AEAD */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
-        goto errout;
-
-    /* Set IV length to 12 */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto errout;
-
-    if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-        goto errout;
-
-    /* Process AAD */
-    int outl = 0;
-    if(aad && aad->length > 0) {
-        if(EVP_EncryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
-            goto errout;
-    }
-
-    /* Encrypt the plaintext in-place */
-    if(EVP_EncryptUpdate(ctx, data->data, &outl, data->data, (int)plainLen) != 1)
-        goto errout;
-
-    int tmpLen = 0;
-    if(EVP_EncryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1)
-        goto errout;
-
-    /* Get the 16-byte authentication tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
-        goto errout;
-
-    ret = UA_STATUSCODE_GOOD;
-errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    return aeadOneShot(EVP_chacha20_poly1305(), 1, iv, key, aad, data,
+                       encryptData);
 }
-
-/* ChaCha20-Poly1305 AEAD Decrypt */
 
 UA_StatusCode
 UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
@@ -2956,110 +2941,9 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
                                     const UA_ByteString *aad,
                                     UA_ByteString *data,
                                     UA_Boolean decryptData) {
-    if(iv->length != 12 || key->length != 32)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* The last 16 bytes are the Poly1305 tag */
-    if(data->length < 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    size_t cipherLen = data->length - 16;
-    UA_Byte *tagPos = data->data + cipherLen;
-
-    if(!decryptData) {
-        /* Verify-only mode: use ChaCha20-Poly1305 AEAD to verify the
-         * Poly1305 tag. All data is treated as AAD (not decrypted). */
-        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        if(!ctx)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(),
-                              NULL, NULL, NULL) != 1)
-            goto vo_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-            goto vo_errout;
-        if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-            goto vo_errout;
-
-        /* Set the expected tag for verification */
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
-            goto vo_errout;
-
-        int outl = 0;
-        /* Include AAD header */
-        if(aad && aad->length > 0) {
-            if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                                 aad->data, (int)aad->length) != 1)
-                goto vo_errout;
-        }
-        /* Include data as additional AAD (not decrypted) */
-        if(cipherLen > 0) {
-            if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                                 data->data, (int)cipherLen) != 1)
-                goto vo_errout;
-        }
-
-        /* Finalize triggers tag verification */
-        UA_Byte dummy;
-        if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
-            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-            goto vo_errout;
-        }
-
-        /* Strip the tag from the output */
-        data->length = cipherLen;
-        ret = UA_STATUSCODE_GOOD;
-    vo_errout:
-        EVP_CIPHER_CTX_free(ctx);
-        return ret;
-    }
-
-    /* SignAndEncrypt mode: full ChaCha20-Poly1305 AEAD decrypt */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
-        goto d_errout;
-
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto d_errout;
-
-    if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-        goto d_errout;
-
-    /* Set the expected tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
-        goto d_errout;
-
-    /* Process AAD */
-    int outl = 0;
-    if(aad && aad->length > 0) {
-        if(EVP_DecryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
-            goto d_errout;
-    }
-
-    /* Decrypt in-place */
-    if(EVP_DecryptUpdate(ctx, data->data, &outl, data->data, (int)cipherLen) != 1)
-        goto d_errout;
-
-    int tmpLen = 0;
-    if(EVP_DecryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1) {
-        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto d_errout;
-    }
-
-    /* Strip the tag from the output length */
-    data->length = cipherLen;
-    ret = UA_STATUSCODE_GOOD;
-d_errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    return aeadOneShot(EVP_chacha20_poly1305(), 0, iv, key, aad, data,
+                       decryptData);
 }
-
-/* AES-128-GCM AEAD Encrypt */
 
 UA_StatusCode
 UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
@@ -3067,101 +2951,8 @@ UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
                                const UA_ByteString *aad,
                                UA_ByteString *data,
                                UA_Boolean encryptData) {
-    if(iv->length != 12 || key->length != 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* The last 16 bytes of data are reserved for the GCM tag */
-    if(data->length < 16)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    size_t plainLen = data->length - 16;
-    UA_Byte *tagPos = data->data + plainLen;
-
-    if(!encryptData) {
-        /* Sign-only mode: use AES-128-GCM AEAD to compute the GCM tag.
-         * Treat all data (AAD + plaintext) as AAD so nothing is encrypted,
-         * but the AEAD still produces a proper authentication tag. */
-        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        if(!ctx)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(),
-                              NULL, NULL, NULL) != 1)
-            goto so_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-            goto so_errout;
-        if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-            goto so_errout;
-
-        int outl = 0;
-        /* Include AAD header */
-        if(aad && aad->length > 0) {
-            if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                                 aad->data, (int)aad->length) != 1)
-                goto so_errout;
-        }
-        /* Include plaintext as additional AAD (not encrypted) */
-        if(plainLen > 0) {
-            if(EVP_EncryptUpdate(ctx, NULL, &outl,
-                                 data->data, (int)plainLen) != 1)
-                goto so_errout;
-        }
-
-        UA_Byte dummy;
-        if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
-            goto so_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
-            goto so_errout;
-
-        ret = UA_STATUSCODE_GOOD;
-    so_errout:
-        EVP_CIPHER_CTX_free(ctx);
-        return ret;
-    }
-
-    /* SignAndEncrypt mode: full AES-128-GCM AEAD */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1)
-        goto errout;
-
-    /* Set IV length to 12 (the GCM spec default; explicit for clarity) */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto errout;
-
-    if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-        goto errout;
-
-    /* Process AAD */
-    int outl = 0;
-    if(aad && aad->length > 0) {
-        if(EVP_EncryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
-            goto errout;
-    }
-
-    /* Encrypt the plaintext in-place */
-    if(EVP_EncryptUpdate(ctx, data->data, &outl, data->data, (int)plainLen) != 1)
-        goto errout;
-
-    int tmpLen = 0;
-    if(EVP_EncryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1)
-        goto errout;
-
-    /* Get the 16-byte authentication tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
-        goto errout;
-
-    ret = UA_STATUSCODE_GOOD;
-errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+    return aeadOneShot(EVP_aes_128_gcm(), 1, iv, key, aad, data, encryptData);
 }
-
-/* AES-128-GCM AEAD Decrypt */
 
 UA_StatusCode
 UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
@@ -3169,107 +2960,71 @@ UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
                                const UA_ByteString *aad,
                                UA_ByteString *data,
                                UA_Boolean decryptData) {
-    if(iv->length != 12 || key->length != 16)
+    return aeadOneShot(EVP_aes_128_gcm(), 0, iv, key, aad, data, decryptData);
+}
+
+UA_StatusCode
+UA_OpenSSL_aeadMessageIv(const UA_ByteString *baseIv, UA_UInt32 tokenId,
+                         UA_UInt32 previousSequenceNumber, UA_Byte iv[12]) {
+    if(baseIv->length < UA_OPENSSL_AEAD_IV_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
+    memcpy(iv, baseIv->data, UA_OPENSSL_AEAD_IV_LENGTH);
+    for(size_t i = 0; i < 4; i++) {
+        iv[i] ^= (UA_Byte)(tokenId >> (8 * i));
+        iv[4 + i] ^= (UA_Byte)(previousSequenceNumber >> (8 * i));
+    }
+    return UA_STATUSCODE_GOOD;
+}
 
-    /* The last 16 bytes are the GCM tag */
-    if(data->length < 16)
+UA_StatusCode
+UA_OpenSSL_Sym_aeadEncrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                           const UA_ByteString *key, const UA_ByteString *iv,
+                           const UA_ByteString *aad, UA_ByteString *data) {
+    if(data->length < UA_OPENSSL_AEAD_TAG_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
+    size_t length = data->length - UA_OPENSSL_AEAD_TAG_LENGTH;
+    return aeadPrepared(&sym->localCipher, cipher, key, 1, iv, aad,
+                        data->data, length, true, data->data + length);
+}
 
-    size_t cipherLen = data->length - 16;
-    UA_Byte *tagPos = data->data + cipherLen;
+UA_StatusCode
+UA_OpenSSL_Sym_aeadDecrypt(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                           const UA_ByteString *key, const UA_ByteString *iv,
+                           const UA_ByteString *aad, UA_ByteString *data) {
+    if(data->length < UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t length = data->length - UA_OPENSSL_AEAD_TAG_LENGTH;
+    UA_StatusCode res =
+        aeadPrepared(&sym->remoteCipher, cipher, key, 0, iv, aad,
+                     data->data, length, true, data->data + length);
+    if(res == UA_STATUSCODE_GOOD)
+        data->length = length;
+    return res;
+}
 
-    if(!decryptData) {
-        /* Verify-only mode: use AES-128-GCM AEAD to verify the GCM tag.
-         * All data is treated as AAD (not decrypted). */
-        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        if(!ctx)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+UA_StatusCode
+UA_OpenSSL_Sym_aeadSign(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                        const UA_ByteString *key, const UA_ByteString *iv,
+                        const UA_ByteString *message, UA_ByteString *signature) {
+    if(signature->length < UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode res =
+        aeadPrepared(&sym->localTag, cipher, key, 1, iv, message, NULL, 0,
+                     false, signature->data);
+    if(res == UA_STATUSCODE_GOOD)
+        signature->length = UA_OPENSSL_AEAD_TAG_LENGTH;
+    return res;
+}
 
-        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-        if(EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(),
-                              NULL, NULL, NULL) != 1)
-            goto vo_errout;
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-            goto vo_errout;
-        if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-            goto vo_errout;
-
-        /* Set the expected tag for verification */
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
-            goto vo_errout;
-
-        int outl = 0;
-        /* Include AAD header */
-        if(aad && aad->length > 0) {
-            if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                                 aad->data, (int)aad->length) != 1)
-                goto vo_errout;
-        }
-        /* Include data as additional AAD (not decrypted) */
-        if(cipherLen > 0) {
-            if(EVP_DecryptUpdate(ctx, NULL, &outl,
-                                 data->data, (int)cipherLen) != 1)
-                goto vo_errout;
-        }
-
-        /* Finalize triggers tag verification */
-        UA_Byte dummy;
-        if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
-            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-            goto vo_errout;
-        }
-
-        /* Strip the tag from the output */
-        data->length = cipherLen;
-        ret = UA_STATUSCODE_GOOD;
-    vo_errout:
-        EVP_CIPHER_CTX_free(ctx);
-        return ret;
-    }
-
-    /* SignAndEncrypt mode: full AES-128-GCM AEAD decrypt */
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
-    if(EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1)
-        goto d_errout;
-
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
-        goto d_errout;
-
-    if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
-        goto d_errout;
-
-    /* Set the expected tag */
-    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
-        goto d_errout;
-
-    /* Process AAD */
-    int outl = 0;
-    if(aad && aad->length > 0) {
-        if(EVP_DecryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
-            goto d_errout;
-    }
-
-    /* Decrypt in-place */
-    if(EVP_DecryptUpdate(ctx, data->data, &outl, data->data, (int)cipherLen) != 1)
-        goto d_errout;
-
-    int tmpLen = 0;
-    if(EVP_DecryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1) {
-        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto d_errout;
-    }
-
-    /* Strip the tag from the output length */
-    data->length = cipherLen;
-    ret = UA_STATUSCODE_GOOD;
-d_errout:
-    EVP_CIPHER_CTX_free(ctx);
-    return ret;
+UA_StatusCode
+UA_OpenSSL_Sym_aeadVerify(UA_OpenSSL_SymContexts *sym, const EVP_CIPHER *cipher,
+                          const UA_ByteString *key, const UA_ByteString *iv,
+                          const UA_ByteString *message,
+                          const UA_ByteString *signature) {
+    if(signature->length != UA_OPENSSL_AEAD_TAG_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    return aeadPrepared(&sym->remoteTag, cipher, key, 0, iv, message, NULL, 0,
+                        false, signature->data);
 }
 
 

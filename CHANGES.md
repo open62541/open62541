@@ -3,6 +3,128 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Policy-provided certificate hash for session signatures
+
+`UA_SecurityPolicy.hashCertificateForSignature` replaces the global
+`UA_SecurityPolicy_hashCertificate` helper. Enhanced policies must implement
+this function pointer to hash a leaf DER certificate and allocate the result.
+`certThumbprintLength` describes the output size; it no longer selects the
+algorithm. `makeCertThumbprint` continues to handle the OPN-header thumbprint.
+
+### Explicit key-derivation direction
+
+`UA_SecurityPolicy.generateKey` takes `UA_KeyDerivationDirection` with
+`UA_KEYDERIVATION_LOCAL` for sending keys and `UA_KEYDERIVATION_REMOTE` for
+receiving keys. Its nonce arguments are always `localNonce, remoteNonce`.
+Custom policies must select the protocol's nonce order and derivation label
+from the direction, instead of inferring direction from the nonce values.
+
+### Explicit sequence-number handling
+
+`UA_SecurityPolicy.legacySequenceNumbers` replaces the removed
+`UA_SecurityPolicy_useLegacySequenceNumbers` helper. Custom policies must set
+this member: true for None and RSA, false for ECC. The core reads the member
+without inferring the behavior from the policy URI or type.
+
+### Separate random nonces and ephemeral keys
+
+`UA_SecurityPolicy.generateNonce` always fills its output with random data.
+ECC policies must implement the new `generateEphemeralKey` callback, which
+stores a fresh private key in the channel context and writes the public key
+to a caller-allocated `nonceLength` buffer. The old `"eph"` output-buffer
+marker is removed. Policies without key agreement leave the callback NULL.
+
+### All twelve ECC AEAD SecurityPolicies of OPC UA Part 7
+
+The OpenSSL backend now implements the ten ECC AEAD SecurityPolicies that were
+missing besides `ECC_nistP256_AesGcm` and `ECC_nistP256_ChaChaPoly`:
+`ECC_nistP384`, `ECC_brainpoolP256r1`, `ECC_brainpoolP384r1`, `ECC_curve25519`
+and `ECC_curve448`, each with `_AesGcm` and `_ChaChaPoly`. They have
+constructors `UA_SecurityPolicy_Ecc<Curve><Aead>` and server config helpers
+`UA_ServerConfig_addSecurityPolicyEcc<Curve><Aead>`, and for all twelve the
+client helpers `UA_ClientConfig_addSecurityPolicyEcc<Curve><Aead>`. They are
+not part of the default policy set, since a certificate is valid for one curve
+only. `UA_ClientConfig_setAuthenticationCert` also creates an instance with the
+user certificate for every ECC AEAD policy the client has configured.
+The certificate must be on the curve of the policy (Ed25519/Ed448 for the
+curve25519/curve448 policies); otherwise the constructor returns
+`BadCertificateInvalid`. The deprecated `ECC_curve25519` and `ECC_curve448`
+policies are now marked as such.
+
+### Own callback for the EccEncryptedSecret key derivation
+
+`UA_SecurityPolicy` has a new member `generateEncryptedSecretKey`. It derives
+the key material of an EccEncryptedSecret (UserIdentityToken) with the
+"opcua-secret" label. Before, the core wrote the marker bytes `0x03 0x03 0x04`
+into the output buffer of `generateKey` to select that label. Custom ECC
+SecurityPolicies must implement the new callback; others leave it NULL.
+
+### Explicit IKM accumulator in SecurityPolicy key derivation
+
+`UA_SecurityPolicy.generateKey` takes an additional `UA_ByteString *ikmInOut`
+parameter immediately before `out`. NULL disables IKM chaining; otherwise it
+points to a writable, caller-owned buffer of `secretLength` bytes containing
+the previous accumulator. A successful call updates it with the new chained
+IKM. `secret` and `seed` now always contain the original nonces, without an
+IKM prefix. Custom SecurityPolicies must update their callback signature;
+policies without SecureChannelEnhancements can ignore the new parameter.
+The separate `UA_PubSubSecurityPolicy.generateKey` interface is unchanged.
+
+### SecurityPolicies declare their key-agreement properties
+
+`UA_SecurityPolicy` has three new members: `secretLength` (the key-agreement
+shared secret, also the width of the v1.05.07 IKM accumulator),
+`certThumbprintLength` (the digest of the channel-bound SignatureData) and
+`secureChannelEnhancements`. Before, the core derived these from the policy URI
+and `nonceLength`, which does not hold for X25519/X448. Custom SecurityPolicies
+must set them; zero/false means "not applicable".
+`UA_SecurityPolicy_isEnhancedSecurity` is removed. Read
+`policy->secureChannelEnhancements` directly instead.
+
+### The ServerConfiguration Object needs the GDS receiver driver
+
+The ServerConfiguration Object (`ns=0;i=12637`) is only present if the server
+supports PushManagement (Part 12, 7.10.1). Builds without
+`UA_ENABLE_DRIVER_GDS_RECEIVER` no longer contain it. Before, they contained it
+with Variables without a value and Methods that returned `Bad_InternalError`.
+With `UA_ENABLE_DRIVER_GDS_RECEIVER`, all Variables of the ServerConfiguration
+have a value also while the driver is not started, and the driver restores
+these values when it stops.
+
+### UpdateCertificate checks the PrivateKey by itself
+
+The UpdateCertificate Method and `UA_GDSReceiver_updateCertificate` return
+`BadCertificateInvalid` instead of `BadNotSupported` if a valid PrivateKey does
+not match the certificate. `BadNotSupported` is now reserved for a PrivateKey
+that is invalid by itself: it does not decode, it is encrypted, or its
+components do not form a key pair. Before, a PrivateKey with changed private
+components (for example `d` or `p` of an RSA key) was accepted because its
+public key still matched the certificate.
+
+The new `UA_CertificateUtils_checkPrivateKey` in
+`open62541/plugin/certificategroup.h` performs this check.
+`UA_CertificateUtils_checkKeyPair` still compares only the public keys.
+
+### A CertificateGroup without verifyCertificate accepts all certificates
+
+`UA_CertificateGroup_AcceptAll` now leaves `verifyCertificate` NULL, and the
+server and the client accept every certificate of a CertificateGroup without
+`verifyCertificate`, with a warning per verification. Before, the server
+rejected the certificates of a CertificateGroup that was not configured. The
+default AccessControl always offers x509 user tokens. The server warns at
+startup if a SecurityPolicy other than #None is configured and the SecureChannel
+PKI, or the Session PKI while x509 user tokens are offered, accepts all
+certificates.
+
+### Retransmission queue capacity
+
+`UA_ServerConfig.maxRetransmissionQueueSize` now controls the retransmission
+capacity without an additional hard-coded limit of 256 messages per subscription.
+The configured limit is shared by all subscriptions in a session; overflow removes
+the oldest retained message. The default value of `0` permits growth subject to
+available memory. Applications that need bounded retention should configure a
+nonzero limit, or disable retransmission with `enableRetransmissionQueue`.
+
 ### Deprecated ECC SecurityPolicies have SecurityLevel 0
 
 The OPC UA 1.05 Profile database marks the SecurityPolicies `ECC_nistP256`,
@@ -156,6 +278,26 @@ and browsing require an attached driver, built with
 The POSIX CMake option `UA_ARCH_LOCAL_TIME_IS_UTC` (default OFF) makes
 `UA_DateTime_localTimeUtcOffset()` return zero without linking C library timezone
 conversion functions. The stdout logger consequently uses UTC timestamps.
+
+### CertificateGroup parameters are validated
+
+The OpenSSL `UA_CertificateGroup_Memorystore` (and the Filestore, which builds on
+it) read the keys `0:maxTrustListSize` and `0:maxRejectedListSize`, while the
+documentation and the mbedTLS backend use `0:max-trust-listsize` and
+`0:max-rejected-listsize`. Both backends now use the documented keys. With
+OpenSSL, the old keys remain accepted and log a deprecation warning. The new
+key takes precedence if both are given.
+
+Keys in namespace zero are reserved for the plugin. `UA_CertificateGroup_Memorystore`
+and `UA_CertificateGroup_Filestore` now fail with `BadInvalidArgument` for an
+unknown namespace zero key and fail if a known key does not hold a `UInt32`
+scalar. Before, such parameters were silently ignored. Keys in other namespaces are still ignored.
+
+The validation is done with the new public `UA_KeyValueMap_validate` in
+`open62541/util.h`, which plugins can use to check their parameters against an
+array of `UA_KeyValueRestriction` (previously internal to the EventLoop
+implementations). With `rejectUnknown` set, it fails for unknown keys in
+namespace zero.
 
 ### Session and subscription diagnostics are named in the server namespace
 

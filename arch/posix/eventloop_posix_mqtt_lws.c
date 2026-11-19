@@ -370,11 +370,11 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(cm->eventSource.eventLoop->logger,
-                                        "MQTT-LWS", mqttLwsConnectionParams,
-                                        sizeof(mqttLwsConnectionParams) /
-                                            sizeof(mqttLwsConnectionParams[0]),
-                                        params);
+        UA_KeyValueMap_validate(params, mqttLwsConnectionParams,
+                                sizeof(mqttLwsConnectionParams) /
+                                    sizeof(mqttLwsConnectionParams[0]),
+                                false, cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+                                "MQTT-LWS");
     if(res != UA_STATUSCODE_GOOD)
         return res;
 

@@ -176,9 +176,7 @@ UA_Session_generateNonce(UA_Session *session) {
             return res;
     }
 
-    /* Generate plain random data. Ensure data[0] is not the 'e' of the "eph"
-     * trigger that some ECC policies use to produce an ephemeral key. */
-    session->serverNonce.data[0] = 0;
+    /* Generate plain random data. */
     return sp->generateNonce(sp, spC, &session->serverNonce);
 }
 

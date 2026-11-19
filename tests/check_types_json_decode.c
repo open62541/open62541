@@ -1247,6 +1247,33 @@ START_TEST(json_decode_initializes_destination_on_tokenizer_error) {
     ck_assert(value.data == NULL);
 } END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+static void *
+failJsonMalloc(size_t size) {
+    return NULL;
+}
+
+/* A failed decoder can leave tokens unread. The trailing-token check must
+ * preserve its allocation error, in both complete and boundary decoding. */
+START_TEST(json_decode_preserves_allocation_error) {
+    UA_ByteString input = UA_STRING("\"value\"");
+    UA_String value;
+    UA_DecodeJsonOptions options;
+    memset(&options, 0, sizeof(options));
+    size_t decodedLength = 0;
+    options.decodedLength = &decodedLength;
+    void *(*savedMalloc)(size_t) = UA_mallocSingleton;
+    UA_mallocSingleton = failJsonMalloc;
+    UA_StatusCode res = UA_decodeJson(&input, &value, &UA_TYPES[UA_TYPES_STRING],
+                                      _i == 0 ? NULL : &options);
+    UA_mallocSingleton = savedMalloc;
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(value.length, 0);
+    ck_assert_ptr_null(value.data);
+    UA_String_clear(&value);
+} END_TEST
+#endif
+
 START_TEST(json_decode_reports_boundary_with_trailing_input) {
     const char *json = "42 trailing";
     UA_ByteString src = UA_BYTESTRING((char*)(uintptr_t)json);
@@ -1485,6 +1512,9 @@ int main(void) {
                    json_decode_initializes_destination_on_tokenizer_error);
     tcase_add_test(tc_extra,
                    json_decode_reports_boundary_with_trailing_input);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    tcase_add_loop_test(tc_extra, json_decode_preserves_allocation_error, 0, 2);
+#endif
     tcase_add_test(tc_extra, json_decode_truncated_json);
     tcase_add_test(tc_extra, json_decode_null_arguments);
     tcase_add_test(tc_extra, json_decode_roundtrip_int32);

@@ -650,8 +650,8 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Validate the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "ETH", ethConnectionParams,
-                                        ethParamRestrictions, params);
+        UA_KeyValueMap_validate(params, ethConnectionParams, ethParamRestrictions, false,
+                                el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "ETH");
     if(res != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return res;
@@ -1035,9 +1035,8 @@ ETH_eventSourceStart(UA_EventSource *es) {
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "ETH",
-                                        ethManagerParams, ETH_MANAGERPARAMS,
-                                        &cm->eventSource.params);
+        UA_KeyValueMap_validate(&cm->eventSource.params, ethManagerParams, ETH_MANAGERPARAMS,
+                                false, el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "ETH");
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 

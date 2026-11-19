@@ -1289,7 +1289,9 @@ callUpdateCertificateWithPushKey(UA_Client *client, UA_ByteString certificate) {
 }
 
 /* A certificate with changed bytes is invalid, also if a PrivateKey is
- * provided. The PrivateKey cannot match a certificate that does not parse. */
+ * provided (Part 12, 7.10.5). The certificate is verified before the
+ * PrivateKey is checked against it. A changed public key does not match the
+ * PrivateKey, but the certificate is invalid and not the PrivateKey. */
 START_TEST(update_certificate_reject_corrupted) {
     UA_Client *client = createSecureClient();
     trustPushCa();
@@ -1310,11 +1312,266 @@ START_TEST(update_certificate_reject_corrupted) {
     retval = callUpdateCertificateWithPushKey(client, cert);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
 
+    /* A byte in the middle of the RSA-2048 modulus. The certificate still
+     * parses, but the signature of the issuer does not match. */
+    cert.data[4] = 0x30;
+    static const UA_Byte rsaPublicKey[] = /* SEQUENCE { INTEGER (257 bytes) */
+        {0x30, 0x82, 0x01, 0x0a, 0x02, 0x82, 0x01, 0x01, 0x00};
+    size_t modulus = 0;
+    for(size_t i = 0; i + sizeof(rsaPublicKey) <= cert.length; i++) {
+        if(memcmp(&cert.data[i], rsaPublicKey, sizeof(rsaPublicKey)) == 0) {
+            modulus = i + sizeof(rsaPublicKey);
+            break;
+        }
+    }
+    ck_assert_uint_gt(modulus, 0);
+    cert.data[modulus + 128] ^= 0xff;
+    size_t keySize = 0;
+    ck_assert_uint_eq(UA_CertificateUtils_getKeySize(&cert, &keySize),
+                      UA_STATUSCODE_GOOD);
+    retval = callUpdateCertificateWithPushKey(client, cert);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+
     /* No transaction was started */
     retval = applyChanges(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTHINGTODO);
 
     UA_ByteString_clear(&cert);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.10.5: Bad_NotSupported is for a PrivateKey that is invalid by
+ * itself. A valid PrivateKey of another key pair does not belong to the valid
+ * certificate. This returns Bad_CertificateInvalid. */
+START_TEST(update_certificate_reject_mismatched_key) {
+    UA_Client *client = createSecureClient();
+    trustPushCa();
+
+    UA_ByteString cert = {PUSH_APP_CERT_DER_LENGTH, PUSH_APP_CERT_DER_DATA};
+    UA_ByteString wrongKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_String keyFormat = UA_STRING("PKCS8");
+    UA_StatusCode retval =
+        callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                     &cert, &keyFormat, &wrongKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+
+    /* No transaction was started */
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Helper: append "name: StatusCode" to a list of unexpected results. A test
+ * checks all cases first and then reports every unexpected result at once. */
+static void
+appendUnexpected(char *list, size_t listSize, const char *name,
+                 UA_StatusCode res) {
+    const char *parts[4] = {list[0] != '\0' ? ", " : "", name, ": ",
+                            UA_StatusCode_name(res)};
+    for(size_t i = 0; i < 4; i++)
+        strncat(list, parts[i], listSize - strlen(list) - 1);
+}
+
+/* Part 12 §7.10.5: Bad_NotSupported if the format of the PrivateKey is not
+ * supported. The PrivateKey matches the certificate. SupportedPrivateKeyFormats
+ * contains "PEM" and "PKCS8" only. */
+START_TEST(update_certificate_reject_unsupported_key_format) {
+    UA_Client *client = createSecureClient();
+    trustPushCa();
+
+    UA_ByteString cert = {PUSH_APP_CERT_DER_LENGTH, PUSH_APP_CERT_DER_DATA};
+    UA_ByteString key = {PUSH_APP_KEY_DER_LENGTH, PUSH_APP_KEY_DER_DATA};
+    /* PFX is defined in Part 12, 7.10.3, but not supported. A PrivateKey
+     * without a PrivateKeyFormat has no supported format. */
+    const char *formats[3] = {"PFX", "DER", ""};
+    char unexpected[512] = "";
+    for(size_t i = 0; i < 3; i++) {
+        UA_String format = {strlen(formats[i]), (UA_Byte*)(uintptr_t)formats[i]};
+        UA_StatusCode retval =
+            callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                         &cert, &format, &key);
+        if(retval != UA_STATUSCODE_BADNOTSUPPORTED)
+            appendUnexpected(unexpected, sizeof(unexpected),
+                             formats[i][0] != '\0' ? formats[i] : "(empty)", retval);
+    }
+    ck_assert_msg(unexpected[0] == '\0',
+                  "Expected BadNotSupported for the PrivateKeyFormats: %s", unexpected);
+
+    /* No transaction was started */
+    ck_assert_uint_eq(applyChanges(client), UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Helper: move *pos from the header of the DER element with the expected tag to
+ * its content. Returns the length of the content. Only tags of one byte and
+ * lengths of up to two bytes are used in the test keys. */
+static size_t
+derEnter(const UA_ByteString *der, size_t *pos, UA_Byte tag) {
+    ck_assert_uint_lt(*pos + 1, der->length);
+    ck_assert_uint_eq(der->data[*pos], tag);
+    size_t length = der->data[*pos + 1];
+    size_t header = 2;
+    if(length & 0x80) {
+        size_t lengthBytes = length & 0x7f;
+        ck_assert_uint_ge(lengthBytes, 1);
+        ck_assert_uint_le(lengthBytes, 2);
+        ck_assert_uint_le(*pos + 2 + lengthBytes, der->length);
+        length = 0;
+        for(size_t i = 0; i < lengthBytes; i++)
+            length = (length << 8) | der->data[*pos + 2 + i];
+        header += lengthBytes;
+    }
+    *pos += header;
+    ck_assert_uint_le(*pos + length, der->length);
+    return length;
+}
+
+/* Positions in a PKCS #8 PrivateKeyInfo with an RSA key (RFC 5958, 2 and
+ * RFC 8017, A.1.2). The INTEGERs of the RSAPrivateKey are version, n, e, d, p,
+ * q, dP, dQ and qInv. */
+#define RSA_KEY_INTEGERS 9
+typedef struct {
+    size_t algorithmOid;       /* Content of the OID of the privateKeyAlgorithm */
+    size_t algorithmOidLength;
+    size_t rsaPrivateKey;      /* Header of the RSAPrivateKey SEQUENCE */
+    size_t integer[RSA_KEY_INTEGERS];       /* Content of the INTEGERs */
+    size_t integerLength[RSA_KEY_INTEGERS];
+} RsaKeyLayout;
+
+static const char *rsaKeyIntegerNames[RSA_KEY_INTEGERS] =
+    {"version", "n", "e", "d", "p", "q", "dP", "dQ", "qInv"};
+
+static RsaKeyLayout
+parseRsaKeyLayout(const UA_ByteString *key) {
+    RsaKeyLayout layout;
+    memset(&layout, 0, sizeof(layout));
+    size_t pos = 0;
+    derEnter(key, &pos, 0x30);                  /* PrivateKeyInfo */
+    pos += derEnter(key, &pos, 0x02);           /* version */
+    derEnter(key, &pos, 0x30);                  /* privateKeyAlgorithm */
+    layout.algorithmOidLength = derEnter(key, &pos, 0x06);
+    layout.algorithmOid = pos;
+    pos += layout.algorithmOidLength;
+    derEnter(key, &pos, 0x05);                  /* parameters (NULL) */
+    derEnter(key, &pos, 0x04);                  /* privateKey */
+    layout.rsaPrivateKey = pos;
+    derEnter(key, &pos, 0x30);                  /* RSAPrivateKey */
+    for(size_t i = 0; i < RSA_KEY_INTEGERS; i++) {
+        layout.integerLength[i] = derEnter(key, &pos, 0x02);
+        layout.integer[i] = pos;
+        pos += layout.integerLength[i];
+    }
+    ck_assert_uint_eq(pos, key->length);
+    return layout;
+}
+
+/* Part 12 §7.10.5: Bad_NotSupported if the PrivateKey is invalid. A PrivateKey
+ * with changed bytes in its DER structure does not decode. The certificate is
+ * valid and the unchanged PrivateKey matches it. */
+START_TEST(update_certificate_reject_undecodable_key) {
+    UA_Client *client = createSecureClient();
+    trustPushCa();
+
+    UA_ByteString cert = {PUSH_APP_CERT_DER_LENGTH, PUSH_APP_CERT_DER_DATA};
+    UA_ByteString original = {PUSH_APP_KEY_DER_LENGTH, PUSH_APP_KEY_DER_DATA};
+    UA_String keyFormat = UA_STRING("PKCS8");
+    RsaKeyLayout layout = parseRsaKeyLayout(&original);
+
+    /* rsaEncryption (1.2.840.113549.1.1.1) becomes sha256WithRSAEncryption
+     * (1.2.840.113549.1.1.11), which is not a key algorithm */
+    size_t oidEnd = layout.algorithmOid + layout.algorithmOidLength - 1;
+    ck_assert_uint_eq(original.data[oidEnd], 0x01);
+    struct {
+        const char *name;
+        size_t offset;
+        UA_Byte value;
+    } changes[3] = {
+        {"PrivateKeyInfo tag", 0, 0x31},
+        {"privateKeyAlgorithm OID", oidEnd, 0x0b},
+        {"RSAPrivateKey tag", layout.rsaPrivateKey, 0x31}};
+    char unexpected[512] = "";
+    for(size_t i = 0; i < 3; i++) {
+        UA_ByteString key;
+        ck_assert_uint_eq(UA_ByteString_copy(&original, &key), UA_STATUSCODE_GOOD);
+        ck_assert_uint_ne(key.data[changes[i].offset], changes[i].value);
+        key.data[changes[i].offset] = changes[i].value;
+        UA_StatusCode retval =
+            callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                         &cert, &keyFormat, &key);
+        UA_ByteString_clear(&key);
+        if(retval != UA_STATUSCODE_BADNOTSUPPORTED)
+            appendUnexpected(unexpected, sizeof(unexpected), changes[i].name, retval);
+    }
+
+    /* The last byte of qInv is missing */
+    UA_ByteString truncated = {original.length - 1, original.data};
+    UA_StatusCode retval =
+        callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                     &cert, &keyFormat, &truncated);
+    if(retval != UA_STATUSCODE_BADNOTSUPPORTED)
+        appendUnexpected(unexpected, sizeof(unexpected), "truncated key", retval);
+    ck_assert_msg(unexpected[0] == '\0',
+                  "Expected BadNotSupported for the changed keys: %s", unexpected);
+
+    /* No transaction was started */
+    ck_assert_uint_eq(applyChanges(client), UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Part 12 §7.10.5: Bad_NotSupported if the PrivateKey is invalid. A changed
+ * byte in an INTEGER of the RSAPrivateKey keeps the PrivateKey decodable. But
+ * the INTEGERs no longer form a key pair.
+ *
+ * A change in d, p, q, dP, dQ or qInv keeps n and e. So the public key of the
+ * PrivateKey still matches the certificate. Such a PrivateKey can even produce
+ * valid signatures with OpenSSL: the CRT path does not use d, and a wrong CRT
+ * result is computed again with d. Only a consistency check of the PrivateKey
+ * finds the change.
+ *
+ * A change in n or e changes the public key of the PrivateKey. The PrivateKey is
+ * checked by itself before it is compared with the certificate. So this is an
+ * invalid PrivateKey and not a valid PrivateKey of another key pair
+ * (update_certificate_reject_mismatched_key). */
+START_TEST(update_certificate_reject_inconsistent_key) {
+    UA_Client *client = createSecureClient();
+    trustPushCa();
+
+    UA_ByteString cert = {PUSH_APP_CERT_DER_LENGTH, PUSH_APP_CERT_DER_DATA};
+    UA_ByteString original = {PUSH_APP_KEY_DER_LENGTH, PUSH_APP_KEY_DER_DATA};
+    UA_String keyFormat = UA_STRING("PKCS8");
+    RsaKeyLayout layout = parseRsaKeyLayout(&original);
+
+    /* Change the middle byte of each INTEGER except the version */
+    char unexpected[512] = "";
+    for(size_t i = 1; i < RSA_KEY_INTEGERS; i++) {
+        UA_ByteString key;
+        ck_assert_uint_eq(UA_ByteString_copy(&original, &key), UA_STATUSCODE_GOOD);
+        key.data[layout.integer[i] + layout.integerLength[i] / 2] ^= 0xff;
+        UA_StatusCode retval =
+            callUpdateCertificateWithKey(client, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE,
+                                         &cert, &keyFormat, &key);
+        UA_ByteString_clear(&key);
+        if(retval != UA_STATUSCODE_BADNOTSUPPORTED)
+            appendUnexpected(unexpected, sizeof(unexpected), rsaKeyIntegerNames[i],
+                             retval);
+    }
+    ck_assert_msg(unexpected[0] == '\0',
+                  "Expected BadNotSupported for a changed byte in: %s", unexpected);
+
+    /* No transaction was started */
+    ck_assert_uint_eq(applyChanges(client), UA_STATUSCODE_BADNOTHINGTODO);
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -2218,6 +2475,85 @@ START_TEST(trustlist_file_properties) {
 }
 END_TEST
 
+/* The values of the started receiver */
+static void
+assertReceiverValues(UA_Boolean started) {
+    const UA_NodeId privateKeyFormats =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS);
+    const UA_NodeId applicationTypes = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES);
+    const UA_NodeId userTokenTypes = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_CERTIFICATETYPES);
+    const UA_NodeId lastUpdateTime = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_LASTUPDATETIME);
+    const UA_NodeId writable = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITABLE);
+    const UA_NodeId size = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SIZE);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval = UA_Server_readValue(server, privateKeyFormats, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_STRING]));
+    ck_assert_uint_eq(value.arrayLength, (started ? 2 : 0));
+    UA_Variant_clear(&value);
+
+    retval = UA_Server_readValue(server, applicationTypes, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_NODEID]));
+    if(started)
+        ck_assert_uint_gt(value.arrayLength, 0);
+    else
+        ck_assert_uint_eq(value.arrayLength, 0);
+    UA_Variant_clear(&value);
+
+    /* The DefaultUserTokenGroup has no CertificateTypes (Part 12, 7.8.3.3) */
+    retval = UA_Server_readValue(server, userTokenTypes, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_NODEID]));
+    ck_assert_uint_eq(value.arrayLength, 0);
+    UA_Variant_clear(&value);
+
+    /* DateTime.MinValue without the receiver */
+    retval = UA_Server_readValue(server, lastUpdateTime, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    if(started)
+        ck_assert_int_ne(*(UA_DateTime*)value.data, 0);
+    else
+        ck_assert_int_eq(*(UA_DateTime*)value.data, 0);
+    UA_Variant_clear(&value);
+
+    retval = UA_Server_readValue(server, writable, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(*(UA_Boolean*)value.data == started);
+    UA_Variant_clear(&value);
+
+    /* The Size has no meaning for a TrustList (Part 12, 7.8.2.1) */
+    retval = UA_Server_readValue(server, size, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_Variant_clear(&value);
+}
+
+/* The ServerConfiguration returns to the values without the receiver when it
+ * stops */
+START_TEST(certificate_groups_after_restart) {
+    assertReceiverValues(true);
+
+    /* Stop the server with the receiver */
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    assertReceiverValues(false);
+
+    /* The restarted receiver writes its values again */
+    UA_atomic_store(&running, true);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    THREAD_CREATE(server_thread, serverloop);
+    assertReceiverValues(true);
+}
+END_TEST
+
 /* Exercise each callback contract directly, independently of method metadata. */
 START_TEST(gds_callback_argument_counts) {
     const struct {
@@ -2329,6 +2665,7 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
     tcase_add_test(tc_cert, trustlist_file_properties);
+    tcase_add_test(tc_cert, certificate_groups_after_restart);
     tcase_add_test(tc_cert, open_trustlist_with_mask);
     tcase_add_test(tc_cert, apply_changes_without_transaction);
     tcase_add_test(tc_cert, open_continues_transaction);
@@ -2344,6 +2681,10 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate_chain_stages_leaf);
     tcase_add_test(tc_cert, update_certificate_reject_truncated);
     tcase_add_test(tc_cert, update_certificate_reject_corrupted);
+    tcase_add_test(tc_cert, update_certificate_reject_mismatched_key);
+    tcase_add_test(tc_cert, update_certificate_reject_unsupported_key_format);
+    tcase_add_test(tc_cert, update_certificate_reject_undecodable_key);
+    tcase_add_test(tc_cert, update_certificate_reject_inconsistent_key);
     tcase_add_test(tc_cert, update_certificate_accept_expired);
     tcase_add_test(tc_cert, update_certificate_accept_invalid_hostname);
     tcase_add_test(tc_cert, add_certificate_success);

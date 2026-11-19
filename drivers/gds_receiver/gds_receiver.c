@@ -42,6 +42,13 @@ checkTrustListClosed(UA_GDSTrustList *tl) {
     return UA_STATUSCODE_GOOD;
 }
 
+UA_Boolean
+UA_GDSReceiver_hasTrustList(const UA_CertificateGroup *certGroup) {
+    return certGroup->getTrustList && certGroup->setTrustList &&
+        certGroup->addToTrustList && certGroup->removeFromTrustList &&
+        certGroup->getCertificateCrls;
+}
+
 /********************/
 /* GDS Transaction  */
 /********************/
@@ -82,7 +89,7 @@ UA_GDSTransaction_findCertificateGroup(UA_GDSTransaction *transaction,
 static UA_CertificateGroup*
 UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
                                       const UA_CertificateGroup *certGroup) {
-    if(!transaction || !certGroup)
+    if(!transaction || !certGroup || !UA_GDSReceiver_hasTrustList(certGroup))
         return NULL;
 
     /* Check if transaction was initialized */
@@ -303,6 +310,28 @@ checkVerificationResult(UA_ServerConfig *sc, UA_StatusCode res, const char *meth
     return res;
 }
 
+/* Check the KeyUsage of an application certificate of the
+ * DefaultApplicationGroup (Part 6, 6.2.2). The validation rules of other
+ * Purposes are not defined (Part 12, 7.8.2.5). Part 4, 6.1.3 allows to suppress
+ * the Certificate Usage error unless the certificate indicates that the usage
+ * is mandatory. The KeyUsage required by Part 6 counts as mandatory, so the
+ * error is not suppressed, also if the extension is not critical. Called after
+ * the validation of Part 4 to keep the order of its steps. */
+static UA_StatusCode
+checkApplicationKeyUsage(UA_ServerConfig *sc, const UA_CertificateGroup *certGroup,
+                         const UA_ByteString *certificate, const char *method) {
+    if(!UA_NodeId_equal(&certGroup->certificateGroupId,
+                        &sc->secureChannelPKI.certificateGroupId))
+        return UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_CertificateUtils_checkApplicationKeyUsage(certificate);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "%s: The KeyUsage of the certificate does not meet the "
+                     "requirements of an application certificate (%s)",
+                     method, UA_StatusCode_name(res));
+    return res;
+}
+
 /* Verify every certificate of the TrustList after the update with the
  * validation process of Part 4 (Part 12, 7.8.2.5). The update replaces the
  * specified lists of the TrustList of the CertificateGroup. */
@@ -333,9 +362,17 @@ verifyTrustListUpdate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
         {trustList.trustedCertificatesSize, trustList.issuerCertificatesSize};
     for(size_t i = 0; i < 2 && res == UA_STATUSCODE_GOOD; i++) {
         for(size_t j = 0; j < certificatesSize[i] && res == UA_STATUSCODE_GOOD; j++) {
+            const UA_ByteString *cert = &certificates[i][j];
             res = UA_CertificateUtils_verifyTrustListCertificate(
-                &trustList, &certificates[i][j], sc->logging);
+                &trustList, cert, sc->logging);
             res = checkVerificationResult(sc, res, "CloseAndUpdate");
+
+            /* The trusted list contains application and CA certificates. The
+             * issuer list contains CA certificates only. */
+            if(res == UA_STATUSCODE_GOOD && i == 0 &&
+               UA_CertificateUtils_checkCA(cert) != UA_STATUSCODE_GOOD)
+                res = checkApplicationKeyUsage(sc, certGroup, cert,
+                                               "CloseAndUpdate");
         }
     }
     UA_TrustListDataType_clear(&trustList);
@@ -423,6 +460,12 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
 static UA_StatusCode
 verifyInTrustListCopy(UA_CertificateGroup *certGroup,
                       const UA_ByteString *certificate) {
+    /* Without a TrustList, the CertificateGroup verifies the certificate
+     * itself. UA_CertificateGroup_AcceptAll accepts every certificate. */
+    if(!certGroup->getTrustList)
+        /* If `certGroup->verifyCertificate` is unset, accept. */
+        return certGroup->verifyCertificate ? certGroup->verifyCertificate(certGroup, certificate) : UA_STATUSCODE_GOOD;
+
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
@@ -445,15 +488,19 @@ verifyInTrustListCopy(UA_CertificateGroup *certGroup,
     return res;
 }
 
-/* Verify a certificate that is added to the TrustList or that the Server uses
+/* Verify an AIC that is added to the TrustList or that the Server uses
  * with the validation process of Part 4. Its issuers must already be in the
  * TrustList (Part 12, 7.8.2.6 and 7.10.5). Otherwise building the chain fails
  * with Bad_CertificateChainIncomplete. */
 static UA_StatusCode
 verifyIssuedCertificate(UA_ServerConfig *sc, UA_CertificateGroup *certGroup,
                         const UA_ByteString *certificate, const char *method) {
-    return checkVerificationResult(sc, verifyInTrustListCopy(certGroup, certificate),
-                                   method);
+    UA_StatusCode res =
+        checkVerificationResult(sc, verifyInTrustListCopy(certGroup, certificate),
+                                method);
+    if(res == UA_STATUSCODE_GOOD)
+        res = checkApplicationKeyUsage(sc, certGroup, certificate, method);
+    return res;
 }
 
 static UA_GDSPendingCsr *
@@ -539,6 +586,42 @@ checkKeylessCertificate(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
     return UA_STATUSCODE_BADCERTIFICATEINVALID;
 }
 
+/* Check the key of a certificate after it was verified. A certificate with
+ * changed bytes, for example in its public key, can still parse. Then only the
+ * signature check of the verification finds the change and returns
+ * Bad_CertificateInvalid.
+ *
+ * Bad_NotSupported is for a PrivateKey that is invalid by itself (Part 12,
+ * 7.10.5): It does not decode, it is encrypted (UpdateCertificate has no
+ * password), or its components do not form a key pair. The PrivateKey is
+ * checked by itself before it is compared with the certificate. A changed
+ * private component keeps the public key, so the PrivateKey still matches the
+ * certificate. A valid PrivateKey of another key pair does not belong to the
+ * certificate. This returns Bad_CertificateInvalid.
+ *
+ * Without a PrivateKey, the certificate must match a key of the Server. */
+static UA_StatusCode
+checkCertificateKey(UA_GDSReceiverContext *ctx, UA_ServerConfig *sc,
+                    const UA_NodeId *certificateTypeId,
+                    const UA_ByteString *certificate,
+                    const UA_ByteString *privateKey) {
+    if(!privateKey)
+        return checkKeylessCertificate(ctx, sc, certificateTypeId, certificate);
+    if(UA_CertificateUtils_checkPrivateKey(privateKey) != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "UpdateCertificate: The PrivateKey is invalid or encrypted");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+    if(UA_CertificateUtils_checkKeyPair(certificate, privateKey) !=
+       UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "UpdateCertificate: The PrivateKey does not match the "
+                     "certificate");
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /* The SecurityPolicies use the key of the CSR for a certificate without a
  * PrivateKey that matches the CSR. Then the CSR is no longer pending. */
 static void
@@ -559,6 +642,8 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
                              UA_ByteString *certificate,
                              const UA_Boolean *isTrustedCertificate) {
     UA_assert(certGroup != NULL);
+    if(!UA_GDSReceiver_hasTrustList(certGroup))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
@@ -639,25 +724,20 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     if(leafCertificate.length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    /* The certificate must parse before the PrivateKey is checked against it.
-     * A corrupted certificate is invalid, not a PrivateKey that does not
-     * match. */
+    /* A certificate that does not parse is invalid. Reject it before the state
+     * of the transaction is checked. */
     size_t keySize = 0;
     if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
        UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    /* Verify that the privateKey is in a supported format and
-     * that it matches the specified certificate */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(privateKey && privateKey->length > 0) {
+    /* The PrivateKey must be in a supported format */
+    const UA_Boolean hasPrivateKey = (privateKey && privateKey->length > 0);
+    if(hasPrivateKey) {
         const UA_String pemFormat = UA_STRING("PEM");
         const UA_String pkcs8Format = UA_STRING("PKCS8");
         if(!UA_String_equal(&pemFormat, privateKeyFormat) &&
            !UA_String_equal(&pkcs8Format, privateKeyFormat))
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        retval = UA_CertificateUtils_checkKeyPair(&leafCertificate, privateKey);
-        if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
@@ -682,15 +762,14 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
                            certificateGroupId))
             certGroup = &transaction->certGroups[i];
     }
-    retval = verifyIssuedCertificate(sc, certGroup, &leafCertificate,
-                                     "UpdateCertificate");
+    UA_StatusCode retval = verifyIssuedCertificate(sc, certGroup, &leafCertificate,
+                                                   "UpdateCertificate");
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(!privateKey || privateKey->length == 0) {
-        retval = checkKeylessCertificate(ctx, sc, certificateTypeId, &leafCertificate);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
+    retval = checkCertificateKey(ctx, sc, certificateTypeId, &leafCertificate,
+                                 hasPrivateKey ? privateKey : NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, ctx->drv.server, *sessionId);
@@ -763,6 +842,8 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
                                 const UA_String *thumbprint,
                                 const UA_Boolean *isTrustedCertificate) {
     UA_assert(certGroup != NULL);
+    if(!UA_GDSReceiver_hasTrustList(certGroup))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
@@ -908,12 +989,16 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
 
     size_t rejectedListSize = 0;
 
+    /* A CertificateGroup without a rejected list, e.g.
+     * UA_CertificateGroup_AcceptAll, rejects no certificates */
+
     /* DefaultApplicationGroup */
     UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
     UA_ByteString *rejectedListSecureChannel = NULL;
     size_t rejectedListSecureChannelSize = 0;
-    UA_StatusCode res = certGroup->getRejectedList(
-        certGroup, &rejectedListSecureChannel, &rejectedListSecureChannelSize);
+    UA_StatusCode res = !certGroup->getRejectedList ? UA_STATUSCODE_GOOD :
+        certGroup->getRejectedList(certGroup, &rejectedListSecureChannel,
+                                   &rejectedListSecureChannelSize);
     if(res != UA_STATUSCODE_GOOD) {
         UA_Array_delete(rejectedListSecureChannel,
                         rejectedListSecureChannelSize,
@@ -926,8 +1011,9 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
     certGroup = &sc->sessionPKI;
     UA_ByteString *rejectedListSession = NULL;
     size_t rejectedListSessionSize = 0;
-    res = certGroup->getRejectedList(certGroup, &rejectedListSession,
-                                     &rejectedListSessionSize);
+    res = !certGroup->getRejectedList ? UA_STATUSCODE_GOOD :
+        certGroup->getRejectedList(certGroup, &rejectedListSession,
+                                   &rejectedListSessionSize);
     if(res != UA_STATUSCODE_GOOD) {
         UA_Array_delete(rejectedListSecureChannel,
                         rejectedListSecureChannelSize,
@@ -960,10 +1046,14 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
                         &UA_TYPES[UA_TYPES_BYTESTRING]);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    memcpy(rejectedList, rejectedListSecureChannel,
-           rejectedListSecureChannelSize * sizeof(UA_ByteString));
-    memcpy(rejectedList + rejectedListSecureChannelSize,
-           rejectedListSession, rejectedListSessionSize * sizeof(UA_ByteString));
+    /* One of the lists can be NULL if its CertificateGroup has no rejected
+     * list. memcpy with a NULL source is undefined even for zero length. */
+    if(rejectedListSecureChannelSize > 0)
+        memcpy(rejectedList, rejectedListSecureChannel,
+               rejectedListSecureChannelSize * sizeof(UA_ByteString));
+    if(rejectedListSessionSize > 0)
+        memcpy(rejectedList + rejectedListSecureChannelSize, rejectedListSession,
+               rejectedListSessionSize * sizeof(UA_ByteString));
 
     /* Set the array in the output */
     res = UA_Variant_setArrayCopy(&output[0], rejectedList, rejectedListSize,
@@ -1004,7 +1094,8 @@ secureChannel_delayedClose(void *application, void *context) {
                 break;
             }
         }
-        if(!closeChannel && trustListUpdated) {
+        /* A CertificateGroup without verification accepts all certificates */
+        if(!closeChannel && trustListUpdated && certGroup->verifyCertificate) {
             UA_StatusCode res =
                 certGroup->verifyCertificate(certGroup, &cm->certificate);
             closeChannel = (res != UA_STATUSCODE_GOOD);
@@ -1233,7 +1324,7 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
     if(leafCertificate.length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    /* The certificate must parse before the PrivateKey is checked against it */
+    /* A certificate that does not parse is invalid */
     size_t keySize = 0;
     if(UA_CertificateUtils_getKeySize(&leafCertificate, &keySize) !=
        UA_STATUSCODE_GOOD)
@@ -1241,14 +1332,6 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
 
     UA_Server *server = receiver->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
-    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
-    if(privateKey) {
-        if(UA_CertificateUtils_checkKeyPair(&leafCertificate, privateKey) !=
-           UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        newPrivateKey = *privateKey;
-    }
-
     UA_CertificateGroup *certGroup = getCertGroup(server, &certGroupId);
     if(!certGroup)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1256,11 +1339,11 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
                                                 "UpdateCertificate");
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    if(!privateKey) {
-        res = checkKeylessCertificate(ctx, sc, &certificateTypeId, &leafCertificate);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    }
+    res = checkCertificateKey(ctx, sc, &certificateTypeId, &leafCertificate,
+                              privateKey);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_ByteString newPrivateKey = privateKey ? *privateKey : UA_BYTESTRING_NULL;
 
     CloseChannelsCallback *ccb =
         (CloseChannelsCallback*)UA_calloc(1, sizeof(CloseChannelsCallback));
@@ -1479,7 +1562,7 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
     for(size_t i = 0; i < groupsSize; i++) {
         UA_CertificateGroup *stagedGroup = &transaction->certGroups[i];
         groups[i] = getCertGroup(server, &stagedGroup->certificateGroupId);
-        if(!groups[i]) {
+        if(!groups[i] || !UA_GDSReceiver_hasTrustList(groups[i])) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
@@ -1717,6 +1800,7 @@ UA_GDSReceiver_free(UA_Driver *drv) {
 
     UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
     UA_GDSReceiver_stopTrustLists(ctx);
+    UA_GDSReceiver_clearSavedVariables(ctx);
     UA_GDSTransaction_clear(&ctx->transaction);
     UA_KeyValueMap_clear(&drv->params);
 

@@ -264,7 +264,7 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
      * SignatureData shall be NULL or empty and receivers shall
      * ignore the value. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+    if(!sp->secureChannelEnhancements)
         retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -275,7 +275,7 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+    if(sp->secureChannelEnhancements) {
         /* Channel-bound v1.05.07 ClientSignature (see the cert-role table at
          * UA_SecureChannel_buildActivateSessionSignatureData). */
         UA_ByteString signData = UA_BYTESTRING_NULL;
@@ -328,8 +328,8 @@ signUserTokenSignature(UA_Client *client,
      * private key (utpSp context). Used only when BOTH the SecureChannel AND the
      * user-token SecurityPolicy are enhanced; a legacy RSA / old-ECC user token
      * uses the legacy layout even over an enhanced (AesGcm) SecureChannel. */
-    if(UA_SecurityPolicy_isEnhancedSecurity(channel->securityPolicy) &&
-       UA_SecurityPolicy_isEnhancedSecurity(utpSp)) {
+    if(channel->securityPolicy->secureChannelEnhancements &&
+       utpSp->secureChannelEnhancements) {
         const UA_ByteString *clientCert = &channel->securityPolicy->localCertificate;
         UA_ByteString signData = UA_BYTESTRING_NULL;
         retval = UA_SecureChannel_buildUserTokenSignatureData(
@@ -429,7 +429,7 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
 
     UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
     UA_StatusCode retval;
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+    if(sp->secureChannelEnhancements) {
         /* Channel-bound v1.05.07 CreateSession ServerSignature (see the
          * cert-role table at UA_SecureChannel_buildCreateSessionSignatureData). */
         retval = UA_SecureChannel_buildCreateSessionSignatureData(
@@ -2022,9 +2022,6 @@ createSessionAsync(UA_Client *client) {
             if(res != UA_STATUSCODE_GOOD)
                 return res;
         }
-        /* Ensure data[0] is not the 'e' of the "eph" ECC ephemeral-key
-         * trigger, so generateNonce produces plain random data. */
-        client->clientSessionNonce.data[0] = 0;
         res = sp->generateNonce(sp, client->channel.channelContext,
                                 &client->clientSessionNonce);
         if(res != UA_STATUSCODE_GOOD) {
@@ -2126,14 +2123,20 @@ initSecurityPolicy(UA_Client *client, const UA_ClientTransport *transport) {
     /* Verify the remote server certificate */
     UA_StatusCode res;
     if(client->endpoint.serverCertificate.length > 0) {
-        res = client->config.certificateVerification.
-            verifyCertificate(&client->config.certificateVerification,
-                              &client->endpoint.serverCertificate);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "Cannot validate the server certificate "
-                         "defined for the selected endpoint");
-            return res;
+        /* A CertificateGroup without verification accepts all certificates */
+        UA_CertificateGroup *cv = &client->config.certificateVerification;
+        if(cv->verifyCertificate) {
+            res = cv->verifyCertificate(cv, &client->endpoint.serverCertificate);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                             "Cannot validate the server certificate "
+                             "defined for the selected endpoint");
+                return res;
+            }
+        } else {
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                           "No certificate store configured. "
+                           "Accepting the server certificate.");
         }
 
         res = verifyServerCertificateEku(&client->config, sp,

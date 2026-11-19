@@ -1273,7 +1273,9 @@ if(UA_ENABLE_DRIVER_FILE_TRANSFER)
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_ns0.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_file.c
          ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_directory.c
-         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c)
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_localfs.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_backend_memory.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer/file_transfer_temporary.c)
 endif()
 
 # For file based server and client configuration
@@ -1312,8 +1314,8 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
     list(INSERT plugin_sources 0
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_compat.h
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_ecc.h
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_rsa.h)
     list(APPEND plugin_sources
@@ -1342,13 +1344,10 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AM
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic128rsa15.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic256.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic256sha256.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_aes128sha256rsaoaep.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_aes256sha256rsapss.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_generic_rsa.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_pubsub_aesctr.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp256.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp256_aesgcm.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp256_chachapoly.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_generic_ecc_aead.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp384.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccbrainpoolp256r1.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccbrainpoolp384r1.c

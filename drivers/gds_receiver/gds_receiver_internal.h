@@ -85,11 +85,17 @@ typedef struct {
 
 #define UA_GDSRECEIVER_TRUSTLISTS 2
 
+/* ServerConfiguration Variables that the started receiver writes */
+#define UA_GDSRECEIVER_SAVEDVARIABLES 4
+
 struct UA_GDSReceiverContext {
     UA_Driver drv;
     UA_Boolean initialized;
     UA_GDSTransaction transaction;
     UA_GDSTrustList trustLists[UA_GDSRECEIVER_TRUSTLISTS];
+    /* The values before the start. They are restored when the receiver stops.
+     * An empty Variant is not restored. */
+    UA_Variant savedVariables[UA_GDSRECEIVER_SAVEDVARIABLES];
     LIST_HEAD(, ChannelMetadata) secureChannels;
     LIST_HEAD(, UA_GDSPendingCsr) pendingCsrs;
     size_t pendingDelayedCallbacks;
@@ -127,8 +133,14 @@ UA_GDSReceiver_stopTrustLists(UA_GDSReceiverContext *ctx);
 UA_StatusCode
 initNS0PushManagement(UA_GDSReceiverContext *ctx);
 
+/* Removes the Method callbacks and restores the variables that
+ * initNS0PushManagement wrote */
 void
 clearNS0PushManagement(UA_GDSReceiverContext *ctx);
+
+/* Free the saved variables without restoring them */
+void
+UA_GDSReceiver_clearSavedVariables(UA_GDSReceiverContext *ctx);
 
 #ifdef UA_ENABLE_RBAC
 /* Restrict the GDS PushManagement methods to the SecurityAdmin role
@@ -139,6 +151,12 @@ initGDSRolePermissions(UA_Server *server);
 
 UA_CertificateGroup *
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);
+
+/* CertificateGroups without a TrustList, e.g. UA_CertificateGroup_AcceptAll,
+ * leave the TrustList callbacks NULL. They do not support the TrustList
+ * Methods. */
+UA_Boolean
+UA_GDSReceiver_hasTrustList(const UA_CertificateGroup *certGroup);
 
 /* Can certificates of the type be updated in the DefaultApplicationGroup */
 UA_Boolean

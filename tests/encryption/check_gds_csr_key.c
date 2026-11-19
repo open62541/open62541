@@ -392,6 +392,13 @@ signCsr(const UA_ByteString *csr, UA_ByteString *certificate) {
     ck_assert_int_eq(mbedtls_x509write_crt_set_validity(&crt, "20240101000000",
                                                         "20991231235959"), 0);
 
+    /* The KeyUsage of an RSA application certificate (Part 6, 6.2.2) */
+    ck_assert_int_eq(mbedtls_x509write_crt_set_key_usage(
+                         &crt, MBEDTLS_X509_KU_DIGITAL_SIGNATURE |
+                         MBEDTLS_X509_KU_NON_REPUDIATION |
+                         MBEDTLS_X509_KU_KEY_ENCIPHERMENT |
+                         MBEDTLS_X509_KU_DATA_ENCIPHERMENT), 0);
+
     mbedtls_x509_san_list san[MAX_SAN_ENTRIES];
     size_t sanSize = 0;
     for(const mbedtls_x509_sequence *cur = &req.subject_alt_names;

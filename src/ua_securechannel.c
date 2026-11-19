@@ -24,7 +24,7 @@
 #define UA_BITMASK_CHUNKTYPE 0xff000000u
 
 const UA_String UA_SECURITY_POLICY_NONE_URI =
-    {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
+    UA_STRING_STATIC(UA_SECURITYPOLICY_URI_NONE);
 
 void
 UA_SecureChannel_init(UA_SecureChannel *channel) {
@@ -68,15 +68,15 @@ setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy *sp,
         return res;
     }
 
-    /* Set the SecurityPolicy and cache the URI-derived properties (the policy
+    /* Set the SecurityPolicy and cache its properties (the policy
      * is fixed for the channel's lifetime). */
     channel->securityPolicy = sp;
     channel->channelContext = channelContext;
     channel->remoteCertificate = certificate;
     memcpy(channel->remoteCertificateThumbprint, thumbprint,
            sizeof(thumbprint));
-    channel->enhancedSecurity = UA_SecurityPolicy_isEnhancedSecurity(sp);
-    channel->legacySequenceNumbers = UA_SecurityPolicy_useLegacySequenceNumbers(sp);
+    channel->enhancedSecurity = sp->secureChannelEnhancements;
+    channel->legacySequenceNumbers = sp->legacySequenceNumbers;
     channel->securityMode = securityMode;
     return UA_STATUSCODE_GOOD;
 }
@@ -98,7 +98,7 @@ UA_SecureChannel_setSecurityPolicyWithoutOPN(
     UA_MessageSecurityMode securityMode) {
     /* Enhanced SecurityPolicies bind Session signatures to values exchanged in
      * OPN. A direct transport cannot establish that binding. */
-    if(UA_SecurityPolicy_isEnhancedSecurity(sp))
+    if(sp->secureChannelEnhancements)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
     UA_Boolean createContext =
         remoteCertificate && remoteCertificate->length > 0;
@@ -277,6 +277,7 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     /* Clean up the v1.05.07 SecureChannel elements */
     UA_ByteString_clear(&channel->firstRequestSignature);
     UA_ByteString_clear(&channel->currentIKM);
+    UA_ByteString_clear(&channel->nextIKM);
     UA_ByteString_clear(&channel->channelThumbprint);
 
     /* Clean up endpointUrl and remoteAddress */

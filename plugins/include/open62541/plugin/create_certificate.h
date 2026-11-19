@@ -32,7 +32,11 @@ typedef enum {
  * \param subjectAltName Elements for SubjectAltName,
  *                  e.g. ["DNS:localhost", "URI:urn:open62541.server.application"]
  * \param params key value map with optional parameters:
- *                  - expires-in-days after these the cert expires default: 365
+ *                  - expires-in-days (UA_UInt16) Duration of the validity in days
+ *                    from valid-from, or the creation time if omitted. default: 365.
+ *                  - valid-from (UA_DateTime) Start of the validity. default: the
+ *                    creation time. An earlier start lets peers whose clock runs
+ *                    behind accept the certificate.
  *                  - key-size-bits Size of the generated RSA key in bits. Possible
  *                    values are: [0, 1024 (deprecated), 2048, 4096] default: 4096.
  *                    Ignored when key-type is set to "EC".

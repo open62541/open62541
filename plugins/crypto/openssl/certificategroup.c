@@ -27,13 +27,17 @@
 #define MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE 0
 #define MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE 1
 
-static const struct {
-    UA_QualifiedName name;
-    const UA_DataType *type;
-    UA_Boolean required;
-} MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMETERSSIZE] = {
-    {{0, UA_STRING_STATIC("maxTrustListSize")}, &UA_TYPES[UA_TYPES_UINT16], false},
-    {{0, UA_STRING_STATIC("maxRejectedListSize")}, &UA_TYPES[UA_TYPES_STRING], false}
+/* The deprecated names of the parameters follow the current names. They are the
+ * names this backend used before it was aligned with the documentation and the
+ * mbedTLS backend. */
+#define MEMORYCERTSTORE_DEPRECATEDOFFSET MEMORYCERTSTORE_PARAMETERSSIZE
+
+static const UA_KeyValueRestriction
+MemoryCertStoreParameters[2 * MEMORYCERTSTORE_PARAMETERSSIZE] = {
+    {{0, UA_STRING_STATIC("max-trust-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("maxTrustListSize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("maxRejectedListSize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false}
 };
 
 struct MemoryCertStore;
@@ -705,6 +709,47 @@ MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
     return retval;
 }
 
+/* Keys in namespace zero are reserved for the plugin. An unknown key or a value
+ * of the wrong type is an error instead of being silently ignored. */
+static UA_StatusCode
+MemoryCertStore_setParameters(MemoryCertStore *context, const UA_Logger *logger,
+                              const UA_KeyValueMap *params) {
+    UA_StatusCode res =
+        UA_KeyValueMap_validate(params, MemoryCertStoreParameters,
+                                2 * MEMORYCERTSTORE_PARAMETERSSIZE, true, logger,
+                                UA_LOGCATEGORY_SECURITYPOLICY, "CertificateGroup");
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_UInt32 *targets[MEMORYCERTSTORE_PARAMETERSSIZE];
+    targets[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE] = &context->maxTrustListSize;
+    targets[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE] = &context->maxRejectedListSize;
+
+    for(size_t i = 0; i < MEMORYCERTSTORE_PARAMETERSSIZE; i++) {
+        const UA_QualifiedName *name = &MemoryCertStoreParameters[i].name;
+        const UA_QualifiedName *oldName =
+            &MemoryCertStoreParameters[MEMORYCERTSTORE_DEPRECATEDOFFSET + i].name;
+
+        if(UA_KeyValueMap_contains(params, *oldName)) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                           "The CertificateGroup parameter 0:%.*s is deprecated, "
+                           "use 0:%.*s instead",
+                           (int)oldName->name.length, oldName->name.data,
+                           (int)name->name.length, name->name.data);
+        }
+
+        /* The current name takes precedence if both are given */
+        const UA_UInt32 *value = (const UA_UInt32*)
+            UA_KeyValueMap_getScalar(params, *name, &UA_TYPES[UA_TYPES_UINT32]);
+        if(!value)
+            value = (const UA_UInt32*)
+                UA_KeyValueMap_getScalar(params, *oldName, &UA_TYPES[UA_TYPES_UINT32]);
+        if(value)
+            *targets[i] = *value;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
                                 UA_NodeId *certificateGroupId,
@@ -746,21 +791,9 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     context->maxRejectedListSize = 100;
 
     if(params) {
-        const UA_UInt32 *maxTrustListSize = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE].name,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-
-        const UA_UInt32 *maxRejectedListSize = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE].name,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-
-        if(maxTrustListSize) {
-            context->maxTrustListSize = *maxTrustListSize;
-        }
-
-        if(maxRejectedListSize) {
-            context->maxRejectedListSize = *maxRejectedListSize;
-        }
+        retval = MemoryCertStore_setParameters(context, logger, params);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
     }
 
     UA_TrustListDataType_add(trustList, &context->trustList);
@@ -1150,6 +1183,59 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Checks the public and the private components and that they form a key pair.
+ * For RSA, this includes n = p*q, the exponents and the CRT values. OpenSSL
+ * signs with the CRT values and recomputes a wrong result with d. So a
+ * signature test does not find a changed component. */
+#if defined(LIBRESSL_VERSION_NUMBER)
+/* LibreSSL has no EVP_PKEY_check. RSA_check_key checks the same RSA components.
+ * EC_KEY_check_key checks that the public point is d*G. LibreSSL decodes an
+ * Ed25519 or X25519 key from the private value only and calculates the public
+ * key from it. */
+static UA_Boolean
+openSSLCheckPrivateKey(EVP_PKEY *pkey) {
+    switch(EVP_PKEY_base_id(pkey)) {
+    case EVP_PKEY_RSA:
+    case EVP_PKEY_RSA_PSS: {
+        const RSA *rsa = EVP_PKEY_get0_RSA(pkey);
+        return rsa && RSA_check_key(rsa) == 1;
+    }
+    case EVP_PKEY_EC: {
+        const EC_KEY *ecKey = EVP_PKEY_get0_EC_KEY(pkey);
+        return ecKey && EC_KEY_check_key(ecKey) == 1;
+    }
+    case EVP_PKEY_ED25519:
+    case EVP_PKEY_X25519:
+        return true;
+    default:
+        return false;
+    }
+}
+#else
+static UA_Boolean
+openSSLCheckPrivateKey(EVP_PKEY *pkey) {
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    UA_Boolean valid = (ctx && EVP_PKEY_check(ctx) == 1);
+    EVP_PKEY_CTX_free(ctx);
+    return valid;
+}
+#endif
+
+UA_StatusCode
+UA_CertificateUtils_checkPrivateKey(const UA_ByteString *privateKey) {
+    if(privateKey == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    EVP_PKEY *pkey = UA_OpenSSL_LoadPrivateKey(privateKey);
+    if(!pkey)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    UA_StatusCode retval = openSSLCheckPrivateKey(pkey) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    EVP_PKEY_free(pkey);
+    return retval;
+}
+
 UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(certificate == NULL)
@@ -1165,12 +1251,61 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     return retval;
 }
 
+/* Return `true` if the certificate is self-signed and valid. `X509_self_signed`
+ * exists since OpenSSL 3.0,but LibreSSL and older OpenSSL versions only have
+ * `X509_check_issued` which cannot be used here. */
+static UA_Boolean
+openSSLIsSelfSigned(X509 *cert) {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+    return X509_self_signed(cert, 1) == 1;
+#else
+    if(X509_NAME_cmp(X509_get_subject_name(cert), X509_get_issuer_name(cert)) != 0)
+        return false;
+    EVP_PKEY *key = X509_get0_pubkey(cert);
+    return key && X509_verify(cert, key) == 1;
+#endif
+}
+
+UA_StatusCode
+UA_CertificateUtils_checkApplicationKeyUsage(const UA_ByteString *certificate) {
+    if(!certificate || (certificate->length > 0 && !certificate->data))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(certificate->length == 0)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(!cert)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
+    UA_StatusCode retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+    uint32_t flags = X509_get_extension_flags(cert);
+    EVP_PKEY *key = X509_get0_pubkey(cert);
+    if((flags & EXFLAG_INVALID) || !key)
+        goto cleanup;
+
+    /* The extension is required. Its critical flag is not evaluated. */
+    retval = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    if(!(flags & EXFLAG_KUSAGE))
+        goto cleanup;
+
+    /* RSA keys also encrypt. Self-signed certificates sign themselves. */
+    uint32_t required = KU_DIGITAL_SIGNATURE;
+    if(EVP_PKEY_base_id(key) == EVP_PKEY_RSA)
+        required |= KU_NON_REPUDIATION | KU_KEY_ENCIPHERMENT | KU_DATA_ENCIPHERMENT;
+    if(openSSLIsSelfSigned(cert))
+        required |= KU_KEY_CERT_SIGN;
+    if((X509_get_key_usage(cert) & required) == required)
+        retval = UA_STATUSCODE_GOOD;
+
+cleanup:
+    X509_free(cert);
+    return retval;
+}
+
 /* Checks for a certificate of a TrustList that are not part of the validation
  * of a SecureChannel. Application and CA certificates are X.509 v3 (Part 6,
- * 6.2.2). The KeyUsage of an application certificate includes
- * digitalSignature, and nonRepudiation, keyEncipherment and dataEncipherment
- * for RSA keys. The Certificate Usage error is suppressible, unless the
- * KeyUsage is critical (Part 4, 6.1.3). */
+ * 6.2.2). The KeyUsage is checked with
+ * UA_CertificateUtils_checkApplicationKeyUsage. */
 static UA_StatusCode
 openSSLCheckTrustListCertificate(const UA_ByteString *certificate) {
     X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
@@ -1178,25 +1313,8 @@ openSSLCheckTrustListCertificate(const UA_ByteString *certificate) {
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
     /* The version is zero-based */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(X509_get_version(cert) != 2) {
-        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
-        goto cleanup;
-    }
-
-    uint32_t flags = X509_get_extension_flags(cert);
-    if((flags & EXFLAG_CA) || !(flags & EXFLAG_KUSAGE))
-        goto cleanup;
-    uint32_t required = KU_DIGITAL_SIGNATURE;
-    EVP_PKEY *key = X509_get0_pubkey(cert);
-    if(key && EVP_PKEY_base_id(key) == EVP_PKEY_RSA)
-        required |= KU_NON_REPUDIATION | KU_KEY_ENCIPHERMENT | KU_DATA_ENCIPHERMENT;
-    const X509_EXTENSION *ext = X509_get_ext(cert, X509_get_ext_by_NID(cert, NID_key_usage, -1));
-    if((X509_get_key_usage(cert) & required) != required &&
-       ext && X509_EXTENSION_get_critical(ext))
-        retval = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
-
-cleanup:
+    UA_StatusCode retval = (X509_get_version(cert) == 2) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADCERTIFICATEINVALID;
     X509_free(cert);
     return retval;
 }
