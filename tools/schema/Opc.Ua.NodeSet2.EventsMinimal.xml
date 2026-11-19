@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!--
- * Copyright (c) 2005-2018 The OPC Foundation, Inc. All rights reserved.
+ * Copyright (c) 2005-2026, OPC Federation AISBL, All rights reserved.
  *
  * OPC Foundation MIT License 1.00
- *
+ * 
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
  * files (the "Software"), to deal in the Software without
@@ -12,7 +12,7 @@
  * copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following
  * conditions:
- *
+ * 
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
@@ -28,115 +28,17 @@
  * http://opcfoundation.org/License/MIT/1.00/
 -->
 
-<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2019-01-31T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" LastModified="2026-07-30T00:00:00Z">
   <Models>
-    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2019-01-31T00:00:00Z" />
+    <Model ModelUri="http://opcfoundation.org/UA/" XmlSchemaUri="http://opcfoundation.org/UA/2008/02/Types.xsd" Version="1.05.07" PublicationDate="2026-07-30T00:00:00Z" ModelVersion="1.5.7"/>
   </Models>
-  <UAObjectType NodeId="i=2041" BrowseName="BaseEventType" IsAbstract="true">
-    <DisplayName>BaseEventType</DisplayName>
-    <Description>The base type for all events.</Description>
-    <References>
-      <Reference ReferenceType="HasProperty">i=2042</Reference>
-      <Reference ReferenceType="HasProperty">i=2043</Reference>
-      <Reference ReferenceType="HasProperty">i=2044</Reference>
-      <Reference ReferenceType="HasProperty">i=2045</Reference>
-      <Reference ReferenceType="HasProperty">i=2046</Reference>
-      <Reference ReferenceType="HasProperty">i=2047</Reference>
-      <Reference ReferenceType="HasProperty">i=3190</Reference>
-      <Reference ReferenceType="HasProperty">i=2050</Reference>
-      <Reference ReferenceType="HasProperty">i=2051</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
-    </References>
-  </UAObjectType>
-  <UAVariable NodeId="i=2042" BrowseName="EventId" ParentNodeId="i=2041" DataType="ByteString">
-    <DisplayName>EventId</DisplayName>
-    <Description>A globally unique identifier for the event.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2043" BrowseName="EventType" ParentNodeId="i=2041" DataType="NodeId">
-    <DisplayName>EventType</DisplayName>
-    <Description>The identifier for the event type.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2044" BrowseName="SourceNode" ParentNodeId="i=2041" DataType="NodeId">
-    <DisplayName>SourceNode</DisplayName>
-    <Description>The source of the event.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2045" BrowseName="SourceName" ParentNodeId="i=2041" DataType="String">
-    <DisplayName>SourceName</DisplayName>
-    <Description>A description of the source of the event.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2046" BrowseName="Time" ParentNodeId="i=2041" DataType="i=294">
-    <DisplayName>Time</DisplayName>
-    <Description>When the event occurred.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2047" BrowseName="ReceiveTime" ParentNodeId="i=2041" DataType="i=294">
-    <DisplayName>ReceiveTime</DisplayName>
-    <Description>When the server received the event from the underlying system.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=3190" BrowseName="LocalTime" ParentNodeId="i=2041" DataType="i=8912">
-    <DisplayName>LocalTime</DisplayName>
-    <Description>Information about the local time where the event originated.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=80</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2050" BrowseName="Message" ParentNodeId="i=2041" DataType="LocalizedText">
-    <DisplayName>Message</DisplayName>
-    <Description>A localized description of the event.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2051" BrowseName="Severity" ParentNodeId="i=2041" DataType="UInt16">
-    <DisplayName>Severity</DisplayName>
-    <Description>Indicates how urgent an event is.</Description>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
-    </References>
-  </UAVariable>
-  <UAObjectType NodeId="i=3035" BrowseName="EventQueueOverflowEventType" IsAbstract="true">
-    <DisplayName>EventQueueOverflowEventType</DisplayName>
-    <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
-    </References>
-  </UAObjectType>
+  <Aliases>
+    <Alias Alias="AlwaysGeneratesEvent">i=3065</Alias>
+  </Aliases>
   <UADataType NodeId="i=8912" BrowseName="TimeZoneDataType">
     <DisplayName>TimeZoneDataType</DisplayName>
+    <Category>Base Info LocalTime</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part3/8.28</Documentation>
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
     </References>
@@ -153,116 +55,117 @@
       <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
     </References>
     <Definition Name="ModelChangeStructureDataType">
-      <Field Name="Affected" DataType="i=17" />
-      <Field Name="AffectedType" DataType="i=17" />
-      <Field Name="Verb" DataType="i=3" />
+      <Field Name="Affected" DataType="i=17"/>
+      <Field Name="AffectedType" DataType="i=17"/>
+      <Field Name="Verb" DataType="i=3"/>
     </Definition>
   </UADataType>
-  <UAObjectType NodeId="i=2132" BrowseName="BaseModelChangeEventType" IsAbstract="true">
-    <DisplayName>BaseModelChangeEventType</DisplayName>
-    <Category>Base Info Model Change</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.31</Documentation>
+  <UAVariableType NodeId="i=2755" BrowseName="StateVariableType" DataType="LocalizedText">
+    <DisplayName>StateVariableType</DisplayName>
+    <Category>Base Info State Machine Instance</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part16/4.4.3</Documentation>
     <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+      <Reference ReferenceType="HasProperty">i=2756</Reference>
+      <Reference ReferenceType="HasProperty">i=2757</Reference>
+      <Reference ReferenceType="HasProperty">i=2758</Reference>
+      <Reference ReferenceType="HasProperty">i=2759</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
     </References>
-  </UAObjectType>
-  <UAObjectType NodeId="i=2133" BrowseName="GeneralModelChangeEventType" IsAbstract="true">
-    <DisplayName>GeneralModelChangeEventType</DisplayName>
-    <Category>Base Info Model Change General</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.32</Documentation>
+  </UAVariableType>
+  <UAVariableType NodeId="i=8995" BrowseName="TwoStateVariableType" DataType="LocalizedText">
+    <DisplayName>TwoStateVariableType</DisplayName>
+    <Category>A &amp; C Basic</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.2</Documentation>
     <References>
-      <Reference ReferenceType="HasProperty">i=2134</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2132</Reference>
+      <Reference ReferenceType="HasProperty">i=8996</Reference>
+      <Reference ReferenceType="HasProperty">i=9000</Reference>
+      <Reference ReferenceType="HasProperty">i=9001</Reference>
+      <Reference ReferenceType="HasProperty">i=11110</Reference>
+      <Reference ReferenceType="HasProperty">i=11111</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2755</Reference>
     </References>
-  </UAObjectType>
-  <UAVariable NodeId="i=2134" BrowseName="Changes" ParentNodeId="i=2133" DataType="i=877" ValueRank="1" ArrayDimensions="0">
-    <DisplayName>Changes</DisplayName>
+  </UAVariableType>
+  <UAVariableType NodeId="i=9002" BrowseName="ConditionVariableType" ValueRank="-2">
+    <DisplayName>ConditionVariableType</DisplayName>
+    <Category>A &amp; C Basic</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.3</Documentation>
     <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2133</Reference>
+      <Reference ReferenceType="HasProperty">i=9003</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
     </References>
-  </UAVariable>
-  <UAObjectType NodeId="i=2130" BrowseName="SystemEventType" IsAbstract="true">
-    <DisplayName>SystemEventType</DisplayName>
-    <Category>Base Info Device Failure</Category>
-    <Category>Base Info System Status Underlying System</Category>
-    <Category>Base Info System Status</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.28</Documentation>
-    <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
-    </References>
-  </UAObjectType>
-  <UAObjectType NodeId="i=2788" BrowseName="RefreshEndEventType" IsAbstract="true">
-    <DisplayName>RefreshEndEventType</DisplayName>
-    <Category>A &amp; C Refresh</Category>
-    <Category>A &amp; C Refresh2</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.11.3</Documentation>
-    <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2130</Reference>
-    </References>
-  </UAObjectType>
-  <UAObjectType NodeId="i=2787" BrowseName="RefreshStartEventType" IsAbstract="true">
-    <DisplayName>RefreshStartEventType</DisplayName>
-    <Category>A &amp; C Refresh</Category>
-    <Category>A &amp; C Refresh2</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.11.2</Documentation>
-    <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2130</Reference>
-    </References>
-  </UAObjectType>
-  <UAObjectType NodeId="i=2829" BrowseName="AuditConditionCommentEventType">
-    <DisplayName>AuditConditionCommentEventType</DisplayName>
-    <Category>A &amp; C Auditing</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.10.4</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=17222</Reference>
-      <Reference ReferenceType="HasProperty">i=11851</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2790</Reference>
-    </References>
-  </UAObjectType>
-  <UAVariable NodeId="i=17222" BrowseName="ConditionEventId" ParentNodeId="i=2829" DataType="ByteString">
-    <DisplayName>ConditionEventId</DisplayName>
+  </UAVariableType>
+  <UAVariable NodeId="i=2042" BrowseName="EventId" ParentNodeId="i=2041" DataType="ByteString">
+    <DisplayName>EventId</DisplayName>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2829</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
     </References>
   </UAVariable>
-  <UAVariable NodeId="i=11851" BrowseName="Comment" ParentNodeId="i=2829" DataType="LocalizedText">
-    <DisplayName>Comment</DisplayName>
+  <UAVariable NodeId="i=2043" BrowseName="EventType" ParentNodeId="i=2041" DataType="NodeId">
+    <DisplayName>EventType</DisplayName>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=2829</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
     </References>
   </UAVariable>
-  <UAReferenceType NodeId="i=3065" BrowseName="AlwaysGeneratesEvent">
-    <DisplayName>AlwaysGeneratesEvent</DisplayName>
-    <Category>Address Space Events 2</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/11.17</Documentation>
+  <UAVariable NodeId="i=2044" BrowseName="SourceNode" ParentNodeId="i=2041" DataType="NodeId">
+    <DisplayName>SourceNode</DisplayName>
     <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=41</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
     </References>
-    <InverseName>AlwaysGeneratedBy</InverseName>
-  </UAReferenceType>
-  <UAObjectType NodeId="i=2052" BrowseName="AuditEventType" IsAbstract="true">
-    <DisplayName>AuditEventType</DisplayName>
-    <Category>Auditing Connections</Category>
-    <Category>Auditing NodeManagement</Category>
-    <Category>Auditing History Services</Category>
-    <Category>Auditing Write</Category>
-    <Category>Auditing Method</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.3</Documentation>
+  </UAVariable>
+  <UAVariable NodeId="i=2045" BrowseName="SourceName" ParentNodeId="i=2041" DataType="String">
+    <DisplayName>SourceName</DisplayName>
     <References>
-      <Reference ReferenceType="HasProperty">i=2053</Reference>
-      <Reference ReferenceType="HasProperty">i=2054</Reference>
-      <Reference ReferenceType="HasProperty">i=2055</Reference>
-      <Reference ReferenceType="HasProperty">i=2056</Reference>
-      <Reference ReferenceType="HasProperty">i=2057</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
     </References>
-  </UAObjectType>
+  </UAVariable>
+  <UAVariable NodeId="i=2046" BrowseName="Time" ParentNodeId="i=2041" DataType="i=294">
+    <DisplayName>Time</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2047" BrowseName="ReceiveTime" ParentNodeId="i=2041" DataType="i=294">
+    <DisplayName>ReceiveTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3190" BrowseName="LocalTime" ParentNodeId="i=2041" DataType="i=8912">
+    <DisplayName>LocalTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2050" BrowseName="Message" ParentNodeId="i=2041" DataType="LocalizedText">
+    <DisplayName>Message</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2051" BrowseName="Severity" ParentNodeId="i=2041" DataType="UInt16">
+    <DisplayName>Severity</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
   <UAVariable NodeId="i=2053" BrowseName="ActionTimeStamp" ParentNodeId="i=2052" DataType="i=294">
     <DisplayName>ActionTimeStamp</DisplayName>
     <References>
@@ -303,16 +206,6 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=2052</Reference>
     </References>
   </UAVariable>
-  <UAObjectType NodeId="i=2127" BrowseName="AuditUpdateMethodEventType" IsAbstract="true">
-    <DisplayName>AuditUpdateMethodEventType</DisplayName>
-    <Category>Auditing Method</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.27</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=2128</Reference>
-      <Reference ReferenceType="HasProperty">i=2129</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2052</Reference>
-    </References>
-  </UAObjectType>
   <UAVariable NodeId="i=2128" BrowseName="MethodId" ParentNodeId="i=2127" DataType="NodeId">
     <DisplayName>MethodId</DisplayName>
     <References>
@@ -329,51 +222,14 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=2127</Reference>
     </References>
   </UAVariable>
-  <UAObjectType NodeId="i=2790" BrowseName="AuditConditionEventType">
-    <DisplayName>AuditConditionEventType</DisplayName>
-    <Category>A &amp; C Auditing</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.10.2</Documentation>
-    <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2127</Reference>
-    </References>
-  </UAObjectType>
-  <UAObjectType NodeId="i=2803" BrowseName="AuditConditionEnableEventType">
-    <DisplayName>AuditConditionEnableEventType</DisplayName>
-    <Category>A &amp; C Auditing</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.10.3</Documentation>
-    <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2790</Reference>
-    </References>
-  </UAObjectType>
-  <UAVariableType NodeId="i=9002" BrowseName="ConditionVariableType" ValueRank="-2">
-    <DisplayName>ConditionVariableType</DisplayName>
-    <Category>A &amp; C Basic</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.3</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=9003</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
-    </References>
-  </UAVariableType>
-  <UAVariable NodeId="i=9003" BrowseName="SourceTimestamp" ParentNodeId="i=9002" DataType="i=294">
-    <DisplayName>SourceTimestamp</DisplayName>
+  <UAVariable NodeId="i=2134" BrowseName="Changes" ParentNodeId="i=2133" DataType="i=877" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>Changes</DisplayName>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=9002</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2133</Reference>
     </References>
   </UAVariable>
-  <UAVariableType NodeId="i=2755" BrowseName="StateVariableType" DataType="LocalizedText">
-    <DisplayName>StateVariableType</DisplayName>
-    <Category>Base Info State Machine Instance</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part16/4.4.3</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=2756</Reference>
-      <Reference ReferenceType="HasProperty">i=2757</Reference>
-      <Reference ReferenceType="HasProperty">i=2758</Reference>
-      <Reference ReferenceType="HasProperty">i=2759</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
-    </References>
-  </UAVariableType>
   <UAVariable NodeId="i=2756" BrowseName="Id" ParentNodeId="i=2755">
     <DisplayName>Id</DisplayName>
     <References>
@@ -406,19 +262,6 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=2755</Reference>
     </References>
   </UAVariable>
-  <UAVariableType NodeId="i=8995" BrowseName="TwoStateVariableType" DataType="LocalizedText">
-    <DisplayName>TwoStateVariableType</DisplayName>
-    <Category>A &amp; C Basic</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.2</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=8996</Reference>
-      <Reference ReferenceType="HasProperty">i=9000</Reference>
-      <Reference ReferenceType="HasProperty">i=9001</Reference>
-      <Reference ReferenceType="HasProperty">i=11110</Reference>
-      <Reference ReferenceType="HasProperty">i=11111</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2755</Reference>
-    </References>
-  </UAVariableType>
   <UAVariable NodeId="i=8996" BrowseName="Id" ParentNodeId="i=8995" DataType="Boolean">
     <DisplayName>Id</DisplayName>
     <References>
@@ -459,30 +302,14 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=8995</Reference>
     </References>
   </UAVariable>
-  <UAObjectType NodeId="i=2782" BrowseName="ConditionType" IsAbstract="true">
-    <DisplayName>ConditionType</DisplayName>
-    <Category>A &amp; C Basic</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.2</Documentation>
+  <UAVariable NodeId="i=9003" BrowseName="SourceTimestamp" ParentNodeId="i=9002" DataType="i=294">
+    <DisplayName>SourceTimestamp</DisplayName>
     <References>
-      <Reference ReferenceType="HasProperty">i=11112</Reference>
-      <Reference ReferenceType="HasProperty">i=11113</Reference>
-      <Reference ReferenceType="HasProperty">i=9009</Reference>
-      <Reference ReferenceType="HasProperty">i=9010</Reference>
-      <Reference ReferenceType="HasProperty">i=3874</Reference>
-      <Reference ReferenceType="HasProperty">i=32060</Reference>
-      <Reference ReferenceType="HasComponent">i=9011</Reference>
-      <Reference ReferenceType="HasComponent">i=9020</Reference>
-      <Reference ReferenceType="HasComponent">i=9022</Reference>
-      <Reference ReferenceType="HasComponent">i=9024</Reference>
-      <Reference ReferenceType="HasProperty">i=9026</Reference>
-      <Reference ReferenceType="HasComponent">i=9028</Reference>
-      <Reference ReferenceType="HasComponent">i=9027</Reference>
-      <Reference ReferenceType="HasComponent">i=9029</Reference>
-      <Reference ReferenceType="HasComponent">i=3875</Reference>
-      <Reference ReferenceType="HasComponent">i=12912</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=9002</Reference>
     </References>
-  </UAObjectType>
+  </UAVariable>
   <UAVariable NodeId="i=11112" BrowseName="ConditionClassId" ParentNodeId="i=2782" DataType="NodeId">
     <DisplayName>ConditionClassId</DisplayName>
     <References>
@@ -661,37 +488,6 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=2782</Reference>
     </References>
   </UAVariable>
-  <UAMethod NodeId="i=9028" BrowseName="Disable" ParentNodeId="i=2782">
-    <DisplayName>Disable</DisplayName>
-    <Category>A &amp; C Enable</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.4</Documentation>
-    <References>
-      <Reference ReferenceType="i=3065">i=2803</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
-    </References>
-  </UAMethod>
-  <UAMethod NodeId="i=9027" BrowseName="Enable" ParentNodeId="i=2782">
-    <DisplayName>Enable</DisplayName>
-    <Category>A &amp; C Enable</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.5</Documentation>
-    <References>
-      <Reference ReferenceType="i=3065">i=2803</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
-    </References>
-  </UAMethod>
-  <UAMethod NodeId="i=9029" BrowseName="AddComment" ParentNodeId="i=2782">
-    <DisplayName>AddComment</DisplayName>
-    <Category>A &amp; C Comment</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.6</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=9030</Reference>
-      <Reference ReferenceType="i=3065">i=2829</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
-    </References>
-  </UAMethod>
   <UAVariable NodeId="i=9030" BrowseName="InputArguments" ParentNodeId="i=9029" DataType="i=296" ValueRank="1" ArrayDimensions="2">
     <DisplayName>InputArguments</DisplayName>
     <References>
@@ -712,7 +508,7 @@
                 <Identifier>i=15</Identifier>
               </DataType>
               <ValueRank>-1</ValueRank>
-              <ArrayDimensions />
+              <ArrayDimensions/>
               <Description>
                 <Text>The identifier for the event to comment.</Text>
               </Description>
@@ -730,7 +526,7 @@
                 <Identifier>i=21</Identifier>
               </DataType>
               <ValueRank>-1</ValueRank>
-              <ArrayDimensions />
+              <ArrayDimensions/>
               <Description>
                 <Text>The comment to add to the condition.</Text>
               </Description>
@@ -740,17 +536,6 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
-  <UAMethod NodeId="i=3875" BrowseName="ConditionRefresh" ParentNodeId="i=2782">
-    <DisplayName>ConditionRefresh</DisplayName>
-    <Category>A &amp; C Refresh</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.7</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=3876</Reference>
-      <Reference ReferenceType="i=3065">i=2787</Reference>
-      <Reference ReferenceType="i=3065">i=2788</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
-    </References>
-  </UAMethod>
   <UAVariable NodeId="i=3876" BrowseName="InputArguments" ParentNodeId="i=3875" DataType="i=296" ValueRank="1" ArrayDimensions="1">
     <DisplayName>InputArguments</DisplayName>
     <References>
@@ -771,7 +556,7 @@
                 <Identifier>i=288</Identifier>
               </DataType>
               <ValueRank>-1</ValueRank>
-              <ArrayDimensions />
+              <ArrayDimensions/>
               <Description>
                 <Text>The identifier for the subscription to refresh.</Text>
               </Description>
@@ -781,17 +566,6 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
-  <UAMethod NodeId="i=12912" BrowseName="ConditionRefresh2" ParentNodeId="i=2782">
-    <DisplayName>ConditionRefresh2</DisplayName>
-    <Category>A &amp; C Refresh2</Category>
-    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.8</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=12913</Reference>
-      <Reference ReferenceType="i=3065">i=2787</Reference>
-      <Reference ReferenceType="i=3065">i=2788</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
-    </References>
-  </UAMethod>
   <UAVariable NodeId="i=12913" BrowseName="InputArguments" ParentNodeId="i=12912" DataType="i=296" ValueRank="1" ArrayDimensions="2">
     <DisplayName>InputArguments</DisplayName>
     <References>
@@ -812,7 +586,7 @@
                 <Identifier>i=288</Identifier>
               </DataType>
               <ValueRank>-1</ValueRank>
-              <ArrayDimensions />
+              <ArrayDimensions/>
               <Description>
                 <Text>The identifier for the subscription to refresh.</Text>
               </Description>
@@ -830,7 +604,7 @@
                 <Identifier>i=288</Identifier>
               </DataType>
               <ValueRank>-1</ValueRank>
-              <ArrayDimensions />
+              <ArrayDimensions/>
               <Description>
                 <Text>The identifier for the monitored item to refresh.</Text>
               </Description>
@@ -840,4 +614,250 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
+  <UAVariable NodeId="i=17222" BrowseName="ConditionEventId" ParentNodeId="i=2829" DataType="ByteString">
+    <DisplayName>ConditionEventId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2829</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11851" BrowseName="Comment" ParentNodeId="i=2829" DataType="LocalizedText">
+    <DisplayName>Comment</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2829</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=2041" BrowseName="BaseEventType" IsAbstract="true">
+    <DisplayName>BaseEventType</DisplayName>
+    <Category>Address Space Events</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=2042</Reference>
+      <Reference ReferenceType="HasProperty">i=2043</Reference>
+      <Reference ReferenceType="HasProperty">i=2044</Reference>
+      <Reference ReferenceType="HasProperty">i=2045</Reference>
+      <Reference ReferenceType="HasProperty">i=2046</Reference>
+      <Reference ReferenceType="HasProperty">i=2047</Reference>
+      <Reference ReferenceType="HasProperty">i=3190</Reference>
+      <Reference ReferenceType="HasProperty">i=2050</Reference>
+      <Reference ReferenceType="HasProperty">i=2051</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2052" BrowseName="AuditEventType" IsAbstract="true">
+    <DisplayName>AuditEventType</DisplayName>
+    <Category>Auditing Connections</Category>
+    <Category>Auditing NodeManagement</Category>
+    <Category>Auditing History Services</Category>
+    <Category>Auditing Write</Category>
+    <Category>Auditing Method</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=2053</Reference>
+      <Reference ReferenceType="HasProperty">i=2054</Reference>
+      <Reference ReferenceType="HasProperty">i=2055</Reference>
+      <Reference ReferenceType="HasProperty">i=2056</Reference>
+      <Reference ReferenceType="HasProperty">i=2057</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+    </References>
+    <RolePermissions>
+      <RolePermission Permissions="33">i=15644</RolePermission>
+      <RolePermission Permissions="65535">i=15704</RolePermission>
+    </RolePermissions>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2127" BrowseName="AuditUpdateMethodEventType" IsAbstract="true">
+    <DisplayName>AuditUpdateMethodEventType</DisplayName>
+    <Category>Auditing Method</Category>
+    <Category>Auditing Method Output</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.27</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=2128</Reference>
+      <Reference ReferenceType="HasProperty">i=2129</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2052</Reference>
+    </References>
+    <RolePermissions>
+      <RolePermission Permissions="33">i=15644</RolePermission>
+      <RolePermission Permissions="65535">i=15704</RolePermission>
+    </RolePermissions>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2130" BrowseName="SystemEventType" IsAbstract="true">
+    <DisplayName>SystemEventType</DisplayName>
+    <Category>Base Info Device Failure</Category>
+    <Category>Base Info System Status Underlying System</Category>
+    <Category>Base Info System Status</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.28</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2132" BrowseName="BaseModelChangeEventType" IsAbstract="true">
+    <DisplayName>BaseModelChangeEventType</DisplayName>
+    <Category>Base Info Model Change</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.31</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2133" BrowseName="GeneralModelChangeEventType" IsAbstract="true">
+    <DisplayName>GeneralModelChangeEventType</DisplayName>
+    <Category>Base Info Model Change General</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.32</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=2134</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2132</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=3035" BrowseName="EventQueueOverflowEventType" IsAbstract="true">
+    <DisplayName>EventQueueOverflowEventType</DisplayName>
+    <Category>Base Info EventQueueOverflow EventType</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/6.4.34</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2782" BrowseName="ConditionType" IsAbstract="true">
+    <DisplayName>ConditionType</DisplayName>
+    <Category>A &amp; C Basic</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=11112</Reference>
+      <Reference ReferenceType="HasProperty">i=11113</Reference>
+      <Reference ReferenceType="HasProperty">i=9009</Reference>
+      <Reference ReferenceType="HasProperty">i=9010</Reference>
+      <Reference ReferenceType="HasProperty">i=3874</Reference>
+      <Reference ReferenceType="HasProperty">i=32060</Reference>
+      <Reference ReferenceType="HasComponent">i=9011</Reference>
+      <Reference ReferenceType="HasComponent">i=9020</Reference>
+      <Reference ReferenceType="HasComponent">i=9022</Reference>
+      <Reference ReferenceType="HasComponent">i=9024</Reference>
+      <Reference ReferenceType="HasProperty">i=9026</Reference>
+      <Reference ReferenceType="HasComponent">i=9028</Reference>
+      <Reference ReferenceType="HasComponent">i=9027</Reference>
+      <Reference ReferenceType="HasComponent">i=9029</Reference>
+      <Reference ReferenceType="HasComponent">i=3875</Reference>
+      <Reference ReferenceType="HasComponent">i=12912</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2790" BrowseName="AuditConditionEventType">
+    <DisplayName>AuditConditionEventType</DisplayName>
+    <Category>A &amp; C Auditing</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.10.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2127</Reference>
+    </References>
+    <RolePermissions>
+      <RolePermission Permissions="33">i=15644</RolePermission>
+      <RolePermission Permissions="65535">i=15704</RolePermission>
+    </RolePermissions>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2803" BrowseName="AuditConditionEnableEventType">
+    <DisplayName>AuditConditionEnableEventType</DisplayName>
+    <Category>A &amp; C Auditing</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.10.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2790</Reference>
+    </References>
+    <RolePermissions>
+      <RolePermission Permissions="33">i=15644</RolePermission>
+      <RolePermission Permissions="65535">i=15704</RolePermission>
+    </RolePermissions>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2829" BrowseName="AuditConditionCommentEventType">
+    <DisplayName>AuditConditionCommentEventType</DisplayName>
+    <Category>A &amp; C Auditing</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.10.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=17222</Reference>
+      <Reference ReferenceType="HasProperty">i=11851</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2790</Reference>
+    </References>
+    <RolePermissions>
+      <RolePermission Permissions="33">i=15644</RolePermission>
+      <RolePermission Permissions="65535">i=15704</RolePermission>
+    </RolePermissions>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2787" BrowseName="RefreshStartEventType" IsAbstract="true">
+    <DisplayName>RefreshStartEventType</DisplayName>
+    <Category>A &amp; C Refresh</Category>
+    <Category>A &amp; C Refresh2</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.11.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2130</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=2788" BrowseName="RefreshEndEventType" IsAbstract="true">
+    <DisplayName>RefreshEndEventType</DisplayName>
+    <Category>A &amp; C Refresh</Category>
+    <Category>A &amp; C Refresh2</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.11.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2130</Reference>
+    </References>
+  </UAObjectType>
+  <UAReferenceType NodeId="i=3065" BrowseName="AlwaysGeneratesEvent">
+    <DisplayName>AlwaysGeneratesEvent</DisplayName>
+    <Category>Address Space Events 2</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part3/7.16</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=41</Reference>
+    </References>
+    <InverseName>AlwaysGeneratedBy</InverseName>
+  </UAReferenceType>
+  <UAMethod NodeId="i=9028" BrowseName="Disable" ParentNodeId="i=2782">
+    <DisplayName>Disable</DisplayName>
+    <Category>A &amp; C Enable</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.4</Documentation>
+    <References>
+      <Reference ReferenceType="AlwaysGeneratesEvent">i=2803</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
+    </References>
+  </UAMethod>
+  <UAMethod NodeId="i=9027" BrowseName="Enable" ParentNodeId="i=2782">
+    <DisplayName>Enable</DisplayName>
+    <Category>A &amp; C Enable</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.5</Documentation>
+    <References>
+      <Reference ReferenceType="AlwaysGeneratesEvent">i=2803</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
+    </References>
+  </UAMethod>
+  <UAMethod NodeId="i=9029" BrowseName="AddComment" ParentNodeId="i=2782">
+    <DisplayName>AddComment</DisplayName>
+    <Category>A &amp; C Comment</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.6</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=9030</Reference>
+      <Reference ReferenceType="AlwaysGeneratesEvent">i=2829</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
+    </References>
+  </UAMethod>
+  <UAMethod NodeId="i=3875" BrowseName="ConditionRefresh" ParentNodeId="i=2782">
+    <DisplayName>ConditionRefresh</DisplayName>
+    <Category>A &amp; C Refresh</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.7</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=3876</Reference>
+      <Reference ReferenceType="AlwaysGeneratesEvent">i=2787</Reference>
+      <Reference ReferenceType="AlwaysGeneratesEvent">i=2788</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
+    </References>
+  </UAMethod>
+  <UAMethod NodeId="i=12912" BrowseName="ConditionRefresh2" ParentNodeId="i=2782">
+    <DisplayName>ConditionRefresh2</DisplayName>
+    <Category>A &amp; C Refresh2</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part9/5.5.8</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=12913</Reference>
+      <Reference ReferenceType="AlwaysGeneratesEvent">i=2787</Reference>
+      <Reference ReferenceType="AlwaysGeneratesEvent">i=2788</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2782</Reference>
+    </References>
+  </UAMethod>
 </UANodeSet>
