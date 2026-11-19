@@ -849,22 +849,27 @@ START_TEST(UA_Double_pluszero_json_encode) {
 }
 END_TEST
 
+static void
+checkMinusZeroJson(const void *src, void *decoded, const UA_DataType *type) {
+    UA_ByteString expected = UA_BYTESTRING("-0.0");
+    UA_ByteString json = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_calcSizeJson(src, type, NULL), expected.length);
+    ck_assert_uint_eq(UA_encodeJson(src, type, &json, NULL), UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&json, &expected));
+    ck_assert_uint_eq(UA_decodeJson(&json, decoded, type, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(memcmp(src, decoded, type->memSize), 0);
+    UA_ByteString_clear(&json);
+}
+
 START_TEST(UA_Double_minuszero_json_encode) {
-    UA_Double src = -0;
-    const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJson((void *) &src, type, NULL);
+    UA_Double src = -0.0, decoded = 0.0;
+    checkMinusZeroJson(&src, &decoded, &UA_TYPES[UA_TYPES_DOUBLE]);
+}
+END_TEST
 
-    UA_ByteString buf;
-    UA_ByteString_allocBuffer(&buf, size+1);
-
-    status s = UA_encodeJson(&src, type, &buf, NULL);
-    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-
-    // then
-    char* result = "0.0";
-    buf.data[size] = 0; /* zero terminate */
-    ck_assert_str_eq(result, (char*)buf.data);
-    UA_ByteString_clear(&buf);
+START_TEST(UA_Float_minuszero_json_encode) {
+    UA_Float src = -0.0f, decoded = 0.0f;
+    checkMinusZeroJson(&src, &decoded, &UA_TYPES[UA_TYPES_FLOAT]);
 }
 END_TEST
 
@@ -5490,6 +5495,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_encode, UA_Double_onesmallest_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_pluszero_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_minuszero_json_encode);
+    tcase_add_test(tc_json_encode, UA_Float_minuszero_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_plusInf_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_minusInf_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_nan_json_encode);
