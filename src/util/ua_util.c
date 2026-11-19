@@ -845,15 +845,16 @@ lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId) 
             UA_Server_readBrowseName(server, results[i].nodeId, &bn);
             if(UA_QualifiedName_equal(qn, &bn)) {
                 UA_QualifiedName_clear(&bn);
-                *outRefTypeId = results[i].nodeId;
-                UA_NodeId_clear(&results[i].nodeId);
-                UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_NODEID]);
-                return UA_STATUSCODE_GOOD;
+                res = UA_NodeId_copy(&results[i].nodeId, outRefTypeId);
+                UA_Array_delete(results, resultsSize,
+                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+                return res;
             }
             UA_QualifiedName_clear(&bn);
         }
 
-        UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Array_delete(results, resultsSize,
+                        &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     }
 
     return UA_STATUSCODE_BADNOTFOUND;
