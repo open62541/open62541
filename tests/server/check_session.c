@@ -12,6 +12,10 @@
 #include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
 #include "test_helpers.h"
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "testing_networklayers.h"
+#include "ua_types_encoding.h"
+#endif
 
 #include <check.h>
 #include <stdlib.h>
@@ -1083,6 +1087,131 @@ START_TEST(Session_closeSession_secureChannel_mismatch) {
     UA_Client_delete(other);
 } END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+START_TEST(Session_closeCompletesHeldPublish) {
+    UA_Server *testServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(testServer);
+    UA_ServerConfig *config = UA_Server_getConfig(testServer);
+    config->tcpEnabled = false;
+    config->webSocketEnabled = false;
+    config->httpEnabled = false;
+    ck_assert_uint_eq(UA_Server_run_startup(testServer), UA_STATUSCODE_GOOD);
+    UA_DateTime now = config->eventLoop->dateTime_nowMonotonic(config->eventLoop);
+
+    /* A local pair allows decoding the actual response without opening a
+     * socket or applying the receiving client's Session cleanup policy. */
+    UA_ConnectionManager *transport = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_nonnull(transport);
+    UA_SecureChannel channels[2];
+    for(size_t i = 0; i < 2; ++i) {
+        UA_SecureChannel *channel = &channels[i];
+        UA_SecureChannel_init(channel);
+        channel->state = UA_SECURECHANNELSTATE_OPEN;
+        channel->securityMode = UA_MESSAGESECURITYMODE_NONE;
+        channel->config.sendBufferSize = channel->config.recvBufferSize = 8192;
+        channel->securityToken.channelId = 1;
+        channel->securityToken.tokenId = 1;
+        channel->securityToken.createdAt = now;
+        channel->securityToken.revisedLifetime = 60000;
+        ck_assert_uint_eq(UA_SecureChannel_setSecurityPolicy(
+            channel, &config->securityPolicies[0], &UA_BYTESTRING_NULL),
+            UA_STATUSCODE_GOOD);
+    }
+    UA_SecureChannel *serverChannel = &channels[0];
+    UA_SecureChannel *receiver = &channels[1];
+    serverChannel->connectionManager = transport;
+    serverChannel->connectionId = 1;
+
+    lockServer(testServer);
+    UA_CreateSessionRequest createSession;
+    UA_CreateSessionRequest_init(&createSession);
+    createSession.requestedSessionTimeout = 60000;
+    UA_Session *session = NULL;
+    ck_assert_uint_eq(UA_Session_create(testServer, serverChannel, &createSession, &session),
+                      UA_STATUSCODE_GOOD);
+    UA_ActivateSessionRequest activate;
+    UA_ActivateSessionRequest_init(&activate);
+    activate.requestHeader.authenticationToken = session->authenticationToken;
+    UA_ActivateSessionResponse activated;
+    UA_ActivateSessionResponse_init(&activated);
+    Service_ActivateSession(testServer, serverChannel, &activate, &activated);
+    ck_assert_uint_eq(activated.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ActivateSessionResponse_clear(&activated);
+
+    UA_CreateSubscriptionRequest subscription;
+    UA_CreateSubscriptionRequest_init(&subscription);
+    subscription.requestedPublishingInterval = 100;
+    subscription.requestedLifetimeCount = 30;
+    subscription.requestedMaxKeepAliveCount = 3;
+    subscription.publishingEnabled = true;
+    UA_CreateSubscriptionResponse created;
+    UA_CreateSubscriptionResponse_init(&created);
+    ck_assert(Service_CreateSubscription(testServer, session, &subscription, &created));
+    ck_assert_uint_eq(created.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_CreateSubscriptionResponse_clear(&created);
+
+    const UA_UInt32 requestId = 10;
+    const UA_UInt32 requestHandle = 11;
+    UA_PublishRequest publish;
+    UA_PublishRequest_init(&publish);
+    publish.requestHeader.requestHandle = requestHandle;
+    UA_PublishResponse queued;
+    UA_PublishResponse_init(&queued);
+    testServer->asyncManager.currentResponseToken = requestId;
+    ck_assert(!Service_Publish(testServer, session, &publish, &queued));
+    ck_assert_uint_eq(session->responseQueueSize, 1);
+    UA_PublishResponse_clear(&queued);
+
+    UA_CloseSessionRequest close;
+    UA_CloseSessionRequest_init(&close);
+    close.deleteSubscriptions = (UA_Boolean)_i;
+    close.requestHeader.authenticationToken = session->authenticationToken;
+    UA_CloseSessionResponse closed;
+    UA_CloseSessionResponse_init(&closed);
+    Service_CloseSession(testServer, serverChannel, &close, &closed);
+    unlockServer(testServer);
+    ck_assert_uint_eq(closed.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_CloseSessionResponse_clear(&closed);
+
+    /* Also observe any reply sent by the deferred Session cleanup. */
+    UA_Server_run_iterate(testServer, false);
+    const UA_ByteString *wire = TestConnectionManager_getLastSent(transport);
+    ck_assert_uint_gt(wire->length, 0);
+    ck_assert_uint_eq(UA_SecureChannel_loadBuffer(receiver, *wire), UA_STATUSCODE_GOOD);
+    UA_MessageType messageType;
+    UA_UInt32 echoedRequestId;
+    UA_ByteString payload = UA_BYTESTRING_NULL;
+    UA_Boolean copied = false;
+    ck_assert_uint_eq(UA_SecureChannel_getCompleteMessage(receiver, &messageType,
+        &echoedRequestId, &payload, &copied, now), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(messageType, UA_MESSAGETYPE_MSG);
+    ck_assert_uint_eq(echoedRequestId, requestId);
+
+    size_t offset = 0;
+    UA_NodeId responseType;
+    ck_assert_uint_eq(UA_NodeId_decodeBinary(&payload, &offset, &responseType),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&responseType, &UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId));
+    UA_NodeId_clear(&responseType);
+    UA_ServiceFault fault;
+    ck_assert_uint_eq(UA_decodeBinaryInternal(&payload, &offset, &fault,
+                      &UA_TYPES[UA_TYPES_SERVICEFAULT], NULL), UA_STATUSCODE_GOOD);
+    UA_StatusCode status = fault.responseHeader.serviceResult;
+    UA_UInt32 echoedHandle = fault.responseHeader.requestHandle;
+    UA_ServiceFault_clear(&fault);
+    if(copied)
+        UA_ByteString_clear(&payload);
+
+    UA_SecureChannel_clear(receiver);
+    UA_SecureChannel_clear(serverChannel);
+    transport->eventSource.free(&transport->eventSource);
+    ck_assert_uint_eq(UA_Server_run_shutdown(testServer), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(testServer), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(echoedHandle, requestHandle);
+    ck_assert_uint_eq(status, UA_STATUSCODE_BADSESSIONCLOSED);
+} END_TEST
+#endif
+
 /* Session restart after timeout handled by client reconnection logic */
 
 static Suite* testSuite_Session(void) {
@@ -1123,6 +1252,11 @@ static Suite* testSuite_Session(void) {
 
     suite_add_tcase(s, tc_session);
     suite_add_tcase(s, tc_session_ext);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    TCase *tc_closePublish = tcase_create("CloseSession Publish");
+    tcase_add_loop_test(tc_closePublish, Session_closeCompletesHeldPublish, 0, 2);
+    suite_add_tcase(s, tc_closePublish);
+#endif
     return s;
 }
 
