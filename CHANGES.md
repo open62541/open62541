@@ -3,6 +3,20 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Optional Nodestore callback for single-reference edits
+
+`UA_Nodestore` has a new optional callback. `editReference` adds or removes
+one reference of a node, so AddReferences and DeleteReferences no longer need
+the editable node with its references. A Nodestore that leaves the callback
+NULL keeps the previous behavior. Nodestores that fill the `UA_Nodestore`
+structure field by field must set the new member to NULL.
+`UA_NODESTORE_HAS_EDITREFERENCE` is defined for code that builds against
+versions with and without the callback.
+
+The attribute mask and the references selected for `getEditNode` are a
+contract: the server accesses only the selected attributes and references
+through the returned node.
+
 ### Policy-provided certificate hash for session signatures
 
 `UA_SecurityPolicy.hashCertificateForSignature` replaces the global

@@ -2032,6 +2032,182 @@ START_TEST(DeleteReference_BidirectionalSecondDirection) {
     ck_assert_uint_ne(st, UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* Nodestore reference hooks. The test hooks record their calls and, depending
+ * on the test, add or delete the reference through the editable node of the
+ * default nodestore, decline with BADNOTSUPPORTED, or fail for one node. */
+static UA_Boolean hooksNotSupported;
+static UA_NodeId hooksFailNode;
+static size_t hooksAdds, hooksDeletes;
+
+static UA_NodeId hooksSource, hooksTarget, hooksRefType;
+static UA_ExpandedNodeId hooksTargetExp;
+
+static UA_StatusCode
+hooksEditNode(UA_Nodestore *ns, const UA_NodeId *nodeId, UA_Byte refTypeIndex,
+              UA_Boolean isForward, const UA_ExpandedNodeId *target,
+              UA_UInt32 targetNameHash, UA_Boolean add) {
+    UA_Node *node = ns->getEditNode(ns, nodeId, 0, UA_REFTYPESET(refTypeIndex),
+                                    isForward ? UA_BROWSEDIRECTION_FORWARD :
+                                                UA_BROWSEDIRECTION_INVERSE);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    UA_StatusCode res = add ?
+        UA_Node_addReference(node, refTypeIndex, isForward, target, targetNameHash) :
+        UA_Node_deleteReference(node, refTypeIndex, isForward, target);
+    ns->releaseNode(ns, node);
+    return res;
+}
+
+static UA_StatusCode
+hooksEditReference(UA_Nodestore *ns, const UA_NodeId *nodeId, UA_Byte refTypeIndex,
+                   UA_Boolean isForward, const UA_ExpandedNodeId *target,
+                   UA_UInt32 targetNameHash, UA_Boolean add) {
+    if(add)
+        hooksAdds++;
+    else
+        hooksDeletes++;
+    if(UA_NodeId_equal(nodeId, &hooksFailNode))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(hooksNotSupported)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    return hooksEditNode(ns, nodeId, refTypeIndex, isForward, target,
+                         targetNameHash, add);
+}
+
+/* Add the nodes first: AddNodes adds references, which would run the hooks */
+static void
+setupReferenceHooks(void) {
+    UA_NodeId objects = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    hooksSource = addObjInstance(objects, "hooksSrc");
+    hooksTarget = addObjInstance(objects, "hooksTgt");
+    hooksRefType = registerRefType("HasHooksRef", "IsHooksRefOf");
+    UA_ExpandedNodeId_init(&hooksTargetExp);
+    hooksTargetExp.nodeId = hooksTarget;
+
+    UA_Nodestore *ns = UA_Server_getConfig(server)->nodestore;
+    ns->editReference = hooksEditReference;
+    hooksNotSupported = false;
+    hooksFailNode = UA_NODEID_NULL;
+    hooksAdds = hooksDeletes = 0;
+}
+
+/* Does the node reference the target in the given direction? */
+static UA_Boolean
+hasReference(const UA_NodeId nodeId, const UA_NodeId refTypeId,
+             const UA_NodeId targetId, UA_BrowseDirection direction) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = nodeId;
+    bd.referenceTypeId = refTypeId;
+    bd.browseDirection = direction;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &targetId))
+            found = true;
+    }
+    UA_BrowseResult_clear(&br);
+    return found;
+}
+
+START_TEST(ReferenceHooks_AddDispatchesToEditReference) {
+    setupReferenceHooks();
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(hooksAdds, 2); /* both directions */
+    ck_assert_uint_eq(hooksDeletes, 0);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(hasReference(hooksTarget, hooksRefType, hooksSource,
+                           UA_BROWSEDIRECTION_INVERSE));
+} END_TEST
+
+START_TEST(ReferenceHooks_NotSupportedUsesEditableNode) {
+    setupReferenceHooks();
+    hooksNotSupported = true;
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(hooksAdds, 2);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(hasReference(hooksTarget, hooksRefType, hooksSource,
+                           UA_BROWSEDIRECTION_INVERSE));
+} END_TEST
+
+/* The second direction fails: the server deletes the first direction again */
+START_TEST(ReferenceHooks_RollbackDeletesFirstDirection) {
+    setupReferenceHooks();
+    hooksFailNode = hooksTarget;
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(hooksAdds, 2);
+    ck_assert_uint_eq(hooksDeletes, 1);
+    ck_assert(!hasReference(hooksSource, hooksRefType, hooksTarget,
+                            UA_BROWSEDIRECTION_FORWARD));
+} END_TEST
+
+START_TEST(ReferenceHooks_DeleteDispatchesToEditReference) {
+    setupReferenceHooks();
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    st = UA_Server_deleteReference(server, hooksSource, hooksRefType, true,
+                                   hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(hooksDeletes, 2); /* both directions */
+    ck_assert(!hasReference(hooksSource, hooksRefType, hooksTarget,
+                            UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(!hasReference(hooksTarget, hooksRefType, hooksSource,
+                            UA_BROWSEDIRECTION_INVERSE));
+} END_TEST
+
+/* The source holds the reference but the target lost its inverse. Adding the
+ * reference again fails for the target: the reference of the source existed
+ * before and must stay. */
+START_TEST(ReferenceHooks_FailedAddKeepsExistingReference) {
+    setupReferenceHooks();
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    UA_ExpandedNodeId sourceExpId;
+    UA_ExpandedNodeId_init(&sourceExpId);
+    sourceExpId.nodeId = hooksSource;
+    st = UA_Server_deleteReference(server, hooksTarget, hooksRefType, false,
+                                   sourceExpId, false);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(!hasReference(hooksTarget, hooksRefType, hooksSource,
+                            UA_BROWSEDIRECTION_INVERSE));
+
+    hooksFailNode = hooksTarget;
+    hooksDeletes = 0;
+    st = UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(hooksDeletes, 0);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+} END_TEST
+
+/* A duplicate is reported with the status code of the editable-node path. The
+ * rollback must not remove the reference that existed before. */
+START_TEST(ReferenceHooks_DuplicateKeepsReference) {
+    setupReferenceHooks();
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    st = UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(hasReference(hooksTarget, hooksRefType, hooksSource,
+                           UA_BROWSEDIRECTION_INVERSE));
+} END_TEST
+
 START_TEST(SetNodeTypeLifecycle) {
     /* Set a lifecycle callback on BaseObjectType */
     UA_NodeTypeLifecycle nlc;
@@ -2580,6 +2756,16 @@ int main(void) {
     tcase_add_test(tc_addreferences, DeleteReference_SourceNodeUnknown_rejected);
     tcase_add_test(tc_addreferences, DeleteReference_BidirectionalSecondDirection);
     suite_add_tcase(s, tc_addreferences);
+
+    TCase *tc_referencehooks = tcase_create("referencehooks");
+    tcase_add_checked_fixture(tc_referencehooks, setup, teardown);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_AddDispatchesToEditReference);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_NotSupportedUsesEditableNode);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_RollbackDeletesFirstDirection);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_DeleteDispatchesToEditReference);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_DuplicateKeepsReference);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_FailedAddKeepsExistingReference);
+    suite_add_tcase(s, tc_referencehooks);
 
     TCase *tc_ext = tcase_create("extendedCoverage");
     tcase_add_checked_fixture(tc_ext, setup, teardown);
