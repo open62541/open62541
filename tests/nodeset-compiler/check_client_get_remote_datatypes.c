@@ -78,6 +78,13 @@ START_TEST(GetRemoteDatatypes_di) {
     const UA_DataType* dt = UA_Client_findDataType(client, &dataTypeId);
     ck_assert(NULL != dt);
 
+    /* Neither a built-in type nor an already loaded structure adds a type. */
+    UA_NodeId knownTypes[2] = {UA_NODEID_NUMERIC(0, UA_NS0ID_INT32), dataTypeId};
+    UA_DataTypeArray *known = array;
+    ck_assert_uint_eq(UA_Client_getRemoteDataTypes(client, 2, knownTypes, &known),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(known);
+
     // A failed request sets the output to NULL
     lockServer(server);
     UA_Server_getConfig(server)->maxNodesPerRead = 1;
