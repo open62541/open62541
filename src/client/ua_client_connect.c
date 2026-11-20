@@ -854,7 +854,11 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
                      "Read NamespaceArray returned too few entries");
         return;
     }
-    UA_String_copy(&ns[1], &client->namespaces[1]);
+    /* The decoded response owns the new URI. Move it over the one retained
+     * from the previous connection. */
+    UA_String_clear(&client->namespaces[1]);
+    client->namespaces[1] = ns[1];
+    UA_String_init(&ns[1]);
     for(size_t i = 2; i < nsSize; ++i) {
         UA_UInt16 nsIndex = 0;
         UA_Client_addNamespace(client, ns[i], &nsIndex);
