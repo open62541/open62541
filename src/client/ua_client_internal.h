@@ -204,6 +204,10 @@ struct UA_Client {
     /* Overall connection status */
     UA_StatusCode connectStatus;
 
+    /* An async connect is aborted with BadTimeout if the client is not fully
+     * connected at this (monotonic) time. Zero if not set. */
+    UA_DateTime connectDeadline;
+
     /* Old status to notify only changes */
     UA_SecureChannelState oldChannelState;
     UA_SessionState oldSessionState;
@@ -372,6 +376,7 @@ UA_Boolean isFullyConnected(UA_Client *client);
 void connectSync(UA_Client *client);
 void connectActivity(UA_Client *client);
 void setConnectStatus(UA_Client *client, UA_StatusCode status);
+UA_StatusCode setConnectDeadline(UA_Client *client, UA_DateTime deadline);
 void notifyClientState(UA_Client *client);
 void processRHEMessage(UA_Client *client, const UA_ByteString *chunk);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);

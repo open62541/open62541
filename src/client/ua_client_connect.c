@@ -854,7 +854,11 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
                      "Read NamespaceArray returned too few entries");
         return;
     }
-    UA_String_copy(&ns[1], &client->namespaces[1]);
+    /* The decoded response owns the new URI. Move it over the one retained
+     * from the previous connection. */
+    UA_String_clear(&client->namespaces[1]);
+    client->namespaces[1] = ns[1];
+    UA_String_init(&ns[1]);
     for(size_t i = 2; i < nsSize; ++i) {
         UA_UInt16 nsIndex = 0;
         UA_Client_addNamespace(client, ns[i], &nsIndex);
@@ -2939,6 +2943,18 @@ connectInternal(UA_Client *client, UA_Boolean async) {
     client->connectStatus = UA_STATUSCODE_GOOD;
     resetReconnect(client);
 
+    UA_DateTime deadline = 0;
+    UA_EventLoop *el = client->config.eventLoop;
+    if(async && el && client->config.timeout > 0 &&
+       client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING)
+        deadline = el->dateTime_nowMonotonic(el) +
+            ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+    UA_StatusCode res = setConnectDeadline(client, deadline);
+    if(res != UA_STATUSCODE_GOOD) {
+        setConnectStatus(client, res);
+        return res;
+    }
+
     if(async)
         initConnect(client);
     else
@@ -3224,6 +3240,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
 
     client->connectStatus = UA_STATUSCODE_GOOD;
+    setConnectDeadline(client, 0); /* No deadline for a reverse connect */
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
 
     UA_SecureChannel_init(&client->channel);
@@ -3402,6 +3419,9 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
      * explicitly closed */
     UA_String_clear(&client->discoveryUrl);
     UA_EndpointDescription_clear(&client->endpoint);
+
+    /* An ongoing async connect is cancelled */
+    setConnectDeadline(client, 0);
 
     /* Manually set the status to closed to prevent an automatic reconnection.
      * Do this before closing because some ConnectionManagers report the close
