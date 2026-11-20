@@ -383,8 +383,11 @@ void
 setConnectStatus(UA_Client *client, UA_StatusCode status) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    client->connectStatus = status;
-    if(status != UA_STATUSCODE_GOOD)
+    /* Closing a timed-out channel cancels outstanding handshake requests.
+     * Keep the timeout as the cause until a new connect resets the status. */
+    if(client->connectStatus != UA_STATUSCODE_BADTIMEOUT)
+        client->connectStatus = status;
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
         closeSecureChannel(client);
 
     notifyClientState(client);
