@@ -92,6 +92,31 @@ notifySubscription(UA_Server *server, UA_Subscription *sub,
     notifyApplication(server, type, createSubMap);
 }
 
+static UA_UInt32
+nextSubscriptionId(UA_Server *server) {
+    UA_UInt32 last = server->lastSubscriptionId;
+    if(!server->subscriptionIdWrapped && last < UA_UINT32_MAX)
+        return last + 1;
+
+    server->subscriptionIdWrapped = true;
+    UA_UInt32 first = (last == UA_UINT32_MAX) ? 1 : last + 1;
+    UA_UInt32 candidate = first;
+    do {
+        /* Detached Subscriptions and pending transfer notifications can
+         * still hold an ID in the server list. */
+        UA_Subscription *sub;
+        LIST_FOREACH(sub, &server->subscriptions, serverListEntry) {
+            if(sub->subscriptionId == candidate)
+                break;
+        }
+        if(!sub)
+            return candidate;
+        candidate = (candidate == UA_UINT32_MAX) ? 1 : candidate + 1;
+    } while(candidate != first);
+
+    return 0;
+}
+
 UA_Boolean
 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const void *request_, void *response_) {
@@ -117,6 +142,12 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    UA_UInt32 subscriptionId = nextSubscriptionId(server);
+    if(subscriptionId == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
+        return true;
+    }
+
     /* Create the subscription */
     UA_Subscription *sub = UA_Subscription_new();
     if(!sub) {
@@ -131,22 +162,8 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                             request->requestedLifetimeCount,
                             request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
-
-    /* Assign the SubscriptionId. Zero is not a valid IntegerId and the
-     * identifier is unique for the entire server. Skip identifiers that are
-     * still in use after the counter has wrapped around. The loop terminates
-     * as there are fewer Subscriptions than identifiers. */
-    UA_Subscription *other;
-    do {
-        server->lastSubscriptionId++;
-        if(server->lastSubscriptionId == 0)
-            server->lastSubscriptionId = 1;
-        LIST_FOREACH(other, &server->subscriptions, serverListEntry) {
-            if(other->subscriptionId == server->lastSubscriptionId)
-                break;
-        }
-    } while(other);
-    sub->subscriptionId = server->lastSubscriptionId;
+    sub->subscriptionId = subscriptionId;
+    server->lastSubscriptionId = subscriptionId;
 
     /* Register the subscription in the server */
     LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
