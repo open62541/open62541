@@ -448,6 +448,7 @@ ua_add_test(server/check_session.c)
 # Bound teardown regressions even when Check runs tests without forking.
 set_tests_properties(check_session PROPERTIES TIMEOUT 300)
 ua_add_test(server/check_session_errorpaths.c)
+ua_add_test(server/check_session_lifecycle.c)
 ua_add_test(server/check_session_authtoken_rng.c)
 ua_add_test(server/check_server.c)
 ua_add_test(server/check_server_profiles.c)
