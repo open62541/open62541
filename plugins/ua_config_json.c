@@ -446,6 +446,8 @@ PARSE_JSON(ApplicationTypeField) {
     UA_ByteString rawToken = getJsonPart(tok, ctx->json);
     UA_ApplicationType *field = (UA_ApplicationType*)configField;
     char *fieldStr = (char*)UA_malloc(tok.size + 1);
+    if(!fieldStr)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     unsigned int strLen = 0;
 
     if(cj5_get_str(&ctx->result, (unsigned int)ctx->index, fieldStr, &strLen) == CJ5_ERROR_NONE) {
@@ -497,6 +499,8 @@ GenericApplicationDescriptionField_parseJson(ParsingCtx *ctx, void *configField,
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "applicationUri") == 0)
@@ -544,6 +548,8 @@ PARSE_JSON(MessageSecurityMode) {
     UA_ByteString rawToken = getJsonPart(tok, ctx->json);
     UA_MessageSecurityMode *field = (UA_MessageSecurityMode*)configField;
     char *fieldStr = (char*)UA_malloc(tok.size + 1);
+    if(!fieldStr)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     unsigned int strLen = 0;
 
     if(cj5_get_str(&ctx->result, (unsigned int)ctx->index, fieldStr, &strLen) == CJ5_ERROR_NONE) {
@@ -837,6 +843,10 @@ PARSE_JSON(CertificateFileField) {
     if(retval == UA_STATUSCODE_GOOD) {
         if (filename.length > 0) {
             char *certfile = (char *)UA_malloc(filename.length + 1);
+            if(!certfile) {
+                UA_String_clear(&filename);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
             memcpy(certfile, filename.data, filename.length);
             certfile[filename.length] = '\0';
             *certificate = loadCertificateFile((char const *)certfile);
@@ -960,6 +970,10 @@ SecurityPolicyField_parseJson(ParsingCtx *ctx, UA_SecurityPolicy *field,
         switch(tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char *)UA_malloc(tok.size + 1);
+            if(!field_str) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                break;
+            }
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "certificate") == 0) {
@@ -1310,6 +1324,8 @@ PARSE_JSON(ConnectionConfig) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "protocolVersion") == 0)
@@ -1347,6 +1363,8 @@ PARSE_JSON(UserTokenType) {
     UA_ByteString rawToken = getJsonPart(tok, ctx->json);
     UA_UserTokenType *field = (UA_UserTokenType*)configField;
     char *fieldStr = (char*)UA_malloc(tok.size + 1);
+    if(!fieldStr)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     unsigned int strLen = 0;
 
     if(cj5_get_str(&ctx->result, (unsigned int)ctx->index, fieldStr, &strLen) == CJ5_ERROR_NONE) {
@@ -1408,6 +1426,10 @@ PARSE_JSON(UserIdentityToken) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                break;
+            }
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
 
@@ -1428,7 +1450,9 @@ PARSE_JSON(UserIdentityToken) {
                     char *typeStr = (char*)UA_malloc(typeToken.size + 1);
                     unsigned int typeLen = 0;
 
-                    if(cj5_get_str(&ctx->result, (unsigned int)ctx->index, typeStr, &typeLen) == CJ5_ERROR_NONE) {
+                    if(!typeStr) {
+                        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                    } else if(cj5_get_str(&ctx->result, (unsigned int)ctx->index, typeStr, &typeLen) == CJ5_ERROR_NONE) {
                         if(strcmp("Anonymous", typeStr) == 0) {
                             detectedType = UA_USERTOKENTYPE_ANONYMOUS;
                             typeExplicitlySet = true;
@@ -1557,6 +1581,8 @@ PARSE_JSON(UserTokenPolicy) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "policyId") == 0)
@@ -1602,6 +1628,8 @@ PARSE_JSON(UserTokenPolicyArrayField) {
     }
     cj5_token tok = nextToken(ctx);
     UA_UserTokenPolicy *policyArray = (UA_UserTokenPolicy*)UA_malloc(sizeof(UA_UserTokenPolicy) * tok.size);
+    if(!policyArray && tok.size > 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     size_t policyArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
         /* initialize element to zeros so clear functions are safe */
@@ -1643,6 +1671,8 @@ PARSE_JSON(EndpointDescription) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "endpointUrl") == 0)
@@ -1704,6 +1734,8 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
         switch (tok.type) {
             case CJ5_TOKEN_STRING: {
                 char *field = (char*)UA_malloc(tok.size + 1);
+                if(!field)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
                 unsigned int str_len = 0;
                 cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
                 if(strcmp(field, "timeout") == 0)

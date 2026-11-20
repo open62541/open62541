@@ -961,6 +961,57 @@ START_TEST(anonymousRole_alwaysAssigned) {
 }
 END_TEST
 
+/* A NULL or empty UserIdentityToken is interpreted as Anonymous (Part 4,
+ * Section 5.6.3.2, Table 17). It must not get the AuthenticatedUser Role. */
+START_TEST(emptyIdentityToken_isAnonymous) {
+    UA_NodeId anonId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    UA_NodeId authId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+
+    /* Empty token */
+    UA_ExtensionObject tok;
+    UA_ExtensionObject_init(&tok);
+    ck_assert_uint_eq(tok.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+                                                     &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean foundAnon = false;
+    UA_Boolean foundAuth = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], &anonId))
+            foundAnon = true;
+        if(UA_NodeId_equal(&ids[i], &authId))
+            foundAuth = true;
+    }
+    ck_assert(foundAnon);
+    ck_assert(!foundAuth);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* A username token gets the AuthenticatedUser Role */
+    UA_UserNameIdentityToken un;
+    UA_UserNameIdentityToken_init(&un);
+    un.userName = UA_STRING("nobody");
+    tok.encoding = UA_EXTENSIONOBJECT_DECODED;
+    tok.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+    tok.content.decoded.data = &un;
+
+    size = 0;
+    ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+                                                     &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    foundAuth = false;
+    for(size_t i = 0; i < size; i++)
+        if(UA_NodeId_equal(&ids[i], &authId))
+            foundAuth = true;
+    ck_assert(foundAuth);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+}
+END_TEST
+
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
 START_TEST(wellKnownRoles_nodeFields) {
     /* Verify DisplayName and NodeClass for well-known role nodes */
@@ -2612,6 +2663,7 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc_session, trustedApplication_roleRegistered);
     tcase_add_test(tc_session, trustedApplication_assignedWhenTrusted);
     tcase_add_test(tc_session, anonymousRole_alwaysAssigned);
+    tcase_add_test(tc_session, emptyIdentityToken_isAnonymous);
     suite_add_tcase(s, tc_session);
 
     TCase *tc_perms = tcase_create("NodePermissions");
