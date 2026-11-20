@@ -961,6 +961,36 @@ START_TEST(anonymousRole_alwaysAssigned) {
 }
 END_TEST
 
+/* A null UserIdentityToken is an anonymous login (Part 4, 5.6.3.2) and must
+ * not match the AuthenticatedUser criteria. */
+START_TEST(emptyIdentityToken_isAnonymous) {
+    UA_NodeId anonId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    UA_NodeId authId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+
+    UA_ExtensionObject tok;
+    UA_ExtensionObject_init(&tok);
+    ck_assert_int_eq(tok.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+                                                     &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean anonFound = false;
+    UA_Boolean authFound = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], &anonId))
+            anonFound = true;
+        if(UA_NodeId_equal(&ids[i], &authId))
+            authFound = true;
+    }
+    ck_assert(anonFound);
+    ck_assert(!authFound);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+}
+END_TEST
+
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
 START_TEST(wellKnownRoles_nodeFields) {
     /* Verify DisplayName and NodeClass for well-known role nodes */
@@ -2612,6 +2642,7 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc_session, trustedApplication_roleRegistered);
     tcase_add_test(tc_session, trustedApplication_assignedWhenTrusted);
     tcase_add_test(tc_session, anonymousRole_alwaysAssigned);
+    tcase_add_test(tc_session, emptyIdentityToken_isAnonymous);
     suite_add_tcase(s, tc_session);
 
     TCase *tc_perms = tcase_create("NodePermissions");
