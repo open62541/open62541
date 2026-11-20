@@ -1371,7 +1371,16 @@ UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
 
     /* Register in Subscription and Server */
     UA_Subscription *sub = mon->subscription;
-    mon->monitoredItemId = ++sub->lastMonitoredItemId;
+
+    /* Assign the MonitoredItemId. Zero is not a valid IntegerId and the
+     * identifier is unique within the Subscription. Skip identifiers that are
+     * still in use after the counter has wrapped around. */
+    do {
+        sub->lastMonitoredItemId++;
+        if(sub->lastMonitoredItemId == 0)
+            sub->lastMonitoredItemId = 1;
+    } while(UA_Subscription_getMonitoredItem(sub, sub->lastMonitoredItemId));
+    mon->monitoredItemId = sub->lastMonitoredItemId;
     mon->subscription = sub;
     ZIP_INSERT(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
     sub->monitoredItemsSize++;

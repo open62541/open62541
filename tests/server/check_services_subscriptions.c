@@ -276,6 +276,77 @@ START_TEST(Server_createSubscription) {
 }
 END_TEST
 
+/* SubscriptionIds are IntegerIds: zero is not a valid value (Part 4, 7.19).
+ * They are unique for the entire Server (Part 4, 5.14.2.2, Table 82). Both
+ * must also hold after the UInt32 counter wraps around. */
+START_TEST(Server_createSubscription_idWraparound) {
+    createSubscription();
+    UA_UInt32 firstId = subscriptionId;
+    ck_assert_uint_ne(firstId, 0);
+
+    /* Continue directly before the wraparound. The first Subscription is still
+     * live and blocks its identifier. */
+    lockServer(server);
+    server->lastSubscriptionId = UA_UINT32_MAX - 1;
+    unlockServer(server);
+
+    createSubscription();
+    ck_assert_uint_eq(subscriptionId, UA_UINT32_MAX);
+
+    for(size_t i = 0; i < 2; i++) {
+        createSubscription();
+        ck_assert_uint_ne(subscriptionId, 0);
+        ck_assert_uint_ne(subscriptionId, firstId);
+        ck_assert_uint_ne(subscriptionId, UA_UINT32_MAX);
+    }
+
+    /* The identifier of the first Subscription resolves to one Subscription */
+    size_t matches = 0;
+    UA_Subscription *sub;
+    lockServer(server);
+    LIST_FOREACH(sub, &server->subscriptions, serverListEntry) {
+        if(sub->subscriptionId == firstId)
+            matches++;
+    }
+    unlockServer(server);
+    ck_assert_uint_eq(matches, 1);
+}
+END_TEST
+
+/* MonitoredItemIds are IntegerIds that are unique within their Subscription
+ * (Part 4, 5.13.2.2, Table 63). */
+START_TEST(Server_createMonitoredItems_idWraparound) {
+    createSubscription();
+    createMonitoredItem();
+    UA_UInt32 firstId = monitoredItemId;
+    ck_assert_uint_ne(firstId, 0);
+
+    lockServer(server);
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
+    ck_assert_ptr_ne(sub, NULL);
+    UA_MonitoredItem *first = UA_Subscription_getMonitoredItem(sub, firstId);
+    ck_assert_ptr_ne(first, NULL);
+    sub->lastMonitoredItemId = UA_UINT32_MAX - 1;
+    unlockServer(server);
+
+    createMonitoredItem();
+    ck_assert_uint_eq(monitoredItemId, UA_UINT32_MAX);
+
+    for(size_t i = 0; i < 2; i++) {
+        createMonitoredItem();
+        ck_assert_uint_ne(monitoredItemId, 0);
+        ck_assert_uint_ne(monitoredItemId, firstId);
+        ck_assert_uint_ne(monitoredItemId, UA_UINT32_MAX);
+    }
+
+    /* The first identifier still resolves to the first MonitoredItem */
+    lockServer(server);
+    ck_assert_ptr_eq(UA_Subscription_getMonitoredItem(sub, firstId), first);
+    ck_assert_uint_eq(sub->monitoredItemsSize, 4);
+    unlockServer(server);
+}
+END_TEST
+
 START_TEST(Server_modifySubscription) {
     /* Create a subscription */
     createSubscription();
@@ -2915,6 +2986,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_server = tcase_create("Server Subscription Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_createSubscription);
+    tcase_add_test(tc_server, Server_createSubscription_idWraparound);
     tcase_add_test(tc_server, Server_createSubscription_notificationCallback);
     tcase_add_test(tc_server, Server_closeSessionFromMonitoredItemCreated);
     tcase_add_test(tc_server, Server_republish_unknownSequenceNumber);
@@ -2931,6 +3003,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_negativeSamplingInterval);
     tcase_add_test(tc_server, Server_nanModifiedSamplingInterval);
     tcase_add_test(tc_server, Server_createMonitoredItems);
+    tcase_add_test(tc_server, Server_createMonitoredItems_idWraparound);
     tcase_add_test(tc_server, Server_modifyMonitoredItems);
     tcase_add_test(tc_server, Server_overflow);
     tcase_add_test(tc_server, Server_setMonitoringMode);

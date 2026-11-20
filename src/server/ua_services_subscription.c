@@ -131,7 +131,22 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                             request->requestedLifetimeCount,
                             request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
-    sub->subscriptionId = ++server->lastSubscriptionId;  /* Assign the SubscriptionId */
+
+    /* Assign the SubscriptionId. Zero is not a valid IntegerId and the
+     * identifier is unique for the entire server. Skip identifiers that are
+     * still in use after the counter has wrapped around. The loop terminates
+     * as there are fewer Subscriptions than identifiers. */
+    UA_Subscription *other;
+    do {
+        server->lastSubscriptionId++;
+        if(server->lastSubscriptionId == 0)
+            server->lastSubscriptionId = 1;
+        LIST_FOREACH(other, &server->subscriptions, serverListEntry) {
+            if(other->subscriptionId == server->lastSubscriptionId)
+                break;
+        }
+    } while(other);
+    sub->subscriptionId = server->lastSubscriptionId;
 
     /* Register the subscription in the server */
     LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
