@@ -170,7 +170,7 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=15318</Reference>
     </References>
   </UAVariable>
-  <UAVariable NodeId="i=2369" BrowseName="EURange" ParentNodeId="i=2368" DataType="i=884">
+  <UAVariable NodeId="i=2369" BrowseName="EURange" ParentNodeId="i=2368" DataType="i=884" AccessLevel="17">
     <DisplayName>EURange</DisplayName>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
