@@ -59,6 +59,17 @@ analogDataChangeCallback(UA_Server *s, UA_UInt32 id, void *monitoredItemContext,
     observation->value = *(const UA_Double*)value->value.data;
 }
 
+static void
+discreteDataChangeCallback(UA_Server *s, UA_UInt32 id, void *monitoredItemContext,
+                           const UA_NodeId *nodeId, void *nodeContext,
+                           UA_UInt32 attributeId, const UA_DataValue *value) {
+    AnalogDataChange *observation = (AnalogDataChange*)monitoredItemContext;
+    ck_assert(value->hasValue);
+    ck_assert(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_BOOLEAN]));
+    observation->count++;
+    observation->status = value->hasStatus ? value->status : UA_STATUSCODE_GOOD;
+}
+
 static UA_Boolean
 createEngineeringUnitsChild(UA_Server *s, const UA_NodeId *sessionId,
                             void *sessionContext, const UA_NodeId *sourceNodeId,
@@ -179,19 +190,100 @@ START_TEST(semanticChangeInheritedEngineeringUnits) {
 }
 END_TEST
 
+/* Part 8, 5.3.3.2: a change of TrueState or FalseState marks the next
+ * notification of the TwoStateDiscrete item. */
+START_TEST(semanticChangeInheritedTrueState) {
+    UA_NodeId discrete = UA_NODEID_NUMERIC(1, 1341);
+    UA_Boolean sample = false;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Variant_setScalar(&attr.value, &sample, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    attr.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, discrete, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "SemanticDiscrete"), UA_NS0ID(TWOSTATEDISCRETETYPE),
+        attr, NULL, NULL), UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName name = UA_QUALIFIEDNAME(0, "TrueState");
+    propertyPath = UA_Server_browseSimplifiedBrowsePath(server, discrete, 1, &name);
+    ck_assert_uint_eq(propertyPath.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(propertyPath.targetsSize, 1);
+    UA_NodeId property = propertyPath.targets[0].targetId.nodeId;
+
+    UA_LocalizedText state = UA_LOCALIZEDTEXT("en", "Open");
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &state, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, property, value),
+                      UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemCreateRequest request;
+    UA_MonitoredItemCreateRequest_init(&request);
+    request.itemToMonitor.nodeId = discrete;
+    request.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
+    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    request.requestedParameters.samplingInterval = 0.0;
+    request.requestedParameters.queueSize = 1;
+    UA_MonitoredItemCreateResult mon = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_NEITHER, request, &change, discreteDataChangeCallback);
+    monitoredItemId = mon.monitoredItemId;
+    UA_StatusCode result = mon.statusCode;
+    UA_MonitoredItemCreateResult_clear(&mon);
+    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
+
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(change.count, 1);
+    ck_assert_uint_eq(change.status, UA_STATUSCODE_GOOD);
+
+    state = UA_LOCALIZEDTEXT("en", "Running");
+    UA_Variant_setScalar(&value, &state, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, property, value),
+                      UA_STATUSCODE_GOOD);
+    sample = true;
+    UA_Variant_setScalar(&value, &sample, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, discrete, value),
+                      UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(change.count, 2);
+    ck_assert_uint_eq(change.status, UA_STATUSCODE_GOOD | UA_STATUSCODE_SEMANTICSCHANGED);
+
+    sample = false;
+    ck_assert_uint_eq(UA_Server_writeValue(server, discrete, value),
+                      UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(change.count, 3);
+    ck_assert_uint_eq(change.status, UA_STATUSCODE_GOOD);
+
+    assertReadOnlySemanticProperty(property);
+}
+END_TEST
+
 START_TEST(semanticPropertyTemplateMetadata) {
     static const UA_UInt32 propertyIds[] = {
         UA_NS0ID_ANALOGITEMTYPE_EURANGE,
         UA_NS0ID_BASEANALOGTYPE_ENGINEERINGUNITS,
+        UA_NS0ID_TWOSTATEDISCRETETYPE_FALSESTATE,
+        UA_NS0ID_TWOSTATEDISCRETETYPE_TRUESTATE,
+        UA_NS0ID_MULTISTATEDISCRETETYPE_ENUMSTRINGS,
+        UA_NS0ID_MULTISTATEVALUEDISCRETETYPE_ENUMVALUES,
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
         UA_NS0ID_BASEANALOGTYPE_EURANGE,
         UA_NS0ID_ANALOGUNITTYPE_ENGINEERINGUNITS,
         UA_NS0ID_ANALOGUNITRANGETYPE_ENGINEERINGUNITS,
-        UA_NS0ID_ARRAYITEMTYPE_EURANGE,
-        UA_NS0ID_ARRAYITEMTYPE_ENGINEERINGUNITS,
         UA_NS0ID_IIETFBASENETWORKINTERFACETYPE_SPEED_ENGINEERINGUNITS,
         UA_NS0ID_IIEEEBASEETHERNETPORTTYPE_SPEED_ENGINEERINGUNITS,
-        UA_NS0ID_IETFBASENETWORKINTERFACETYPE_SPEED_ENGINEERINGUNITS
+        UA_NS0ID_IETFBASENETWORKINTERFACETYPE_SPEED_ENGINEERINGUNITS,
+        UA_NS0ID_ARRAYITEMTYPE_INSTRUMENTRANGE,
+        UA_NS0ID_ARRAYITEMTYPE_EURANGE,
+        UA_NS0ID_ARRAYITEMTYPE_ENGINEERINGUNITS,
+        UA_NS0ID_ARRAYITEMTYPE_TITLE,
+        UA_NS0ID_YARRAYITEMTYPE_XAXISDEFINITION,
+        UA_NS0ID_XYARRAYITEMTYPE_XAXISDEFINITION,
+        UA_NS0ID_IMAGEITEMTYPE_XAXISDEFINITION,
+        UA_NS0ID_IMAGEITEMTYPE_YAXISDEFINITION,
+        UA_NS0ID_CUBEITEMTYPE_XAXISDEFINITION,
+        UA_NS0ID_CUBEITEMTYPE_YAXISDEFINITION,
+        UA_NS0ID_CUBEITEMTYPE_ZAXISDEFINITION,
+        UA_NS0ID_NDIMENSIONARRAYITEMTYPE_AXISDEFINITION
 #endif
     };
     for(size_t i = 0; i < sizeof(propertyIds) / sizeof(propertyIds[0]); ++i)
@@ -206,6 +298,7 @@ main(void) {
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, semanticChangeInheritedEURange);
     tcase_add_test(tc, semanticChangeInheritedEngineeringUnits);
+    tcase_add_test(tc, semanticChangeInheritedTrueState);
     tcase_add_test(tc, semanticPropertyTemplateMetadata);
     suite_add_tcase(s, tc);
 

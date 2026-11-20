@@ -29,20 +29,39 @@ from io import StringIO
 import logging
 logger = logging.getLogger(__name__)
 
-# OPC UA Part 8, Sections 5.2, 5.3.2.2 and 5.3.4.2. The published NS0
-# NodeSets omit the SemanticChange bit for these data access Properties.
-# Keep the overrides here so regenerating or replacing the XML retains them.
+# OPC UA Part 8, Section 5.2 and the "SemanticsChanged bit shall be set"
+# sentences of Sections 5.3.2.2, 5.3.3.2 to 5.3.3.4 and 5.3.4.1 to 5.3.4.6.
+# The published NS0 NodeSets omit the SemanticChange bit for these data access
+# Properties. Keep the overrides here so regenerating or replacing the XML
+# retains them.
 NS0_SEMANTIC_CHANGE_PROPERTIES = {
+    # Analog types (5.3.2.2)
     2369,   # AnalogItemType.EURange
     17568,  # BaseAnalogType.EURange
     17569,  # BaseAnalogType.EngineeringUnits
     17502,  # AnalogUnitType.EngineeringUnits
     17575,  # AnalogUnitRangeType.EngineeringUnits
-    12025,  # ArrayItemType.EURange
-    12026,  # ArrayItemType.EngineeringUnits
     24157,  # IIetfBaseNetworkInterfaceType.Speed.EngineeringUnits
     24164,  # IIeeeBaseEthernetPortType.Speed.EngineeringUnits
     25252,  # IetfBaseNetworkInterfaceType.Speed.EngineeringUnits
+    # Discrete types (5.3.3.2 to 5.3.3.4)
+    2374,   # TwoStateDiscreteType.FalseState
+    2375,   # TwoStateDiscreteType.TrueState
+    2377,   # MultiStateDiscreteType.EnumStrings
+    11241,  # MultiStateValueDiscreteType.EnumValues
+    # Array types (5.3.4.1 to 5.3.4.6)
+    12024,  # ArrayItemType.InstrumentRange
+    12025,  # ArrayItemType.EURange
+    12026,  # ArrayItemType.EngineeringUnits
+    12027,  # ArrayItemType.Title
+    12037,  # YArrayItemType.XAxisDefinition
+    12046,  # XYArrayItemType.XAxisDefinition
+    12055,  # ImageItemType.XAxisDefinition
+    12056,  # ImageItemType.YAxisDefinition
+    12065,  # CubeItemType.XAxisDefinition
+    12066,  # CubeItemType.YAxisDefinition
+    12067,  # CubeItemType.ZAxisDefinition
+    12076,  # NDimensionArrayItemType.AxisDefinition
 }
 
 # Escape C strings:
