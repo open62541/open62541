@@ -71,6 +71,7 @@ Subscription_create(UA_Client *client, UA_Client_Subscription *newSub,
 
     newSub->subscriptionId = response->subscriptionId;
     newSub->sequenceNumber = 0;
+    newSub->recoveryPending = false;
     newSub->lastActivity = el->dateTime_nowMonotonic(el);
     newSub->publishingInterval = response->revisedPublishingInterval;
     newSub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
@@ -1522,6 +1523,29 @@ __nextSequenceNumber(UA_UInt32 sequenceNumber) {
     return nextSequenceNumber;
 }
 
+struct UA_Client_RepublishRecovery {
+    UA_UInt64 generation;
+    UA_UInt32 subscriptionId;
+    UA_UInt32 sequenceNumber;
+};
+
+static UA_Boolean
+recoveryIsCurrent(UA_Client *client, const struct UA_Client_RepublishRecovery *recovery) {
+    return client->subscriptionRecovery == recovery &&
+        client->subscriptionRecoveryGeneration == recovery->generation &&
+        client->sessionState == UA_SESSIONSTATE_ACTIVATED &&
+        client->channel.state == UA_SECURECHANNELSTATE_OPEN &&
+        client->connectStatus == UA_STATUSCODE_GOOD;
+}
+
+static UA_Boolean
+subscriptionStillDispatchable(UA_Client *client, UA_UInt32 subId,
+                             UA_Client_Subscription *sub,
+                             const struct UA_Client_RepublishRecovery *recovery) {
+    return (!recovery || recoveryIsCurrent(client, recovery)) &&
+        findSubscriptionById(client, subId) == sub;
+}
+
 static UA_Client_MonitoredItem *
 findMonitoredItemForNotification(UA_Client_Subscription *sub,
                                  UA_UInt32 clientHandle) {
@@ -1556,7 +1580,8 @@ findMonitoredItemForNotification(UA_Client_Subscription *sub,
 
 static UA_Boolean
 processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
-                              UA_DataChangeNotification *dataChangeNotification) {
+                              UA_DataChangeNotification *dataChangeNotification,
+                              const struct UA_Client_RepublishRecovery *recovery) {
     UA_LOCK_ASSERT(&client->clientMutex);
     UA_UInt32 subId = sub->subscriptionId;
 
@@ -1586,7 +1611,7 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
             void *monC = mon->context;
             UA_UInt32 monId = mon->monitoredItemId;
             mon->handler.dataChangeCallback(client, subId, subC, monId, monC, &min->value);
-            if(findSubscriptionById(client, subId) != sub)
+            if(!subscriptionStillDispatchable(client, subId, sub, recovery))
                 return false;
         }
     }
@@ -1595,7 +1620,8 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
 
 static UA_Boolean
 processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
-                         UA_EventNotificationList *eventNotificationList) {
+                         UA_EventNotificationList *eventNotificationList,
+                         const struct UA_Client_RepublishRecovery *recovery) {
     UA_LOCK_ASSERT(&client->clientMutex);
     UA_UInt32 subId = sub->subscriptionId;
 
@@ -1652,7 +1678,7 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
         mon->handler.eventCallback(client, sub->subscriptionId, sub->context,
                                    mon->monitoredItemId, mon->context,
                                    mon->eventFields);
-        if(findSubscriptionById(client, subId) != sub)
+        if(!subscriptionStillDispatchable(client, subId, sub, recovery))
             return false;
     }
     return true;
@@ -1660,7 +1686,8 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
 
 static UA_Boolean
 processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
-                           UA_ExtensionObject *msg) {
+                           UA_ExtensionObject *msg,
+                           const struct UA_Client_RepublishRecovery *recovery) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
     if(msg->encoding != UA_EXTENSIONOBJECT_DECODED)
@@ -1670,14 +1697,14 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
     if(msg->content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]) {
         UA_DataChangeNotification *dataChangeNotification =
             (UA_DataChangeNotification *)msg->content.decoded.data;
-        return processDataChangeNotification(client, sub, dataChangeNotification);
+        return processDataChangeNotification(client, sub, dataChangeNotification, recovery);
     }
 
     /* Handle EventNotification */
     if(msg->content.decoded.type == &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST]) {
         UA_EventNotificationList *eventNotificationList =
             (UA_EventNotificationList *)msg->content.decoded.data;
-        return processEventNotification(client, sub, eventNotificationList);
+        return processEventNotification(client, sub, eventNotificationList, recovery);
     }
 
     /* Handle StatusChangeNotification */
@@ -1692,12 +1719,27 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
                            "Dropped a StatusChangeNotification since no "
                            "callback is registered");
         }
-        return findSubscriptionById(client, subId) == sub;
+        return subscriptionStillDispatchable(client, subId, sub, recovery);
     }
 
     UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                    "Unknown notification message type");
     return true;
+}
+
+static void
+queueNotificationAcknowledgement(UA_Client *client, UA_UInt32 subId, UA_UInt32 sequence) {
+    UA_Client_NotificationsAckNumber *ack =
+        (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
+    if(!ack) {
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "Not enough memory to store the acknowledgement for Subscription %" PRIu32,
+                       subId);
+        return;
+    }
+    ack->subAck.sequenceNumber = sequence;
+    ack->subAck.subscriptionId = subId;
+    LIST_INSERT_HEAD(&client->pendingNotificationsAcks, ack, listEntry);
 }
 
 void
@@ -1810,7 +1852,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
 
     /* Process the notification messages */
     for(size_t k = 0; k < msg->notificationDataSize; ++k) {
-        if(!processNotificationMessage(client, sub, &msg->notificationData[k]))
+        if(!processNotificationMessage(client, sub, &msg->notificationData[k], NULL))
             return;
     }
 
@@ -1820,17 +1862,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
     for(size_t i = 0; i < response->availableSequenceNumbersSize; i++) {
         if(response->availableSequenceNumbers[i] != msg->sequenceNumber)
             continue;
-        UA_Client_NotificationsAckNumber *tmpAck = (UA_Client_NotificationsAckNumber*)
-            UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
-        if(!tmpAck) {
-            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "PublishResponse: Not enough memory to store the pending "
-                           "acknowledgement for Subscription %" PRIu32, sub->subscriptionId);
-            break;
-        }
-        tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
-        tmpAck->subAck.subscriptionId = sub->subscriptionId;
-        LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
+        queueNotificationAcknowledgement(client, sub->subscriptionId, msg->sequenceNumber);
         break;
     }
 }
@@ -1856,7 +1888,19 @@ processPublishResponseAsync(UA_Client *client, void *userdata,
 }
 
 void
+__Client_Subscriptions_prepareRecovery(UA_Client *client, UA_Boolean transportClosed) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+    ++client->subscriptionRecoveryGeneration;
+    UA_Boolean recover = transportClosed && client->connectStatus == UA_STATUSCODE_GOOD &&
+        !client->config.noReconnect && client->config.outStandingPublishRequests > 0;
+    UA_Client_Subscription *sub;
+    LIST_FOREACH(sub, &client->subscriptions, listEntry)
+        sub->recoveryPending = recover;
+}
+
+void
 __Client_Subscriptions_clear(UA_Client *client) {
+    ++client->subscriptionRecoveryGeneration;
     UA_Client_NotificationsAckNumber *n;
     UA_Client_NotificationsAckNumber *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
@@ -1909,16 +1953,132 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
     }
 }
 
+static UA_Boolean
+handleRepublishResponse(UA_Client *client, const struct UA_Client_RepublishRecovery *recovery,
+                        UA_RepublishResponse *response) {
+    if(!recoveryIsCurrent(client, recovery))
+        return false;
+
+    UA_Client_Subscription *sub = findSubscriptionById(client, recovery->subscriptionId);
+    if(!sub || !sub->recoveryPending)
+        return true;
+
+    UA_StatusCode status = response->responseHeader.serviceResult;
+    if(status == UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID) {
+        __Client_Subscription_deleteInternal(client, sub);
+        return true;
+    }
+
+    if(status == UA_STATUSCODE_BADSERVICEUNSUPPORTED || status == UA_STATUSCODE_BADNOTSUPPORTED) {
+        /* A server without Republish can still publish normally. Skip the
+         * other retained Subscriptions for this activation as well. */
+        __Client_Subscriptions_prepareRecovery(client, false);
+        return true;
+    }
+
+    UA_EventLoop *el = client->config.eventLoop;
+    if(status == UA_STATUSCODE_BADMESSAGENOTAVAILABLE) {
+        sub->lastActivity = el->dateTime_nowMonotonic(el);
+        sub->recoveryPending = false;
+        return true;
+    }
+    if(status != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "Republish after reconnect returned %s for Subscription %" PRIu32,
+                       UA_StatusCode_name(status), recovery->subscriptionId);
+        /* Resume other Subscriptions and ordinary Publish. A subsequent
+         * transport closure starts a fresh recovery attempt. */
+        sub->recoveryPending = false;
+        return true;
+    }
+
+    UA_NotificationMessage *msg = &response->notificationMessage;
+    if(msg->sequenceNumber != recovery->sequenceNumber || msg->notificationDataSize == 0) {
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "Unexpected Republish response for Subscription %" PRIu32,
+                       recovery->subscriptionId);
+        sub->recoveryPending = false;
+        return true;
+    }
+
+    sub->lastActivity = el->dateTime_nowMonotonic(el);
+    for(size_t i = 0; i < msg->notificationDataSize; ++i) {
+        if(!processNotificationMessage(client, sub, &msg->notificationData[i], recovery))
+            return true;
+    }
+    /* Commit the cursor only after dispatch completes. If a callback closes
+     * the channel, a later recovery can retry the interrupted message. */
+    sub->sequenceNumber = msg->sequenceNumber;
+    queueNotificationAcknowledgement(client, recovery->subscriptionId, recovery->sequenceNumber);
+    return true;
+}
+
+static void
+processRepublishResponseAsync(UA_Client *client, void *userdata,
+                              UA_UInt32 requestId, void *response) {
+    (void)requestId;
+    lockClient(client);
+    struct UA_Client_RepublishRecovery *recovery = (struct UA_Client_RepublishRecovery*)userdata;
+    /* Keep the slot owned through application callbacks, even if they replace
+     * the channel. This prevents reentrant refill during notification delivery. */
+    UA_Boolean continueRecovery = handleRepublishResponse(client, recovery, (UA_RepublishResponse*)response);
+    if(client->subscriptionRecovery == recovery)
+        client->subscriptionRecovery = NULL;
+    UA_free(recovery);
+    if(continueRecovery)
+        __Client_Subscriptions_backgroundPublish(client);
+    unlockClient(client);
+}
+
+static void
+requestRecoveryMessage(UA_Client *client, const UA_Client_Subscription *sub) {
+    struct UA_Client_RepublishRecovery *recovery =
+        (struct UA_Client_RepublishRecovery*)UA_malloc(sizeof(struct UA_Client_RepublishRecovery));
+    if(!recovery)
+        return;
+    recovery->generation = client->subscriptionRecoveryGeneration;
+    recovery->subscriptionId = sub->subscriptionId;
+    recovery->sequenceNumber = __nextSequenceNumber(sub->sequenceNumber);
+
+    UA_RepublishRequest request;
+    UA_RepublishRequest_init(&request);
+    request.subscriptionId = recovery->subscriptionId;
+    request.retransmitSequenceNumber = recovery->sequenceNumber;
+    client->subscriptionRecovery = recovery;
+    UA_StatusCode status = __Client_AsyncServiceInternal(client, &request,
+        &UA_TYPES[UA_TYPES_REPUBLISHREQUEST], processRepublishResponseAsync,
+        &UA_TYPES[UA_TYPES_REPUBLISHRESPONSE], recovery, NULL);
+    if(status != UA_STATUSCODE_GOOD && client->subscriptionRecovery == recovery) {
+        client->subscriptionRecovery = NULL;
+        UA_free(recovery);
+    }
+}
+
 void
 __Client_Subscriptions_backgroundPublish(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
+    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED ||
+       client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
+       client->connectStatus != UA_STATUSCODE_GOOD ||
+       client->config.outStandingPublishRequests == 0)
         return;
 
     /* The session must have at least one subscription */
     if(!LIST_FIRST(&client->subscriptions))
         return;
+
+    /* A retained Subscription must reach the Republish stop before the first
+     * automatic Publish can displace outstanding recovery messages. */
+    if(client->subscriptionRecovery)
+        return;
+    UA_Client_Subscription *sub;
+    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
+        if(sub->recoveryPending) {
+            requestRecoveryMessage(client, sub);
+            return;
+        }
+    }
 
     while(client->currentlyOutStandingPublishRequests < client->config.outStandingPublishRequests) {
         UA_PublishRequest *request = UA_PublishRequest_new();

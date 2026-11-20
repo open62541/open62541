@@ -1613,7 +1613,8 @@ retransmissionResponseCallback(UA_Client *client, void *context,
 }
 
 static UA_Subscription *
-createRetransmissionSubscription(UA_Client *client) {
+createRetransmissionSubscription(UA_Client *client, void *context,
+                                 UA_Client_DataChangeNotificationCallback callback) {
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     /* Publishing is driven explicitly while the server thread is paused. */
     request.requestedPublishingInterval = 60000;
@@ -1635,7 +1636,7 @@ createRetransmissionSubscription(UA_Client *client) {
     UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(nodeId);
     item.requestedParameters.samplingInterval = 0;
     UA_MonitoredItemCreateResult result = UA_Client_MonitoredItems_createDataChange(
-        client, subId, UA_TIMESTAMPSTORETURN_NEITHER, item, NULL, NULL, NULL);
+        client, subId, UA_TIMESTAMPSTORETURN_NEITHER, item, context, callback, NULL);
     ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
     UA_MonitoredItemCreateResult_clear(&result);
 
@@ -1726,6 +1727,112 @@ checkRepublishedValue(UA_Client *client, UA_Subscription *sub, UA_UInt32 sequenc
     UA_RepublishResponse_clear(&response);
 }
 
+typedef struct {
+    size_t count;
+    UA_UInt32 values[3];
+} ReconnectValues;
+
+static void
+recordReconnectValue(UA_Client *client, UA_UInt32 subId, void *subContext,
+                     UA_UInt32 monId, void *monContext, UA_DataValue *value) {
+    ReconnectValues *received = (ReconnectValues*)monContext;
+    ck_assert(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_lt(received->count, 3);
+    received->values[received->count++] = *(UA_UInt32*)value->value.data;
+}
+
+START_TEST(Client_republishBeforePublishOnReconnect) {
+    UA_Client *client = newConnectedClient();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->outStandingPublishRequests = 0;
+    ReconnectValues received = {0, {0}};
+    UA_Subscription *sub = createRetransmissionSubscription(client, &received,
+                                                           recordReconnectValue);
+    ReconnectValues peerValues = {0, {0}};
+    UA_Subscription *peer = createRetransmissionSubscription(client, &peerValues,
+                                                             recordReconnectValue);
+    pauseServer();
+
+    /* Two ordinary explicit Publish calls leave messages in retransmission.
+     * Their raw callbacks do not advance the Subscription's automatic cursor. */
+    for(UA_UInt32 v = 41; v <= 42; v++) {
+        UA_PublishResponse response = publishRetransmissionValue(client, sub, v);
+        UA_PublishResponse_clear(&response);
+    }
+    UA_PublishResponse peerResponse = publishRetransmissionValue(client, peer, 70);
+    UA_PublishResponse_clear(&peerResponse);
+    ck_assert_uint_eq(peerValues.count, 0);
+    ck_assert_uint_eq(received.count, 0);
+    UA_UInt32 oldChannel = client->channel.securityToken.channelId;
+    cc->outStandingPublishRequests = 1;
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    cm->closeConnection(cm, client->channel.connectionId);
+    for(unsigned i = 0; i < 1000 && sub->session->responseQueueSize == 0; i++) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+        UA_fakeSleep(1);
+    }
+
+    /* Once automatic Publish resumes, both prior values must already have
+     * reached the application in order on the replacement SecureChannel. */
+    ck_assert_uint_ne(oldChannel, client->channel.securityToken.channelId);
+    ck_assert_uint_eq(client->sessionState, UA_SESSIONSTATE_ACTIVATED);
+    ck_assert_uint_eq(sub->session->responseQueueSize, 1);
+    ck_assert_uint_eq(received.count, 2);
+    ck_assert_uint_eq(received.values[0], 41);
+    ck_assert_uint_eq(received.values[1], 42);
+    ck_assert_uint_eq(peerValues.count, 1);
+    ck_assert_uint_eq(peerValues.values[0], 70);
+
+    UA_UInt32 v = 43;
+    UA_Variant variant;
+    UA_Variant_setScalar(&variant, &v, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server,
+        UA_NODEID_NUMERIC(1, 90000 + sub->subscriptionId), variant), UA_STATUSCODE_GOOD);
+    lockServer(server);
+    UA_Subscription_publish(server, sub);
+    unlockServer(server);
+    for(unsigned i = 0; i < 1000 && received.count < 3; i++) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+    }
+    ck_assert_uint_eq(received.count, 3);
+    ck_assert_uint_eq(received.values[2], 43);
+    runServer();
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_unsupportedRepublishResumesPublish) {
+    const UA_StatusCode unsupported[] = {UA_STATUSCODE_BADSERVICEUNSUPPORTED,
+                                         UA_STATUSCODE_BADNOTSUPPORTED};
+    UA_Client *client = newConnectedClient();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->outStandingPublishRequests = 0;
+    createTestSubscription(client, NULL);
+    createTestSubscription(client, NULL);
+    pauseServer();
+
+    /* Complete the first recovery call locally as a server without Republish
+     * would. Other Subscriptions must not keep the normal Publish queue gated. */
+    lockClient(client);
+    cc->outStandingPublishRequests = 1;
+    __Client_Subscriptions_prepareRecovery(client, true);
+    __Client_Subscriptions_backgroundPublish(client);
+    AsyncServiceCall *call = LIST_FIRST(&client->asyncServiceCalls);
+    ck_assert_ptr_nonnull(call);
+    ck_assert_ptr_eq(call->responseType, &UA_TYPES[UA_TYPES_REPUBLISHRESPONSE]);
+    __Client_AsyncService_fail(client, call->requestId, unsupported[_i]);
+    call = LIST_FIRST(&client->asyncServiceCalls);
+    ck_assert_ptr_nonnull(call);
+    ck_assert_ptr_eq(call->responseType, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    ck_assert_uint_eq(client->currentlyOutStandingPublishRequests, 1);
+    unlockClient(client);
+    runServer();
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_retransmissionCapacity) {
     const UA_UInt32 limits[] = {0, 1024, 3, 1, 0};
     pauseServer();
@@ -1734,7 +1841,7 @@ START_TEST(Client_retransmissionCapacity) {
     runServer();
     UA_Client *client = newConnectedClient();
     UA_Client_getConfig(client)->outStandingPublishRequests = 0;
-    UA_Subscription *sub = createRetransmissionSubscription(client);
+    UA_Subscription *sub = createRetransmissionSubscription(client, NULL, NULL);
     pauseServer();
 
     UA_UInt32 count = _i < 2 ? 1025 : 8;
@@ -1801,8 +1908,8 @@ START_TEST(Client_retransmissionOldestAcrossSubscriptions) {
     runServer();
     UA_Client *client = newConnectedClient();
     UA_Client_getConfig(client)->outStandingPublishRequests = 0;
-    UA_Subscription *first = createRetransmissionSubscription(client);
-    UA_Subscription *second = createRetransmissionSubscription(client);
+    UA_Subscription *first = createRetransmissionSubscription(client, NULL, NULL);
+    UA_Subscription *second = createRetransmissionSubscription(client, NULL, NULL);
     pauseServer();
 
     /* The oldest message is in the subscription with the newest tail. */
@@ -1853,7 +1960,7 @@ failRetransmissionCalloc(size_t count, size_t size) {
 START_TEST(Client_retransmissionAllocationFailure) {
     UA_Client *client = newConnectedClient();
     UA_Client_getConfig(client)->outStandingPublishRequests = 0;
-    UA_Subscription *sub = createRetransmissionSubscription(client);
+    UA_Subscription *sub = createRetransmissionSubscription(client, NULL, NULL);
     pauseServer();
     UA_PublishResponse first = publishRetransmissionValue(client, sub, 1);
     UA_PublishResponse_clear(&first);
@@ -4260,6 +4367,12 @@ static Suite* testSuite_Client(void) {
     tcase_add_loop_test(tc_asyncSettings, Client_asyncMonitoringModeReportsResults, 0, 4);
     tcase_add_loop_test(tc_asyncSettings, Client_asyncTriggeringReportsResults, 0, 4);
     suite_add_tcase(s, tc_asyncSettings);
+
+    TCase *tc_reconnectOrder = tcase_create("Republish on reconnect");
+    tcase_add_checked_fixture(tc_reconnectOrder, setup, teardown);
+    tcase_add_test(tc_reconnectOrder, Client_republishBeforePublishOnReconnect);
+    tcase_add_loop_test(tc_reconnectOrder, Client_unsupportedRepublishResumesPublish, 0, 2);
+    suite_add_tcase(s, tc_reconnectOrder);
 
     TCase *tc_retransmission = tcase_create("Retransmission queue");
     tcase_add_checked_fixture(tc_retransmission, setup, teardown);
