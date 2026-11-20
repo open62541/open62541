@@ -162,7 +162,8 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl);
  * notified when the connection status changes. Or use UA_Client_getState to get
  * the state manually. If the connection is not fully established within the
  * timeout from the client configuration, it is closed with the connectStatus
- * UA_STATUSCODE_BADTIMEOUT. */
+ * UA_STATUSCODE_BADTIMEOUT. A timeout of zero disables this async connect
+ * deadline. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_connectAsync(UA_Client *client, const char *endpointUrl);
 
@@ -616,8 +617,8 @@ struct UA_ClientConfig {
      * request within this time a StatusCode UA_STATUSCODE_BADTIMEOUT is
      * returned. This timeout can be overridden for individual requests by
      * setting a non-null "timeoutHint" in the request header. The timeout
-     * also limits the time until a (sync or async) connect is fully
-     * established. */
+     * also limits connection establishment. At zero, an asynchronous connect
+     * has no deadline and a synchronous connect has no time to wait. */
     UA_UInt32 timeout;
 
     /* Self-description of the client.
