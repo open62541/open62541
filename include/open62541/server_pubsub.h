@@ -810,7 +810,14 @@ typedef struct {
                                       * after which we want to receive a
                                       * message. Gets reset after every received
                                       * message. If <= 0.0, then no timeout is
-                                      * configured. */
+                                      * configured. The built-in state machine
+                                      * recovers from a receive-timeout Error
+                                      * after a compatible complete key frame
+                                      * with usable values is written to all
+                                      * targets. Without an override, timeout
+                                      * retains target Values with BadTimeout
+                                      * quality. Custom state machines handle
+                                      * recovery themselves. */
     UA_UInt32 keyFrameCount; /* Maximum key-frame period. A value <= 1
                               * accepts key frames only. */
     UA_String headerLayoutUri;
@@ -867,6 +874,19 @@ UA_Server_setDataSetReaderTargetVariables(
     UA_Server *server, const UA_NodeId dsrId,
     size_t targetVariablesSize,
     const UA_FieldTargetDataType *targetVariables);
+
+/* Apply the configured OverrideValueHandling to all targets for a Bad status.
+ * With disabled override handling, BadTimeout retains the current target Value;
+ * other Bad statuses write a Null value. LastUsableValue and OverrideValue use
+ * their configured fallback with UncertainLastUsableValue and GoodLocalOverride
+ * quality, respectively. All targets are attempted; a target update failure is
+ * returned to the caller.
+ *
+ * Custom state machines can call this helper from their callbacks. It does not
+ * change the reader state, manage timers, or enable automatic recovery. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updateDataSetReaderTargetValues(UA_Server *server, const UA_NodeId dsrId,
+                                          UA_StatusCode badStatus);
 
 /* Legacy API */
 #define UA_Server_DataSetReader_getConfig(server, dsrId, config) \
