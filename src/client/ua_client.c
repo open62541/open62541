@@ -416,13 +416,58 @@ setConnectStatus(UA_Client *client, UA_StatusCode status) {
     notifyClientState(client);
 }
 
+/* Keep the one-second housekeeping interval. During an async connect, align
+ * its ticks with the deadline so the EventLoop wakes up even on a silent link. */
+static UA_StatusCode
+scheduleHouseKeeping(UA_Client *client) {
+    UA_EventLoop *el = client->config.eventLoop;
+    const UA_DateTime *baseTime = client->connectDeadline ? &client->connectDeadline : NULL;
+    UA_TimerPolicy policy = baseTime ? UA_TIMERPOLICY_BASETIME : UA_TIMERPOLICY_CURRENTTIME;
+    UA_StatusCode res;
+    if(client->houseKeepingCallbackId)
+        res = el->modifyTimer(el, client->houseKeepingCallbackId, 1000.0, baseTime, policy);
+    else
+        res = el->addTimer(el, clientHouseKeeping, client, NULL, 1000.0, baseTime,
+                           policy, &client->houseKeepingCallbackId);
+
+    /* An external loop may already be waiting with the old poll timeout. */
+    if(res == UA_STATUSCODE_GOOD && baseTime && el->state == UA_EVENTLOOPSTATE_STARTED &&
+       el->cancel)
+        el->cancel(el);
+    return res;
+}
+
+UA_StatusCode
+setConnectDeadline(UA_Client *client, UA_DateTime deadline) {
+    if(client->connectDeadline == deadline)
+        return UA_STATUSCODE_GOOD;
+    client->connectDeadline = deadline;
+    /* Startup installs the timer if this is the first connect. */
+    if(!client->houseKeepingCallbackId)
+        return UA_STATUSCODE_GOOD;
+    return scheduleHouseKeeping(client);
+}
+
 void
 notifyClientState(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    /* The async connect has completed */
-    if(client->connectDeadline != 0 && isFullyConnected(client))
-        client->connectDeadline = 0;
+    /* Network callbacks can run before the next timer dispatch. Check the
+     * deadline before reporting a successful handshake. */
+    if(client->connectDeadline) {
+        UA_EventLoop *el = client->config.eventLoop;
+        if(client->connectStatus != UA_STATUSCODE_GOOD) {
+            setConnectDeadline(client, 0);
+        } else if(el->dateTime_nowMonotonic(el) >= client->connectDeadline) {
+            setConnectDeadline(client, 0);
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "The connection has timed out before it could be fully opened");
+            setConnectStatus(client, UA_STATUSCODE_BADTIMEOUT);
+            return;
+        } else if(isFullyConnected(client)) {
+            setConnectDeadline(client, 0);
+        }
+    }
 
     if(client->connectStatus == client->oldConnectStatus &&
        client->channel.state == client->oldChannelState &&
@@ -1409,32 +1454,6 @@ __Client_backgroundConnectivity(UA_Client *client) {
         client->pendingConnectivityCheck = true;
 }
 
-/* Abort an async connect that is not fully connected within the timeout. A
- * listening reverse connect waits for the server without a deadline. */
-static void
-connectTimeoutCheck(UA_Client *client) {
-    if(client->connectDeadline == 0)
-        return;
-
-    /* Connected, or the connect has failed otherwise */
-    if(isFullyConnected(client) || client->connectStatus != UA_STATUSCODE_GOOD) {
-        client->connectDeadline = 0;
-        return;
-    }
-
-    if(client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
-        return;
-
-    UA_EventLoop *el = client->config.eventLoop;
-    if(el->dateTime_nowMonotonic(el) < client->connectDeadline)
-        return;
-
-    UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                 "The connection has timed out before it could be fully opened");
-    client->connectDeadline = 0;
-    setConnectStatus(client, UA_STATUSCODE_BADTIMEOUT);
-}
-
 /* Regular housekeeping activities in the client -- called via a cyclic callback */
 static void
 clientHouseKeeping(void *client_, void *_) {
@@ -1446,7 +1465,8 @@ clientHouseKeeping(void *client_, void *_) {
                  "required activities");
 
     /* Abort an async connect that takes too long */
-    connectTimeoutCheck(client);
+    if(client->connectDeadline)
+        notifyClientState(client);
 
     /* Renew Secure Channel */
     __Client_renewSecureChannel(client);
@@ -1487,10 +1507,7 @@ __UA_Client_startup(UA_Client *client) {
      * mutex again */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     if(!client->houseKeepingCallbackId) {
-        rv = el->addTimer(el, clientHouseKeeping,
-                          client, NULL, 1000.0, NULL,
-                          UA_TIMERPOLICY_CURRENTTIME,
-                          &client->houseKeepingCallbackId);
+        rv = scheduleHouseKeeping(client);
         UA_CHECK_STATUS(rv, return rv);
     }
 

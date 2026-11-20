@@ -2939,13 +2939,17 @@ connectInternal(UA_Client *client, UA_Boolean async) {
     client->connectStatus = UA_STATUSCODE_GOOD;
     resetReconnect(client);
 
-    /* The sync connect has its own deadline. The async connect is aborted in
-     * the housekeeping when it is not fully connected within the timeout. */
-    client->connectDeadline = 0;
+    UA_DateTime deadline = 0;
     UA_EventLoop *el = client->config.eventLoop;
-    if(async && el && client->config.timeout > 0)
-        client->connectDeadline = el->dateTime_nowMonotonic(el) +
+    if(async && el && client->config.timeout > 0 &&
+       client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING)
+        deadline = el->dateTime_nowMonotonic(el) +
             ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+    UA_StatusCode res = setConnectDeadline(client, deadline);
+    if(res != UA_STATUSCODE_GOOD) {
+        setConnectStatus(client, res);
+        return res;
+    }
 
     if(async)
         initConnect(client);
@@ -3232,7 +3236,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
 
     client->connectStatus = UA_STATUSCODE_GOOD;
-    client->connectDeadline = 0; /* No deadline for a reverse connect */
+    setConnectDeadline(client, 0); /* No deadline for a reverse connect */
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
 
     UA_SecureChannel_init(&client->channel);
@@ -3413,7 +3417,7 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
     UA_EndpointDescription_clear(&client->endpoint);
 
     /* An ongoing async connect is cancelled */
-    client->connectDeadline = 0;
+    setConnectDeadline(client, 0);
 
     /* Manually set the status to closed to prevent an automatic reconnection.
      * Do this before closing because some ConnectionManagers report the close

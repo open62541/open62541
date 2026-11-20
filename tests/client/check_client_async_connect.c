@@ -286,21 +286,58 @@ START_TEST(Client_connect_async_timeout) {
     /* The server is not iterated and never answers the HEL message */
     UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->timeout = _i == 0 ? 100 : 2300;
+    /* Exercise both a new housekeeping timer and one that already exists. */
+    if(_i != 0)
+        ck_assert_uint_eq(UA_Client_run_iterate(client, 0), UA_STATUSCODE_GOOD);
     UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* Still connecting */
+    /* A housekeeping tick before the deadline must keep the connect alive. */
+    UA_fakeSleep(cc->timeout - 1);
     UA_Client_run_iterate(client, 0);
     UA_StatusCode connectStatus = UA_STATUSCODE_BADINTERNALERROR;
     UA_Client_getState(client, NULL, NULL, &connectStatus);
     ck_assert_uint_eq(connectStatus, UA_STATUSCODE_GOOD);
 
     /* The connect is aborted after the timeout */
-    UA_fakeSleep(cc->timeout + 1500);
+    UA_fakeSleep(1);
     UA_Client_run_iterate(client, 0);
     UA_Client_getState(client, NULL, NULL, &connectStatus);
     ck_assert_uint_eq(connectStatus, UA_STATUSCODE_BADTIMEOUT);
 
+    UA_Client_delete(client);
+}
+END_TEST
+
+static void
+advanceClockDuringDispatch(UA_Client *client, void *data) {
+    UA_fakeSleep(1);
+}
+
+START_TEST(Client_connect_async_lateResponse) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->timeout = 100;
+    ck_assert_uint_eq(UA_Client_connectAsync(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    /* Queue the final NamespaceArray response on the socket. */
+    for(size_t i = 0; i < 1000 && !client->namespacesHandshake; i++) {
+        UA_Server_run_iterate(server, false);
+        ck_assert_uint_eq(UA_Client_run_iterate(client, 1), UA_STATUSCODE_GOOD);
+    }
+    ck_assert(client->namespacesHandshake);
+    UA_Server_run_iterate(server, false);
+
+    /* The loop selects due timers one millisecond before the deadline. The
+     * deadline expires in this callback, just before network dispatch. */
+    UA_fakeSleep(cc->timeout - 1);
+    UA_EventLoop *el = cc->eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    ck_assert_uint_eq(UA_Client_addTimedCallback(client, advanceClockDuringDispatch,
+                                                 NULL, now, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_run_iterate(client, 100), UA_STATUSCODE_BADTIMEOUT);
     UA_Client_delete(client);
 }
 END_TEST
@@ -317,7 +354,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_connect, Client_connectSecureChannelAsync);
     tcase_add_test(tc_client_connect, Client_connect_async_wrongUrl);
     tcase_add_test(tc_client_connect, Client_connectUsername_async);
-    tcase_add_test(tc_client_connect, Client_connect_async_timeout);
+    tcase_add_loop_test(tc_client_connect, Client_connect_async_timeout, 0, 2);
+    tcase_add_test(tc_client_connect, Client_connect_async_lateResponse);
     suite_add_tcase(s,tc_client_connect);
     return s;
 }

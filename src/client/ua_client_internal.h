@@ -376,6 +376,7 @@ UA_Boolean isFullyConnected(UA_Client *client);
 void connectSync(UA_Client *client);
 void connectActivity(UA_Client *client);
 void setConnectStatus(UA_Client *client, UA_StatusCode status);
+UA_StatusCode setConnectDeadline(UA_Client *client, UA_DateTime deadline);
 void notifyClientState(UA_Client *client);
 void processRHEMessage(UA_Client *client, const UA_ByteString *chunk);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
