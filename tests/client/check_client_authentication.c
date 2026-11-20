@@ -13,6 +13,8 @@
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/plugin/create_certificate.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server.h>
 
@@ -553,6 +555,115 @@ START_TEST(client_authenticate_none_with_certificate) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+static void
+createUserCertificate(UA_ByteString *certificate, UA_ByteString *privateKey) {
+    UA_String subject[2] = {UA_STRING_STATIC("O=open62541"),
+                            UA_STRING_STATIC("CN=operator")};
+    UA_String subjectAltName = UA_STRING_STATIC("URI:urn:open62541.user");
+    UA_StatusCode res =
+        UA_CreateCertificate(UA_Log_Stdout, subject, 2, &subjectAltName, 1,
+                             UA_CERTIFICATEFORMAT_DER, NULL, privateKey,
+                             certificate);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+static UA_Client *
+connectWithUserCertificate(const UA_ByteString *userCertificate,
+                           const UA_ByteString *userPrivateKey) {
+    UA_ByteString certificate = {CLIENT_CERT_DER_LENGTH, CLIENT_CERT_DER_DATA};
+    UA_ByteString privateKey = {CLIENT_KEY_DER_LENGTH, CLIENT_KEY_DER_DATA};
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, NULL, 0, NULL, 0);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    UA_ClientConfig_setAuthenticationCert(cc, *userCertificate, *userPrivateKey);
+
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    return client;
+}
+
+static UA_StatusCode
+transferSubscription(UA_Client *client, UA_UInt32 subscriptionId) {
+    UA_TransferSubscriptionsRequest req;
+    UA_TransferSubscriptionsRequest_init(&req);
+    req.subscriptionIdsSize = 1;
+    req.subscriptionIds = &subscriptionId;
+    UA_TransferSubscriptionsResponse resp;
+    UA_TransferSubscriptionsResponse_init(&resp);
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_TRANSFERSUBSCRIPTIONSREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_TRANSFERSUBSCRIPTIONSRESPONSE]);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(resp.resultsSize, 1);
+    UA_StatusCode res = resp.results[0].statusCode;
+    UA_TransferSubscriptionsResponse_clear(&resp);
+    return res;
+}
+
+/* Subject names need not identify a certificate. A Session authenticated with
+ * another user certificate that has the same subject name cannot transfer the
+ * Subscription, neither while the owning Session is alive nor after it was
+ * closed with DeleteSubscriptions=false. */
+START_TEST(client_transfer_subscription_same_subject_certificate) {
+    UA_ByteString cert1, key1, cert2, key2;
+    createUserCertificate(&cert1, &key1);
+    createUserCertificate(&cert2, &key2);
+    ck_assert(!UA_ByteString_equal(&cert1, &cert2));
+
+    UA_Client *owner = connectWithUserCertificate(&cert1, &key1);
+    UA_CreateSubscriptionRequest csReq = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse csResp;
+    UA_CreateSubscriptionResponse_init(&csResp);
+    __UA_Client_Service(owner, &csReq, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
+                        &csResp, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
+    ck_assert_uint_eq(csResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subscriptionId = csResp.subscriptionId;
+    UA_CreateSubscriptionResponse_clear(&csResp);
+
+    /* The owning Session is still alive */
+    UA_Client *other = connectWithUserCertificate(&cert2, &key2);
+    ck_assert_uint_eq(transferSubscription(other, subscriptionId),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    /* Detach the Subscription from the owning Session */
+    UA_CloseSessionRequest clReq;
+    UA_CloseSessionRequest_init(&clReq);
+    clReq.deleteSubscriptions = false;
+    UA_CloseSessionResponse clResp;
+    UA_CloseSessionResponse_init(&clResp);
+    __UA_Client_Service(owner, &clReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &clResp, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    ck_assert_uint_eq(clResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_CloseSessionResponse_clear(&clResp);
+    UA_Client_disconnect(owner);
+    UA_Client_delete(owner);
+
+    ck_assert_uint_eq(transferSubscription(other, subscriptionId),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_Client_disconnect(other);
+    UA_Client_delete(other);
+
+    /* The same user certificate can transfer the detached Subscription */
+    owner = connectWithUserCertificate(&cert1, &key1);
+    ck_assert_uint_eq(transferSubscription(owner, subscriptionId),
+                      UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(owner);
+    UA_Client_delete(owner);
+
+    UA_ByteString_clear(&cert1);
+    UA_ByteString_clear(&key1);
+    UA_ByteString_clear(&cert2);
+    UA_ByteString_clear(&key2);
+}
+END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client with Authentication");
@@ -567,6 +678,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, client_connect_basic256Sha256_anonymous);
     tcase_add_test(tc_client, client_authenticate_with_certificate);
     tcase_add_test(tc_client, client_authenticate_none_with_certificate);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    tcase_add_test(tc_client, client_transfer_subscription_same_subject_certificate);
+#endif
     suite_add_tcase(s,tc_client);
     return s;
 }

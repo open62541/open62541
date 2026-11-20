@@ -221,6 +221,7 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     /* Remember the identity of the Session. TransferSubscriptions of the
      * detached Subscription is only allowed for the same identity. */
     UA_String_clear(&sub->ownerUserId);
+    UA_ByteString_clear(&sub->ownerCertificate);
     UA_String_clear(&sub->ownerApplicationUri);
     sub->ownerTokenType = session->userTokenType;
     sub->ownerSecure = session->channel &&
@@ -228,6 +229,8 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     sub->ownerKnown =
         UA_String_copy(&session->clientUserIdOfSession,
                        &sub->ownerUserId) == UA_STATUSCODE_GOOD &&
+        UA_ByteString_copy(&session->userCertificate,
+                           &sub->ownerCertificate) == UA_STATUSCODE_GOOD &&
         UA_String_copy(&session->clientDescription.applicationUri,
                        &sub->ownerApplicationUri) == UA_STATUSCODE_GOOD;
 
