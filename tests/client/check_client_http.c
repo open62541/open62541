@@ -596,6 +596,9 @@ runClientScenario(HttpClientScenario scenario) {
     /* Drop the shared HTTP binding while Publish requests are pending. The
      * client must reopen it, reactivate the same Session and replenish all
      * Publish requests without recreating the subscription. */
+    char newNamespace[] = "urn:open62541:test:http-reconnect";
+    UA_UInt16 remoteIndex = UA_Server_addNamespace(server, newNamespace);
+    ck_assert_uint_gt(remoteIndex, 1);
     UA_NodeId sessionTokenBeforeReconnect;
     UA_NodeId_init(&sessionTokenBeforeReconnect);
     uintptr_t bindingId = 0;
@@ -621,7 +624,7 @@ runClientScenario(HttpClientScenario scenario) {
         UA_Client_getState(client, &channelState, &sessionState,
                            &connectStatus);
         if(channelState == UA_SECURECHANNELSTATE_OPEN &&
-           sessionState == UA_SESSIONSTATE_ACTIVATED &&
+           sessionState == UA_SESSIONSTATE_ACTIVATED && client->haveNamespaces &&
            countPendingResponses(client,
                                  &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]) == 3)
             break;
@@ -631,6 +634,12 @@ runClientScenario(HttpClientScenario scenario) {
     ck_assert_uint_eq(sessionState, UA_SESSIONSTATE_ACTIVATED);
     ck_assert_uint_eq(
         countPendingResponses(client, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]), 3);
+    UA_UInt16 localIndex = 0;
+    ck_assert_uint_eq(UA_Client_getNamespaceIndex(client, UA_STRING(newNamespace),
+                                                  &localIndex), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(client->channel.namespaceMapping);
+    ck_assert_uint_lt(remoteIndex, client->channel.namespaceMapping->remote2localSize);
+    ck_assert_uint_eq(client->channel.namespaceMapping->remote2local[remoteIndex], localIndex);
     lockClient(client);
     ck_assert(UA_NodeId_equal(&client->authenticationToken,
                               &sessionTokenBeforeReconnect));
