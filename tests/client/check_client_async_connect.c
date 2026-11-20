@@ -342,6 +342,30 @@ START_TEST(Client_connect_async_lateResponse) {
 }
 END_TEST
 
+START_TEST(Client_connect_async_timeoutDuringSessionHandshake) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_Client_getConfig(client)->timeout = 100;
+    ck_assert_uint_eq(UA_Client_connectAsync(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    /* The overall deadline expires before the outstanding service times out. */
+    UA_fakeSleep(50);
+    UA_SessionState pending = _i == 0 ? UA_SESSIONSTATE_CREATE_REQUESTED :
+        UA_SESSIONSTATE_ACTIVATE_REQUESTED;
+    for(size_t i = 0; i < 1000 && client->sessionState != pending; i++) {
+        UA_Server_run_iterate(server, false);
+        ck_assert_uint_eq(UA_Client_run_iterate(client, 1), UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(client->sessionState, pending);
+    UA_fakeSleep(50);
+    for(size_t i = 0; i < 100 && client->channel.state != UA_SECURECHANNELSTATE_CLOSED; i++)
+        ck_assert_uint_eq(UA_Client_run_iterate(client, 1), UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(client->channel.state, UA_SECURECHANNELSTATE_CLOSED);
+    ck_assert_uint_eq(client->connectStatus, UA_STATUSCODE_BADTIMEOUT);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_connect = tcase_create("Client Connect Async");
@@ -356,6 +380,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_connect, Client_connectUsername_async);
     tcase_add_loop_test(tc_client_connect, Client_connect_async_timeout, 0, 2);
     tcase_add_test(tc_client_connect, Client_connect_async_lateResponse);
+    tcase_add_loop_test(tc_client_connect, Client_connect_async_timeoutDuringSessionHandshake, 0, 2);
     suite_add_tcase(s,tc_client_connect);
     return s;
 }
