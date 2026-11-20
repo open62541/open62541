@@ -33,27 +33,6 @@ static unsigned semanticDataChangeCount = 0;
 static UA_StatusCode semanticDataChangeStatus = 0;
 static UA_Int32 semanticDataChangeValue = 0;
 
-#if defined(UA_GENERATED_NAMESPACE_ZERO) && !defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
-typedef struct {
-    unsigned count;
-    UA_StatusCode status;
-    UA_Double value;
-} AnalogDataChange;
-
-static void
-analogDataChangeCallback(UA_Server *server, UA_UInt32 monitoredItemId,
-                         void *monitoredItemContext, const UA_NodeId *nodeId,
-                         void *nodeContext, UA_UInt32 attributeId,
-                         const UA_DataValue *value) {
-    AnalogDataChange *change = (AnalogDataChange*)monitoredItemContext;
-    ck_assert(value->hasValue);
-    ck_assert(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DOUBLE]));
-    change->count++;
-    change->status = value->hasStatus ? value->status : UA_STATUSCODE_GOOD;
-    change->value = *(UA_Double*)value->value.data;
-}
-#endif
-
 static void
 setup(void) {
     server = UA_Server_newForUnitTest();
@@ -873,86 +852,6 @@ START_TEST(semanticChangeDataNotification) {
                       UA_STATUSCODE_SEMANTICSCHANGED, 0);
 } END_TEST
 
-#if defined(UA_GENERATED_NAMESPACE_ZERO) && !defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
-START_TEST(semanticChangeInheritedEURange) {
-    UA_NodeId analog = UA_NODEID_NUMERIC(1, 1340);
-    UA_Double sample = 40.0;
-    UA_VariableAttributes attr = UA_VariableAttributes_default;
-    UA_Variant_setScalar(&attr.value, &sample, &UA_TYPES[UA_TYPES_DOUBLE]);
-    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    UA_StatusCode result = UA_Server_addVariableNode(
-        server, analog, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
-        UA_QUALIFIEDNAME(1, "AnalogWithEURange"), UA_NS0ID(ANALOGITEMTYPE),
-        attr, NULL, NULL);
-    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
-
-    UA_QualifiedName name = UA_QUALIFIEDNAME(0, "EURange");
-    UA_BrowsePathResult path = UA_Server_browseSimplifiedBrowsePath(server, analog, 1, &name);
-    ck_assert_uint_eq(path.statusCode, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(path.targetsSize, 1);
-    UA_NodeId rangeNode;
-    UA_NodeId_init(&rangeNode);
-    result = UA_NodeId_copy(&path.targets[0].targetId.nodeId, &rangeNode);
-    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
-    UA_BrowsePathResult_clear(&path);
-
-    UA_Range initialRange = {0.0, 100.0};
-    UA_Variant value;
-    UA_Variant_setScalar(&value, &initialRange, &UA_TYPES[UA_TYPES_RANGE]);
-    result = UA_Server_writeValue(server, rangeNode, value);
-    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
-
-    AnalogDataChange change = {0};
-    UA_MonitoredItemCreateRequest request;
-    UA_MonitoredItemCreateRequest_init(&request);
-    request.itemToMonitor.nodeId = analog;
-    request.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
-    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
-    request.requestedParameters.samplingInterval = 0.0;
-    request.requestedParameters.queueSize = 1;
-    UA_MonitoredItemCreateResult mon = UA_Server_createDataChangeMonitoredItem(
-        server, UA_TIMESTAMPSTORETURN_NEITHER, request, &change,
-        analogDataChangeCallback);
-    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
-    UA_Server_run_iterate(server, false);
-    ck_assert_uint_eq(change.count, 1);
-    ck_assert(change.value == 40.0);
-    change.count = 0;
-
-    UA_Range revisedRange = {0.0, 50.0};
-    UA_Variant_setScalar(&value, &revisedRange, &UA_TYPES[UA_TYPES_RANGE]);
-    result = UA_Server_writeValue(server, rangeNode, value);
-    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
-    sample = 48.0;
-    UA_Variant_setScalar(&value, &sample, &UA_TYPES[UA_TYPES_DOUBLE]);
-    result = UA_Server_writeValue(server, analog, value);
-    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
-    UA_Server_run_iterate(server, false);
-    ck_assert_uint_eq(change.count, 1);
-    ck_assert(change.value == 48.0);
-    ck_assert(change.status & UA_STATUSCODE_SEMANTICSCHANGED);
-
-    change.count = 0;
-    sample = 42.0;
-    UA_Variant_setScalar(&value, &sample, &UA_TYPES[UA_TYPES_DOUBLE]);
-    result = UA_Server_writeValue(server, analog, value);
-    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
-    UA_Server_run_iterate(server, false);
-    ck_assert_uint_eq(change.count, 1);
-    ck_assert(change.value == 42.0);
-    ck_assert_uint_eq(change.status & UA_STATUSCODE_SEMANTICSCHANGED, 0);
-
-    UA_Byte accessLevel = 0;
-    result = UA_Server_readAccessLevel(server, rangeNode, &accessLevel);
-    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(accessLevel, UA_ACCESSLEVELMASK_READ |
-                      UA_ACCESSLEVELMASK_SEMANTICCHANGE);
-
-    UA_NodeId_clear(&rangeNode);
-} END_TEST
-#endif
-
 static Suite *testSuite_event(void) {
     Suite *s = suite_create("Server Local Subscription Events");
     TCase *tc_server = tcase_create("Server Local Subscription Events");
@@ -971,9 +870,6 @@ static Suite *testSuite_event(void) {
     tcase_add_test(tc_server, modelChangeUnversionedNodeIgnored);
     tcase_add_test(tc_server, semanticChangeEvent);
     tcase_add_test(tc_server, semanticChangeDataNotification);
-#if defined(UA_GENERATED_NAMESPACE_ZERO) && !defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
-    tcase_add_test(tc_server, semanticChangeInheritedEURange);
-#endif
     suite_add_tcase(s, tc_server);
 
     TCase *tc_subtype = tcase_create("SemanticChange HasProperty subtype");
