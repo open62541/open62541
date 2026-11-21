@@ -18,7 +18,11 @@
 #include "../common/eventloop_common.h"
 #include "../../deps/mp_printf.h"
 
-#if !defined(__QNX__)
+#if defined(__QNX__)
+/* QNX ships the BSD queue macros in <sys/queue.h>; use the system header
+ * instead of the bundled copy. */
+# include <sys/queue.h>
+#else
 # include "../deps/open62541_queue.h"
 #endif
 
