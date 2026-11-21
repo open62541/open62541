@@ -6,11 +6,6 @@
  */
 
 #include "ua_securechannel.h"
-#include "ua_types_encoding_binary.h"
-
-#ifdef UA_ENABLE_JSON_ENCODING
-# include "ua_types_encoding_json.h"
-#endif
 
 const UA_String *
 UA_Http_getHeader(const UA_KeyValueMap *params, const char *name,

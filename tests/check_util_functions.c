@@ -5,6 +5,7 @@
 #include <open62541/types.h>
 #include <open62541/util.h>
 #include <open62541/types_generated.h>
+#include <stdlib.h>
 #include <check.h>
 
 /* === Random seed deterministic === */
@@ -239,6 +240,28 @@ START_TEST(base64_empty) {
     UA_String encoded = UA_STRING_NULL;
     UA_StatusCode res = UA_ByteString_toBase64(&data, &encoded);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(base64_unpadded) {
+    UA_String oneByte = UA_STRING("AQ");
+    UA_ByteString decoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_ByteString_fromBase64(&decoded, &oneByte);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.length, 1);
+    ck_assert_uint_eq(decoded.data[0], 1);
+    UA_ByteString_clear(&decoded);
+
+    UA_String twoBytes = UA_STRING("AQI");
+    res = UA_ByteString_fromBase64(&decoded, &twoBytes);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.length, 2);
+    ck_assert_uint_eq(decoded.data[0], 1);
+    ck_assert_uint_eq(decoded.data[1], 2);
+    UA_ByteString_clear(&decoded);
+
+    UA_String incomplete = UA_STRING("A");
+    res = UA_ByteString_fromBase64(&decoded, &incomplete);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
 } END_TEST
 
 /* === constantTimeEqual & memZero === */
@@ -600,6 +623,7 @@ static Suite *testSuite_util(void) {
     TCase *tc_base64 = tcase_create("Base64");
     tcase_add_test(tc_base64, base64_roundtrip);
     tcase_add_test(tc_base64, base64_empty);
+    tcase_add_test(tc_base64, base64_unpadded);
 
     TCase *tc_security = tcase_create("Security");
     tcase_add_test(tc_security, constantTimeEqual_true);

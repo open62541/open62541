@@ -40,7 +40,9 @@ static void teardown(void) {
  * UA_DataType so we can hand it to UA_Server_addDataType. */
 static UA_DataTypeMember customMember[1] = {
     {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
         .memberName = "value",
+#endif
         .memberType = &UA_TYPES[UA_TYPES_INT32],
         .isArray = false,
         .isOptional = false
@@ -51,7 +53,9 @@ static UA_DataType customType;
 
 static void initCustomType(UA_DataType *t, UA_UInt16 ns, UA_UInt32 idBase) {
     memset(t, 0, sizeof(*t));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     t->typeName = "MyCustomType";
+#endif
     t->typeId.namespaceIndex = ns;
     t->typeId.identifierType = UA_NODEIDTYPE_NUMERIC;
     t->typeId.identifier.numeric = idBase;
@@ -148,7 +152,9 @@ START_TEST(Utils_addDataType_preservesSelfReference) {
     recursiveType.memSize = sizeof(size_t) + sizeof(void *);
     recursiveType.pointerFree = false;
     recursiveType.members = &recursiveMember;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     recursiveMember.memberName = "children";
+#endif
     recursiveMember.memberType = &recursiveType;
     recursiveMember.isArray = true;
 
@@ -176,7 +182,9 @@ START_TEST(Utils_addDataType_fillsFirstList) {
      * duplicate type by the lookup guard. */
     static UA_DataTypeMember memberTemplate[1] = {
         {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
             .memberName = "value",
+#endif
             .memberType = &UA_TYPES[UA_TYPES_INT32],
             .isArray = false,
             .isOptional = false
@@ -279,6 +287,251 @@ START_TEST(Utils_typeHierarchy_entriesAreIntact) {
     UA_NodeId_clear(&c);
 } END_TEST
 
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
+START_TEST(Utils_addDataTypeFromDescriptionEx_mapping) {
+    UA_UInt16 encNs = UA_Server_addNamespace(server, "urn:encodings");
+    UA_UInt16 typeNs = UA_Server_addNamespace(server, "urn:types");
+    UA_UInt16 depNs = UA_Server_addNamespace(server, "urn:dependency");
+    UA_UInt16 indexes[] = {0, typeNs, depNs, encNs};
+    UA_NamespaceMapping mapping = {0};
+    mapping.local2remote = indexes;
+    mapping.local2remoteSize = 4;
+    UA_AddDataTypeFromDescriptionOptions options = {0};
+    options.namespaceMapping = _i == 3 ? NULL : &mapping;
+
+    UA_DataType dependency = UA_TYPES[UA_TYPES_INT32];
+    dependency.typeId = UA_NODEID_NUMERIC(_i == 3 ? 2 : depNs, 99600);
+    ck_assert_uint_eq(UA_Server_addDataType(server, UA_NODEID_NULL, &dependency),
+                      UA_STATUSCODE_GOOD);
+
+    UA_StructureField fields[2];
+    memset(fields, 0, sizeof(fields));
+    fields[0].name = UA_STRING("Value");
+    fields[0].dataType = UA_NODEID_NUMERIC(2, 99600);
+    fields[0].valueRank = UA_VALUERANK_SCALAR;
+    fields[1].name = UA_STRING("Children");
+    fields[1].dataType = UA_NODEID_NUMERIC(1, 99601);
+    fields[1].valueRank = UA_VALUERANK_ONE_DIMENSION;
+
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = fields[1].dataType;
+    description.name = UA_QUALIFIEDNAME(1, "Record");
+    description.structureDefinition.baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    description.structureDefinition.defaultEncodingId = UA_NODEID_STRING(3, "default");
+    description.structureDefinition.structureType = UA_STRUCTURETYPE_STRUCTURE;
+    description.structureDefinition.fields = fields;
+    description.structureDefinition.fieldsSize = 2;
+    UA_ExtensionObject eo, original;
+    UA_ExtensionObject_setValueNoDelete(&eo, &description,
+                                       &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    ck_assert_uint_eq(UA_ExtensionObject_copy(&eo, &original), UA_STATUSCODE_GOOD);
+
+    UA_NodeId binary = UA_NODEID_STRING_ALLOC(2, "binary");
+    UA_NodeId xml = UA_NODEID_BYTESTRING_ALLOC(3, "xml");
+    UA_NodeId empty = UA_NODEID_NULL;
+    if(_i == 1 || _i == 3) {
+        options.binaryEncodingId = &binary;
+        options.xmlEncodingId = &xml;
+    } else if(_i == 2) {
+        options.binaryEncodingId = &empty;
+        options.xmlEncodingId = &empty;
+    }
+    ck_assert_uint_eq(UA_Server_addDataTypeFromDescriptionEx(server, &eo, &options),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(binary.namespaceIndex, 2);
+    ck_assert_uint_eq(xml.namespaceIndex, 3);
+    UA_NodeId_clear(&binary);
+    UA_NodeId_clear(&xml);
+    ck_assert(UA_order(&eo, &original, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) == UA_ORDER_EQ);
+    UA_ExtensionObject_clear(&original);
+
+    UA_NodeId id = UA_NODEID_NUMERIC(_i == 3 ? 1 : typeNs, 99601);
+    const UA_DataType *loaded = UA_Server_findDataType(server, &id);
+    ck_assert_ptr_nonnull(loaded);
+    ck_assert_ptr_eq(loaded->members[0].memberType,
+                     UA_Server_findDataType(server, &dependency.typeId));
+    ck_assert_ptr_eq(loaded->members[1].memberType, loaded);
+    UA_NodeId expectedBinary = UA_NODEID_NULL, expectedXml = UA_NODEID_NULL;
+    if(_i == 0)
+        expectedBinary = UA_NODEID_STRING(encNs, "default");
+    else if(_i == 1 || _i == 3) {
+        expectedBinary = UA_NODEID_STRING(_i == 3 ? 2 : depNs, "binary");
+        expectedXml = UA_NODEID_BYTESTRING(_i == 3 ? 3 : encNs, "xml");
+    }
+    ck_assert(UA_NodeId_equal(&loaded->binaryEncodingId, &expectedBinary));
+    ck_assert(UA_NodeId_equal(&loaded->xmlEncodingId, &expectedXml));
+    options.binaryEncodingId = NULL;
+    options.xmlEncodingId = NULL;
+    ck_assert_uint_eq(UA_Server_addDataTypeFromDescriptionEx(server, &eo, &options),
+                      UA_STATUSCODE_BADNODEIDEXISTS);
+} END_TEST
+
+START_TEST(Utils_addDataTypeFromDescriptionEx_simpleAndEnum) {
+    UA_UInt16 ns = UA_Server_addNamespace(server, "urn:descriptions");
+    UA_UInt16 indexes[] = {0, ns};
+    UA_NamespaceMapping mapping = {0};
+    mapping.local2remote = indexes;
+    mapping.local2remoteSize = 2;
+    UA_SimpleTypeDescription simple;
+    UA_SimpleTypeDescription_init(&simple);
+    simple.dataTypeId = UA_NODEID_NUMERIC(1, 99700);
+    simple.baseDataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    simple.builtInType = UA_NS0ID_INT32;
+    UA_EnumDescription enumeration;
+    UA_EnumDescription_init(&enumeration);
+    enumeration.dataTypeId = simple.dataTypeId;
+    enumeration.builtInType = UA_NS0ID_INT32;
+    UA_ExtensionObject eo;
+    if(_i == 0)
+        UA_ExtensionObject_setValueNoDelete(&eo, &simple,
+                                           &UA_TYPES[UA_TYPES_SIMPLETYPEDESCRIPTION]);
+    else
+        UA_ExtensionObject_setValueNoDelete(&eo, &enumeration,
+                                           &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]);
+    UA_NodeId binary = UA_NODEID_NUMERIC(1, 99701);
+    UA_NodeId xml = UA_NODEID_NUMERIC(1, 99702);
+    UA_AddDataTypeFromDescriptionOptions options = {0};
+    options.namespaceMapping = &mapping;
+    options.binaryEncodingId = &binary;
+    options.xmlEncodingId = &xml;
+    ck_assert_uint_eq(UA_Server_addDataTypeFromDescriptionEx(server, &eo, &options),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId id = UA_NODEID_NUMERIC(ns, 99700);
+    const UA_DataType *loaded = UA_Server_findDataType(server, &id);
+    ck_assert_ptr_nonnull(loaded);
+    ck_assert_uint_eq(loaded->typeKind, _i == 0 ? UA_DATATYPEKIND_INT32 : UA_DATATYPEKIND_ENUM);
+    binary.namespaceIndex = ns;
+    xml.namespaceIndex = ns;
+    ck_assert(UA_NodeId_equal(&loaded->binaryEncodingId, &binary));
+    ck_assert(UA_NodeId_equal(&loaded->xmlEncodingId, &xml));
+} END_TEST
+
+START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
+    /* Add a simple DataType alias without its own binary representation. */
+    UA_NodeId aliasId = UA_NODEID_NUMERIC(1, 99400);
+    UA_DataTypeAttributes aliasAttributes = UA_DataTypeAttributes_default;
+    aliasAttributes.displayName = UA_LOCALIZEDTEXT("", "AliasDateTime");
+    UA_StatusCode res = UA_Server_addDataTypeNode(
+        server, aliasId, UA_TYPES[UA_TYPES_DATETIME].typeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "AliasDateTime"), aliasAttributes, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    if(_i == 1) {
+        UA_NodeId secondAlias = UA_NODEID_NUMERIC(1, 99403);
+        res = UA_Server_addDataTypeNode(
+            server, secondAlias, aliasId,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+            UA_QUALIFIEDNAME(1, "AliasChain"), aliasAttributes, NULL, NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        aliasId = secondAlias;
+    }
+    /* Exact lookup must not acquire the ancestor-resolution semantics. */
+    ck_assert_ptr_null(UA_Server_findDataType(server, &aliasId));
+
+    /* Use the alias as a structure member. Registration must resolve it to
+     * DateTime for the concrete memory layout without modifying the input. */
+    UA_StructureField field;
+    UA_StructureField_init(&field);
+    field.name = UA_STRING("Timestamp");
+    field.dataType = aliasId;
+    field.valueRank = _i == 2 ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
+    field.isOptional = (_i == 3);
+
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 99401);
+    description.name = UA_QUALIFIEDNAME(1, "AliasHolder");
+    description.structureDefinition.defaultEncodingId =
+        UA_NODEID_NUMERIC(1, 99402);
+    description.structureDefinition.baseDataType =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    description.structureDefinition.structureType =
+        _i == 3 ? UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS : UA_STRUCTURETYPE_STRUCTURE;
+    description.structureDefinition.fieldsSize = 1;
+    description.structureDefinition.fields = &field;
+
+    UA_ExtensionObject encodedDescription;
+    UA_ExtensionObject_setValueNoDelete(
+        &encodedDescription, &description,
+        &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    UA_ExtensionObject original;
+    res = UA_ExtensionObject_copy(&encodedDescription, &original);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_addDataTypeFromDescription(server, &encodedDescription);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_order(&encodedDescription, &original,
+                       &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) == UA_ORDER_EQ);
+    UA_ExtensionObject_clear(&original);
+
+    const UA_DataType *registered =
+        UA_Server_findDataType(server, &description.dataTypeId);
+    ck_assert_ptr_nonnull(registered);
+    ck_assert_uint_eq(registered->membersSize, 1);
+    ck_assert_ptr_eq(registered->members[0].memberType,
+                     &UA_TYPES[UA_TYPES_DATETIME]);
+    ck_assert(UA_NodeId_equal(&field.dataType, &aliasId));
+    ck_assert_uint_eq(registered->members[0].isArray, _i == 2);
+    ck_assert_uint_eq(registered->members[0].isOptional, _i == 3);
+} END_TEST
+
+#endif
+
+START_TEST(Utils_resolveDataTypeRepresentation) {
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 99500);
+    if(_i == 0) {
+        /* Registered structures are valid exact matches. */
+        initCustomType(&customType, 1, 99500);
+        UA_StatusCode res = UA_Server_addDataType(
+            server, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE), &customType);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_eq(resolveDataTypeRepresentation(server, &typeId),
+                         UA_Server_findDataType(server, &typeId));
+        return;
+    }
+    if(_i == 1) {
+        ck_assert_ptr_null(resolveDataTypeRepresentation(server, &typeId));
+        return;
+    }
+
+    UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
+    UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    if(_i == 2) {
+        /* A registered parent cannot stand in for its unresolved subtype. */
+        initCustomType(&customType, 1, 99501);
+        UA_StatusCode res = UA_Server_addDataType(server, parent, &customType);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        res = UA_Server_addDataTypeNode(
+            server, customType.typeId, parent,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+            UA_QUALIFIEDNAME(1, "RegisteredParent"), attr, NULL, NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        parent = customType.typeId;
+    }
+    UA_StatusCode res = UA_Server_addDataTypeNode(
+        server, typeId, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "Unresolved"), attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    if(_i == 3) {
+        /* Make a malformed cycle with no concrete representation. */
+        UA_NodeId second = UA_NODEID_NUMERIC(1, 99502);
+        res = UA_Server_addDataTypeNode(
+            server, second, typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+            UA_QUALIFIEDNAME(1, "Cyclic"), attr, NULL, NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        res = UA_Server_deleteReference(
+            server, typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), false,
+            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_STRUCTURE), true);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        res = UA_Server_addReference(
+            server, typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+            UA_EXPANDEDNODEID_NUMERIC(1, 99502), false);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+    ck_assert_ptr_null(resolveDataTypeRepresentation(server, &typeId));
+} END_TEST
+
 /* === Suite === */
 
 static Suite* testSuite_Utils(void) {
@@ -295,6 +548,12 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc, Utils_addDataType_preservesSelfReference);
     tcase_add_test(tc, Utils_addDataType_fillsFirstList);
     tcase_add_test(tc, Utils_addDataTypeFromDescription_empty_rejected);
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
+    tcase_add_loop_test(tc, Utils_addDataTypeFromDescriptionEx_mapping, 0, 4);
+    tcase_add_loop_test(tc, Utils_addDataTypeFromDescriptionEx_simpleAndEnum, 0, 2);
+    tcase_add_loop_test(tc, Utils_addDataTypeFromDescription_resolvesAlias, 0, 4);
+#endif
+    tcase_add_loop_test(tc, Utils_resolveDataTypeRepresentation, 0, 4);
     suite_add_tcase(s, tc);
 
     TCase *tcHier = tcase_create("Type hierarchy");

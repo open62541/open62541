@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
+#include <stdlib.h>
 
 #include <check.h>
 #include "test_helpers.h"
@@ -60,6 +61,11 @@ START_TEST(certificate_generation) {
     ck_assert(derPrivKey.length > 0);
     ck_assert(derCert.length > 0);
 
+    /* The certificate is self-signed. Its KeyUsage also includes keyCertSign
+     * (Part 6, 6.2.2). */
+    ck_assert_uint_eq(UA_CertificateUtils_checkApplicationKeyUsage(&derCert),
+                      UA_STATUSCODE_GOOD);
+
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     mbedtls_x509_crt parsed;
     mbedtls_x509_crt_init(&parsed);
@@ -69,8 +75,6 @@ START_TEST(certificate_generation) {
     ck_assert(!mbedtls_x509_crt_has_ext_type(&parsed,
                                              MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) ||
               !mbedtls_x509_crt_get_ca_istrue(&parsed));
-    ck_assert_int_ne(mbedtls_x509_crt_check_key_usage(
-                         &parsed, MBEDTLS_X509_KU_KEY_CERT_SIGN), 0);
     ck_assert_int_ne(mbedtls_x509_crt_check_key_usage(
                          &parsed, MBEDTLS_X509_KU_CRL_SIGN), 0);
     mbedtls_x509_crt_free(&parsed);
@@ -263,6 +267,8 @@ checkGeneratedCertificate(UA_ByteString *cert, const UA_ByteString *key) {
     ck_assert_uint_eq(UA_CertificateUtils_getExtendedKeyUsage(cert, &usage),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(usage, UA_CERTIFICATEEKU_SERVERAUTH | UA_CERTIFICATEEKU_CLIENTAUTH);
+    ck_assert_uint_eq(UA_CertificateUtils_checkApplicationKeyUsage(cert),
+                      UA_STATUSCODE_GOOD);
 }
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -502,6 +508,115 @@ START_TEST(certificate_generation_rejects_invalid_san) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_ENCRYPTION
+/* Start of the validity of a DER certificate */
+static UA_DateTime
+certificateNotBefore(const UA_ByteString *certificate) {
+    UA_DateTimeStruct start;
+    memset(&start, 0, sizeof(start));
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    mbedtls_x509_crt parsed;
+    mbedtls_x509_crt_init(&parsed);
+    ck_assert_int_eq(mbedtls_x509_crt_parse_der(&parsed, certificate->data,
+                                                certificate->length), 0);
+    start.year = (UA_Int16)parsed.valid_from.year;
+    start.month = (UA_UInt16)parsed.valid_from.mon;
+    start.day = (UA_UInt16)parsed.valid_from.day;
+    start.hour = (UA_UInt16)parsed.valid_from.hour;
+    start.min = (UA_UInt16)parsed.valid_from.min;
+    start.sec = (UA_UInt16)parsed.valid_from.sec;
+    mbedtls_x509_crt_free(&parsed);
+#else
+    const unsigned char *data = certificate->data;
+    X509 *parsed = d2i_X509(NULL, &data, (long)certificate->length);
+    ck_assert_ptr_ne(parsed, NULL);
+    struct tm value;
+    ck_assert_int_eq(ASN1_TIME_to_tm(X509_get0_notBefore(parsed), &value), 1);
+    start.year = (UA_Int16)(value.tm_year + 1900);
+    start.month = (UA_UInt16)(value.tm_mon + 1);
+    start.day = (UA_UInt16)value.tm_mday;
+    start.hour = (UA_UInt16)value.tm_hour;
+    start.min = (UA_UInt16)value.tm_min;
+    start.sec = (UA_UInt16)value.tm_sec;
+    X509_free(parsed);
+#endif
+    return UA_DateTime_fromStruct(start);
+}
+
+static UA_StatusCode
+createCertificateValidFrom(const UA_DateTime *validFrom, UA_UInt16 expiresInDays,
+                           UA_ByteString *privateKey, UA_ByteString *certificate) {
+    UA_String subject[2] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("CN=open62541")};
+    UA_String subjectAltName[2] = {
+        UA_STRING_STATIC("DNS:localhost"),
+        UA_STRING_STATIC("URI:urn:open62541.unconfigured.application")};
+    UA_KeyValueMap *params = UA_KeyValueMap_new();
+    ck_assert_ptr_ne(params, NULL);
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(params, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             &keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap_setScalar(params, UA_QUALIFIEDNAME(0, "expires-in-days"),
+                             &expiresInDays, &UA_TYPES[UA_TYPES_UINT16]);
+    if(validFrom)
+        UA_KeyValueMap_setScalar(params, UA_QUALIFIEDNAME(0, "valid-from"),
+                                 validFrom, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_StatusCode status = UA_CreateCertificate(
+        UA_Log_Stdout, subject, 2, subjectAltName, 2,
+        UA_CERTIFICATEFORMAT_DER, params, privateKey, certificate);
+    UA_KeyValueMap_delete(params);
+    return status;
+}
+
+/* The validity lasts expires-in-days from its explicit or default start. */
+START_TEST(certificate_generation_valid_from) {
+    const UA_DateTime day = (UA_DateTime)24 * 60 * 60 * UA_DATETIME_SEC;
+    /* The certificate clock can lag the high-resolution clock by a second */
+    UA_DateTime before = UA_DateTime_fromUnixTime(
+        UA_DateTime_toUnixTime(UA_DateTime_now()) - 1);
+    UA_DateTime validFrom = before + (_i == 1 ? -30 : 30) * day;
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(createCertificateValidFrom(_i == 0 ? NULL : &validFrom,
+                                                 14, &privateKey,
+                                                 &certificate),
+                      UA_STATUSCODE_GOOD);
+    UA_DateTime after = UA_DateTime_now();
+
+    UA_DateTime start = certificateNotBefore(&certificate);
+    if(_i == 0) {
+        ck_assert_int_ge(start, before);
+        ck_assert_int_le(start, after);
+    } else {
+        ck_assert_int_eq(start, validFrom);
+    }
+    UA_DateTime expiration = 0;
+    ck_assert_uint_eq(UA_CertificateUtils_getExpirationDate(&certificate, &expiration),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(expiration, start + 14 * day);
+    UA_ByteString_clear(&privateKey);
+    UA_ByteString_clear(&certificate);
+}
+END_TEST
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+START_TEST(certificate_generation_rejects_expiration_overflow) {
+    UA_DateTime validFrom = UA_INT64_MAX;
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(createCertificateValidFrom(&validFrom, 1, &privateKey,
+                                                 &certificate),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_ptr_null(privateKey.data);
+    ck_assert_uint_eq(privateKey.length, 0);
+    ck_assert_ptr_null(certificate.data);
+    ck_assert_uint_eq(certificate.length, 0);
+}
+END_TEST
+#endif
+
+#endif /* UA_ENABLE_ENCRYPTION */
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Create Certificate");
     TCase *tc_cert = tcase_create("Certificate Create");
@@ -511,6 +626,10 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, certificate_without_application_uri_is_rejected);
     tcase_add_test(tc_cert, certificate_generation_rejects_malformed_names);
     tcase_add_test(tc_cert, certificate_utils_outputs_are_transactional);
+    tcase_add_loop_test(tc_cert, certificate_generation_valid_from, 0, 3);
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    tcase_add_test(tc_cert, certificate_generation_rejects_expiration_overflow);
+#endif
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 

@@ -30,6 +30,14 @@
       "$ref": "#/definitions/RuleHandling",
       "description": "Rule for allowing Methods without a parent"
     },
+    "serverProfileArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Profile URIs supported by the current server configuration. No profiles are declared by default."
+    },
     "serverUrls": {
       "type": "array",
       "items": {

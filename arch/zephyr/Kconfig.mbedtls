@@ -1,0 +1,113 @@
+# The Zephyr mbedTLS options that the mbedTLS plugin of open62541 needs
+#
+# Which options exist depends on the mbedTLS of the Zephyr tree:
+# - mbedTLS 3.6 (Zephyr 3.7 to 4.3): the legacy modules behind X.509 and the
+#   key handling, and PSA. Zephyr's PSA configuration does not derive the PSA
+#   algorithms from the legacy options, so both are listed. Zephyr 3.7 has no
+#   options for certificate creation (X.509 and PEM writing).
+# - mbedTLS 4 with TF-PSA-Crypto (Zephyr 4.4 and later, MBEDTLS_VERSION_4_x):
+#   the cryptography is configured with PSA_WANT_* only.
+#
+# imply enables an option by default and leaves it to prj.conf. An option the
+# Zephyr version does not define is ignored.
+
+config OPEN62541_MBEDTLS_REQUIREMENTS
+    bool "Enable the mbedTLS options open62541 needs"
+    default y
+    depends on OPEN62541_ENABLE_ENCRYPTION_MBEDTLS && MBEDTLS_BUILTIN
+    # PSA runs the operations of all security policies
+    imply MBEDTLS_PSA_CRYPTO_C
+    imply PSA_WANT_ALG_SHA_1
+    imply PSA_WANT_ALG_SHA_256
+    imply PSA_WANT_ALG_SHA_384
+    imply PSA_WANT_ALG_HMAC
+    imply PSA_WANT_ALG_HKDF
+    imply PSA_WANT_ALG_CBC_NO_PADDING
+    imply PSA_WANT_ALG_CTR
+    imply PSA_WANT_ALG_RSA_PKCS1V15_SIGN
+    imply PSA_WANT_ALG_RSA_PKCS1V15_CRYPT
+    imply PSA_WANT_ALG_RSA_OAEP
+    imply PSA_WANT_ALG_RSA_PSS
+    imply PSA_WANT_ALG_ECDSA
+    imply PSA_WANT_ALG_ECDH
+    imply PSA_WANT_ECC_SECP_R1_256
+    imply PSA_WANT_ECC_SECP_R1_384
+    imply PSA_WANT_ECC_BRAINPOOL_P_R1_256
+    imply PSA_WANT_ECC_BRAINPOOL_P_R1_384
+    imply PSA_WANT_KEY_TYPE_AES
+    imply PSA_WANT_KEY_TYPE_HMAC
+    imply PSA_WANT_KEY_TYPE_DERIVE
+    imply PSA_WANT_KEY_TYPE_RSA_PUBLIC_KEY
+    imply PSA_WANT_KEY_TYPE_RSA_KEY_PAIR_BASIC
+    imply PSA_WANT_KEY_TYPE_RSA_KEY_PAIR_IMPORT
+    imply PSA_WANT_KEY_TYPE_RSA_KEY_PAIR_EXPORT
+    imply PSA_WANT_KEY_TYPE_RSA_KEY_PAIR_GENERATE
+    imply PSA_WANT_KEY_TYPE_ECC_PUBLIC_KEY
+    imply PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_BASIC
+    imply PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_IMPORT
+    imply PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_EXPORT
+    imply PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_GENERATE
+    # Revocation lists, signing requests and certificate creation
+    imply MBEDTLS_X509_CRL_PARSE_C
+    imply MBEDTLS_X509_CSR_PARSE_C
+    imply MBEDTLS_X509_CSR_WRITE_C
+    imply MBEDTLS_X509_CRT_WRITE_C
+    imply MBEDTLS_PK_WRITE_C
+    help
+        Enable the mbedTLS options for the security policies, the certificate
+        handling and the random generator of open62541, as the mbedTLS of the
+        Zephyr tree names them (Kconfig.mbedtls). Each option can still be
+        disabled in prj.conf. Disable this to configure mbedTLS by hand.
+
+        PSA's random generator needs an entropy driver. Certificate validity
+        periods are only checked with MBEDTLS_HAVE_TIME_DATE, which needs a
+        set wall clock.
+
+config OPEN62541_MBEDTLS_REQUIREMENTS_3
+    bool
+    default y
+    depends on OPEN62541_MBEDTLS_REQUIREMENTS && !MBEDTLS_VERSION_4_x
+    # X.509 certificate parsing, RSA and PKCS#1 come with this key exchange
+    imply MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
+    # Options of their own from Zephyr 4.2
+    imply MBEDTLS_RSA_C
+    imply MBEDTLS_PKCS1_V15
+    imply MBEDTLS_PKCS1_V21
+    # The message digest layer: MBEDTLS_MD up to Zephyr 4.2, MBEDTLS_MD_C from
+    # 4.3 (where MBEDTLS_MD is deprecated)
+    imply MBEDTLS_MD if "$(KERNELVERSION)" < "0x4030000"
+    imply MBEDTLS_MD_C
+    imply MBEDTLS_GENPRIME_ENABLED
+    imply MBEDTLS_PEM_CERTIFICATE_FORMAT
+    imply MBEDTLS_ECP_C
+    imply MBEDTLS_ECDSA_C
+    imply MBEDTLS_ECDH_C
+    imply MBEDTLS_ECP_DP_SECP256R1_ENABLED
+    imply MBEDTLS_ECP_DP_SECP384R1_ENABLED
+    imply MBEDTLS_ECP_DP_BP256R1_ENABLED
+    imply MBEDTLS_ECP_DP_BP384R1_ENABLED
+    imply MBEDTLS_SHA1
+    imply MBEDTLS_SHA256
+    imply MBEDTLS_SHA384
+    imply MBEDTLS_CIPHER
+    imply MBEDTLS_CIPHER_AES_ENABLED
+    imply MBEDTLS_CIPHER_MODE_CBC_ENABLED
+    imply MBEDTLS_CIPHER_MODE_CTR_ENABLED
+    # The entropy pool of PSA's random generator, fed by the Zephyr entropy
+    # driver (Zephyr 3.7: MBEDTLS_ENTROPY_ENABLED and MBEDTLS_ZEPHYR_ENTROPY)
+    imply MBEDTLS_ENTROPY_C
+    imply MBEDTLS_ENTROPY_POLL_ZEPHYR
+    imply MBEDTLS_ENTROPY_ENABLED
+    imply MBEDTLS_ZEPHYR_ENTROPY
+
+config OPEN62541_MBEDTLS_REQUIREMENTS_4
+    bool
+    default y
+    depends on OPEN62541_MBEDTLS_REQUIREMENTS && MBEDTLS_VERSION_4_x
+    # Certificate and key parsing, PEM and the message digest layer; the
+    # random generator takes the entropy driver by default
+    imply MBEDTLS_X509_CRT_PARSE_C
+    imply MBEDTLS_PK_PARSE_C
+    imply MBEDTLS_PEM_PARSE_C
+    imply MBEDTLS_PEM_WRITE_C
+    imply MBEDTLS_MD_C

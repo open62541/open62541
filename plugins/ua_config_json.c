@@ -183,6 +183,8 @@ PARSE_JSON(LocalizedTextField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field = (char*)UA_malloc(tok.size + 1);
+            if(!field)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field, &str_len);
 
@@ -263,6 +265,8 @@ PARSE_JSON(DurationRangeField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "min") == 0)
@@ -293,6 +297,8 @@ PARSE_JSON(UInt32RangeField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "min") == 0)
@@ -324,6 +330,8 @@ PARSE_JSON(StringArrayField) {
     }
     cj5_token tok = nextToken(ctx);
     UA_String *stringArray = (UA_String*)UA_malloc(sizeof(UA_String) * tok.size);
+    if(!stringArray && tok.size > 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     size_t stringArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
         UA_String out = {.length = 0, .data = NULL};
@@ -353,6 +361,33 @@ PARSE_JSON(StringArrayField) {
     UA_Array_delete(stringArray, stringArraySize, &UA_TYPES[UA_TYPES_STRING]);
     return retval;
 }
+/* Profile declarations require actual strings, not JSON null values. Decode
+ * into a temporary owned array so failures leave the old declaration intact. */
+PARSE_JSON(ServerProfileArrayField) {
+    cj5_token tok = nextToken(ctx);
+    if(tok.type != CJ5_TOKEN_ARRAY)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    size_t count = tok.size;
+    UA_String *profiles = (UA_String*)UA_Array_new(count, &UA_TYPES[UA_TYPES_STRING]);
+    if(!profiles)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    for(size_t i = 0; i < count; i++) {
+        UA_StatusCode res = UA_STATUSCODE_BADDECODINGERROR;
+        if(ctx->index + 1 < ctx->result.num_tokens &&
+           ctx->result.tokens[ctx->index + 1].type == CJ5_TOKEN_STRING)
+            res = StringField_parseJson(ctx, &profiles[i], NULL);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(profiles, count, &UA_TYPES[UA_TYPES_STRING]);
+            return res;
+        }
+    }
+    UA_String **field = (UA_String**)configField;
+    UA_Array_delete(*field, *configFieldSize, &UA_TYPES[UA_TYPES_STRING]);
+    *field = profiles;
+    *configFieldSize = count;
+    return UA_STATUSCODE_GOOD;
+}
+
 PARSE_JSON(DateTimeField) {
     cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -374,6 +409,8 @@ PARSE_JSON(BuildInfo) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "productUri") == 0)
@@ -550,6 +587,8 @@ PARSE_JSON(SubscriptionConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "maxSubscriptions") == 0)
@@ -608,6 +647,8 @@ PARSE_JSON(TcpConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "tcpBufSize") == 0)
@@ -642,6 +683,8 @@ PARSE_JSON(PubsubConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "enableDeltaFrames") == 0)
@@ -677,6 +720,8 @@ PARSE_JSON(HistorizingConfigurationField) {
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
+            if(!field_str)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "accessHistoryDataCapability") == 0)
@@ -749,18 +794,18 @@ UA_SecurityPolicy_initByUri(UA_SecurityPolicy *policy,
 
 #ifdef UA_ENABLE_ENCRYPTION
     static const UA_String basic128Rsa15Uri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_BASIC128RSA15);
     static const UA_String basic256Uri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_BASIC256);
     static const UA_String basic256Sha256Uri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_BASIC256SHA256);
     static const UA_String aes128Sha256RsaOaepUri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_AES128_SHA256_RSAOAEP);
     static const UA_String aes256Sha256RsaPssUri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_AES256_SHA256_RSAPSS);
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     static const UA_String eccNistP256Uri =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#EccNistP256");
+        UA_STRING_STATIC(UA_SECURITYPOLICY_URI_ECC_NISTP256);
 #endif
 
     if(UA_String_equal(policyUri, &basic128Rsa15Uri))
@@ -1111,6 +1156,9 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = RuleHandlingField_parseJson(&ctx, &config->allowUnattachedMethods, NULL);
                 else if(strcmp(field, "certificateEkuRule") == 0)
                     retval = RuleHandlingField_parseJson(&ctx, &config->certificateEkuRule, NULL);
+                else if(strcmp(field, "serverProfileArray") == 0)
+                    retval = ServerProfileArrayField_parseJson(&ctx, &config->serverProfileArray,
+                                                               &config->serverProfileArraySize);
                 else if(strcmp(field, "serverUrls") == 0)
                     retval = StringArrayField_parseJson(&ctx, &config->serverUrls, &config->serverUrlsSize);
                 else if(strcmp(field, "tcpEnabled") == 0)
@@ -1169,14 +1217,14 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 else if(strcmp(field, "maxAsyncOperationQueueSize") == 0)
                     retval = UInt64Field_parseJson(&ctx, &config->maxAsyncOperationQueueSize, NULL);
 
-#ifdef UA_ENABLE_DISCOVERY
                 else if(strcmp(field, "registeredServersEnabled") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->registeredServersEnabled, NULL);
                 else if(strcmp(field, "registeredServerCleanupTimeout") == 0)
                     retval = UInt32Field_parseJson(&ctx, &config->registeredServerCleanupTimeout, NULL);
                 else if(strcmp(field, "serversOnNetworkEnabled") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->serversOnNetworkEnabled, NULL);
-#endif
+                else if(strcmp(field, "announceRegisteredServers") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->announceRegisteredServers, NULL);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
                 else if(strcmp(field, "subscriptionsEnabled") == 0)
@@ -1677,6 +1725,10 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                     retval = BooleanField_parseJson(&ctx, &config->noReconnect, NULL);
                 else if(strcmp(field, "noNewSession") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->noNewSession, NULL);
+                else if(strcmp(field, "reconnectInterval") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->reconnectInterval, NULL);
+                else if(strcmp(field, "reconnectIntervalMax") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->reconnectIntervalMax, NULL);
                 else if(strcmp(field, "secureChannelLifeTime") == 0)
                     retval = UInt32Field_parseJson(&ctx, &config->secureChannelLifeTime, NULL);
                 else if(strcmp(field, "requestedSessionTimeout") == 0)

@@ -13,16 +13,14 @@
 #include "namespace_tests_di_generated.h"
 #include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 
 UA_Server *server = NULL;
-UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA_TYPES_TESTS_TESTNODESET, UA_FALSE};
 UA_UInt16 testNamespaceIndex = (UA_UInt16) -1;
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    config->customDataTypes = &customTypesArray;
     UA_Server_run_startup(server);
 }
 
@@ -32,7 +30,7 @@ static void teardown(void) {
 }
 
 START_TEST(Server_addTestNodeset) {
-    UA_StatusCode retval = namespace_tests_testnodeset_generated(server);
+    UA_StatusCode retval = namespace_tests_testnodeset_generated(server, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     size_t nsIndex = LONG_MAX;
     retval = UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
@@ -68,7 +66,7 @@ START_TEST(checkSelfContainingUnion) {
     UA_Variant_init(&in);
 
     UA_SelfContainingUnion data;
-    UA_SelfContainingUnion_init(&data);
+    memset(&data, 0, sizeof(data));
 
     data.fields._double = 23.0;
 
@@ -77,7 +75,10 @@ START_TEST(checkSelfContainingUnion) {
     data.fields.array.arraySize = 0;
     data.fields.array.array = NULL;
 
-    UA_Variant_setScalar(&in, &data, &UA_TYPES_TESTS_TESTNODESET[UA_TYPES_TESTS_TESTNODESET_SELFCONTAININGUNION]);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(testNamespaceIndex, 4002);
+    const UA_DataType *type = UA_Server_findDataType(server, &typeId);
+    ck_assert_ptr_ne(type, NULL);
+    UA_Variant_setScalar(&in, &data, type);
 
     UA_StatusCode result = UA_Server_writeValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 5110), in);
 
@@ -109,9 +110,16 @@ END_TEST
 START_TEST(readValueRank) {
     UA_Int32 rank;
     UA_Variant dims;
-    // scalar
+    /* An omitted rank uses the XML scalar default with a permissive type. */
     UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &rank);
-    ck_assert_int_eq(rank, -2);
+    ck_assert_int_eq(rank, UA_VALUERANK_SCALAR);
+    ck_assert_uint_eq(UA_Server_readValueRank(
+        server, UA_NODEID_NUMERIC(testNamespaceIndex, 8001), &rank), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rank, UA_VALUERANK_SCALAR);
+    /* An explicitly requested permissive rank remains unchanged. */
+    ck_assert_uint_eq(UA_Server_readValueRank(
+        server, UA_NODEID_NUMERIC(testNamespaceIndex, 8004), &rank), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rank, UA_VALUERANK_ANY);
     UA_Variant_init(&dims);
     UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &dims);
     ck_assert_uint_eq(dims.arrayLength, 0);

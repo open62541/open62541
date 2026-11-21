@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+<NamespaceUris><Uri>urn:open62541:test:map-b</Uri><Uri>urn:open62541:test:map-a</Uri></NamespaceUris>
+<UAVariable NodeId="ns=1;i=2001" BrowseName="1:ForeignReference" DataType="i=17" ValueRank="-1" >
+<DisplayName>ForeignReference</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:NodeId><uax:Identifier>ns=2;i=42</uax:Identifier></uax:NodeId></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=2002" BrowseName="1:ForeignName" DataType="i=20" ValueRank="-1" >
+<DisplayName>ForeignName</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:QualifiedName><uax:NamespaceIndex>2</uax:NamespaceIndex><uax:Name>Target</uax:Name></uax:QualifiedName></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=2003" BrowseName="1:UriReference" DataType="i=18" ValueRank="-1" >
+<DisplayName>UriReference</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:ExpandedNodeId><uax:Identifier>nsu=urn:open62541:test:map-a;i=42</uax:Identifier></uax:ExpandedNodeId></Value></UAVariable>
+<UAVariable NodeId="ns=1;i=2004" BrowseName="1:LegacyDimensions" DataType="i=7" ValueRank="1" ArrayDimensions="1">
+<DisplayName>LegacyDimensions</DisplayName><References><Reference ReferenceType="i=40">i=63</Reference><Reference ReferenceType="i=35" IsForward="false">i=85</Reference></References><Value><uax:ListOfUInt32><uax:UInt32>1</uax:UInt32><uax:UInt32>2</uax:UInt32></uax:ListOfUInt32></Value></UAVariable>
+</UANodeSet>

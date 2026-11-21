@@ -38,7 +38,7 @@ Building with CMake on Debian/Ubuntu
 
    # select additional features
    ccmake ..
-   cmake .. -DUA_ENABLE_DRIVER_MDNS_AVAHI=ON # use Avahi for multicast discovery
+   cmake .. -DUA_ENABLE_DRIVER_MDNS_AVAHI=ON -DUA_ENABLE_DRIVER_MDNS_MDNSD=OFF # use Avahi for multicast discovery
    make
 
    # build documentation
@@ -248,7 +248,8 @@ Main Build Options
   - 0-99: Multithreading support disabled.
   - >=100: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
     Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
-    Furthermore, this level support the handling of asynchronous method calls from external worker threads.
+    This level is required to complete async Read, Write or Call operations from worker threads.
+    Async work on the server's event loop does not require multithreading support.
 
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -274,10 +275,15 @@ Detailed SDK Features
 **UA_ENABLE_SUBSCRIPTIONS_EVENTS**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
-**UA_ENABLE_METHODCALLS**
-   Enable the Method service set and file transfer driver. The reduced and full
-   Namespace Zero include the file transfer types. With ``MINIMAL`` or ``NONE``,
-   load the required types before constructing a file transfer driver.
+The Method service set is always compiled.
+
+**UA_ENABLE_DRIVER_FILE_TRANSFER**
+   Enable the file transfer driver (default ON on all architectures). The local
+   filesystem backend is available on POSIX and Win32; other architectures can
+   supply a custom backend.
+   The reduced Namespace Zero includes file transfer types when this driver is
+   enabled; the full Namespace Zero always includes them. With ``MINIMAL`` or
+   ``NONE``, load the required types before constructing a file transfer driver.
 
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
@@ -289,8 +295,10 @@ Detailed SDK Features
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
 
-**UA_ENABLE_DISCOVERY**
-   Enable Discovery Service (LDS)
+Discovery services are always compiled. Enable registration management with
+``UA_ServerConfig.registeredServersEnabled`` and network discovery management
+with ``UA_ServerConfig.serversOnNetworkEnabled``. mDNS announcement and browsing
+require an attached mDNS driver.
 
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
@@ -323,6 +331,16 @@ Detailed SDK Features
      (Conformance Testing Tools of the OPC Foundation).
    - ``REDUCED``: Small namespace zero that passes the CTT.
    - ``FULL``: Full namespace zero generated from the official XML definitions.
+
+**UA_ENABLE_DATATYPES_ALL**
+   Generate C definitions, handling functions and ``UA_TYPES`` entries for all
+   supported datatypes in the namespace zero schema. Enabled by default.
+   Disabling this option selects the core datatypes and the additional types
+   required by the enabled features, using the ``tools/schema/datatypes_*.txt``
+   lists. This reduces the binary size and the available generated datatype API;
+   it does not disable services or select the namespace zero information model.
+   With ``UA_NAMESPACE_ZERO=FULL``, all datatypes are generated regardless of this
+   option because the full namespace zero does not use the reduced type lists.
 
 **UA_ENABLE_DIAGNOSTICS**
    Enable diagnostics information exposed by the server. Enabled by default.

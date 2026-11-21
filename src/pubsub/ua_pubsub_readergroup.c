@@ -270,6 +270,12 @@ finalize:
 
         UA_LOG_INFO_PUBSUB(psm->logging, rg, "ReaderGroup deleted");
 
+        for(size_t i = 0; i < UA_PUBSUB_REPLAY_HISTORY_SIZE; i++) {
+            UA_PubSubReplayHistoryEntry *entry = &rg->replayHistory[i];
+            if(entry->inUse && entry->publisherIdEnabled &&
+               entry->publisherId.idType == UA_PUBLISHERIDTYPE_STRING)
+                UA_String_clear(&entry->publisherId.id.string);
+        }
         UA_ReaderGroupConfig_clear(&rg->config);
         UA_PubSubComponentHead_clear(&rg->head);
         UA_free(rg);
@@ -577,8 +583,13 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
     /* Prepare the metadata with information from the readers to decode the
      * DataSetMessages */
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    UA_DataSetMessage_EncodingMetaData stackMetaData[UA_PUBSUB_METADATA_STACK_CAPACITY];
+    UA_DataSetMessage_EncodingMetaData *emd =
+        allocEncodingMetaData(rg->readersCount, stackMetaData);
+    if(!emd) {
+        UA_NetworkMessage_clear(nm);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     ctx.eo.metaData = emd;
     ctx.eo.metaDataSize = rg->readersCount;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
@@ -591,33 +602,27 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
     /* Handle missing payload header and "inject" metadata */
     if(!nm->payloadHeaderEnabled) {
         rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_NetworkMessage_clear(nm);
-            return rv;
-        }
+        if(rv != UA_STATUSCODE_GOOD)
+            goto cleanup;
     }
 
     /* Decrypt */
     rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
+    if(rv != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Decode the payload */
     rv = UA_NetworkMessage_decodePayload(&ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
+    if(rv != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     rv = UA_NetworkMessage_decodeFooters(&ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
 
-    return UA_STATUSCODE_GOOD;
+ cleanup:
+    freeEncodingMetaData(emd, stackMetaData);
+    if(rv != UA_STATUSCODE_GOOD)
+        UA_NetworkMessage_clear(nm);
+    return rv;
 }
 
 #ifdef UA_ENABLE_JSON_ENCODING
@@ -639,8 +644,11 @@ UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
      * DataSetMessages */
     UA_NetworkMessage_EncodingOptions eo;
     size_t i = 0;
-    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
-    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    UA_DataSetMessage_EncodingMetaData stackMetaData[UA_PUBSUB_METADATA_STACK_CAPACITY];
+    UA_DataSetMessage_EncodingMetaData *emd =
+        allocEncodingMetaData(rg->readersCount, stackMetaData);
+    if(!emd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     eo.metaData = emd;
     eo.metaDataSize = rg->readersCount;
 
@@ -653,13 +661,125 @@ UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
     }
 
     /* Decode */
-    return UA_NetworkMessage_decodeJson(&buffer, nm, &eo, &jo);
+    UA_StatusCode res = UA_NetworkMessage_decodeJson(&buffer, nm, &eo, &jo);
+    freeEncodingMetaData(emd, stackMetaData);
+    return res;
 }
 #endif
 
 /******************************/
 /* Decrypt the NetworkMessage */
 /******************************/
+
+static UA_Boolean
+publisherIdEqual(const UA_PubSubReplayHistoryEntry *entry,
+                 const UA_NetworkMessage *nm) {
+    if(entry->publisherIdEnabled != nm->publisherIdEnabled)
+        return false;
+    if(!nm->publisherIdEnabled)
+        return true;
+    if(entry->publisherId.idType != nm->publisherId.idType)
+        return false;
+
+    switch(nm->publisherId.idType) {
+    case UA_PUBLISHERIDTYPE_BYTE:
+        return entry->publisherId.id.byte == nm->publisherId.id.byte;
+    case UA_PUBLISHERIDTYPE_UINT16:
+        return entry->publisherId.id.uint16 == nm->publisherId.id.uint16;
+    case UA_PUBLISHERIDTYPE_UINT32:
+        return entry->publisherId.id.uint32 == nm->publisherId.id.uint32;
+    case UA_PUBLISHERIDTYPE_UINT64:
+        return entry->publisherId.id.uint64 == nm->publisherId.id.uint64;
+    case UA_PUBLISHERIDTYPE_STRING:
+        return UA_String_equal(&entry->publisherId.id.string,
+                               &nm->publisherId.id.string);
+    default:
+        return false;
+    }
+}
+
+static void
+clearReplayHistoryEntry(UA_PubSubReplayHistoryEntry *entry) {
+    if(entry->inUse && entry->publisherIdEnabled &&
+       entry->publisherId.idType == UA_PUBLISHERIDTYPE_STRING)
+        UA_String_clear(&entry->publisherId.id.string);
+    memset(entry, 0, sizeof(*entry));
+}
+
+/* Keep a bounded sequence history per token and PublisherId in each
+ * ReaderGroup. */
+static UA_StatusCode
+checkReplay(UA_ReaderGroup *readerGroup,
+                           const UA_NetworkMessage *nm) {
+    if(!nm->securityEnabled)
+        return UA_STATUSCODE_GOOD;
+    if(nm->securityHeader.messageNonceSize < 8)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    /* The final four nonce bytes contain the little-endian sequence number. */
+    const UA_Byte *nonce = &nm->securityHeader.messageNonce[4];
+    UA_UInt32 sequenceNumber =
+        (UA_UInt32)nonce[0] | ((UA_UInt32)nonce[1] << 8) |
+        ((UA_UInt32)nonce[2] << 16) | ((UA_UInt32)nonce[3] << 24);
+
+    UA_PubSubReplayHistoryEntry *entry = NULL;
+    UA_PubSubReplayHistoryEntry *replacement = NULL;
+    /* Find this publisher, or an empty/least-recently-used slot for it. */
+    for(size_t i = 0; i < UA_PUBSUB_REPLAY_HISTORY_SIZE; i++) {
+        UA_PubSubReplayHistoryEntry *candidate = &readerGroup->replayHistory[i];
+        if(!candidate->inUse) {
+            if(!replacement || replacement->inUse)
+                replacement = candidate;
+            continue;
+        }
+        if(candidate->securityTokenId == nm->securityHeader.securityTokenId &&
+           publisherIdEqual(candidate, nm)) {
+            entry = candidate;
+            break;
+        }
+        if(!replacement || (replacement->inUse &&
+                            candidate->useCounter < replacement->useCounter))
+            replacement = candidate;
+    }
+
+    if(entry) {
+        /* Serial arithmetic permits rollover while rejecting duplicates and
+         * sequence numbers in the older half of the counter range. */
+        UA_UInt32 distance = sequenceNumber - entry->sequenceNumber;
+        if(distance == 0 || distance >= ((UA_UInt32)1 << 31))
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    } else {
+        entry = replacement;
+        clearReplayHistoryEntry(entry);
+        entry->publisherIdEnabled = nm->publisherIdEnabled;
+        entry->publisherId.idType = nm->publisherId.idType;
+        if(nm->publisherIdEnabled) {
+            if(nm->publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
+                UA_StatusCode res = UA_String_copy(&nm->publisherId.id.string,
+                                                   &entry->publisherId.id.string);
+                if(res != UA_STATUSCODE_GOOD)
+                    return res;
+            } else {
+                entry->publisherId = nm->publisherId;
+            }
+        }
+        entry->securityTokenId = nm->securityHeader.securityTokenId;
+        entry->inUse = true;
+    }
+
+    entry->sequenceNumber = sequenceNumber;
+    entry->useCounter = ++readerGroup->replayUseCounter;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ReaderGroup_checkReplay(UA_ReaderGroup *readerGroup,
+                           const UA_NetworkMessage *nm) {
+    if(nm->securityEnabled &&
+       nm->securityHeader.securityTokenId != readerGroup->securityTokenId)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    return checkReplay(readerGroup, nm);
+}
 
 static UA_StatusCode
 needsDecryption(const UA_Logger *logger,
@@ -826,6 +946,10 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                              "PubSub receive. Faulty Decryption");
     }
 
+    /* An authenticated replay must not roll the active key back either. */
+    rv = checkReplay(rg, nm);
+    UA_CHECK_STATUS(rv, goto cleanup);
+
     /* Commit the rollover only after authentication and decryption succeeded. */
     if(rolloverContext) {
         void *oldContext = rg->securityPolicyContext;
@@ -927,6 +1051,8 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(rg->deleteFlag && rg->recvChannelsSize == 0) {
             UA_ReaderGroup_remove(psm, rg);
+            /* The last channel may have closed while deletion was pending. */
+            UA_PubSubManager_setState(psm, psm->drv.state);
             unlockServer(server);
             return;
         }

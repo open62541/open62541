@@ -110,8 +110,7 @@ setup(void) {
 
 static void
 teardown(void) {
-    if(UA_Server_getLifecycleState(server) == UA_LIFECYCLESTATE_STARTED)
-        ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     if(hiddenProvider)
         hiddenProvider->protocol = hiddenProtocol;
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);

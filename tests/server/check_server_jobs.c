@@ -104,6 +104,35 @@ START_TEST(Server_changeRepeatedCallbackInterval) {
 }
 END_TEST
 
+static size_t timedRuns = 0;
+static void
+countingCallback(UA_Server *serverPtr, void *data) {
+    (void)serverPtr; (void)data;
+    timedRuns++;
+}
+
+/* A timed callback runs once. Changing its interval as if it were a
+ * repeated callback is refused, and it still runs once only. */
+START_TEST(Server_changeIntervalOfTimedCallback) {
+    timedRuns = 0;
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime date = el->dateTime_nowMonotonic(el) + 10 * UA_DATETIME_MSEC;
+    UA_UInt64 id = 0;
+    UA_StatusCode rv =
+        UA_Server_addTimedCallback(server, countingCallback, NULL, date, &id);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+
+    rv = UA_Server_changeRepeatedCallbackInterval(server, id, 10);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    for(size_t i = 0; i < 10; i++) {
+        UA_fakeSleep(15);
+        UA_Server_run_iterate(server, false);
+    }
+    ck_assert_uint_eq(timedRuns, 1);
+}
+END_TEST
+
 START_TEST(Server_removeCallback_unknown) {
     /* Removing a never-added callback must not crash. The public
      * UA_Server_removeCallback returns void; the duplicate id
@@ -125,6 +154,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_timed = tcase_create("Server Timed Callbacks");
     tcase_add_checked_fixture(tc_timed, setup, teardown);
     tcase_add_test(tc_timed, Server_addTimedCallback_smoke);
+    tcase_add_test(tc_timed, Server_changeIntervalOfTimedCallback);
     suite_add_tcase(s, tc_timed);
     return s;
 }

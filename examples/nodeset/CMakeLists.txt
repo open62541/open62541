@@ -95,6 +95,8 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # generate powerlink namespace which is using DI
     ua_generate_nodeset_and_datatypes(
         NAME "powerlink"
+        NAMESPACE_MAP "1:http://opcfoundation.org/UA/DI/"
+                      "2:http://opcfoundation.org/UA/POWERLINK/"
         FILE_CSV "${FILE_CSV_DIRPREFIX}/POWERLINK/Opc.Ua.POWERLINK.NodeIds.csv"
         FILE_BSD "${FILE_BSD_POWERLINK_DIRPREFIX}/Opc.Ua.POWERLINK.NodeSet2.bsd"
         FILE_NS "${FILE_NS_DIRPREFIX}/POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml"

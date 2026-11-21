@@ -18,11 +18,13 @@
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
 #include "ua_server_internal.h"
+#include "ua_securechannel.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,10 +38,9 @@
 
 /* --- Curve parameter table --- */
 
-/* Constructor for the deprecated (non-AEAD) ECC SecurityPolicies. They are no
- * longer part of the default policy set (OPC UA Part 7), so the test adds them
- * explicitly. NULL for the AEAD curves (curve25519/curve448) that remain in the
- * default set. */
+/* Constructor for the deprecated ECC SecurityPolicies. They are no longer part
+ * of the default policy set (OPC UA Part 7), so the test adds them
+ * explicitly. */
 typedef UA_StatusCode (*EccPolicyCtor)(UA_SecurityPolicy *,
                                        const UA_ApplicationType,
                                        const UA_ByteString,
@@ -85,19 +86,18 @@ static EccCurveTestData eccCurves[] = {
      KEY_ED25519_DER_DATA, KEY_ED25519_DER_LENGTH,
      CERT_ED25519_PEM_DATA, CERT_ED25519_PEM_LENGTH,
      KEY_ED25519_PEM_DATA, KEY_ED25519_PEM_LENGTH,
-     NULL},
+     UA_SecurityPolicy_EccCurve25519},
     {"ECC_curve448",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448",
      CERT_ED448_DER_DATA, CERT_ED448_DER_LENGTH,
      KEY_ED448_DER_DATA, KEY_ED448_DER_LENGTH,
      CERT_ED448_PEM_DATA, CERT_ED448_PEM_LENGTH,
      KEY_ED448_PEM_DATA, KEY_ED448_PEM_LENGTH,
-     NULL}
+     UA_SecurityPolicy_EccCurve448}
 #endif
 };
 
-/* Add the active curve's deprecated SecurityPolicy to a server config (no-op
- * for the AEAD curves that are part of the default set). */
+/* Add the active curve's deprecated SecurityPolicy to a server config */
 static void
 addDeprecatedServerPolicy(UA_ServerConfig *config, EccCurveTestData *c,
                           UA_ByteString cert, UA_ByteString key) {
@@ -572,11 +572,14 @@ START_TEST(encryption_csr_generation) {
     UA_StatusCode retval = sp->createSigningRequest(sp, &subjectName,
                                                      NULL, NULL,
                                                      &csr, NULL);
-    /* Curve25519/448 may not support standard CSR generation */
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+#else
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&csr);
         return;
     }
+#endif
     ck_assert(csr.length > 0);
     UA_ByteString_clear(&csr);
 
@@ -611,8 +614,7 @@ START_TEST(encryption_update_certificate) {
     ck_assert(sp->updateCertificate != NULL);
 
     UA_StatusCode retval;
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    /* Short random nonces must not be interpreted as the "eph" marker. */
+    /* Random generation accepts short buffers and ignores the old marker. */
     UA_Byte shortNonceData[2] = {0, 0};
     UA_ByteString shortNonce = {1, shortNonceData};
     retval = sp->generateNonce(sp, NULL, &shortNonce);
@@ -628,8 +630,9 @@ START_TEST(encryption_update_certificate) {
     UA_Byte ephMarker[3] = {'e', 'p', 'h'};
     UA_ByteString ephemeralNonce = {3, ephMarker};
     retval = sp->generateNonce(sp, NULL, &ephemeralNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = sp->generateEphemeralKey(sp, NULL, &ephemeralNonce);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
-#endif
 
     /* Update with the same cert and key (should succeed) */
     UA_ByteString certificate;
@@ -686,6 +689,152 @@ START_TEST(encryption_update_certificate) {
 }
 END_TEST
 
+/* --- Test: malformed EccEncryptedSecret user-token length (P-384) --- */
+
+/* Same as setup_curve_0, but also registers a UserName login so the ECC
+ * endpoint advertises a UserName token policy - the malformed-length code
+ * path in decryptUserTokenEcc is only reached via that token type. */
+static void setup_p384_usertoken(void) {
+    running = true;
+    activeCurve = 0;
+    EccCurveTestData *c = &eccCurves[activeCurve];
+
+    UA_ByteString certificate = {c->certDerLen, c->certDer};
+    UA_ByteString privateKey = {c->keyDerLen, c->keyDer};
+
+    server = UA_Server_newForUnitTestWithSecurityPolicies(
+        4840, &certificate, &privateKey, NULL, 0, NULL, 0, NULL, 0);
+    ck_assert(server != NULL);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
+
+    UA_String_clear(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
+
+    addDeprecatedServerPolicy(config, c, certificate, privateKey);
+
+    UA_UsernamePasswordLogin login = {UA_STRING_STATIC("user"), UA_STRING_STATIC("pass")};
+    UA_AccessControl_default(config, true, NULL, 1, &login);
+
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+/* Replicates the client's ActivateSession signature computation so the
+ * server accepts the (otherwise malformed) request up to where it parses
+ * the token. */
+static UA_StatusCode
+computeClientSignatureForTest(UA_Client *client, UA_SignatureData *sd) {
+    UA_SecureChannel *channel = &client->channel;
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    void *cc = channel->channelContext;
+    const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!sp->secureChannelEnhancements)
+        retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_ByteString_allocBuffer(&sd->signature, signAlg->getLocalSignatureSize(sp, cc));
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    if(sp->secureChannelEnhancements) {
+        UA_ByteString signData = UA_BYTESTRING_NULL;
+        retval = UA_SecureChannel_buildActivateSessionSignatureData(
+            channel, &client->serverSessionNonce, &client->clientSessionNonce,
+            &channel->remoteCertificate, &channel->remoteCertificate,
+            &sp->localCertificate, &signData);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = signAlg->sign(sp, cc, &signData, &sd->signature);
+        UA_ByteString_clear(&signData);
+        return retval;
+    }
+
+    UA_ByteString leaf = getLeafCertificate(channel->remoteCertificate);
+    UA_ByteString signData;
+    signData.length = leaf.length + client->serverSessionNonce.length;
+    signData.data = (UA_Byte *)UA_malloc(signData.length);
+    if(!signData.data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    memcpy(signData.data, leaf.data, leaf.length);
+    memcpy(signData.data + leaf.length, client->serverSessionNonce.data,
+          client->serverSessionNonce.length);
+    retval = signAlg->sign(sp, cc, &signData, &sd->signature);
+    UA_ByteString_clear(&signData);
+    return retval;
+}
+
+/* Builds a structurally-consistent EccEncryptedSecret whose Length field (80)
+ * makes endOfSecret = 89, less than the P-384 signature size (96). Before the
+ * fix, decryptUserTokenEcc computes endOfSecret - sigLen for the
+ * signature-verify length, underflowing to ~2^64 and reading off the end of
+ * the buffer. After the fix, the length is rejected before that subtraction. */
+static void
+buildMalformedEccSecret(UA_ByteString *out) {
+    static const unsigned char typeId[] = {0x01, 0x00, 0x8A, 0x44}; /* i=17546 */
+    const char *policyUri = "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384";
+    size_t uriLen = strlen(policyUri);
+
+    size_t off = 0;
+    size_t total = 89;
+    UA_ByteString_allocBuffer(out, total);
+    memcpy(out->data + off, typeId, 4); off += 4;
+    out->data[off++] = 0x01; /* encodingMask */
+    out->data[off++] = 80; out->data[off++] = 0; out->data[off++] = 0; out->data[off++] = 0;
+    out->data[off++] = (UA_Byte)(uriLen & 0xFF); out->data[off++] = (UA_Byte)((uriLen >> 8) & 0xFF);
+    out->data[off++] = 0; out->data[off++] = 0;
+    memcpy(out->data + off, policyUri, uriLen); off += uriLen;
+    out->data[off++] = 0xFF; out->data[off++] = 0xFF; out->data[off++] = 0xFF; out->data[off++] = 0xFF;
+    memset(out->data + off, 0, 8); off += 8;
+    out->data[off++] = 0; out->data[off++] = 0;
+    memset(out->data + off, 0, total - off);
+}
+
+START_TEST(encryption_malformed_ecc_usertoken_length) {
+    UA_Client *client = createEncryptedClient();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ActivateSessionRequest req;
+    UA_ActivateSessionRequest_init(&req);
+    UA_NodeId_copy(&client->authenticationToken, &req.requestHeader.authenticationToken);
+
+    retval = computeClientSignatureForTest(client, &req.clientSignature);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UserNameIdentityToken *unit = UA_UserNameIdentityToken_new();
+    unit->policyId =
+        UA_STRING_ALLOC("open62541-username-policy-sign+encrypt#ECC_nistP384");
+    unit->userName = UA_STRING_ALLOC("attacker");
+    buildMalformedEccSecret(&unit->password);
+    req.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
+    req.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+    req.userIdentityToken.content.decoded.data = unit;
+
+    UA_ActivateSessionResponse resp;
+    UA_ActivateSessionResponse_init(&resp);
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+
+    /* The malformed length must be rejected with a defined StatusCode. Prior
+     * to the fix, the server crashes while processing this request instead
+     * of returning a response. */
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_BADIDENTITYTOKENINVALID);
+
+    UA_ActivateSessionRequest_clear(&req);
+    UA_ActivateSessionResponse_clear(&resp);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* --- Test suite: one TCase per curve --- */
 
 static Suite* testSuite_encryption(void) {
@@ -711,6 +860,16 @@ static Suite* testSuite_encryption(void) {
 #endif /* UA_ENABLE_ENCRYPTION */
         suite_add_tcase(s, tc);
     }
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Separate TCase: needs a UserName login registered on the server, unlike
+     * the plain per-curve fixture used above. */
+    TCase *tcUserToken = tcase_create("ECC_nistP384 malformed user token");
+    tcase_add_checked_fixture(tcUserToken, setup_p384_usertoken, teardown);
+    tcase_add_test(tcUserToken, encryption_malformed_ecc_usertoken_length);
+    suite_add_tcase(s, tcUserToken);
+#endif /* UA_ENABLE_ENCRYPTION */
+
     return s;
 }
 

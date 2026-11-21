@@ -31,7 +31,7 @@ int main(void) {
     if(retval == UA_STATUSCODE_GOOD) {
         UA_String out = UA_STRING_NULL;
         UA_print(value.data, value.type, &out);
-        printf("Point = %*s\n", (int)out.length, out.data);
+        printf("Point = %.*s\n", (int)out.length, out.data);
         UA_String_clear(&out);
     }
 
@@ -43,7 +43,7 @@ int main(void) {
     if(retval == UA_STATUSCODE_GOOD) {
         UA_String out = UA_STRING_NULL;
         UA_print(value.data, value.type, &out);
-        printf("Measurement = %*s\n", (int)out.length, out.data);
+        printf("Measurement = %.*s\n", (int)out.length, out.data);
         UA_String_clear(&out);
     }
     UA_Variant_clear(&value);

@@ -257,6 +257,10 @@ typedef struct UA_PubSubConnection {
 UA_PubSubConnection *
 UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id);
 
+void
+UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                             const UA_ByteString msg);
+
 UA_StatusCode
 UA_PubSubConnection_create(UA_PubSubManager *psm,
                            const UA_PubSubConnectionConfig *connectionConfig,
@@ -528,6 +532,17 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 /*                ReaderGroup                 */
 /**********************************************/
 
+#define UA_PUBSUB_REPLAY_HISTORY_SIZE 64
+
+typedef struct {
+    UA_Boolean inUse;
+    UA_Boolean publisherIdEnabled;
+    UA_PublisherId publisherId;
+    UA_UInt32 securityTokenId;
+    UA_UInt32 sequenceNumber;
+    UA_UInt64 useCounter;
+} UA_PubSubReplayHistoryEntry;
+
 struct UA_ReaderGroup {
     UA_PubSubComponentHead head;
     LIST_ENTRY(UA_ReaderGroup) listEntry;
@@ -547,6 +562,8 @@ struct UA_ReaderGroup {
     UA_Boolean deleteFlag;
 
     UA_UInt32 securityTokenId;
+    UA_UInt64 replayUseCounter;
+    UA_PubSubReplayHistoryEntry replayHistory[UA_PUBSUB_REPLAY_HISTORY_SIZE];
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
     void *securityPolicyContext;
 #ifdef UA_ENABLE_PUBSUB_SKS
@@ -600,6 +617,9 @@ UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                                Ctx *ctx, UA_NetworkMessage *nm,
                                UA_ReaderGroup *rg);
+
+UA_StatusCode
+UA_ReaderGroup_checkReplay(UA_ReaderGroup *readerGroup, const UA_NetworkMessage *nm);
 
 UA_StatusCode
 UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,

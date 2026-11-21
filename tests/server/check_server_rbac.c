@@ -698,7 +698,7 @@ START_TEST(addRole_cApiPublishesRoleObject) {
 END_TEST
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
-#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
 /* The RoleSet AddRole/RemoveRole Methods must create/remove the Role Object
  * under Server/ServerCapabilities/RoleSet so a browsing client sees roles
  * added or removed at runtime (Part 18 §4.2.2, §4.2.3, §4.3). */
@@ -759,7 +759,7 @@ START_TEST(addRemoveRoleMethod_updatesAddressSpace) {
     UA_NodeId_clear(&newRoleId);
 }
 END_TEST
-#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
 START_TEST(standardRolesWithCorrectIds) {
@@ -957,6 +957,36 @@ START_TEST(anonymousRole_alwaysAssigned) {
         if(UA_NodeId_equal(&ids[i], &anonId))
             found = true;
     ck_assert(found);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+}
+END_TEST
+
+/* A null UserIdentityToken is an anonymous login (Part 4, 5.6.3.2) and must
+ * not match the AuthenticatedUser criteria. */
+START_TEST(emptyIdentityToken_isAnonymous) {
+    UA_NodeId anonId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    UA_NodeId authId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+
+    UA_ExtensionObject tok;
+    UA_ExtensionObject_init(&tok);
+    ck_assert_int_eq(tok.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+                                                     &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean anonFound = false;
+    UA_Boolean authFound = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], &anonId))
+            anonFound = true;
+        if(UA_NodeId_equal(&ids[i], &authId))
+            authFound = true;
+    }
+    ck_assert(anonFound);
+    ck_assert(!authFound);
     UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
 }
 END_TEST
@@ -2461,7 +2491,7 @@ START_TEST(addRole_quotaEnforced) {
 }
 END_TEST
 
-#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
 /* The RoleSet AddRole Method must only grant CALL to SecurityAdmin, while the
  * public Roles keep BROWSE only (Part 18). */
 START_TEST(roleSetMethods_restrictedToAdmin) {
@@ -2488,7 +2518,7 @@ START_TEST(roleSetMethods_restrictedToAdmin) {
     ck_assert(!anonCanCall);
 }
 END_TEST
-#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
@@ -2598,10 +2628,10 @@ static Suite *testSuite_InformationModel(void) {
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     tcase_add_test(tc, addRole_cApiPublishesRoleObject);
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
-#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
     tcase_add_test(tc, addRemoveRoleMethod_updatesAddressSpace);
     tcase_add_test(tc, roleSetMethods_restrictedToAdmin);
-#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
     suite_add_tcase(s, tc);
 
     TCase *tc_session = tcase_create("SessionRoles");
@@ -2612,6 +2642,7 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc_session, trustedApplication_roleRegistered);
     tcase_add_test(tc_session, trustedApplication_assignedWhenTrusted);
     tcase_add_test(tc_session, anonymousRole_alwaysAssigned);
+    tcase_add_test(tc_session, emptyIdentityToken_isAnonymous);
     suite_add_tcase(s, tc_session);
 
     TCase *tc_perms = tcase_create("NodePermissions");

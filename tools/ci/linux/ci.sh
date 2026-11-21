@@ -170,7 +170,7 @@ EOF
 
     x86_64-w64-mingw32-gcc -D_WIN32_WINNT=0x0600 \
         -Wall -Werror amalgamation_none_smoke.c open62541.c \
-        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi
+        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi -lbcrypt
 }
 
 function build_amalgamation_mt {
@@ -381,7 +381,6 @@ function unit_tests_tsan {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DEBUG_SANITIZER=OFF \
           -DUA_MULTITHREADING=100 \
-          -DUA_ENABLE_METHODCALLS=ON \
           -DUA_ENABLE_SUBSCRIPTIONS=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_AUDITING=ON \
@@ -504,7 +503,6 @@ function unit_tests_mdnsd {
     # This job intentionally exercises that multicast discovery driver path.
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_SEMAPHORE=ON \
           ..
     make ${MAKEOPTS} check_discovery_mdnsd
@@ -570,7 +568,7 @@ function unit_tests_alarms {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
-          -DUA_ENABLE_DA=ON \
+          -DUA_ENABLE_MALLOC_SINGLETON=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_FORCE_WERROR=ON \
@@ -586,7 +584,6 @@ function unit_tests_alarms_memcheck {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DA=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
@@ -710,7 +707,6 @@ function run_examples {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_PUBSUB_SKS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -757,7 +753,6 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_PUBSUB_SKS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -814,89 +809,17 @@ function build_clang_analyzer {
 ########################################
 
 function build_all_companion_specs {
-    # Split into 3 runs to avoid C type-name collisions between companion specs
-    # that define identically-named DataTypes in different OPC UA namespaces:
-    #   - Pumps  <->  PAEFS          (UA_ControlModeEnum)
-    #   - TMC    <->  PlasticsRubber  (UA_ControlModeEnumeration,
-    #                                  UA_ProductionStatusEnumeration)
-    #   - CommercialKitchenEquipment <-> PlasticsRubber-TCD
-    #                                  (UA_OperatingModeEnumeration)
-    #   - PlasticsRubber-LDS <-> PlasticsRubber-Extrusion-GeneralTypes
-    #                                  (UA_ComponentStatusEnumeration)
-    #   - Extrusion v1 <-> Extrusion v2 (multiple shared type names)
-
-    # --- Run 1: Core models + Mining + FDI + new standard specs ---
-    # Contains TMC, Pumps, CommercialKitchenEquipment (excludes PlasticsRubber, PAEFS)
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_EXAMPLES=ON \
+          -DBUILD_SHARED_LIBS=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_BUILD_COMPANION_TESTS=ON \
           -DUA_FORCE_WERROR=ON \
-          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;\
-AMB\;AutoID\;POWERLINK\;Machinery-Result\;PackML\;PROFINET\;Scheduler\;\
-WoT\;IOLinkIODD\;WireHarness-VEC\;PNGSDGM\;PLCopen\;\
-FDT\;ADI\;Sercos\;CommercialKitchenEquipment\;ECM\;\
-Machinery\;Machinery-Energy\;Machinery-Jobs\;LADS\;Woodworking\;Pumps\;\
-Scales\;Weihenstephan\;MDIS\;TMC\;CAS\;\
-Eumabois\;MachineTool\;SurfaceTechnology\;STGeneralTypes\;\
-IJT\;LaserSystems\;GMS\;TTD\;WireHarness\;CuttingTool\;\
-UAFX-Data\;FDI5\;FDI7\;\
-PADIM\;Machinery-ProcessValues\;AdditiveManufacturing\;MetalForming\;WMTP\;\
-Mining-General\;\
-Mining-Extraction-General\;Mining-Extraction-ShearerLoader\;\
-Mining-Loading-General\;Mining-Loading-HydraulicExcavator\;\
-Mining-DevelopmentSupport-General\;Mining-DevelopmentSupport-RoofSupportSystem\;\
-Mining-DevelopmentSupport-Dozer\;\
-Mining-TransportDumping-General\;Mining-TransportDumping-RearDumpTruck\;\
-Mining-TransportDumping-ArmouredFaceConveyor\;\
-Mining-MineralProcessing-General\;Mining-MineralProcessing-RockCrusher\;\
-Mining-PELOServices-General\;Mining-PELOServices-FaceAlignmentSystem\;\
-Mining-MonitoringSupervisionServices-General\;\
-Shotblasting \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
-    make ${MAKEOPTS}
-
-    # --- Run 2: PlasticsRubber Extrusion v1 + PAEFS ---
-    # Excludes TMC, CommercialKitchenEquipment, Pumps, LDS (type conflicts)
-    rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_FORCE_WERROR=ON \
-          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;Machinery\;\
-PADIM\;Machinery-ProcessValues\;\
-PlasticsRubber-GeneralTypes\;PlasticsRubber-TCD\;PlasticsRubber-IMM2MES\;\
-PlasticsRubber-HotRunner\;\
-PlasticsRubber-Extrusion-GeneralTypes\;PlasticsRubber-Extrusion-ExtrusionLine\;\
-PlasticsRubber-Extrusion-Extruder\;PlasticsRubber-Extrusion-Die\;\
-PlasticsRubber-Extrusion-Filter\;PlasticsRubber-Extrusion-MeltPump\;\
-PlasticsRubber-Extrusion-HaulOff\;PlasticsRubber-Extrusion-Pelletizer\;\
-PlasticsRubber-Extrusion-Calender\;PlasticsRubber-Extrusion-Calibrator\;\
-PlasticsRubber-Extrusion-Corrugator\;PlasticsRubber-Extrusion-Cutter\;\
-PAEFS \
-          -DUA_NAMESPACE_ZERO=FULL \
-          ..
-    make ${MAKEOPTS}
-
-    # --- Run 3: PlasticsRubber LDS + Extrusion v2 + UAFX-AC/CM + Robotics ---
-    # Excludes Extrusion v1 (type conflicts with v2),
-    # Extrusion-GeneralTypes v1 (ComponentStatusEnumeration conflicts with LDS)
-    rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_FORCE_WERROR=ON \
-          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;Machinery\;\
-PlasticsRubber-GeneralTypes\;PlasticsRubber-LDS\;\
-PlasticsRubber-Extrusion_v2-GeneralTypes\;PlasticsRubber-Extrusion_v2-ExtrusionLine\;\
-PlasticsRubber-Extrusion_v2-Extruder\;PlasticsRubber-Extrusion_v2-Die\;\
-PlasticsRubber-Extrusion_v2-Filter\;PlasticsRubber-Extrusion_v2-MeltPump\;\
-PlasticsRubber-Extrusion_v2-HaulOff\;PlasticsRubber-Extrusion_v2-Pelletizer\;\
-PlasticsRubber-Extrusion_v2-Calender\;PlasticsRubber-Extrusion_v2-Calibrator\;\
-PlasticsRubber-Extrusion_v2-Corrugator\;PlasticsRubber-Extrusion_v2-Cutter\;\
-UAFX-Data\;UAFX-AC\;UAFX-CM\;Robotics \
-          -DUA_NAMESPACE_ZERO=FULL \
-          ..
-    make ${MAKEOPTS}
+    make ${MAKEOPTS} check_companion_specs check_nodeset_loader_all
+    ctest --output-on-failure --parallel 2 -L companion
+    ctest --output-on-failure -R '^check_nodeset_loader_all$'
 }
 
 #########################
@@ -944,10 +867,21 @@ function build_option_coverage {
     build_option_cfg "UA_ENABLE_DETERMINISTIC_RNG" -DUA_ENABLE_DETERMINISTIC_RNG=ON
     build_option_cfg "UA_ENABLE_RBAC"              -DUA_ENABLE_RBAC=ON -DUA_NAMESPACE_ZERO=FULL
 
+    # Reduced datatype lists, including configurations without server
+    # subscriptions or type/member names. PubSub otherwise supplies many types.
+    build_option_cfg "no UA_ENABLE_DATATYPES_ALL" -DUA_ENABLE_DATATYPES_ALL=OFF
+    build_option_cfg "reduced datatypes without Subscriptions or PubSub" \
+                     -DUA_ENABLE_DATATYPES_ALL=OFF -DUA_ENABLE_SUBSCRIPTIONS=OFF \
+                     -DUA_ENABLE_HISTORIZING=OFF -DUA_ENABLE_PUBSUB=OFF
+    build_option_cfg "reduced datatypes without type names or PubSub" \
+                     -DUA_ENABLE_DATATYPES_ALL=OFF -DUA_ENABLE_TYPEDESCRIPTION=OFF \
+                     -DUA_ENABLE_DIAGNOSTICS=OFF -DUA_ENABLE_JSON_ENCODING=OFF \
+                     -DUA_ENABLE_XML_ENCODING=OFF -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF \
+                     -DUA_ENABLE_PUBSUB=OFF
+
+    build_option_cfg "UA_MULTITHREADING=0" -DUA_MULTITHREADING=0
+
     # On by default, so only ever compiled in the enabled state
-    # The PubSub information model twin exposes methods, so it has to go as well
-    build_option_cfg "no UA_ENABLE_METHODCALLS"    -DUA_ENABLE_METHODCALLS=OFF \
-                     -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF
     build_option_cfg "no UA_ENABLE_NODEMANAGEMENT" -DUA_ENABLE_NODEMANAGEMENT=OFF
     build_option_cfg "no UA_ENABLE_AUDITING"       -DUA_ENABLE_AUDITING=OFF
     build_option_cfg "no UA_ENABLE_STATUSCODE_DESCRIPTIONS" -DUA_ENABLE_STATUSCODE_DESCRIPTIONS=OFF

@@ -7,7 +7,6 @@
 #include "../arch/posix/eventloop_posix.h"
 #endif
 #ifdef UA_ARCHITECTURE_POSIX
-#include "arch/posix/posix.h"
 #endif
 #include "testing_clock.h"
 #include <time.h>

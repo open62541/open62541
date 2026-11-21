@@ -592,7 +592,11 @@ START_TEST(FileConfigurationRejectsInvalidConnection) {
     UA_PubSubConfigurationDataType config = {0};
     config.connectionsSize = 1;
     config.connections = &connection;
-    ck_assert_uint_eq(loadFileConfig(&config), UA_STATUSCODE_BADINTERNALERROR);
+    /* An address with the wrong datatype is rejected before the connection's
+     * representation is created. */
+    UA_StatusCode expected = (_i == 3) ? UA_STATUSCODE_BADINVALIDARGUMENT :
+        UA_STATUSCODE_BADINTERNALERROR;
+    ck_assert_uint_eq(loadFileConfig(&config), expected);
     assertEmptyFileConfig();
 } END_TEST
 

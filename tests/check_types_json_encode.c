@@ -87,7 +87,7 @@ static UA_DataType jsonCustomTypes[3] = {
 };
 
 static UA_DataTypeArray jsonCustomTypeArray = {
-    NULL, 3, jsonCustomTypes, false
+    NULL, 3, jsonCustomTypes, false, false
 };
 
 static void

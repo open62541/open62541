@@ -12,7 +12,7 @@
 #include <open62541/driver/mdns.h>
 #include "open62541_queue.h"
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
+#ifdef UA_ENABLE_DRIVER_MDNS_MDNSD
 
 #include "mdnsd/mdnsd.h"
 #include "mdnsd/xht.h"
@@ -106,7 +106,10 @@ typedef struct ServerOnNetworkRecord {
     UA_ServerOnNetwork serverOnNetwork;
     UA_Boolean txtSet;
     UA_Boolean srvSet;
-    char *pathTmp;
+    /* Parts of the DiscoveryUrl from the latest received SRV and TXT records */
+    UA_String srvHostname;
+    UA_UInt16 srvPort;
+    UA_String path;
     ServerOnNetworkRecordOrigin origin;
     UA_DateTime nextAction; /* Remote: Remove after TTL
                              * Local: Announce again */
@@ -149,8 +152,8 @@ stopRecordDetailsQueryForEntry(MdnsdDriver *md,
 static void
 ServerOnNetworkRecord_delete(ServerOnNetworkRecord *son) {
     UA_ServerOnNetwork_clear(&son->serverOnNetwork);
-    if(son->pathTmp)
-        UA_free(son->pathTmp);
+    UA_String_clear(&son->srvHostname);
+    UA_String_clear(&son->path);
     UA_free(son);
 }
 
@@ -241,6 +244,28 @@ isLocalOwnedSON(const ServerOnNetworkRecord *entry) {
 /* Process Received Records */
 /****************************/
 
+/* Assemble the DiscoveryUrl as opc.tcp://[hostname]:[port][path]. The records
+ * are received again to refresh the caches and can change. So the DiscoveryUrl
+ * is assembled again for every SRV and TXT record. Format into an empty string.
+ * UA_String_format reuses the buffer of a non-empty string and fails if the new
+ * DiscoveryUrl does not fit. */
+static UA_StatusCode
+updateDiscoveryUrl(ServerOnNetworkRecord *entry) {
+    if(!entry->srvSet)
+        return UA_STATUSCODE_GOOD;
+
+    UA_String url = UA_STRING_NULL;
+    UA_StatusCode res =
+        UA_String_format(&url, "opc.tcp://%S:%d%S", entry->srvHostname,
+                         entry->srvPort, entry->path);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_String_clear(&entry->serverOnNetwork.discoveryUrl);
+    entry->serverOnNetwork.discoveryUrl = url;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
     /* Parse the record */
@@ -248,26 +273,24 @@ processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
     if(!x)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Process the path */
+    /* Process the path. The latest TXT record replaces the previous path. */
     char *path = (char *) xht_get(x, "path");
     size_t pathLen = path ? strlen(path) : 0;
+    UA_String newPath = UA_STRING_NULL;
     if(pathLen > 1) {
-        if(!entry->srvSet) {
-            /* TXT arrived before SRV. Cache path entry for assembly of the full
-             * DiscoveryUrl */
-            if(!entry->pathTmp) {
-                entry->pathTmp = (char*)UA_malloc(pathLen+1);
-                if(!entry->pathTmp) {
-                    xht_free(x);
-                    return UA_STATUSCODE_BADOUTOFMEMORY;;
-                }
-                memcpy(entry->pathTmp, path, pathLen);
-                entry->pathTmp[pathLen] = '\0';
-            }
-        } else {
-            /* SRV already there and discovery URL set. Add path to discovery URL */
-            UA_String_append(&entry->serverOnNetwork.discoveryUrl, UA_STRING(path));
+        newPath = UA_STRING_ALLOC(path);
+        if(newPath.length == 0) {
+            xht_free(x);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         }
+    }
+    UA_String_clear(&entry->path);
+    entry->path = newPath;
+
+    UA_StatusCode res = updateDiscoveryUrl(entry);
+    if(res != UA_STATUSCODE_GOOD) {
+        xht_free(x);
+        return res;
     }
 
     /* Process the capabilities */
@@ -300,8 +323,17 @@ processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
             char *nextStr = strchr(caps, ',');
             if(nextStr)
                 *nextStr = '\0';
-            entry->serverOnNetwork.serverCapabilities[i] =
-                UA_STRING_ALLOC(caps);
+            UA_String capability = UA_STRING(caps);
+            res = UA_String_copy(&capability,
+                                  &entry->serverOnNetwork.serverCapabilities[i]);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_Array_delete(entry->serverOnNetwork.serverCapabilities,
+                                capsCount, &UA_TYPES[UA_TYPES_STRING]);
+                entry->serverOnNetwork.serverCapabilities = NULL;
+                entry->serverOnNetwork.serverCapabilitiesSize = 0;
+                xht_free(x);
+                return res;
+            }
             if(nextStr)
                 caps = nextStr + 1;
         }
@@ -313,7 +345,7 @@ processTxt(ServerOnNetworkRecord *entry, const struct resource *r) {
 }
 
 /* Example: _opcua-tcp._tcp.[servername]. 86400 IN SRV 0 5 4840 [hostname]. */
-static void
+static UA_StatusCode
 processSrv(ServerOnNetworkRecord *entry, const struct resource *r) {
     /* The specification Part 12 says: The hostname maps onto the SRV record
      * target field. If the hostname is an IP-address then it must be converted
@@ -325,17 +357,17 @@ processSrv(ServerOnNetworkRecord *entry, const struct resource *r) {
     if(hostname.length > 0 && hostname.data[hostname.length - 1] == '.')
         hostname.length--;
 
-    /* Prepare the DiscoveryUrl as opc.tcp://[servername]:[port][path] */
-    UA_String_format(&entry->serverOnNetwork.discoveryUrl,
-                     "opc.tcp://%S:%d", hostname, r->known.srv.port);
-    if(entry->pathTmp) {
-        UA_String_append(&entry->serverOnNetwork.discoveryUrl,
-                         UA_STRING(entry->pathTmp));
-        UA_free(entry->pathTmp);
-        entry->pathTmp = NULL;
-    }
-
+    UA_String newHostname;
+    UA_StatusCode res = UA_String_copy(&hostname, &newHostname);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_String_clear(&entry->srvHostname);
+    entry->srvHostname = newHostname;
+    entry->srvPort = r->known.srv.port;
     entry->srvSet = true;
+
+    /* Assemble with the path from the latest TXT record */
+    return updateDiscoveryUrl(entry);
 }
 
 static int
@@ -566,12 +598,37 @@ announcePTR(MdnsdDriver *md, const char *serviceDomain,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Removes the .local domain, also with the trailing root dot, from a qualified
+ * hostname. The domain is compared without case. */
+static UA_String
+removeLocalDomain(UA_String hostname) {
+    const char *domain = ".local";
+    const size_t domainLen = 6;
+    UA_String name = hostname;
+    if(name.length > 0 && name.data[name.length - 1] == '.')
+        name.length--;
+    if(name.length <= domainLen)
+        return hostname;
+    const UA_Byte *tail = &name.data[name.length - domainLen];
+    for(size_t i = 0; i < domainLen; i++) {
+        UA_Byte c = tail[i];
+        if(c >= 'A' && c <= 'Z')
+            c = (UA_Byte)(c - 'A' + 'a');
+        if(c != (UA_Byte)domain[i])
+            return hostname;
+    }
+    name.length -= domainLen;
+    return name;
+}
+
 /* SRV record: [servername]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].local.
- * The first 63 characters of the hostname (or less) and ".local." */
+ * The first 63 characters of the hostname (or less) and ".local." A hostname
+ * qualified with .local keeps the domain once. */
 static UA_StatusCode
 announceSVR(MdnsdDriver *md, UA_String hostname, UA_UInt16 port,
             const char *serviceDomain, const UA_ServerOnNetwork *son,
             UA_UInt32 ttl) {
+    hostname = removeLocalDomain(hostname);
     size_t maxHostnameLen = UA_MIN(hostname.length, 63);
     char localDomain[71];
     memcpy(localDomain, hostname.data, maxHostnameLen);
@@ -986,6 +1043,22 @@ MulticastDiscoverySendCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                state, params, msg, false);
 }
 
+/* Announcements and queries are sent over the send connection. A driver that
+ * only listens sends nothing. */
+static UA_Boolean
+sendsMessages(const MdnsdDriver *md) {
+    return md->announce || md->queryPresence || md->queryDetails;
+}
+
+/* The configuration needs the send connection if it sends and otherwise the
+ * receive connection if it listens */
+static UA_Boolean
+connectionMissing(const MdnsdDriver *md) {
+    if(sendsMessages(md))
+        return md->mdnsSendConnection == 0;
+    return md->listen && md->mdnsRecvConnectionsSize == 0;
+}
+
 /* Create multicast 224.0.0.251:5353 socket */
 static void
 createMulticastSocket(MdnsdDriver *md) {
@@ -1055,8 +1128,7 @@ createMulticastSocket(MdnsdDriver *md) {
 
     /* Open the send connection */
     listen = false;
-    if((md->announce || md->queryPresence || md->queryDetails) &&
-       md->mdnsSendConnection == 0) {
+    if(sendsMessages(md) && md->mdnsSendConnection == 0) {
         res = md->cm->openConnection(md->cm, &kvm, md->mdns.drv.server, md,
                                      MulticastDiscoverySendCallback);
         if(res != UA_STATUSCODE_GOOD)
@@ -1085,7 +1157,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         } else if(md->mdns.drv.state == UA_LIFECYCLESTATE_STARTED) {
             /* Restart mdns sockets if not shutting down */
             createMulticastSocket(md);
-            if(md->mdnsSendConnection == 0)
+            if(connectionMissing(md))
                 UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
                              "mDNS: Could not create UDP multicast socket");
         }
@@ -1144,6 +1216,15 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     freeaddrinfo(infoptr);
 }
 
+/* Announce a local entry now and schedule its next announcement */
+static void
+announceLocalSON(MdnsdDriver *md, ServerOnNetworkRecord *entry) {
+    announceRecord(md, entry);
+    UA_EventLoop *el = UA_Server_getConfig(md->mdns.drv.server)->eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    entry->nextAction = now + ((entry->ttl * 9 * UA_DATETIME_SEC) / 10);
+}
+
 /* Loop over all SON and perform required actions */
 static void
 MdnsdHouseKeeping(UA_Server *server, void *drv) {
@@ -1180,8 +1261,9 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
     if(type != UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK)
         return;
 
-    if(drv->state != UA_LIFECYCLESTATE_STARTED)
-        return;
+    /* While the driver is not started, only the entries are updated. The
+     * start announces the local entries. */
+    UA_Boolean live = (drv->state == UA_LIFECYCLESTATE_STARTED);
 
     MdnsdDriver *md = (MdnsdDriver*)drv;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -1217,32 +1299,52 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Boolean removed = (_removed) ? *_removed : false;
 
+    const UA_Boolean *_announce = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "announce"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Boolean announce = (_announce) ? *_announce : false;
+
     /* Find existing entry for the ServerName */
     ServerOnNetworkRecord *entry = findSON(md, son->serverName);
 
     /* Add or update record */
     if(added || updated) {
+        /* The entry is not announced. For example because it was received over
+         * mDNS. Retract the entry if it was announced before. */
+        if(!announce) {
+            if(entry && isLocalOwnedSON(entry)) {
+                if(live) {
+                    retractRecord(md, &entry->serverOnNetwork);
+                    flushMulticastMessages(md);
+                }
+                removeLocalSON(md, entry);
+            }
+            return;
+        }
+
         if(!entry) {
             /* Create a new entry if none exists */
             res = addSON(md, son, &entry);
             if(res != UA_STATUSCODE_GOOD)
                 return;
         } else {
-            /* Abort if the mDNS-relevant fields are identical. The recordId is
-             * bumped server-side (e.g. by resetDiscoveryResetIds) and must
-             * not be part of the equality check. Use a shallow copy on the
-             * stack so the string pointers of `son` stay valid. */
+            /* Abort if the entry is announced already and the mDNS-relevant
+             * fields are identical. The recordId is bumped server-side (e.g.
+             * by resetDiscoveryResetIds) and must not be part of the equality
+             * check. Use a shallow copy on the stack so the string pointers of
+             * `son` stay valid. */
             UA_ServerOnNetwork sonForCmp = *son;
             sonForCmp.recordId = entry->serverOnNetwork.recordId;
             UA_Order same =
                 UA_order(&sonForCmp, &entry->serverOnNetwork,
                          &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-            if(same == UA_ORDER_EQ) {
-                /* If this is an entry received from mDNS, this notification is
-                 * just the server table echo of our cache update. Keep the
-                 * remote origin and do not announce it back out. */
+            if(isLocalOwnedSON(entry) && same == UA_ORDER_EQ)
                 return;
-            }
+
+            /* Take over a received entry. No more queries for its details. */
+            if(isRemoteReceivedSON(entry))
+                stopRecordDetailsQueryForEntry(md, entry);
+
             UA_ServerOnNetwork tmp;
             res = UA_ServerOnNetwork_copy(son, &tmp);
             if(res != UA_STATUSCODE_GOOD)
@@ -1256,12 +1358,8 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
         entry->ttl = ttl;
 
         /* Announce right away */
-        announceRecord(md, entry);
-
-        /* Next time the entry is announced */
-        UA_EventLoop *el = UA_Server_getConfig(md->mdns.drv.server)->eventLoop;
-        UA_DateTime now = el->dateTime_nowMonotonic(el);
-        entry->nextAction = now + ((entry->ttl * 9 * UA_DATETIME_SEC) / 10);
+        if(live)
+            announceLocalSON(md, entry);
     }
 
     /* Remove record */
@@ -1270,11 +1368,14 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
             return;
 
         if(isLocalOwnedSON(entry)) {
-            /* Locally owned record: the API removal means we own the goodbye. */
-            retractRecord(md, son);
-            /* Send the goodbye message immediately so the
-             * public-api tests observe the deregister packet. */
-            flushMulticastMessages(md);
+            /* Locally owned record: the API removal means we own the goodbye.
+             * A stopped driver has sent it already. */
+            if(live) {
+                retractRecord(md, son);
+                /* Send the goodbye message immediately so the
+                 * public-api tests observe the deregister packet. */
+                flushMulticastMessages(md);
+            }
             removeLocalSON(md, entry);
         } else {
             /* Received record: the server notification was caused by a remote
@@ -1310,7 +1411,7 @@ MdnsdDriver_stop(UA_Driver *drv) {
      * via the normal deregister path. */
     ServerOnNetworkRecord *son, *son_tmp;
     LIST_FOREACH_SAFE(son, &md->serverList, listPointers, son_tmp) {
-        if(isLocalOwnedSON(son))
+        if(isLocalOwnedSON(son) && md->mdnsDaemon)
             retractRecord(md, &son->serverOnNetwork);
     }
 
@@ -1359,10 +1460,10 @@ MdnsdDriver_start(UA_Driver *drv) {
 
     drv->state = UA_LIFECYCLESTATE_STARTED;
 
-    /* Initialize the list of server-on-network records. The list head is
-     * embedded in the driver struct (zeroed by calloc) so the initial state
-     * is an empty list. Re-initialize in case the driver is restarted. */
-    LIST_INIT(&md->serverList);
+    /* The list of server-on-network records is embedded in the driver struct
+     * (zeroed by calloc) and kept across a restart. The stop sent goodbyes for
+     * the local entries, and changes while stopped were applied to the list.
+     * The local entries are announced again below. */
 
     /* Extract the configuration parameters from the key-value map */
     const UA_Boolean *listen = (const UA_Boolean*)
@@ -1433,15 +1534,13 @@ MdnsdDriver_start(UA_Driver *drv) {
     }
 
     /* Open the UDP sockets if needed */
-    if(md->listen || md->announce || md->queryPresence || md->queryDetails) {
-        if(md->mdnsSendConnection == 0)
-            createMulticastSocket(md);
-        if(md->mdnsSendConnection == 0) {
-            UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
-                         "mDNS: Could not create UDP multicast socket");
-            MdnsdDriver_stop(&md->mdns.drv);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
+    if(connectionMissing(md))
+        createMulticastSocket(md);
+    if(connectionMissing(md)) {
+        UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "mDNS: Could not create UDP multicast socket");
+        MdnsdDriver_stop(&md->mdns.drv);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Add a repeated callback to process actions and send out multicast
@@ -1449,6 +1548,19 @@ MdnsdDriver_start(UA_Driver *drv) {
     UA_Server_addRepeatedCallback(md->mdns.drv.server, MdnsdHouseKeeping,
                                   md, UA_MDNS_POLL_INTERVAL_MS,
                                   &md->sendCallbackId);
+
+    /* Announce the local entries again. Received entries could not be
+     * refreshed while the driver was stopped. They expire if they are not
+     * received again within their TTL. */
+    UA_EventLoop *el = config->eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    ServerOnNetworkRecord *son;
+    LIST_FOREACH(son, &md->serverList, listPointers) {
+        if(isLocalOwnedSON(son))
+            announceLocalSON(md, son);
+        else
+            son->nextAction = now + (UA_DATETIME_SEC * son->ttl);
+    }
 
     if(md->queryPresence) {
         queryPresence(md);
@@ -1531,4 +1643,4 @@ UA_MdnsDriver_Mdnsd(const UA_KeyValueMap params) {
     return &md->mdns;
 }
 
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+#endif /* UA_ENABLE_DRIVER_MDNS_MDNSD */

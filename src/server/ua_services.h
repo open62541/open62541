@@ -40,6 +40,12 @@ typedef struct {
     const UA_DataType *responseType;
 } UA_ServiceDescription;
 
+/* Shared payload for service-begin, service-async and service-end notifications. */
+void
+notifyService(UA_Server *server, UA_ApplicationNotificationType type,
+               UA_UInt32 channelId, UA_NodeId sessionId,
+               UA_UInt32 requestId, UA_NodeId serviceTypeId);
+
 /* Returns NULL if none found */
 UA_ServiceDescription * getServiceDescription(UA_UInt32 requestTypeId);
 
@@ -61,7 +67,6 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
                      const void *request /* UA_GetEndpointsRequest */,
                      void *response /* UA_GetEndpointsResponse */);
 
-#ifdef UA_ENABLE_DISCOVERY
 
 UA_Boolean
 Service_RegisterServer(UA_Server *server, UA_Session *session,
@@ -78,7 +83,6 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                              const void *request /* UA_FindServersOnNetworkRequest */,
                              void *response /* UA_FindServersOnNetworkResponse */);
 
-#endif /* UA_ENABLE_DISCOVERY */
 
 /** SecureChannel Service Set **/
 void
@@ -165,7 +169,7 @@ Service_Read(UA_Server *server, UA_Session *session,
 UA_Boolean
 Operation_Read(UA_Server *server, UA_Session *session,
                UA_TimestampsToReturn ttr,
-               const UA_ReadValueId *rvi, UA_DataValue *dv);
+               const UA_ReadValueId *rvi, UA_DataValue *dv, UA_Boolean *nonNullable);
 
 UA_Boolean
 Service_Write(UA_Server *server, UA_Session *session,
@@ -188,7 +192,6 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
 #endif
 
 /** Method Service Set **/
-#ifdef UA_ENABLE_METHODCALLS
 UA_Boolean
 Service_Call(UA_Server *server, UA_Session *session,
              const void *request /* UA_CallRequest */, void *response /* UA_CallResponse */);
@@ -197,7 +200,6 @@ UA_Boolean
 Operation_CallMethod(UA_Server *server, UA_Session *session,
                      const UA_CallMethodRequest *request,
                      UA_CallMethodResult *result);
-#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 

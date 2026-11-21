@@ -1019,9 +1019,9 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_StatusCode result = UA_KeyValueRestriction_validate(
-        el->eventLoop.logger, "TCP", tcpConnectionParams,
-        TCP_CONNECTION_PARAMS, params);
+    UA_StatusCode result = UA_KeyValueMap_validate(
+        params, tcpConnectionParams, TCP_CONNECTION_PARAMS, false,
+        el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "TCP");
     if(result != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return result;
@@ -1171,9 +1171,9 @@ eventSourceStart(UA_EventSource *eventSource) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode result = UA_KeyValueRestriction_validate(
-        el->eventLoop.logger, "TCP", tcpManagerParams,
-        TCP_MANAGER_PARAMS, &eventSource->params);
+    UA_StatusCode result = UA_KeyValueMap_validate(
+        &eventSource->params, tcpManagerParams, TCP_MANAGER_PARAMS, false,
+        el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "TCP");
     if(result == UA_STATUSCODE_GOOD)
         result = UA_IOCP_configureConnectionManager(&manager->base);
 

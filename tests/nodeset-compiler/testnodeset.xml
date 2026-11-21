@@ -45,7 +45,7 @@
         <References>
             <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
         </References>
-        <Definition Name="1:Point">
+        <Definition Name="1:NestedPoint">
             <Field DataType="Double" Name="x"/>
             <Field DataType="Double" Name="y"/>
             <Field DataType="ns=1;i=10001" Name="Point1" />
@@ -465,7 +465,6 @@
             <Field DataType="Double" Name="x"/>
             <Field DataType="Double" Name="y"/>
             <Field DataType="Double" Name="z"/>
-            <Field DataType="UInt32" Name="array1Size"/>
             <Field DataType="Double" ValueRank="1" Name="array1"/>
         </Definition>
     </UADataType>

@@ -1,0 +1,315 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Bastian Engel)
+ */
+
+/* Fixtures for the KeyUsage of Application Instance Certificates (Part 6,
+ * 6.2.2). All certificates have basicConstraints cA=FALSE, the ApplicationUri
+ * urn:open62541.test.keyusage and the ExtendedKeyUsages serverAuth and
+ * clientAuth. Valid from 2026-11-17 for 30 years. Generated with the Python
+ * cryptography package. */
+
+#ifndef CERTIFICATES_KEYUSAGE_H_
+#define CERTIFICATES_KEYUSAGE_H_
+
+#include <open62541/types.h>
+
+/* Self-signed RSA. KeyUsage (critical): digitalSignature, nonRepudiation,
+ * keyEncipherment, dataEncipherment, keyCertSign */
+static UA_Byte KEYUSAGE_RSA_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDZzCCAk+gAwIBAgIUZitAAMxJe/Ss1TsA5Ei7VQnfydswDQYJKoZIhvcNAQEL\n"
+    "BQAwIjESMBAGA1UECgwJb3BlbjYyNTQxMQwwCgYDVQQDDANSU0EwIBcNMjYxMTE3\n"
+    "MDAwMDAwWhgPMjA1NjExMTcwMDAwMDBaMCIxEjAQBgNVBAoMCW9wZW42MjU0MTEM\n"
+    "MAoGA1UEAwwDUlNBMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApXKm\n"
+    "8B66Gl291gd5UP0wPHEAIzgtDqXZtsKkqSkRybQQbQ++0/7WC2Mu9E4iG+rsFw35\n"
+    "uquMzctQKDVkyk+AQqOfqdBCuD/CnxX6mr91ntVkwIk5R8N5nioR60tdI/kdHA38\n"
+    "Wj3jNOPUPN8Oer1hY0k5u7mbA8dSHWSTnaxHMCEQAcqE8ZhGhtlXMQmTzbH6M2Sy\n"
+    "XixF979MmJOtZYLmAjQnVZk7xGCnxrpYJA9kp85XC++M2qskUZE5q4BQuAc3gWWA\n"
+    "BTM1GgboS/fp2VFoFYVtRHHo3gEOuS9DpLyz7GgbsVZr1/mWurSTgN2wcyHmFKAY\n"
+    "ldWFsEVC4/A+BKtBQwIDAQABo4GSMIGPMAwGA1UdEwEB/wQCMAAwMQYDVR0RBCow\n"
+    "KIYbdXJuOm9wZW42MjU0MS50ZXN0LmtleXVzYWdlgglsb2NhbGhvc3QwHQYDVR0l\n"
+    "BBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMB0GA1UdDgQWBBQz3pemmL3SEzOVNsOC\n"
+    "9uC3l2BofTAOBgNVHQ8BAf8EBAMCAvQwDQYJKoZIhvcNAQELBQADggEBAIRpARvl\n"
+    "TzsROB0HPrf0AGa9pAhB3snhNAMooK6EXt8rXzThRJ1gsEyOfbyr6zN6y599O9DC\n"
+    "aWYQbpyU9EGIKyPGNw836mI4RB3GdUCdtBx6Ul4p2Zm4ZSscDFFIFwTh/eu363L1\n"
+    "e40ExpKCFmd6P6/NIMdjFRrLEw4X+nopFTJS6QTw5x04pqoerAYQngGP778H7X7z\n"
+    "+7Ri8q/eWqLwr0gcQMpn0otIGGnJkHiz+6O47bGlZazlGfxg2CHDRTotjEFHGGO7\n"
+    "UvAg+xp2Hq5bq5+abFA/oJoP6rumLufh/+ogpSj4Z386TqmGLbS+kGq+BHLgz8+U\n"
+    "hYCnYcjYstfqdrw=\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_LENGTH (sizeof(KEYUSAGE_RSA_PEM) - 1)
+
+/* Self-signed RSA. KeyUsage (not critical): digitalSignature,
+ * nonRepudiation, keyEncipherment, dataEncipherment, keyCertSign */
+static UA_Byte KEYUSAGE_RSA_NONCRITICAL_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDfjCCAmagAwIBAgIUSGmijW0ca6VvHLwGWxJwpKmppy4wDQYJKoZIhvcNAQEL\n"
+    "BQAwLzESMBAGA1UECgwJb3BlbjYyNTQxMRkwFwYDVQQDDBBSU0Egbm9uLWNyaXRp\n"
+    "Y2FsMCAXDTI2MTExNzAwMDAwMFoYDzIwNTYxMTE3MDAwMDAwWjAvMRIwEAYDVQQK\n"
+    "DAlvcGVuNjI1NDExGTAXBgNVBAMMEFJTQSBub24tY3JpdGljYWwwggEiMA0GCSqG\n"
+    "SIb3DQEBAQUAA4IBDwAwggEKAoIBAQCIK66Szv75y7XI2NPmum8pAPjwRO9ins5Y\n"
+    "t9H5au53Tpu6ImeyCZz8llBhM8/r0/Gv+SbBgjTAQbA/uVMp5xuvO2H5mHUUCMeK\n"
+    "7vU8ySy1IqMqjJu2Tx2VT3N1KA4XZR+pU+BFB0M9I1iGE3gIizbyc1xlS5jTkfXg\n"
+    "y3KMX7bc+fEkghL91K8S5jtFwMocZBuKpYKeWhYDwbkCwDIP186//uJ0CLB/lX4z\n"
+    "ofqaN60RT//gQiiPhVacOPivH6d//FN8uJwi58j3WC9IJt5B81PFyIJqYcdH9r5J\n"
+    "ZyaA3tjhd2vycaNqGMRKbSzHElO0mppJkS0zbAl/nNRgfU1GBURvAgMBAAGjgY8w\n"
+    "gYwwDAYDVR0TAQH/BAIwADAxBgNVHREEKjAohht1cm46b3BlbjYyNTQxLnRlc3Qu\n"
+    "a2V5dXNhZ2WCCWxvY2FsaG9zdDAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUH\n"
+    "AwIwHQYDVR0OBBYEFDgr0GQRas8b+zKZRxg8p7DZmIBLMAsGA1UdDwQEAwIC9DAN\n"
+    "BgkqhkiG9w0BAQsFAAOCAQEAd7aLsMrFeecOHORdNkl5x1MFCUpIASxSs5xOmhSf\n"
+    "HnuWXJkDyyb1Drd4vmt6q2pp9/Y/U1+RBWFgdKyCZ1u8M+U2X8fc43GYctQwmgXX\n"
+    "pm2T8RFbMeVQXqoSZb1YEjCFBSJrTfNOIbKWf56cetMdh7Tmikxclgsu5x0I6J4x\n"
+    "WFKq+LyjOneG+1oFTHuQot9FC7/OzVZ9J/qX2fUkR2hVWSGz+3gHScWbQV1etX4m\n"
+    "2DipdycKhCVuChtx/mxswisJ4w9iwqvDPTGH2g6CxjPIfWPYYfjeukctmSz5bknr\n"
+    "xuRRwBcKcpsCip6Cu7ZlRCTV9vKqVRyfBLRrmp/pr6zabQ==\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_NONCRITICAL_LENGTH \
+    (sizeof(KEYUSAGE_RSA_NONCRITICAL_PEM) - 1)
+
+/* RSA issued by a CA that is not part of the fixtures. KeyUsage (not
+ * critical): digitalSignature, nonRepudiation, keyEncipherment,
+ * dataEncipherment */
+static UA_Byte KEYUSAGE_RSA_ISSUED_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDnjCCAoagAwIBAgIUefrVTPsrmr8zWEEn9Pl3Lnc1rNMwDQYJKoZIhvcNAQEL\n"
+    "BQAwNDESMBAGA1UECgwJb3BlbjYyNTQxMR4wHAYDVQQDDBVvcGVuNjI1NDEgS2V5\n"
+    "VXNhZ2UgQ0EwIBcNMjYxMTE3MDAwMDAwWhgPMjA1NjExMTcwMDAwMDBaMCkxEjAQ\n"
+    "BgNVBAoMCW9wZW42MjU0MTETMBEGA1UEAwwKUlNBIGlzc3VlZDCCASIwDQYJKoZI\n"
+    "hvcNAQEBBQADggEPADCCAQoCggEBALsBSq8gLLOpz88ZW3JT7QckgzmnAvVgF6TS\n"
+    "G/enxmci9ZnBG+hxfBiyjrhXZyDcEPvywsW1Bhy6JHm9tLOQj+iuxjLS/8Mia54+\n"
+    "lRiQpTd+VUxlXnAWDISZvlk6oFGt+dEqLtWPxGe5BNepdM/7mJEWuBb+Fi5A4p3H\n"
+    "fpRwOnSP52whrT6VQL5rXd0JfEoiYYm+OZYu0MnAFfdfjA6oDy9RgaCWcgewP518\n"
+    "KfW1Qk7Onw87vjX9+/pROoKY347ogcim1OSh4UDsDJP7neTFCOs7ofELqrVZUUgC\n"
+    "vI8KDUk7dnHDqkyn7DlmZGU4a9N35UXBzt0BKoPgdoFsxjLCa2kCAwEAAaOBsDCB\n"
+    "rTAMBgNVHRMBAf8EAjAAMDEGA1UdEQQqMCiGG3VybjpvcGVuNjI1NDEudGVzdC5r\n"
+    "ZXl1c2FnZYIJbG9jYWxob3N0MB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcD\n"
+    "AjAdBgNVHQ4EFgQUvp8cMxz1tdg5VLpI+Q84OAo/3FAwHwYDVR0jBBgwFoAU3TRu\n"
+    "tcYS4mjObaFqpO/2y/lA318wCwYDVR0PBAQDAgTwMA0GCSqGSIb3DQEBCwUAA4IB\n"
+    "AQDZoLqx8bBowP7LrrTF2uFu5i/AHxzHjaIlWgWPeTADiGLRYOs3sURhRDiqfNzd\n"
+    "8e6RbWc0BVo5OvchrD8BPVh8qcgI64MTxC0xXT3E6F1KoLfu08oqDGH2CCNb+9ON\n"
+    "hIiU8YmE82+0DcbxB5XFPKowbRm04/l1dltpWnulMq4CP4ojK2G17XDVLu3wC7H8\n"
+    "2Se4b0lI3If2s1fNCeDvy3KwhJuoKJ66TsBV0i4cJuOz7Kk1XKfMytGL0C70CZTS\n"
+    "pe8jAu8vG5JSlBcbVNa+GBRMOCc4Hy0Er/5F/VSSeURotmWQqE4D9zapMGGDQpiK\n"
+    "VWrm14SF86RkMEE4SNns6YUc\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_ISSUED_LENGTH (sizeof(KEYUSAGE_RSA_ISSUED_PEM) - 1)
+
+/* Self-signed RSA without the KeyUsage extension */
+static UA_Byte KEYUSAGE_RSA_MISSING_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDZjCCAk6gAwIBAgIUBtVJl7ViCIkZCsdmBu9quKOKy6kwDQYJKoZIhvcNAQEL\n"
+    "BQAwKjESMBAGA1UECgwJb3BlbjYyNTQxMRQwEgYDVQQDDAtSU0EgbWlzc2luZzAg\n"
+    "Fw0yNjExMTcwMDAwMDBaGA8yMDU2MTExNzAwMDAwMFowKjESMBAGA1UECgwJb3Bl\n"
+    "bjYyNTQxMRQwEgYDVQQDDAtSU0EgbWlzc2luZzCCASIwDQYJKoZIhvcNAQEBBQAD\n"
+    "ggEPADCCAQoCggEBAKueZE27RzmErqo3mcN1raBuLCYk2ZgSQC2dEasLeVkzm0ih\n"
+    "6g1YucAWwQWkTvAilqBMRjWR7ZnFdgM/RzQcX/WlaY1h+C9I9BkcogxkhGvMTxgL\n"
+    "+ChzxbrqxqGO0zFwFG4/t2w9EsTB23lf6ZSa89a6Tq55Hn4PVpL6fUx4nWOqKNOQ\n"
+    "pCKpb6m48vMsyOD+KGi7HLGuHBTYjx9YMwkbMQaF5g9azLpbFqCKKIsuno0kwmmw\n"
+    "AQOk4ivZoBJRa7ulzm++6hnivJAw/po6zTMxtdPru4O1NbglTiWGQPIMGaONLAVM\n"
+    "JhncPsgBbcvQ8yhcQ5IU2Iy4A4fIp58ADU0I2DsCAwEAAaOBgTB/MAwGA1UdEwEB\n"
+    "/wQCMAAwMQYDVR0RBCowKIYbdXJuOm9wZW42MjU0MS50ZXN0LmtleXVzYWdlggls\n"
+    "b2NhbGhvc3QwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMB0GA1UdDgQW\n"
+    "BBSGqe6IKQwazOgS3AqVTKWMed5e+zANBgkqhkiG9w0BAQsFAAOCAQEAOHa3Kbzs\n"
+    "sSRVm5zDR0Lq86UDU/72WbNAx+6qej9iDT93ELw91BrVx/8ZZYY7+BECxhEKgVjv\n"
+    "CSG/ioi/AtqDd4rkx/XdCjB5+ZHwnz74X8EpNOYrFTTZHCfhAar02iuqEdAY2vTH\n"
+    "wZSp6Zr/NWDtQV0BaTs264T1bVFYPH0wcGfcIik4Sl/KOLRjzH46rl/qzKAeLaop\n"
+    "6p0Gd8l1R9gBTjqn0CjGlwbUUGwl2/UW3X/nQUQISfTRI5OcfLiAGo2RIDZyAibC\n"
+    "YDdDZYyIEsgEJfVEQ678kynx86AfeBfjM1dcovGL10l03pkhHhy2aRsJ57539p0R\n"
+    "kfSappIVi4K3xA==\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_MISSING_LENGTH (sizeof(KEYUSAGE_RSA_MISSING_PEM) - 1)
+
+/* Self-signed RSA. KeyUsage (not critical): nonRepudiation,
+ * keyEncipherment, dataEncipherment, keyCertSign */
+static UA_Byte KEYUSAGE_RSA_NO_DIGITALSIGNATURE_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDjDCCAnSgAwIBAgIUOMMcP0tLBDco53cYmFu9sS+sQZswDQYJKoZIhvcNAQEL\n"
+    "BQAwNjESMBAGA1UECgwJb3BlbjYyNTQxMSAwHgYDVQQDDBdSU0Egbm8gZGlnaXRh\n"
+    "bFNpZ25hdHVyZTAgFw0yNjExMTcwMDAwMDBaGA8yMDU2MTExNzAwMDAwMFowNjES\n"
+    "MBAGA1UECgwJb3BlbjYyNTQxMSAwHgYDVQQDDBdSU0Egbm8gZGlnaXRhbFNpZ25h\n"
+    "dHVyZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMJzHqbjgu5OdHyW\n"
+    "cQpljgGJPLwC3lAIekNLkKLwodEi4+V+Y+wFSakTq6ctC+Wur6MJkcLk4u3RQ3dY\n"
+    "gbopAhhEZyRhx7iSUgHl5TR/paymKfJVzzVncIbCr7enkrMN9/7a0nkwxHpyLYcx\n"
+    "6w63Z743J4N5HsdVaoT1qKfK5SBEzrA2nbcp9g6Tv5zBFCnzYfgW9rVwc6p4AHh9\n"
+    "jId/E0jPlILsCCLq2Gsg3p+7kw413V6Br6lxbMNuxQnpSJXlVLZomG+g5PDCitm8\n"
+    "yKA9YmX+/Nmat/Chhg/NLEuPdKT3s9Oyp/OjRHHLjSAzbPrgE9f4/KRV1lzyqAdO\n"
+    "NH3RW+MCAwEAAaOBjzCBjDAMBgNVHRMBAf8EAjAAMDEGA1UdEQQqMCiGG3Vybjpv\n"
+    "cGVuNjI1NDEudGVzdC5rZXl1c2FnZYIJbG9jYWxob3N0MB0GA1UdJQQWMBQGCCsG\n"
+    "AQUFBwMBBggrBgEFBQcDAjAdBgNVHQ4EFgQUZqoFpyaSthHckef33uRWNnDo0GAw\n"
+    "CwYDVR0PBAQDAgJ0MA0GCSqGSIb3DQEBCwUAA4IBAQBcZto++8g4k7sO8eZLKcVR\n"
+    "F/G73gxQZ2MBHaVOsPVYb9dQoSa/rfXbADZJl5YPRhjHijckyLTvjXlszVLbVfuh\n"
+    "9y03faO9fxRdZuTo3PsbuRt/UNxAfq4boJcnp29Y7qLRHKyA2M2ilnw7P8e829t0\n"
+    "JrXCiomd8z/MrHZl15uzM3Y4WVpRm1rA4dp+aZWMiCDZYW7cg2TcpjRMC+kwW7qM\n"
+    "qU80Xltb0PY3Y7TPPLzNAjQLYJZMChVu7l9id/EyiecUhovGT3oCdJPvzErYVF6+\n"
+    "SelPo+rl+3rqAlyM1AFV5VZedQMSGmZ///foSanfwvc8FtJD+ny8bMMELlOS66gI\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_NO_DIGITALSIGNATURE_LENGTH \
+    (sizeof(KEYUSAGE_RSA_NO_DIGITALSIGNATURE_PEM) - 1)
+
+/* Self-signed RSA. KeyUsage (not critical): digitalSignature,
+ * keyEncipherment, dataEncipherment, keyCertSign */
+static UA_Byte KEYUSAGE_RSA_NO_NONREPUDIATION_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDiDCCAnCgAwIBAgIUTtZcS0nq0BWx8Y9bWshaFzSp7AUwDQYJKoZIhvcNAQEL\n"
+    "BQAwNDESMBAGA1UECgwJb3BlbjYyNTQxMR4wHAYDVQQDDBVSU0Egbm8gbm9uUmVw\n"
+    "dWRpYXRpb24wIBcNMjYxMTE3MDAwMDAwWhgPMjA1NjExMTcwMDAwMDBaMDQxEjAQ\n"
+    "BgNVBAoMCW9wZW42MjU0MTEeMBwGA1UEAwwVUlNBIG5vIG5vblJlcHVkaWF0aW9u\n"
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApAbrnBWDr/0fyChxTKZi\n"
+    "m0nN82exL1du5vKrnoEPn2HFNEkpZQHpOjONpBXwV0S7vZtZHcFjsIAXyMYEiQ+Y\n"
+    "4Gzcc1mxiwRyRUd2wxRz8ys3QCh6+2Vjk9XYLFK9atIX8GiLb2Q4XotJV6/Yf/FD\n"
+    "oHKW5j86H3nQq/GrZwutUXnzlSZwy4bTD1U5BMr3IjXwUAY3MZKYehOCIlkyUWUE\n"
+    "1pkDuQvIfMEolgqhZch4mE65Dfey7Lu3hagvzgYNYMwnC8ukuUNW06fp86FofXZA\n"
+    "RWhnJxo3Xtj0f4MoeZCMRlHiYxhgtCDJCO4K7YHrh9/x1H1Qo4cUNUlPF6FVFFES\n"
+    "wQIDAQABo4GPMIGMMAwGA1UdEwEB/wQCMAAwMQYDVR0RBCowKIYbdXJuOm9wZW42\n"
+    "MjU0MS50ZXN0LmtleXVzYWdlgglsb2NhbGhvc3QwHQYDVR0lBBYwFAYIKwYBBQUH\n"
+    "AwEGCCsGAQUFBwMCMB0GA1UdDgQWBBRoikpdr3cHeAV5DyvTtk9eEx+g/TALBgNV\n"
+    "HQ8EBAMCArQwDQYJKoZIhvcNAQELBQADggEBAC+XMK6RNfyGk4BBXc6PCKkanyZE\n"
+    "HQTZFD7qn4UX5Z3guOdpkMv43hvdNAuwiMe2iXh8kE9E9P4m7W6NwPwN/O9sRqwR\n"
+    "8jVQB1eTjaCUhq+sQ7yNz6VH7s2vBbLUuzlHDhqO+l5PwWggxRbPZSJgnEyJjN9g\n"
+    "hzFlncVovN3c+AeGjF8Cch8hi9LyVhz3z07+lgIFqFYnBpEIZ/oS+Gvbbi64Tmtv\n"
+    "XkOUBCvZvZRhyQvrFHS2Qk5WwZD6GeACn4E6ANvk4TNRzGDDAkNJqR0Mg2HEWNxh\n"
+    "DOScfeKz8krHqWcFXpiKih++S0xplm2jN38qm8AeJUFu2A3GoJLw88bdYD0=\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_NO_NONREPUDIATION_LENGTH \
+    (sizeof(KEYUSAGE_RSA_NO_NONREPUDIATION_PEM) - 1)
+
+/* Self-signed RSA. KeyUsage (not critical): digitalSignature,
+ * nonRepudiation, dataEncipherment, keyCertSign */
+static UA_Byte KEYUSAGE_RSA_NO_KEYENCIPHERMENT_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDijCCAnKgAwIBAgIUMwmr4rcV4hLV4x5RAzKQzPiTiPgwDQYJKoZIhvcNAQEL\n"
+    "BQAwNTESMBAGA1UECgwJb3BlbjYyNTQxMR8wHQYDVQQDDBZSU0Egbm8ga2V5RW5j\n"
+    "aXBoZXJtZW50MCAXDTI2MTExNzAwMDAwMFoYDzIwNTYxMTE3MDAwMDAwWjA1MRIw\n"
+    "EAYDVQQKDAlvcGVuNjI1NDExHzAdBgNVBAMMFlJTQSBubyBrZXlFbmNpcGhlcm1l\n"
+    "bnQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC+eWC4bdGuhm7hkIS/\n"
+    "p4xZQHAwBLbH2hpSNvxsABbXJUy2gll/voSSQWMX+rq2Wm27a/gBE7Jeqn7NOvj/\n"
+    "37s2J6p1JUPS8Zl5+DljaHwfR0WTgfiIhOa/kPBb48kSsc3TtJ1b92c0gvIF5DFJ\n"
+    "2Qc+dneXxrB62sAe+OemsTxZuTDg1iwXLHANw3rK0LLY8Iqj//SD8mecTjMJ0mha\n"
+    "pTv/ompU1IrJI+LbMOEcCx/XFnvRiPdaOxXspaDYKWAroGd68d4MPqZ/koRYPGkJ\n"
+    "V/4CPCavimgNC+XdxnlYy0cv4KJE2bplzyXpHwIX9aryBWe7pBQ7+BTdlUk+tL3M\n"
+    "cmArAgMBAAGjgY8wgYwwDAYDVR0TAQH/BAIwADAxBgNVHREEKjAohht1cm46b3Bl\n"
+    "bjYyNTQxLnRlc3Qua2V5dXNhZ2WCCWxvY2FsaG9zdDAdBgNVHSUEFjAUBggrBgEF\n"
+    "BQcDAQYIKwYBBQUHAwIwHQYDVR0OBBYEFJ6GAn1D3M86N2PtCAb1Y5E+5hVtMAsG\n"
+    "A1UdDwQEAwIC1DANBgkqhkiG9w0BAQsFAAOCAQEAC0ZWljBHmtrFJSFYNnixu2Qm\n"
+    "q9Kd2NeKePmR2cqv/ngNPXkxE0WJr7p75AlgqweHxhgKzSRK6FMGhgRCn8x7nxNl\n"
+    "5B4GAUYWa5y0dSreBratFpFpdotq0DyNRU3xDxtkgVt5bbc5fOPkdxpUzaGxXkm6\n"
+    "XWIeA1kSfU5W5P1AX6nCnqIgXGKg5H9BwCOeYfrv3RFyrPhlpez25g/b16Z8cOuI\n"
+    "k4ffybVo5w2kS2CBAom17zKyH8yBv9tnH7uXwxBBFkXWoLazE3Z4tXbAiTNALruU\n"
+    "dcMomEhuR9E2BK1/wwNTt8R6DNeyvuRzsMEck+W391cQfV1/YYcEAIz8DMSXmw==\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_NO_KEYENCIPHERMENT_LENGTH \
+    (sizeof(KEYUSAGE_RSA_NO_KEYENCIPHERMENT_PEM) - 1)
+
+/* Self-signed RSA. KeyUsage (not critical): digitalSignature,
+ * nonRepudiation, keyEncipherment, keyCertSign */
+static UA_Byte KEYUSAGE_RSA_NO_DATAENCIPHERMENT_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDjDCCAnSgAwIBAgIURgthjXy04s98DrbTLqYw8fxt7d0wDQYJKoZIhvcNAQEL\n"
+    "BQAwNjESMBAGA1UECgwJb3BlbjYyNTQxMSAwHgYDVQQDDBdSU0Egbm8gZGF0YUVu\n"
+    "Y2lwaGVybWVudDAgFw0yNjExMTcwMDAwMDBaGA8yMDU2MTExNzAwMDAwMFowNjES\n"
+    "MBAGA1UECgwJb3BlbjYyNTQxMSAwHgYDVQQDDBdSU0Egbm8gZGF0YUVuY2lwaGVy\n"
+    "bWVudDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALchBb8rXZQRhDZ2\n"
+    "6tOqUuHxmW68M6ei9WPgnre/5AlbVdZoj9IE3tv53Qj2ReXU5QyOxMrAiUz/elC/\n"
+    "53RJB9V1u2zk2qUPCsqXAENiMFT31EfclbewPlQ/89umbta5+benPPDsHK4qHHZ0\n"
+    "2+4dr0Pup9hbwWmwx4mTfhrGHpqAgkwzOgoWOP/K7KkQW2AOhY6ZldaUyoRzSSJK\n"
+    "PolbRlWffZdLuKuun8eGJC1GQqlM6tDQvreJtDC54CYZg76CZeTXUyzqHH/7c09O\n"
+    "Ip5wTfmCoTYYPzCQBdozNaHnjBuCyzuuLByF2C6tatUBHu/DiM0Q+d3MGwDlzcSj\n"
+    "LnoM5ecCAwEAAaOBjzCBjDAMBgNVHRMBAf8EAjAAMDEGA1UdEQQqMCiGG3Vybjpv\n"
+    "cGVuNjI1NDEudGVzdC5rZXl1c2FnZYIJbG9jYWxob3N0MB0GA1UdJQQWMBQGCCsG\n"
+    "AQUFBwMBBggrBgEFBQcDAjAdBgNVHQ4EFgQUaupbGlY5N9rKEUtwPant1IBSnT8w\n"
+    "CwYDVR0PBAQDAgLkMA0GCSqGSIb3DQEBCwUAA4IBAQCiYX9T+5vFbfHnty+7E5A2\n"
+    "7JuZ/7YqPvXmw73T+vfbOfG81ubHHNtS3yjSMCeuAKqrgMWFvqfnNKtZfNjwWvZi\n"
+    "NOFNDSCGvXjlIibEb2PPTsj/GasklWv+rlNzzor9mL7zcSKZWaSeL8pzcV5n3LSy\n"
+    "e1yLAdAnz+CAusOo4k/Kkvz0g5WFUAm6xAqqb+YN5I/yVtlW2IPKM6AQC4P20Ir0\n"
+    "Seg4sW3/yLlz/3muUrYFdMTXn0XLeH8aWp1V6zLH5F+4XExoAMIp84RvLH3Q+Tqg\n"
+    "CTeJr8Rg6kCMG6ev51yzM8DqAAsS8kapattemUMHgXjOHaZ7o7sANyeuoci/IpUx\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_NO_DATAENCIPHERMENT_LENGTH \
+    (sizeof(KEYUSAGE_RSA_NO_DATAENCIPHERMENT_PEM) - 1)
+
+/* Self-signed RSA. KeyUsage (critical): digitalSignature, nonRepudiation,
+ * keyEncipherment, dataEncipherment */
+static UA_Byte KEYUSAGE_RSA_NO_KEYCERTSIGN_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDhTCCAm2gAwIBAgIUM7XtcFdcUB5hfb+mEAIMi/QptwIwDQYJKoZIhvcNAQEL\n"
+    "BQAwMTESMBAGA1UECgwJb3BlbjYyNTQxMRswGQYDVQQDDBJSU0Egbm8ga2V5Q2Vy\n"
+    "dFNpZ24wIBcNMjYxMTE3MDAwMDAwWhgPMjA1NjExMTcwMDAwMDBaMDExEjAQBgNV\n"
+    "BAoMCW9wZW42MjU0MTEbMBkGA1UEAwwSUlNBIG5vIGtleUNlcnRTaWduMIIBIjAN\n"
+    "BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9eRLvZapsqGcl0VK4Fl8zfIea9AE\n"
+    "M3vKqOKhJm+VO27Z1kEdivTCY/XuLXOrnsXntCuF8utgIGZ5skfyvzDNoHUsAjqL\n"
+    "UO8SvG7nIpU0CcWLOCysTmGgAieFAVQmy6C64rdLxF8wuOQf9i1rq83TwqYtmaAV\n"
+    "ewjdNx2QSESPjaFAiUWIEH0OLVo35gFcxg33HkTtGz8gX8ggFdSjhDZk15fA9/vz\n"
+    "gwaLq5KzIs2lmtFAwp5BjB5WB6gLDNzVn5FJcgyzFRHbre+qMLa+7OLegyRmB4u4\n"
+    "TnHP0XcUUxQM0ebVWy/X+VaIlY4JrzxUFI65nd8uXMwWLjs69paUc3pfEwIDAQAB\n"
+    "o4GSMIGPMAwGA1UdEwEB/wQCMAAwMQYDVR0RBCowKIYbdXJuOm9wZW42MjU0MS50\n"
+    "ZXN0LmtleXVzYWdlgglsb2NhbGhvc3QwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsG\n"
+    "AQUFBwMCMB0GA1UdDgQWBBRcgu0Neqj85Pwk3ATFADlWOIWPUDAOBgNVHQ8BAf8E\n"
+    "BAMCBPAwDQYJKoZIhvcNAQELBQADggEBAJpCzR8CAWTeWD8TF+hRJ1/xu/55g/Pz\n"
+    "TwS/hAKvf2yxQ7ISvRyEnNNADMTfbDFw8OCbQJhZOAksk7YTNqlXYjg8K6lNbYPi\n"
+    "2NXaMmey98TRecz0+O5X4gBpVTlYDxi/GXq9knkGGeI8RuX6KseDZkPLumYXifcT\n"
+    "gvO2yyuVVRmQCbV7fzKBygqUGhyspgL4cRoNSLSHfJF6Xu930o9Af98oeJuNtt4M\n"
+    "3UK/4dzaMti4YEcwQn2uKKw1KyXdbgrBbe8CybedDsN+Wz3mUgIIaloiAQa2cADk\n"
+    "fVBUYHR3ovHCG2Q61W36GvQNqjQxdB/njNLAdCuhIhlB7Hwa779svf4=\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_RSA_NO_KEYCERTSIGN_LENGTH \
+    (sizeof(KEYUSAGE_RSA_NO_KEYCERTSIGN_PEM) - 1)
+
+/* Self-signed ECC (P-256). KeyUsage (critical): digitalSignature,
+ * keyCertSign */
+static UA_Byte KEYUSAGE_ECC_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIB2zCCAYGgAwIBAgIUeZpo9MDUQF6sXrnzGrf0TJYgOTswCgYIKoZIzj0EAwIw\n"
+    "IjESMBAGA1UECgwJb3BlbjYyNTQxMQwwCgYDVQQDDANFQ0MwIBcNMjYxMTE3MDAw\n"
+    "MDAwWhgPMjA1NjExMTcwMDAwMDBaMCIxEjAQBgNVBAoMCW9wZW42MjU0MTEMMAoG\n"
+    "A1UEAwwDRUNDMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1BpUmgVqwhwCGxUz\n"
+    "wdk+7l12WOgeyJPkROAc/Nc/8PzNRIqrzTqLhlDrrj0qocbrGHPXblzK7XbU6knN\n"
+    "WcokmqOBkjCBjzAMBgNVHRMBAf8EAjAAMDEGA1UdEQQqMCiGG3VybjpvcGVuNjI1\n"
+    "NDEudGVzdC5rZXl1c2FnZYIJbG9jYWxob3N0MB0GA1UdJQQWMBQGCCsGAQUFBwMB\n"
+    "BggrBgEFBQcDAjAdBgNVHQ4EFgQUiOb/tweU/gvGEkoTZAEIGzdBzqQwDgYDVR0P\n"
+    "AQH/BAQDAgKEMAoGCCqGSM49BAMCA0gAMEUCIAOWZAWHbeqlOeAbs9yCfpCAsCRd\n"
+    "urWBBYd2JnqsDGUjAiEAyOIqyyQMJlroGHYo3AXdCiT86ew3ZW1vKR270qv7v/I=\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_ECC_LENGTH (sizeof(KEYUSAGE_ECC_PEM) - 1)
+
+/* Self-signed ECC (P-256). KeyUsage (not critical): digitalSignature,
+ * keyAgreement, encipherOnly, keyCertSign */
+static UA_Byte KEYUSAGE_ECC_ENCIPHERONLY_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIB8TCCAZigAwIBAgIUdsX14lL1uKg2soA0tQHA7zeIgZcwCgYIKoZIzj0EAwIw\n"
+    "LzESMBAGA1UECgwJb3BlbjYyNTQxMRkwFwYDVQQDDBBFQ0MgZW5jaXBoZXJPbmx5\n"
+    "MCAXDTI2MTExNzAwMDAwMFoYDzIwNTYxMTE3MDAwMDAwWjAvMRIwEAYDVQQKDAlv\n"
+    "cGVuNjI1NDExGTAXBgNVBAMMEEVDQyBlbmNpcGhlck9ubHkwWTATBgcqhkjOPQIB\n"
+    "BggqhkjOPQMBBwNCAAQmIMvDFaewxPJNkF8ZYUpiW33xbu1L1stZvPkZtGgL8icw\n"
+    "oP46/ZOAJAVLu0ay75qFgSPR6kSSK8ghCRVw9+Jgo4GPMIGMMAwGA1UdEwEB/wQC\n"
+    "MAAwMQYDVR0RBCowKIYbdXJuOm9wZW42MjU0MS50ZXN0LmtleXVzYWdlgglsb2Nh\n"
+    "bGhvc3QwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMB0GA1UdDgQWBBTu\n"
+    "+afKuDsVUj4CUlsYi3gPdY89pjALBgNVHQ8EBAMCAI0wCgYIKoZIzj0EAwIDRwAw\n"
+    "RAIgJalIAvW1KQ5DkvSpM1zYkXR069m2KPOcdASnxG9q3UECID779ITo+smrEBZs\n"
+    "Ou1MUrDpCVJ1cl01cKRUufUjn6SC\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_ECC_ENCIPHERONLY_LENGTH \
+    (sizeof(KEYUSAGE_ECC_ENCIPHERONLY_PEM) - 1)
+
+/* Self-signed ECC (P-256). KeyUsage (not critical): keyAgreement,
+ * keyCertSign */
+static UA_Byte KEYUSAGE_ECC_NO_DIGITALSIGNATURE_PEM[] =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIICADCCAaagAwIBAgIUYCI86G9ycAKCN2WGtv7xfu5bhGkwCgYIKoZIzj0EAwIw\n"
+    "NjESMBAGA1UECgwJb3BlbjYyNTQxMSAwHgYDVQQDDBdFQ0Mgbm8gZGlnaXRhbFNp\n"
+    "Z25hdHVyZTAgFw0yNjExMTcwMDAwMDBaGA8yMDU2MTExNzAwMDAwMFowNjESMBAG\n"
+    "A1UECgwJb3BlbjYyNTQxMSAwHgYDVQQDDBdFQ0Mgbm8gZGlnaXRhbFNpZ25hdHVy\n"
+    "ZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAqW99mocskTivoW0HNtZ4CCNLyA\n"
+    "uEGr3Uo6618u66J7h5hSZumrS9feB1Lkzs+/Qufn68O/UgQLJEECEEyGF2ujgY8w\n"
+    "gYwwDAYDVR0TAQH/BAIwADAxBgNVHREEKjAohht1cm46b3BlbjYyNTQxLnRlc3Qu\n"
+    "a2V5dXNhZ2WCCWxvY2FsaG9zdDAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUH\n"
+    "AwIwHQYDVR0OBBYEFNyu89U57V2ltFq63SsV/lqi+5TXMAsGA1UdDwQEAwICDDAK\n"
+    "BggqhkjOPQQDAgNIADBFAiAu2LKEvdJIf/uItqIEAM4kjTv95CyqG1bs6P/O0cva\n"
+    "wQIhAKpWNHvnABAulFf9NrtmkGGNjujx5fFals1CZKZKNXcj\n"
+    "-----END CERTIFICATE-----\n";
+#define KEYUSAGE_ECC_NO_DIGITALSIGNATURE_LENGTH \
+    (sizeof(KEYUSAGE_ECC_NO_DIGITALSIGNATURE_PEM) - 1)
+
+#endif /* CERTIFICATES_KEYUSAGE_H_ */

@@ -73,7 +73,7 @@ jobs:
           node-version: '22'
 
       - name: Install node-opcua interop server
-        run: npm install --prefix tests/interop/node-opcua
+        run: npm ci --prefix tests/interop/node-opcua
 
       - name: Clone .NET Reference Server
         run: |
@@ -84,6 +84,10 @@ jobs:
           git clone --branch 1.5.378.134 --single-branch \
             https://github.com/OPCFoundation/UA-.NETStandard.git \
             ${{ github.workspace }}/UA-.NETStandard
+          # Override the vulnerable transitive WebUtilities dependency while
+          # retaining the classic HTTPS binding (GHSA-6527-9fp8-r4x6).
+          git -C "${{ github.workspace }}/UA-.NETStandard" apply \
+            "${{ github.workspace }}/tools/ci/cross-sdk/dotnet-webutilities.patch"
 
       - name: Generate interop certificates
         run: |

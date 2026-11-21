@@ -49,6 +49,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_ByteString_clear(&session->clientCertificate);
     UA_NodeId_clear(&session->authenticationToken);
     UA_String_clear(&session->clientUserIdOfSession);
+    UA_ByteString_clear(&session->userCertificate);
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
     UA_ByteString_clear(&session->serverNonce);
@@ -175,9 +176,7 @@ UA_Session_generateNonce(UA_Session *session) {
             return res;
     }
 
-    /* Generate plain random data. Ensure data[0] is not the 'e' of the "eph"
-     * trigger that some ECC policies use to produce an ephemeral key. */
-    session->serverNonce.data[0] = 0;
+    /* Generate plain random data. */
     return sp->generateNonce(sp, spC, &session->serverNonce);
 }
 
@@ -243,8 +242,9 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     /* Reduce the number of outstanding retransmissions */
     session->totalRetransmissionQueueSize -= sub->retransmissionQueueSize;
 
-    /* Send remaining publish responses if the last subscription was removed */
-    if(!releasePublishResponses || !TAILQ_EMPTY(&session->subscriptions))
+    /* Session cleanup drains its Publish queue when detaching the channel. */
+    if(!releasePublishResponses || session->state == UA_SESSIONSTATE_CLOSED ||
+       !TAILQ_EMPTY(&session->subscriptions))
         return;
     UA_PublishResponseEntry *pre;
     while((pre = UA_Session_dequeuePublishReq(session))) {

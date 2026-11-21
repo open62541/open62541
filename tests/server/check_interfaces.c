@@ -27,7 +27,7 @@ static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
-    UA_StatusCode setupResult = namespace_tests_interfaces_generated(server);
+    UA_StatusCode setupResult = namespace_tests_interfaces_generated(server, true);
     ck_assert_int_eq(setupResult, UA_STATUSCODE_GOOD);
 
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;

@@ -37,12 +37,12 @@ static void setup(void) {
     size_t idx = LONG_MAX;
     UA_StatusCode retval = UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/DI/"), &idx);
     if(retval != UA_STATUSCODE_GOOD) {
-        retval = namespace_tests_di_generated(server);
+        retval = namespace_tests_di_generated(server, true);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
     retval = UA_Server_getNamespaceByName(server, UA_STRING("http://PLCopen.org/OpcUa/IEC61131-3/"), &idx);
     if(retval != UA_STATUSCODE_GOOD) {
-        retval = namespace_tests_plc_generated(server);
+        retval = namespace_tests_plc_generated(server, true);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 

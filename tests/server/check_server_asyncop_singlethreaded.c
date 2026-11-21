@@ -80,7 +80,7 @@ static void setup(void) {
         attr, evs, NULL, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    /* processReadyLater() does nothing while the server is stopped */
+    /* Async operations are admitted only while the server is started. */
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
 
     /* From here on the source is asynchronous. */
@@ -97,10 +97,8 @@ static void teardown(void) {
  * TAILQ_INSERT_TAIL dereferences tqh_last */
 START_TEST(AsyncOp_managerInitialisedWithoutMultithreading) {
     UA_AsyncManager *am = &server->asyncManager;
-    ck_assert_ptr_ne(am->waitingOps.tqh_last, NULL);
-    ck_assert_ptr_ne(am->readyOps.tqh_last, NULL);
-    ck_assert_ptr_ne(am->waitingResponses.tqh_last, NULL);
-    ck_assert_ptr_ne(am->readyResponses.tqh_last, NULL);
+    ck_assert_ptr_ne(am->responses.tqh_last, NULL);
+    ck_assert_uint_eq(am->driver.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
 /* Only a value source answering GoodCompletesAsynchronously enqueues */
@@ -118,7 +116,7 @@ START_TEST(AsyncOp_readAsyncCompletesWithoutMultithreading) {
     /* Asynchronous, so nothing has been reported yet, and the operation is
      * accounted for. */
     ck_assert_uint_eq(resultCalled, false);
-    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
 
     /* Complete it from outside, the way an application would. */
     UA_Int32 answer = 42;
@@ -136,7 +134,61 @@ START_TEST(AsyncOp_readAsyncCompletesWithoutMultithreading) {
 
     ck_assert_uint_eq(resultCalled, true);
     ck_assert_int_eq(resultValue, 42);
-    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+} END_TEST
+
+/* AddNodes type-checks the value by reading the value source. A source that
+ * answers asynchronously cannot be checked then, and the node is still added */
+START_TEST(AsyncOp_addNodeWithAsyncValueSource) {
+    UA_CallbackValueSource evs;
+    memset(&evs, 0, sizeof(UA_CallbackValueSource));
+    evs.read = readAsyncSource;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "async-source-2");
+
+    UA_StatusCode res = UA_Server_addCallbackValueSourceVariableNode(
+        server, UA_NODEID_STRING(1, "async-source-2"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "async-source-2"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, evs, NULL, NULL);
+
+    /* AddNodes reads the value source once. The application completes that
+     * read like any other; nobody waits for it, so the result is discarded.
+     * Complete it before checking the result so that a failure does not
+     * leave the operation pending at shutdown. */
+    ck_assert_ptr_ne(pendingRead, NULL);
+    UA_StatusCode res2 = UA_Server_setAsyncReadResult(server, pendingRead);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(res2, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+
+    /* The node exists and answers asynchronous reads */
+    pendingRead = NULL;
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "async-source-2");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    res = UA_Server_read_async(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER,
+                               readResult, NULL, 0);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Int32 answer = 7;
+    ck_assert_ptr_ne(pendingRead, NULL);
+    UA_Variant_setScalarCopy(&pendingRead->value, &answer,
+                             &UA_TYPES[UA_TYPES_INT32]);
+    pendingRead->hasValue = true;
+    res = UA_Server_setAsyncReadResult(server, pendingRead);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(resultCalled, true);
+    ck_assert_int_eq(resultValue, 7);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
 } END_TEST
 
 static Suite* testSuite_AsyncOpSingleThreaded(void) {
@@ -145,6 +197,7 @@ static Suite* testSuite_AsyncOpSingleThreaded(void) {
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, AsyncOp_managerInitialisedWithoutMultithreading);
     tcase_add_test(tc, AsyncOp_readAsyncCompletesWithoutMultithreading);
+    tcase_add_test(tc, AsyncOp_addNodeWithAsyncValueSource);
     suite_add_tcase(s, tc);
     return s;
 }

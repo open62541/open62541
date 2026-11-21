@@ -193,6 +193,39 @@ START_TEST(OpenSecureChannel_renew_nonceReuse_rejected) {
     UA_ByteString_clear(&ch.remoteNonce);
 } END_TEST
 
+START_TEST(OpenSecureChannel_renew_wrongNonceLength_rejected) {
+    /* The SecureChannel nonce must have exactly the nonceLength of the
+     * SecurityPolicy. The None policy has nonceLength 0, so the test raises it
+     * temporarily and sends a shorter (but fresh) nonce. */
+    UA_SecurityPolicy *sp = getNonePolicy();
+    size_t savedNonceLength = sp->nonceLength;
+    sp->nonceLength = 32;
+
+    ch.state = UA_SECURECHANNELSTATE_OPEN;
+    ch.securityMode = UA_MESSAGESECURITYMODE_SIGN;
+    ch.remoteNonce = UA_BYTESTRING_ALLOC("0123456789ABCDEF");
+
+    UA_OpenSecureChannelRequest req;
+    UA_OpenSecureChannelRequest_init(&req);
+    req.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
+    req.securityMode = UA_MESSAGESECURITYMODE_SIGN;
+    req.requestedLifetime = 600000;
+    req.clientNonce = UA_BYTESTRING_ALLOC("FEDCBA9876543210");
+
+    UA_OpenSecureChannelResponse res;
+    UA_OpenSecureChannelResponse_init(&res);
+
+    Service_OpenSecureChannel(server, &ch, &req, &res);
+
+    ck_assert_uint_eq(res.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADNONCEINVALID);
+
+    sp->nonceLength = savedNonceLength;
+    UA_OpenSecureChannelResponse_clear(&res);
+    UA_OpenSecureChannelRequest_clear(&req);
+    UA_ByteString_clear(&ch.remoteNonce);
+} END_TEST
+
 START_TEST(OpenSecureChannel_unknownRequestType_rejected) {
     /* A request type that is neither ISSUE nor RENEW hits the default:
      * branch and returns BADINTERNALERROR. */
@@ -298,6 +331,7 @@ testSuite_ServicesSecureChannel(void) {
     tcase_add_test(tc, OpenSecureChannel_issue_wrongState_rejected);
     tcase_add_test(tc, OpenSecureChannel_renew_wrongState_rejected);
     tcase_add_test(tc, OpenSecureChannel_renew_nonceReuse_rejected);
+    tcase_add_test(tc, OpenSecureChannel_renew_wrongNonceLength_rejected);
     tcase_add_test(tc, OpenSecureChannel_unknownRequestType_rejected);
     tcase_add_test(tc, CloseSecureChannel_smoke_doesNotCrash);
     tcase_add_test(tc, NotifySecureChannel_noCallback_isNoop);

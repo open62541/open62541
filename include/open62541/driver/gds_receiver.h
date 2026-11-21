@@ -23,8 +23,29 @@
  * revalidated or closed after an update.
  *
  * Build open62541 with ``UA_ENABLE_DRIVER_GDS_RECEIVER`` enabled.
- * PushManagement additionally requires encryption and the full Namespace
- * Zero.
+ * PushManagement additionally requires encryption, the Method service set
+ * and the full Namespace Zero.
+ *
+ * Two file transfer drivers, registered while the receiver is started, serve
+ * the TrustList Objects of the DefaultApplicationGroup and the
+ * DefaultUserTokenGroup with the FileType Methods and Properties. Like every
+ * file transfer driver, they also serve the FileType Methods of Namespace
+ * Zero. A file transfer driver of the application on a TrustList Object makes
+ * the start fail with Bad_NodeIdExists. A TrustList opened for reading returns
+ * the encoded TrustListDataType at the time of the Open. A TrustList opened
+ * for writing is applied with CloseAndUpdate and discarded with Close
+ * (Part 12, 7.8.2). A MaxTrustListSize above 1 MiB raises the
+ * MaxByteStringLength of the TrustLists, so that a TrustList fits into one
+ * Write.
+ *
+ * Set ``drv.params`` before the start; all keys use namespace 0.
+ *
+ * 0:activity-timeout [Double]
+ *    Close a TrustList without a Method call for longer than this many
+ *    milliseconds and discard its changes (default: 60000, Part 12, 7.8.2.1).
+ *    Published as the ActivityTimeout Property of the TrustLists. 0 disables
+ *    it and removes the Property the receiver added; otherwise at least
+ *    0.0001. Another type fails the start with Bad_InvalidArgument.
  *
  * Create the driver with UA_GDSReceiver_new() and attach its ``drv`` member to
  * the server with UA_Server_addDriver() before calling
@@ -50,7 +71,10 @@ UA_GDSReceiver_new(void);
  * Receiver driver must be attached and started. If certificateGroupId is
  * null, the DefaultApplicationGroup is used. Returns BadInvalidArgument for a
  * null receiver or empty certificate and BadInvalidState if the receiver is
- * not attached and started. This function is thread-safe. */
+ * not attached and started. Returns BadNotSupported if the privateKey does not
+ * decode, is encrypted or its components do not form a key pair, and
+ * BadCertificateInvalid if a valid privateKey does not match the certificate.
+ * This function is thread-safe. */
 UA_EXPORT UA_StatusCode
 UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
                                 const UA_NodeId certificateGroupId,
@@ -61,8 +85,9 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
 /* Create a PKCS #10 DER-encoded certificate signing request. The GDS Receiver
  * driver must be attached and started. If certificateGroupId is null,
  * the DefaultApplicationGroup is used. Returns BadInvalidArgument for a null
- * receiver or output pointer and BadInvalidState if the receiver is not
- * attached and started. This function is thread-safe. */
+ * receiver or output pointer, BadInvalidState if the receiver is not
+ * attached and started and BadTransactionPending while a push management
+ * transaction is active. This function is thread-safe. */
 UA_EXPORT UA_StatusCode
 UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
                                    const UA_NodeId certificateGroupId,

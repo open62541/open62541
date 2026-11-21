@@ -5,6 +5,7 @@
 #include <open62541/server.h>
 #include "nodeset_loader_test.h"
 #include <open62541/types.h>
+#include <stdlib.h>
 
 #include "check.h"
 #include "tests/namespace_nodesetloader_di_generated.h"
@@ -71,7 +72,7 @@ START_TEST(Server_compareDiNodeset) {
 END_TEST
 
 START_TEST(Server_loadWithConstTypes) {
-    UA_StatusCode retVal = namespace_nodesetloader_di_generated(server);
+    UA_StatusCode retVal = namespace_nodesetloader_di_generated(server, false);
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* The loader must reuse the registered const definitions and still be

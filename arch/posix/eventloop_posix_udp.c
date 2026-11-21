@@ -489,7 +489,9 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
     UA_RESET_ERRNO;
     int result = -1;
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
-#if defined(__APPLE__)
+        /* Linux takes the struct ip_mreqn. Elsewhere the request is a struct
+         * ip_mreq, but IP_MULTICAST_IF takes only the interface address. */
+#if !defined(__linux__)
         result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                             &req.ipv4.imr_interface, sizeof(struct in_addr));
 #else
@@ -727,9 +729,22 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     /* Are we going to prepare a socket for multicast? */
     MultiCastType mc = multiCastType(info);
 
+    /* A validation-only socket must not reserve or compete for the live
+     * destination port (a publisher may target an existing local receiver). */
+    struct sockaddr_storage validationAddress;
+    struct sockaddr *bindAddress = info->ai_addr;
+    if(validate) {
+        memset(&validationAddress, 0, sizeof(validationAddress));
+        memcpy(&validationAddress, info->ai_addr, info->ai_addrlen);
+        bindAddress = (struct sockaddr *)&validationAddress;
+        if(info->ai_family == AF_INET)
+            ((struct sockaddr_in *)bindAddress)->sin_port = 0;
+        else if(info->ai_family == AF_INET6)
+            ((struct sockaddr_in6 *)bindAddress)->sin6_port = 0;
+    }
     /* Bind socket to the address */
     UA_RESET_ERRNO;
-    int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    int ret = UA_bind(listenSocket, bindAddress, (socklen_t)info->ai_addrlen);
 
     /* Get the port being used if dynamic porting was used */
     if(port == 0) {
@@ -1216,9 +1231,8 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        udpConnectionParams,
-                                        UDP_PARAMETERSSIZE, params);
+        UA_KeyValueMap_validate(params, udpConnectionParams, UDP_PARAMETERSSIZE, false,
+                                el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "UDP");
     if(res != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return res;
@@ -1271,9 +1285,8 @@ UDP_eventSourceStart(UA_EventSource *es) {
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        udpManagerParams, UDP_MANAGERPARAMS,
-                                        &cm->eventSource.params);
+        UA_KeyValueMap_validate(&cm->eventSource.params, udpManagerParams, UDP_MANAGERPARAMS,
+                                false, el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "UDP");
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 

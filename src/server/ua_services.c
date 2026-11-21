@@ -22,7 +22,6 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "../ua_types_encoding_binary.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 /* store the authentication token and session ID so we can help fuzzing by
@@ -48,7 +47,6 @@ static UA_ServiceDescription serviceDescriptions[] = {
     {UA_NS0ID_FINDSERVERSREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), Service_FindServers,
      &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST], &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]},
-#ifdef UA_ENABLE_DISCOVERY
     {UA_NS0ID_REGISTERSERVERREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), Service_RegisterServer,
      &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST], &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]},
@@ -58,7 +56,6 @@ static UA_ServiceDescription serviceDescriptions[] = {
     {UA_NS0ID_FINDSERVERSONNETWORKREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), Service_FindServersOnNetwork,
      &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST], &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]},
-#endif
     {UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), NULL,
      &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST], &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]},
@@ -138,11 +135,9 @@ static UA_ServiceDescription serviceDescriptions[] = {
      UA_SERVICECOUNTER_OFFSET(historyUpdateCount, true), Service_HistoryUpdate,
      &UA_TYPES[UA_TYPES_HISTORYUPDATEREQUEST], &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]},
 #endif
-#ifdef UA_ENABLE_METHODCALLS
     {UA_NS0ID_CALLREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET(callCount, true), Service_Call,
      &UA_TYPES[UA_TYPES_CALLREQUEST], &UA_TYPES[UA_TYPES_CALLRESPONSE]},
-#endif
 #ifdef UA_ENABLE_NODEMANAGEMENT
     {UA_NS0ID_ADDNODESREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET(addNodesCount, true), Service_AddNodes,
@@ -251,6 +246,25 @@ getUacpRequestId(const UA_SecureChannel *channel, UA_UInt64 responseToken) {
     return (UA_UInt32)responseToken;
 }
 
+void
+notifyService(UA_Server *server, UA_ApplicationNotificationType type,
+               UA_UInt32 channelId, UA_NodeId sessionId,
+               UA_UInt32 requestId, UA_NodeId serviceTypeId) {
+    /* Stack-local payload remains intact across reentrant notifications. */
+    UA_KeyValuePair payload[4] = {
+        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
+        {{0, UA_STRING_STATIC("session-id")}, {0}},
+        {{0, UA_STRING_STATIC("request-id")}, {0}},
+        {{0, UA_STRING_STATIC("service-type")}, {0}}
+    };
+    UA_Variant_setScalar(&payload[0].value, &channelId, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&payload[1].value, &sessionId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&payload[2].value, &requestId, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&payload[3].value, &serviceTypeId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_KeyValueMap map = {4, payload};
+    notifyApplication(server, type, map);
+}
+
 static UA_Boolean
 processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                        UA_UInt64 responseToken, UA_ServiceDescription *sd,
@@ -280,9 +294,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
        channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE &&
        sd->requestType != &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] &&
        sd->requestType != &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]
-#if defined(UA_ENABLE_DISCOVERY)
        && sd->requestType != &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST]
-#endif
        ) {
         rh->serviceResult = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
         return true;
@@ -348,7 +360,6 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     server->asyncManager.currentResponseToken = responseToken;
     server->asyncManager.currentUacpRequestId =
         getUacpRequestId(channel, responseToken);
-    server->asyncManager.currentRequestHandle = request->requestHeader.requestHandle;
 
     /* Execute the service. A user callback inside the service can close the
      * Session. For synchronous services, do not return a successful response
@@ -403,25 +414,9 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
     UA_UInt32 uacpRequestId = getUacpRequestId(channel, responseToken);
 
-    /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN */
-    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
-        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
-        {{0, UA_STRING_STATIC("session-id")}, {0}},
-        {{0, UA_STRING_STATIC("request-id")}, {0}},
-        {{0, UA_STRING_STATIC("service-type")}, {0}}
-    };
-    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
-    UA_Variant_setScalar(&notifyPayload[0].value, &channel->securityToken.channelId,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
-                         &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalar(&notifyPayload[2].value, &uacpRequestId,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifyPayload[3].value,
-                         (void *)(uintptr_t)&sd->requestType->typeId,
-                         &UA_TYPES[UA_TYPES_NODEID]);
-    UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN;
-    notifyApplication(server, nt, notifyPayloadMap);
+    UA_UInt32 channelId = channel->securityToken.channelId;
+    notifyService(server, UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN,
+                  channelId, sessionId, uacpRequestId, sd->requestType->typeId);
 
     /* Prepare audit events handling */
     beginModelChange(server);
@@ -443,9 +438,9 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END if the service was
      * completed synchronously. For async completion of a service, this gets
      * called eventually in ua_server_async.c. */
-    nt = (done) ? UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END :
+    UA_ApplicationNotificationType nt = done ? UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END :
         UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC;
-    notifyApplication(server, nt, notifyPayloadMap);
+    notifyService(server, nt, channelId, sessionId, uacpRequestId, sd->requestType->typeId);
 
     /* Update the service statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS

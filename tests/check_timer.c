@@ -88,6 +88,33 @@ START_TEST(addWithoutCallback) {
     UA_Timer_clear(&timer);
 } END_TEST
 
+START_TEST(constBaseTimeAddAndModify) {
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    count = 0;
+    const UA_DateTime baseTime = 25 * UA_DATETIME_MSEC;
+    UA_UInt64 callbackId;
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL, 100, 0,
+                                   &baseTime, UA_TIMERPOLICY_BASETIME, &callbackId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Timer_next(&timer) == baseTime);
+    ck_assert(UA_Timer_process(&timer, baseTime) == 125 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 1);
+
+    const UA_DateTime changedBaseTime = 40 * UA_DATETIME_MSEC;
+    ck_assert_uint_eq(UA_Timer_modify(&timer, callbackId, 50, baseTime,
+                                      &changedBaseTime, UA_TIMERPOLICY_BASETIME),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Timer_next(&timer) == changedBaseTime);
+    ck_assert(UA_Timer_process(&timer, changedBaseTime - 1) == changedBaseTime);
+    ck_assert_uint_eq(count, 1);
+    ck_assert(UA_Timer_process(&timer, changedBaseTime) == 90 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 2);
+    ck_assert(UA_Timer_process(&timer, 175 * UA_DATETIME_MSEC) == 190 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 3);
+    UA_Timer_clear(&timer);
+} END_TEST
+
 START_TEST(addNonpositiveRepeatedInterval) {
     const UA_TimerPolicy policies[] = {UA_TIMERPOLICY_CURRENTTIME,
                                        UA_TIMERPOLICY_BASETIME};
@@ -187,6 +214,69 @@ START_TEST(modifyToOneShot) {
 
 #if UA_MULTITHREADING >= 100
 typedef struct {
+    UA_Timer *timer;
+    UA_UInt64 callbackId;
+    UA_Boolean remove;
+    UA_Boolean acquired;
+    UA_StatusCode status;
+} CallbackTimerContext;
+
+/* A recursive mutex only permits reentry on its owning thread. Test from a
+ * second thread without blocking, so the old implementation fails rather
+ * than hanging with a callback/worker lock inversion. */
+THREAD_CALLBACK_PARAM(updateExecutingTimer, argument) {
+    CallbackTimerContext *ctx = (CallbackTimerContext*)argument;
+#ifdef UA_ARCHITECTURE_WIN32
+    ctx->acquired = TryEnterCriticalSection(&ctx->timer->timerMutex.mutex) != 0;
+    if(ctx->acquired)
+        LeaveCriticalSection(&ctx->timer->timerMutex.mutex);
+#else
+    ctx->acquired = pthread_mutex_trylock(&ctx->timer->timerMutex.mutex) == 0;
+    if(ctx->acquired)
+        pthread_mutex_unlock(&ctx->timer->timerMutex.mutex);
+#endif
+    if(!ctx->acquired)
+        return 0;
+
+    if(ctx->remove) {
+        UA_Timer_remove(ctx->timer, ctx->callbackId);
+        ctx->status = UA_STATUSCODE_GOOD;
+    } else {
+        ctx->status = UA_Timer_modify(ctx->timer, ctx->callbackId, 5,
+                                      UA_DATETIME_MSEC, NULL,
+                                      UA_TIMERPOLICY_BASETIME);
+    }
+    return 0;
+}
+
+static void
+updateTimerDuringCallback(void *application, void *data) {
+    CallbackTimerContext *ctx = (CallbackTimerContext*)data;
+    THREAD_HANDLE worker;
+    THREAD_CREATE_PARAM(worker, updateExecutingTimer, *ctx);
+    THREAD_JOIN(worker);
+}
+
+START_TEST(callbackReleasesTimerMutex) {
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    CallbackTimerContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.timer = &timer;
+    ctx.remove = (_i != 0);
+    ctx.status = UA_STATUSCODE_BADINTERNALERROR;
+    ck_assert_uint_eq(UA_Timer_add(&timer, updateTimerDuringCallback, NULL, &ctx,
+                                   1, 0, NULL, UA_TIMERPOLICY_BASETIME,
+                                   &ctx.callbackId), UA_STATUSCODE_GOOD);
+
+    UA_DateTime next = UA_Timer_process(&timer, UA_DATETIME_MSEC);
+    UA_Timer_clear(&timer);
+    ck_assert(ctx.acquired);
+    ck_assert_uint_eq(ctx.status, UA_STATUSCODE_GOOD);
+    ck_assert(next == (ctx.remove ? UA_INT64_MAX : 6 * UA_DATETIME_MSEC));
+} END_TEST
+
+typedef struct {
     UA_DateTime now;
     UA_StatusCode status;
 } TimerThreadContext;
@@ -225,11 +315,13 @@ int main(void) {
     tcase_add_test(tc, benchmarkTimer);
     tcase_add_test(tc, batchWithinWindow);
     tcase_add_test(tc, addWithoutCallback);
+    tcase_add_test(tc, constBaseTimeAddAndModify);
     tcase_add_loop_test(tc, addNonpositiveRepeatedInterval, 0, 4);
     tcase_add_loop_test(tc, modifyNonpositiveRepeatedInterval, 0, 4);
     tcase_add_loop_test(tc, modifyToOneShot, 0, 5);
 #if UA_MULTITHREADING >= 100
     tcase_add_test(tc, independentTimerBatching);
+    tcase_add_loop_test(tc, callbackReleasesTimerMutex, 0, 2);
 #endif
     suite_add_tcase(s, tc);
 

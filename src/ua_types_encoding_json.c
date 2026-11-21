@@ -17,7 +17,8 @@
 
 #if defined(UA_ENABLE_JSON_ENCODING)
 
-#include "ua_types_encoding_json.h"
+#include "ua_types_encoding.h"
+#include "util/ua_util_internal.h"
 
 #include <float.h>
 #include <limits.h>
@@ -413,6 +414,8 @@ ENCODE_JSON(Float) {
         return writeChars(ctx, "\"Infinity\"", 10);
     if(*src == -INFINITY)
         return writeChars(ctx, "\"-Infinity\"", 11);
+    if(*src == 0.0f && signbit(*src))
+        return writeChars(ctx, "-0.0", 4);
     len = dtoa((UA_Double)*src, buffer);
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -428,10 +431,12 @@ ENCODE_JSON(Double) {
     size_t len;
     if(*src != *src)
         return writeChars(ctx, "\"NaN\"", 5);
-    if(*src == INFINITY)
+    if(*src == (UA_Double)INFINITY)
         return writeChars(ctx, "\"Infinity\"", 10);
-    if(*src == -INFINITY)
+    if(*src == -(UA_Double)INFINITY)
         return writeChars(ctx, "\"-Infinity\"", 11);
+    if(*src == 0.0 && signbit(*src))
+        return writeChars(ctx, "-0.0", 4);
     len = dtoa(*src, buffer);
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -1604,23 +1609,23 @@ DECODE_JSON(Double) {
         ctx->index++;
 
         if(tokenSize == 8 && memcmp(tokenData, "Infinity", 8) == 0) {
-            *dst = INFINITY;
+            *dst = (UA_Double)INFINITY;
             return UA_STATUSCODE_GOOD;
         }
 
         if(tokenSize == 9 && memcmp(tokenData, "-Infinity", 9) == 0) {
             /* workaround an MSVC 2013 issue */
-            *dst = -INFINITY;
+            *dst = -(UA_Double)INFINITY;
             return UA_STATUSCODE_GOOD;
         }
 
         if(tokenSize == 3 && memcmp(tokenData, "NaN", 3) == 0) {
-            *dst = NAN;
+            *dst = (UA_Double)NAN;
             return UA_STATUSCODE_GOOD;
         }
 
         if(tokenSize == 4 && memcmp(tokenData, "-NaN", 4) == 0) {
-            *dst = NAN;
+            *dst = (UA_Double)NAN;
             return UA_STATUSCODE_GOOD;
         }
 
@@ -1974,7 +1979,7 @@ getExtensionObjectType(ParseCtx *ctx) {
         return NULL;
 
     size_t oldIndex = ctx->index;
-    ctx->index = (UA_UInt16)typeIdIndex;
+    ctx->index = typeIdIndex;
 
     /* Decode the type NodeId */
     UA_NodeId typeId;
@@ -3018,8 +3023,9 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
 
     ret = decodeJsonJumpTable[type->typeKind](&ctx, dst, type);
 
-    /* Boundary decoding intentionally stops after the first JSON value. */
-    if((!options || !options->decodedLength) &&
+    /* Boundary decoding intentionally stops after the first JSON value.
+     * Preserve decoding failures, especially allocation errors. */
+    if(ret == UA_STATUSCODE_GOOD && (!options || !options->decodedLength) &&
        ctx.index != ctx.tokensSize)
         ret = UA_STATUSCODE_BADDECODINGERROR;
 

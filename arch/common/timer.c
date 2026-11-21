@@ -95,7 +95,7 @@ batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
 UA_StatusCode
 UA_Timer_add(UA_Timer *t, UA_Callback callback,
              void *application, void *data, UA_Double interval_ms,
-             UA_DateTime now, UA_DateTime *baseTime,
+             UA_DateTime now, const UA_DateTime *baseTime,
              UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
     /* A callback method needs to be present */
     if(!callback)
@@ -151,7 +151,7 @@ UA_Timer_add(UA_Timer *t, UA_Callback callback,
 UA_StatusCode
 UA_Timer_modify(UA_Timer *t, UA_UInt64 callbackId,
                 UA_Double interval_ms, UA_DateTime now,
-                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
+                const UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     /* The interval needs to be positive. The exception is for the "once" policy
      * where we allow baseTime + interval < now. Then the timer executes once in
      * the next processing iteration. */
@@ -173,6 +173,14 @@ UA_Timer_modify(UA_Timer *t, UA_UInt64 callbackId,
     if(!te) {
         UA_UNLOCK(&t->timerMutex);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* A one-shot timer stays one-shot. Its owner may free the callback
+     * context once it has run, so it must not start to repeat. */
+    if(te->timerPolicy == UA_TIMERPOLICY_ONCE &&
+       timerPolicy != UA_TIMERPOLICY_ONCE) {
+        UA_UNLOCK(&t->timerMutex);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     /* The entry is either in the timer tree or current processed. If
@@ -231,9 +239,16 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
     struct TimerProcessContext *tpc = (struct TimerProcessContext*)context;
     UA_Timer *t = tpc->t;
 
-    /* Execute the callback */
+    /* A callback may take an application lock while another thread holds
+     * that lock and waits for the timer lock. Keep the entry in the process tree
+     * while unlocked: concurrent removal marks it instead of freeing it. */
     if(te->cb) {
-        te->cb(te->application, te->data);
+        UA_Callback callback = te->cb;
+        void *application = te->application;
+        void *data = te->data;
+        UA_UNLOCK(&t->timerMutex);
+        callback(application, data);
+        UA_LOCK(&t->timerMutex);
     }
 
     /* Remove the entry if marked for deletion or a "once" policy */

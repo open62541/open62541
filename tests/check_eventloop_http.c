@@ -720,6 +720,19 @@ runUntilCount(UA_EventLoop *eventLoop, const size_t *value,
 }
 
 #ifndef _WIN32
+static int
+connectHttpRaw(UA_UInt16 port) {
+    struct sockaddr_in address = {0};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    ck_assert_int_eq(inet_pton(AF_INET, "127.0.0.1", &address.sin_addr), 1);
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    ck_assert_int_ge(fd, 0);
+    ck_assert_int_eq(connect(fd, (struct sockaddr*)&address,
+                             sizeof(address)), 0);
+    return fd;
+}
+
 static void
 runUntilSocketReadable(UA_EventLoop *eventLoop, int fd, size_t iterations) {
     for(size_t i = 0; i < iterations; i++) {
@@ -855,6 +868,8 @@ openHTTPClient(UA_ConnectionManager *cm, HTTPTestContext *ctx,
                                  (void*)(uintptr_t)privateKey,
                                  &UA_TYPES[UA_TYPES_BYTESTRING]);
         }
+    }
+    if(caCertificate) {
         parameters[size].key = UA_QUALIFIEDNAME(0, "ca-certificate");
         UA_Variant_setScalar(&parameters[size++].value,
                              (void*)(uintptr_t)caCertificate,
@@ -1642,8 +1657,8 @@ START_TEST(serverReceiveAndKeepAliveTimeouts) {
     ck_assert_uint_eq(ctx.requestCount, 0);
     close(fd);
 
-    /* Body progress refreshes the inactivity timeout. The keep-alive socket is
-     * then bounded again after the response completes. */
+    /* Body progress within the absolute request deadline is accepted. The
+     * keep-alive socket is then bounded again after the response completes. */
     fd = socket(AF_INET, SOCK_STREAM, 0);
     ck_assert_int_ge(fd, 0);
     ck_assert_int_eq(connect(fd, (struct sockaddr*)&serverAddress,
@@ -1658,7 +1673,7 @@ START_TEST(serverReceiveAndKeepAliveTimeouts) {
     for(UA_Byte value = 0; value < 3; value++) {
         ck_assert_int_eq(send(fd, &value, 1, 0), 1);
         if(value < 2) {
-            for(size_t i = 0; i < 30; i++)
+            for(size_t i = 0; i < 15; i++)
                 eventLoop->run(eventLoop, 20);
         }
     }
@@ -1682,6 +1697,70 @@ START_TEST(serverReceiveAndKeepAliveTimeouts) {
     close(fd);
     runUntilCount(eventLoop, &ctx.acceptedClosingCount, 3, 100);
 
+    ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
+    stopEventLoop(eventLoop);
+#endif
+} END_TEST
+
+START_TEST(serverConnectionCapAndRequestDeadline) {
+#ifndef _WIN32
+    HTTPTestContext ctx = {0};
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+
+    UA_UInt16 port = 0, timeout = 1;
+    UA_UInt32 maxConnections = 1;
+    UA_Boolean listen = true;
+    UA_KeyValuePair parameters[4] = {0};
+    parameters[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&parameters[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    parameters[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&parameters[1].value, &listen,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+    parameters[2].key = UA_QUALIFIEDNAME(0, "timeout");
+    UA_Variant_setScalar(&parameters[2].value, &timeout,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    parameters[3].key = UA_QUALIFIEDNAME(0, "max-connections");
+    UA_Variant_setScalar(&parameters[3].value, &maxConnections,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap map = {4, parameters};
+    ck_assert_uint_eq(cm->openConnection(cm, &map, &ctx, NULL,
+                                         advancedHTTPCallback),
+                      UA_STATUSCODE_GOOD);
+
+    int first = connectHttpRaw(ctx.port);
+    runUntilCount(eventLoop, &ctx.acceptedConnectionCount, 1, 30);
+    int second = connectHttpRaw(ctx.port);
+    for(size_t i = 0; i < 10; i++)
+        eventLoop->run(eventLoop, 20);
+    ck_assert_uint_eq(ctx.acceptedConnectionCount, 1);
+
+    /* Each fragment arrives before the inactivity timeout. The incomplete
+     * request must still close at the absolute one-second deadline. */
+    const char fragment[] = "GET /";
+    ck_assert_int_eq(send(first, fragment, sizeof(fragment) - 1, 0),
+                     (ssize_t)(sizeof(fragment) - 1));
+    for(size_t i = 0; i < 20; i++)
+        eventLoop->run(eventLoop, 20);
+    ck_assert_int_eq(send(first, "slow", 4, 0), 4);
+    for(size_t i = 0; i < 20; i++)
+        eventLoop->run(eventLoop, 20);
+    const char finalFragment[] = " HTTP/1.1\r\nHost:";
+    ck_assert_int_eq(send(first, finalFragment,
+                          sizeof(finalFragment) - 1, 0),
+                     (ssize_t)(sizeof(finalFragment) - 1));
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 25);
+    ck_assert_uint_eq(ctx.requestCount, 0);
+    close(first);
+    close(second);
+
+    int third = connectHttpRaw(ctx.port);
+    runUntilCount(eventLoop, &ctx.acceptedConnectionCount, 2, 30);
+    close(third);
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
     stopEventLoop(eventLoop);
 #endif
@@ -1727,6 +1806,41 @@ START_TEST(clientServerMutualTls) {
     UA_ByteString_clear(&privateKey);
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
     stopEventLoop(eventLoop);
+} END_TEST
+
+START_TEST(clientHttpToHttpsRedirect) {
+    HTTPTestContext ctx = {0};
+    ctx.port = httpPort;
+    UA_ByteString certificate = loadFile("server_cert.der");
+    ck_assert_ptr_nonnull(certificate.data);
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("redirect"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+
+    /* The Python fixture redirects to its HTTPS listener. TLS is needed only
+     * after following Location, but the original binding's CA policy applies. */
+    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL,
+                   _i == 0 ? &certificate : NULL);
+    UA_String path = UA_STRING("/redirect-to-https");
+    UA_KeyValuePair parameter = {UA_QUALIFIEDNAME(0, "path"), {0}};
+    UA_Variant_setScalar(&parameter.value, &path, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap map = {1, &parameter};
+    ck_assert_uint_eq(cm->sendWithConnection(cm, ctx.clientId, &map, NULL),
+                      UA_STATUSCODE_GOOD);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 300);
+    if(_i == 0) {
+        ck_assert_uint_eq(ctx.goodRequestCompletions, 1);
+        ck_assert_uint_eq(ctx.responseStatus, 200);
+        ck_assert(ctx.responseHeaderReceived);
+    } else {
+        ck_assert_uint_eq(ctx.badRequestCompletions, 1);
+    }
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    stopEventLoop(eventLoop);
+    UA_ByteString_clear(&certificate);
 } END_TEST
 
 START_TEST(messageSizeLimits) {
@@ -2139,9 +2253,12 @@ int main(void) {
     TCase *timeouts = tcase_create("timeouts-and-listener-close");
     tcase_add_test(timeouts, serverTimeoutAndListenerClose);
     tcase_add_test(timeouts, serverReceiveAndKeepAliveTimeouts);
+    tcase_add_test(timeouts, serverConnectionCapAndRequestDeadline);
     suite_add_tcase(s, timeouts);
     TCase *tls = tcase_create("mutual-tls");
+    tcase_add_checked_fixture(tls, setup, teardown);
     tcase_add_test(tls, clientServerMutualTls);
+    tcase_add_loop_test(tls, clientHttpToHttpsRedirect, 0, 2);
     suite_add_tcase(s, tls);
     TCase *limits = tcase_create("message-size-limits");
     tcase_add_test(limits, messageSizeLimits);

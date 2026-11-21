@@ -185,7 +185,6 @@ int main(int argc, char *argv[]) {
         printf("Subscription removed\n");
 #endif
 
-#ifdef UA_ENABLE_METHODCALLS
     /* Call a remote method */
     UA_Variant input;
     UA_String argString = UA_STRING("Hello Server");
@@ -203,7 +202,6 @@ int main(int argc, char *argv[]) {
         printf("Method call was unsuccessful, and %x returned values available.\n", retval);
     }
     UA_Variant_clear(&input);
-#endif
 
 #ifdef UA_ENABLE_NODEMANAGEMENT
     /* New ReferenceType */

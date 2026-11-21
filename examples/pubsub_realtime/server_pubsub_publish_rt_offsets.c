@@ -5,6 +5,7 @@
 #include <open62541/server_pubsub.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
 #define PUBSUB_CONFIG_FIELD_COUNT 10

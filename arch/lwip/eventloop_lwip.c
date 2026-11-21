@@ -12,7 +12,7 @@
 
 #include "open62541/plugin/eventloop.h"
 
-#if defined(UA_ARCHITECTURE_POSIX)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_LWIP_MANAGED_EXTERNALLY)
 #include <netif/tapif.h>
 #include <pthread.h>
 #endif
@@ -56,7 +56,7 @@ UA_EventLoopLWIP_addTimer(UA_EventLoop *public_el,
                                     UA_Callback cb,
                                     void *application, void *data,
                                     UA_Double interval_ms,
-                                    UA_DateTime *baseTime,
+                                    const UA_DateTime *baseTime,
                                     UA_TimerPolicy timerPolicy,
                                     UA_UInt64 *callbackId) {
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
@@ -69,7 +69,7 @@ static UA_StatusCode
 UA_EventLoopLWIP_modifyTimer(UA_EventLoop *public_el,
                               UA_UInt64 callbackId,
                               UA_Double interval_ms,
-                              UA_DateTime *baseTime,
+                              const UA_DateTime *baseTime,
                               UA_TimerPolicy timerPolicy) {
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     return UA_Timer_modify(&el->timer, callbackId, interval_ms,
@@ -573,7 +573,7 @@ UA_EventLoopLWIP_free(UA_EventLoop *public_el) {
     return UA_STATUSCODE_GOOD;
 }
 
-#if defined(UA_ARCHITECTURE_POSIX)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_LWIP_MANAGED_EXTERNALLY)
 
 /* The Unix TAP worker and lwIP stack run for the lifetime of the process.
  * They retain the interface pointer, so its storage must outlive every loop. */
@@ -705,7 +705,7 @@ UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config
     UA_LOCK_INIT(&el->elMutex);
     UA_Timer_init(&el->timer);
 
-#if defined(UA_ARCHITECTURE_POSIX)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_LWIP_MANAGED_EXTERNALLY)
     el->netifInit = defaultNetifInit;
     el->netifPoll = defaultNetifPoll;
     el->netifShutdown = defaultNetifShutdown;

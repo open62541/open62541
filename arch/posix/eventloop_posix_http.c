@@ -20,6 +20,7 @@ static const UA_KeyValueRestriction httpConnectionParams[] = {
     {{0, UA_STRING_STATIC("path")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
     {{0, UA_STRING_STATIC("timeout")}, &UA_TYPES[UA_TYPES_UINT16], false, true, false},
+    {{0, UA_STRING_STATIC("max-connections")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("useSSL")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
@@ -51,6 +52,7 @@ typedef struct {
     const UA_ByteString *caCertificate;
     UA_UInt16 port;
     UA_UInt16 timeout;
+    UA_UInt32 maxConnections;
     UA_UInt32 recvMaxMessageSize;
     UA_UInt32 recvMaxDecompressedMessageSize;
     UA_UInt32 sendMaxMessageSize;
@@ -508,6 +510,8 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
         params, "port", UA_TYPES_UINT16);
     const UA_UInt16 *timeout = (const UA_UInt16*)GET_PARAM(
         params, "timeout", UA_TYPES_UINT16);
+    const UA_UInt32 *maxConnections = (const UA_UInt32*)GET_PARAM(
+        params, "max-connections", UA_TYPES_UINT32);
     const UA_UInt32 *recvMax = (const UA_UInt32*)GET_PARAM(
         params, "recv-max-message-size", UA_TYPES_UINT32);
     const UA_UInt32 *recvMaxDecompressed = (const UA_UInt32*)GET_PARAM(
@@ -520,6 +524,8 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
         params, "useSSL", UA_TYPES_BOOLEAN);
     config->port = port ? *port : 0;
     config->timeout = (timeout && *timeout) ? *timeout : 30;
+    config->maxConnections = (maxConnections && *maxConnections) ?
+        *maxConnections : 100;
     config->recvMaxMessageSize = recvMax ? *recvMax : 0;
     config->recvMaxDecompressedMessageSize = recvMaxDecompressed ?
         *recvMaxDecompressed : config->recvMaxMessageSize;
@@ -536,7 +542,8 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
          config->privateKey->length > UINT_MAX)) ||
        (config->caCertificate && (config->caCertificate->length == 0 ||
                                   config->caCertificate->length > UINT_MAX)) ||
-       ((config->certificate || config->caCertificate) && !config->useSSL) ||
+       (config->listener && !config->useSSL &&
+        (config->certificate || config->caCertificate)) ||
        (config->listener && config->useSSL && !config->certificate))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 #ifndef LWS_WITH_TLS
@@ -566,7 +573,8 @@ createLwsVhost(HTTPConnection *connection, struct lws_context *context,
     memset(&info, 0, sizeof(info));
     UA_LWS_useContextLogger(&info, context);
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
-    if(connection->useSSL)
+    /* Plain HTTP clients also need TLS when redirected to HTTPS. */
+    if(connection->useSSL || !connection->listener)
         info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = connection->listener ? config->port : CONTEXT_PORT_NO_LISTEN;
     info.iface = connection->listener && interfaceName[0] ? interfaceName : NULL;
@@ -609,11 +617,13 @@ createLwsVhost(HTTPConnection *connection, struct lws_context *context,
 #endif
 
     struct lws_vhost *vhost = lws_create_vhost(context, &info);
-    if(vhost && connection->useSSL && !connection->listener &&
+#ifdef LWS_WITH_TLS
+    if(vhost && !connection->listener &&
        lws_init_vhost_client_ssl(&info, vhost)) {
         lws_vhost_destroy(vhost);
         vhost = NULL;
     }
+#endif
     UA_LWS_clearActiveLogger();
     UA_free(interfaceName);
     UA_free(password);
@@ -624,9 +634,9 @@ static UA_StatusCode
 HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                     void *application, void *context,
                     UA_ConnectionManager_connectionCallback callback) {
-    UA_StatusCode res = UA_KeyValueRestriction_validate(
-        cm->eventSource.eventLoop->logger, "HTTP", httpConnectionParams,
-        ARRAY_SIZE(httpConnectionParams), params);
+    UA_StatusCode res = UA_KeyValueMap_validate(
+        params, httpConnectionParams, ARRAY_SIZE(httpConnectionParams), false,
+        cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP, "HTTP");
     if(res == UA_STATUSCODE_GOOD)
         res = rejectUnknownParameters(httpConnectionParams,
                                       ARRAY_SIZE(httpConnectionParams), params);
@@ -661,6 +671,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     connection->listener = config.listener;
     connection->useSSL = config.useSSL;
     connection->timeout = config.timeout;
+    connection->maxConnections = config.maxConnections;
     connection->recvMaxMessageSize = config.recvMaxMessageSize;
     connection->recvMaxDecompressedMessageSize =
         config.recvMaxDecompressedMessageSize;
@@ -723,9 +734,9 @@ finishSend(UA_StatusCode result, UA_ByteString *buffer) {
 static UA_StatusCode
 HTTP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                         const UA_KeyValueMap *params, UA_ByteString *buffer) {
-    UA_StatusCode res = UA_KeyValueRestriction_validate(
-        cm->eventSource.eventLoop->logger, "HTTP", httpSendParams,
-        ARRAY_SIZE(httpSendParams), params);
+    UA_StatusCode res = UA_KeyValueMap_validate(
+        params, httpSendParams, ARRAY_SIZE(httpSendParams), false,
+        cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP, "HTTP");
     if(res == UA_STATUSCODE_GOOD)
         res = rejectUnknownParameters(httpSendParams,
                                       ARRAY_SIZE(httpSendParams), params);

@@ -3,6 +3,35 @@ name: Windows Build & Test
 on: [push, pull_request]
 
 jobs:
+  build-arm64:
+    name: MSVC ARM64 (shared=${{ matrix.shared }})
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        shared: ["OFF", "ON"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      # Cross-compile on x64. Link examples as well as the library so static
+      # builds also catch unresolved ARM64 intrinsics. Do not run ARM64 binaries.
+      - name: Configure MSVC ARM64
+        shell: pwsh
+        run: >-
+          cmake -S . -B build -G "Visual Studio 17 2022" -A ARM64 -T host=x64
+          -DBUILD_SHARED_LIBS=${{ matrix.shared }}
+          -DUA_BUILD_EXAMPLES=ON
+          -DUA_BUILD_UNIT_TESTS=OFF
+          -DUA_ENABLE_ENCRYPTION=OFF
+          -DUA_ENABLE_JSON_ENCODING=ON
+          -DUA_FORCE_WERROR=ON
+
+      - name: Build and link MSVC ARM64
+        shell: pwsh
+        run: cmake --build build --config Debug --parallel
+
   build:
     strategy:
       fail-fast: false

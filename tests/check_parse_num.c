@@ -43,6 +43,15 @@ START_TEST(parseUint64Overflow) {
     ck_assert_uint_eq(len, 0); /* overflow → return 0 */
 } END_TEST
 
+START_TEST(parseUint64OverflowAboveLastValue) {
+    uint64_t result = 0;
+    /* 2^61 * 10 wraps around to 2^62, which is still larger than the value
+     * before the last digit (2^61) */
+    const char *str = "23058430092136939520";
+    size_t len = parseUInt64(str, strlen(str), &result);
+    ck_assert_uint_eq(len, 0); /* overflow → return 0 */
+} END_TEST
+
 START_TEST(parseUint64Hex) {
     uint64_t result = 0;
     size_t len = parseUInt64("0xFF", 4, &result);
@@ -78,6 +87,15 @@ START_TEST(parseUint64HexLarge) {
     size_t len = parseUInt64(str, strlen(str), &result);
     ck_assert_uint_eq(len, 18);
     ck_assert_uint_eq(result, UINT64_MAX);
+} END_TEST
+
+START_TEST(parseUint64HexOverflow) {
+    uint64_t result = 0;
+    /* 65 bits. Shifting 0x1800000000000000 by four drops the top bit and
+     * leaves 0x8000000000000000, which is larger than the value before. */
+    const char *str = "0x18000000000000000";
+    size_t len = parseUInt64(str, strlen(str), &result);
+    ck_assert_uint_eq(len, 0); /* overflow → return 0 */
 } END_TEST
 
 START_TEST(parseUint64PartialConsumption) {
@@ -170,6 +188,14 @@ START_TEST(parseInt64OverflowNegative) {
     ck_assert_uint_eq(len, 0); /* overflow → return 0 */
 } END_TEST
 
+START_TEST(parseInt64OverflowWrapped) {
+    int64_t result = 0;
+    /* The absolute value wraps around to 2^62 in parseUInt64 */
+    const char *str = "-23058430092136939520";
+    size_t len = parseInt64(str, strlen(str), &result);
+    ck_assert_uint_eq(len, 0); /* overflow → return 0 */
+} END_TEST
+
 /* parseDouble tests */
 
 START_TEST(parseDoubleSimple) {
@@ -228,17 +254,38 @@ START_TEST(parseDoubleSubstring) {
     ck_assert(fabs(result - 3.14) <= 1e-9);
 } END_TEST
 
+START_TEST(parseDoubleNoDigits) {
+    /* A sign, a dot or an exponent marker alone is not a number */
+    const char *invalid[] = {"-", ".", "-.", "e5", "-e5", ".e1",
+                             "1e", "1e+", "1e-", "0e", "-0.E"};
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        double result = 42.0;
+        size_t len = parseDouble(invalid[i], strlen(invalid[i]), &result);
+        ck_assert_uint_eq(len, 0);
+    }
+
+    /* A digit on either side of the dot is enough */
+    const char *valid[] = {".5", "5.", "-.5", "-5.", "0e0", "1E+2", "1e-2"};
+    for(size_t i = 0; i < sizeof(valid) / sizeof(valid[0]); i++) {
+        double result = 42.0;
+        size_t len = parseDouble(valid[i], strlen(valid[i]), &result);
+        ck_assert_uint_eq(len, strlen(valid[i]));
+    }
+} END_TEST
+
 static Suite *testSuite_parse_num(void) {
     TCase *tc_uint = tcase_create("parseUInt64");
     tcase_add_test(tc_uint, parseUint64Zero);
     tcase_add_test(tc_uint, parseUint64Simple);
     tcase_add_test(tc_uint, parseUint64Max);
     tcase_add_test(tc_uint, parseUint64Overflow);
+    tcase_add_test(tc_uint, parseUint64OverflowAboveLastValue);
     tcase_add_test(tc_uint, parseUint64Hex);
     tcase_add_test(tc_uint, parseUint64HexLower);
     tcase_add_test(tc_uint, parseUint64HexZero);
     tcase_add_test(tc_uint, parseUint64HexNoDigit);
     tcase_add_test(tc_uint, parseUint64HexLarge);
+    tcase_add_test(tc_uint, parseUint64HexOverflow);
     tcase_add_test(tc_uint, parseUint64PartialConsumption);
     tcase_add_test(tc_uint, parseUint64EmptyString);
     tcase_add_test(tc_uint, parseUint64NonNumeric);
@@ -253,6 +300,7 @@ static Suite *testSuite_parse_num(void) {
     tcase_add_test(tc_int, parseInt64Min);
     tcase_add_test(tc_int, parseInt64OverflowPositive);
     tcase_add_test(tc_int, parseInt64OverflowNegative);
+    tcase_add_test(tc_int, parseInt64OverflowWrapped);
 
     TCase *tc_double = tcase_create("parseDouble");
     tcase_add_test(tc_double, parseDoubleSimple);
@@ -262,6 +310,7 @@ static Suite *testSuite_parse_num(void) {
     tcase_add_test(tc_double, parseDoubleTooLong);
     tcase_add_test(tc_double, parseDoubleInteger);
     tcase_add_test(tc_double, parseDoubleSubstring);
+    tcase_add_test(tc_double, parseDoubleNoDigits);
 
     Suite *s = suite_create("Test number parsing functions");
     suite_add_tcase(s, tc_uint);

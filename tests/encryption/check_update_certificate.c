@@ -9,6 +9,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/driver/gds_receiver.h>
+#include <stdlib.h>
 
 #include "ua_server_internal.h"
 
@@ -120,6 +121,10 @@ START_TEST(update_certificate) {
 }
 END_TEST
 
+/* Part 12, 7.10.5: KEY_DER_DATA is a valid PrivateKey of another key pair. It
+ * does not belong to the valid certificate. This returns
+ * Bad_CertificateInvalid. Bad_NotSupported is for a PrivateKey that is invalid
+ * by itself. */
 START_TEST(update_certificate_wrongKey) {
     UA_ByteString newCertificate = UA_BYTESTRING_NULL;
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
@@ -136,7 +141,62 @@ START_TEST(update_certificate_wrongKey) {
     UA_StatusCode retval =
             UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
                                         newCertificate, &wrongPrivateKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+
+    UA_ByteString_clear(&newCertificate);
+    UA_ByteString_clear(&newPrivateKey);
+}
+END_TEST
+
+/* Part 12, 7.10.5: Bad_NotSupported if the PrivateKey is invalid or its format
+ * is not supported. UpdateCertificate has no password argument. So the Server
+ * cannot use an encrypted PrivateKey, also if it matches the certificate. */
+START_TEST(update_certificate_encryptedKey) {
+    UA_ByteString newCertificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString encryptedKey = {KEY_ENCRYPTED_PEM_LENGTH, KEY_ENCRYPTED_PEM_DATA};
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, &encryptedKey);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+}
+END_TEST
+
+/* A changed byte in the public key of the certificate keeps the certificate
+ * parseable. The certificate is verified before the PrivateKey is checked
+ * against it. So the certificate is invalid and not the PrivateKey. */
+START_TEST(update_certificate_corruptedPublicKey) {
+    UA_ByteString newCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+
+    generateCertificate(&newCertificate, &newPrivateKey);
+
+    /* A byte in the middle of the RSA-2048 modulus */
+    static const UA_Byte rsaPublicKey[] = /* SEQUENCE { INTEGER (257 bytes) */
+        {0x30, 0x82, 0x01, 0x0a, 0x02, 0x82, 0x01, 0x01, 0x00};
+    size_t modulus = 0;
+    for(size_t i = 0; i + sizeof(rsaPublicKey) <= newCertificate.length; i++) {
+        if(memcmp(&newCertificate.data[i], rsaPublicKey, sizeof(rsaPublicKey)) == 0) {
+            modulus = i + sizeof(rsaPublicKey);
+            break;
+        }
+    }
+    ck_assert_uint_gt(modulus, 0);
+    newCertificate.data[modulus + 128] ^= 0xff;
+    size_t keySize = 0;
+    ck_assert_uint_eq(UA_CertificateUtils_getKeySize(&newCertificate, &keySize),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, &newPrivateKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
 
     UA_ByteString_clear(&newCertificate);
     UA_ByteString_clear(&newPrivateKey);
@@ -179,7 +239,7 @@ END_TEST
 START_TEST(update_certificate_unconfiguredType) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
-    UA_String privateKeyFormat = UA_STRING_STATIC("DER");
+    UA_String privateKeyFormat = UA_STRING_STATIC("PKCS8");
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
 
@@ -340,6 +400,39 @@ START_TEST(update_certificate_noKey_invalid) {
 }
 END_TEST
 
+/* Part 12 §7.10.5: The issuers of the new certificate must be in the
+ * TrustList. The TrustList of the server is empty, so the intermediate CA
+ * that issued APPLICATION_CERT_DER is missing. Building the certificate chain
+ * fails with Bad_CertificateChainIncomplete and the endpoints keep the old
+ * certificate. */
+START_TEST(update_certificate_reject_unknown_issuer) {
+    UA_ByteString newCertificate = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
+    UA_ByteString newPrivateKey = {APPLICATION_KEY_DER_LENGTH, APPLICATION_KEY_DER_DATA};
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert_uint_gt(config->endpointsSize, 0);
+    UA_ByteString oldCertificate;
+    ck_assert_uint_eq(UA_ByteString_copy(&config->endpoints[0].serverCertificate,
+                                         &oldCertificate), UA_STATUSCODE_GOOD);
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, &newPrivateKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    retval = UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup,
+                                              certTypRsaSha256, newCertificate, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+
+    for(size_t i = 0; i < config->endpointsSize; i++)
+        ck_assert(UA_ByteString_equal(&config->endpoints[i].serverCertificate,
+                                      &oldCertificate));
+    UA_ByteString_clear(&oldCertificate);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Update Certificate");
     TCase *tc_cert = tcase_create("Update Certificate");
@@ -347,6 +440,8 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, update_certificate);
     tcase_add_test(tc_cert, update_certificate_wrongKey);
+    tcase_add_test(tc_cert, update_certificate_encryptedKey);
+    tcase_add_test(tc_cert, update_certificate_corruptedPublicKey);
     tcase_add_test(tc_cert, update_certificate_noKey);
     tcase_add_test(tc_cert, certificate_types_configured);
     tcase_add_test(tc_cert, update_certificate_unconfiguredType);
@@ -354,6 +449,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate_preflightsAllEndpoints);
     tcase_add_test(tc_cert, update_certificate_noneEndpoint);
     tcase_add_test(tc_cert, update_certificate_noKey_invalid);
+    tcase_add_test(tc_cert, update_certificate_reject_unknown_issuer);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
@@ -363,6 +459,8 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert_filestore, update_certificate);
     tcase_add_test(tc_cert_filestore, update_certificate_wrongKey);
+    tcase_add_test(tc_cert_filestore, update_certificate_encryptedKey);
+    tcase_add_test(tc_cert_filestore, update_certificate_corruptedPublicKey);
     tcase_add_test(tc_cert_filestore, update_certificate_noKey);
     tcase_add_test(tc_cert_filestore, certificate_types_configured_filestore);
     tcase_add_test(tc_cert_filestore, addDriver_rejectsDuplicateGDSReceiver);

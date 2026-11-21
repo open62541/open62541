@@ -174,6 +174,9 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
 
     /* Return value initialized to Status Good */
     UA_Server *server = UA_Server_new();
+
+    /* Use a different TCP port from the publisher running on the same host. */
+    UA_ServerConfig_setMinimal(UA_Server_getConfig(server), 4841, NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     /* Provide a callback to get notifications of specific PubSub state changes

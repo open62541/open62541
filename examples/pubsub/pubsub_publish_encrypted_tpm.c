@@ -9,6 +9,8 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
+#include <stdlib.h>
+
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 char *userpin = NULL;

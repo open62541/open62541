@@ -9,15 +9,20 @@
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
 import xml.dom.minidom as dom
+import xml.etree.ElementTree as ET
 import logging
 import codecs
 import re
+from pathlib import Path
+import copy
+import hashlib
 from collections import OrderedDict
 
 from .datatypes import NodeId
 from .nodes import *
 from .opaque_type_mapping import opaque_type_mapping
-from .type_parser import CSVBSDTypeParser
+from .type_parser import (CSVBSDTypeParser, TypeParser, StructType,
+                          get_definition_fields)
 
 import io
 import tempfile
@@ -51,36 +56,28 @@ def getSubTypesOf(nodeset, node, skipNodes=None):
                 re.update(getSubTypesOf(nodeset, nodeset.nodes[ref.source], skipNodes=skipAll))
     return re
 
+def _definitionFields(node):
+    if node.id.ns == 0 or node.dataTypeDefinition is None:
+        return []
+    return get_definition_fields(node.dataTypeDefinition)
+
+def _baseDataTypeId(node):
+    for ref in node.references:
+        if (ref.referenceType == NodeId("ns=0;i=45") and
+                not ref.isForward):
+            return ref.target
+    return None
+
 def extractNamespaces(xmlfile):
-    # Extract a list of namespaces used. The first namespace is always
-    # "http://opcfoundation.org/UA/". minidom gobbles up
-    # <NamespaceUris></NamespaceUris> elements, without a decent way to reliably
-    # access this dom2 <uri></uri> elements (only attribute xmlns= are accessible
-    # using minidom). We need them for dereferencing though... This function
-    # attempts to do just that.
-
+    """Read the URI table independently of XML formatting and prefixes."""
     namespaces = ["http://opcfoundation.org/UA/"]
-    infile = codecs.open(xmlfile.name, encoding='utf-8')
-    foundURIs = False
-    nsline = ""
-    for line in infile:
-        if "<namespaceuris>" in line.lower():
-            foundURIs = True
-        elif "</namespaceuris>" in line.lower():
-            nsline = nsline + line
+    with open(xmlfile.name, "rb") as source:
+        for _, element in ET.iterparse(source, events=("end",)):
+            if element.tag.rsplit("}", 1)[-1] != "NamespaceUris":
+                continue
+            for uri in element:
+                namespaces.append(uri.text or "")
             break
-        if foundURIs:
-            nsline = nsline + line
-
-    if len(nsline) > 0:
-        ns = dom.parseString(nsline).getElementsByTagName("NamespaceUris")
-        for uri in ns[0].childNodes:
-            if uri.nodeType != uri.ELEMENT_NODE:
-                continue
-            if uri.firstChild.data in namespaces:
-                continue
-            namespaces.append(uri.firstChild.data)
-    infile.close()
     return namespaces
 
 def buildAliasList(xmlelement):
@@ -107,14 +104,22 @@ class NodeSet:
         in that segment of memory.
     """
 
-    def __init__(self):
+    def __init__(self, namespace_plan=None):
         self.nodes = OrderedDict()
         self.aliases = {}
         self.namespaces = ["http://opcfoundation.org/UA/"]
+        self.namespacePlan = namespace_plan
+        self.usedNamespaces = {0}
+        if namespace_plan is not None:
+            self.namespaces = [None] * (max(namespace_plan.values()) + 1)
+            for uri, index in namespace_plan.items():
+                self.namespaces[index] = uri
         self.namespaceMapping = {}
 
     def sanitize(self):
-        # Sanitize reference consistency
+        # Hierarchical/type dependencies must exist. Other references may
+        # legitimately point outside the supplied model closure.
+        required = set(self.getRelevantOrderingReferences())
         for n in self.nodes.values():
             for ref in n.references:
                 if not ref.source == n.id:
@@ -122,12 +127,21 @@ class NodeSet:
                 if ref.referenceType not in self.nodes:
                     raise Exception("Reference " + str(ref) + " has an unknown reference type")
                 if ref.target not in self.nodes:
-                    print(self.namespaces)
-                    raise Exception("Reference " + str(ref) + " has an unknown target")
+                    if ref.referenceType in required:
+                        raise Exception("Reference " + str(ref) + " has an unknown target")
+                    logger.warning("Reference %s points outside the supplied NodeSets; "
+                                   "it will not be generated", ref)
 
     def addNamespace(self, nsURL):
+        if not nsURL:
+            raise ValueError("Empty namespace URI in NodeSet")
         if nsURL not in self.namespaces:
+            if self.namespacePlan is not None:
+                raise ValueError("--namespaceMap is incomplete; missing namespace " + nsURL)
+            if len(self.namespaces) == 65536:
+                raise ValueError("Too many namespaces in NodeSet")
             self.namespaces.append(nsURL)
+        self.usedNamespaces.add(self.namespaces.index(nsURL))
 
     def createNamespaceMapping(self, orig_namespaces):
         """Creates a dict that maps from the nsindex in the original nodeset to the
@@ -316,10 +330,15 @@ class NodeSet:
 
     def getDataTypeNode(self, dataType):
         if isinstance(dataType, str):
-            if not valueIsInternalType(dataType):
-                logger.error("Not a valid dataType string: %s", dataType)
-                return None
-            return self.nodes[NodeId(self.aliases[dataType])]
+            if dataType in self.aliases:
+                return self.getDataTypeNode(NodeId(self.aliases[dataType]))
+            name = {"Variant": "BaseDataType", "ExtensionObject": "Structure"}.get(dataType, dataType)
+            for node in self.nodes.values():
+                if (isinstance(node, DataTypeNode) and node.id.ns == 0 and
+                        1 <= node.id.i <= 25 and node.browseName.name == name):
+                    return node
+            logger.warning("Ignoring undeclared datatype alias %s; using the VariableType representation", dataType)
+            return None
         if isinstance(dataType, NodeId):
             if dataType.i == 0:
                 return None
@@ -331,17 +350,32 @@ class NodeSet:
         return None
 
     def getRelevantOrderingReferences(self):
-        relevant_types = set()
-        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HierarchicalReferences"), []))
-        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HasEncoding"), []))
-        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HasTypeDefinition"), []))
-        return list(map(lambda x: x.id, relevant_types))
+        # sanitize() runs before inverse references are synthesized. Derive the
+        # reference hierarchy from either direction, including custom subtypes.
+        required = {NodeId("i=33"), NodeId("i=38"), NodeId("i=40")}
+        types = {node.id: node for node in self.nodes.values()
+                 if isinstance(node, ReferenceTypeNode)}
+        changed = True
+        while changed:
+            changed = False
+            for node in types.values():
+                for ref in node.references:
+                    if ref.referenceType != hassubtype:
+                        continue
+                    parent, child = ((node.id, ref.target) if ref.isForward
+                                     else (ref.target, node.id))
+                    if parent in required and child in types and child not in required:
+                        required.add(child)
+                        changed = True
+        return list(required)
 
     def addInverseReferences(self):
         # Ensure that every reference has an inverse reference in the target
         for u in self.nodes.values():
             for ref in u.references.copy():
                 back = Reference(ref.target, ref.referenceType, ref.source, not ref.isForward)
+                if ref.target not in self.nodes:
+                    continue
                 self.nodes[ref.target].references[back] = None # dict key does not make a duplicate entry
 
     def setNodeParent(self):
@@ -363,9 +397,248 @@ class NodeSet:
             #else:
             #    raise RuntimeError("Node {}: HierarchicalReference (or subtype of it) to parent node is missing.".format(str(node.id)))
 
+    def normalizeDataTypes(self, typesOutname, generateTypes=False, typesArray=()):
+        """Adapt NodeSet declarations to the existing datatype-generator model.
+
+        NodeSet definitions declare local fields. Expand inheritance exactly
+        once here; standard StructureDescriptions already carry all fields.
+        """
+        # Normalize inline definitions and externally owned BSD layouts.
+        logger.info("Creating DataType definitions")
+        typeParser = TypeParser({}, [], typesOutname, self.namespaceMapping)
+        # UA_TYPES contains standard structures and enums as well as the 25
+        # builtin wire types. Use the same schema as the library to resolve
+        # fields such as EUInformation without regenerating standard types.
+        schema = (Path(self.standardTypesSchema) if getattr(self, "standardTypesSchema", None)
+                  else Path(__file__).resolve().parent.parent / "schema")
+        with (schema / "NodeIds.csv").open() as nodeIds:
+            standard = CSVBSDTypeParser(
+                {}, [], False, "types", [], [str(schema / "Opc.Ua.Types.bsd")],
+                [nodeIds], [], {0: "http://opcfoundation.org/UA/"})
+            standard.create_types()
+        for namespace, datatypes in standard.types.items():
+            for datatype in datatypes.values():
+                if datatype.nodeId is None:
+                    continue
+                identifier = str(datatype.nodeId)
+                if "=" not in identifier:
+                    identifier = "i=" + identifier
+                datatype.nodeId = NodeId(identifier)
+                typeParser.types.setdefault(namespace, OrderedDict())[datatype.name] = datatype
+                typeParser.types_by_id[str(datatype.nodeId)] = datatype
+        definitions = []
+        aliases = []
+        for node in self.nodes.values():
+            if not isinstance(node, DataTypeNode):
+                continue
+
+            fields = _definitionFields(node)
+            isLocal = False
+            if fields:
+                # Static generation owns every visible definition. The positional
+                # types-array assignment is also used to validate namespace-only
+                # generation without redeclaring BSD-backed dependency types.
+                isLocal = not node.hidden and (generateTypes or
+                                              node.typesArray == "UA_TYPES")
+                definitionOutname = typesOutname
+                if not isLocal and node.typesArray.startswith("UA_"):
+                    definitionOutname = node.typesArray[3:].lower()
+                definitions.append((node.dataTypeDefinition,
+                                    self.namespaces[node.id.ns], node.id,
+                                    isLocal, _baseDataTypeId(node),
+                                    definitionOutname))
+
+            # Prefer the representation already parsed from a supplied BSD. This
+            # keeps NodeSet definitions usable for runtime metadata without
+            # redeclaring datatypes owned by an external generated types array.
+            if (not isLocal and node.typesArray != "UA_TYPES" and
+                    not (generateTypes and fields and not getattr(self, "explicitBsd", False))):
+                namespace_types = self.parser.types.get(
+                    self.namespaces[node.id.ns], {})
+                external = namespace_types.get(node.browseName.name)
+                if external is not None:
+                    external = copy.copy(external)
+                    external.members = [copy.copy(member)
+                                        for member in external.members]
+                    external.nodeId = node.id
+                    external.isLocal = False
+                    if node.typesArray.startswith("UA_"):
+                        external.outname = node.typesArray[3:].lower()
+                    typeParser.types_by_id[str(node.id)] = external
+
+            if not fields:
+                baseTypeId = _baseDataTypeId(node)
+                if baseTypeId is not None:
+                    outname = (node.typesArray[3:].lower()
+                               if node.typesArray.startswith("UA_") else typesOutname)
+                    aliases.append((node.id, baseTypeId, node.browseName.name,
+                                    self.namespaces[node.id.ns],
+                                    not node.hidden and generateTypes,
+                                    typesOutname if not node.hidden and generateTypes else outname))
+
+        # Embedded and explicit BSD dictionaries are parsed before their NodeSet
+        # namespace indexes and datatype-array owners are known. Rebind copied
+        # structure members to the normalized NodeSet types so inherited layouts
+        # do not retain stale UA_TYPES references.
+        normalizedTypes = {
+            (datatype.namespaceUri, datatype.name): datatype
+            for datatype in typeParser.types_by_id.values()
+        }
+        for datatype in set(typeParser.types_by_id.values()):
+            if not isinstance(datatype, StructType) or datatype.isLocal:
+                continue
+            for member in datatype.members:
+                normalized = typeParser.types_by_id.get(str(member.data_type_id))
+                if normalized is None:
+                    normalized = normalizedTypes.get(
+                        (member.member_type.namespaceUri, member.member_type.name))
+                if normalized is not None:
+                    member.member_type = normalized
+        typeParser.addTypesFromDefinitions(
+            definitions, aliases, native_aliases=generateTypes and not getattr(self, "explicitBsd", False))
+
+        # Encoding objects are graph nodes, not fields of Definition. Resolve
+        # both reference directions after inverse references have been added.
+        for datatype in set(typeParser.types_by_id.values()):
+            node = self.nodes.get(datatype.nodeId)
+            if node is None:
+                continue
+            datatype.wire_name = node.browseName.name
+            for ref in node.references:
+                if not ref.isForward or ref.referenceType != NodeId("i=38"):
+                    continue
+                encoding = self.nodes.get(ref.target)
+                if encoding is None:
+                    continue
+                if encoding.browseName.name == "Default Binary":
+                    datatype.binaryEncodingId = encoding.id
+                elif encoding.browseName.name == "Default XML":
+                    datatype.xmlEncodingId = encoding.id
+        typeParser.namespaceUris = list(self.namespaces)
+
+        # Standard SDK typedefs are already included in every generated header.
+        # Qualify incompatible companion types deterministically so their C ABI
+        # cannot accidentally alias a standard type with the same BrowseName.
+        from .backend_open62541_datatypes import _types_definition_equal
+        standard_names = {t.name: t for t in typeParser.types_by_id.values()
+                          if t.namespaceUri == "http://opcfoundation.org/UA/"}
+        for datatype in set(typeParser.types_by_id.values()):
+            standard_type = standard_names.get(datatype.name)
+            if (datatype.namespaceUri != "http://opcfoundation.org/UA/" and
+                    (datatype.name.isupper() or
+                     (standard_type is not None and datatype is not standard_type and
+                      not _types_definition_equal(datatype, standard_type)))):
+                datatype.original_name = datatype.name
+                suffix = hashlib.sha256(datatype.namespaceUri.encode()).hexdigest()[:8]
+                datatype.name += "_" + suffix
+        for namespace, datatypes in typeParser.types.items():
+            typeParser.types[namespace] = OrderedDict((t.name, t) for t in datatypes.values())
+
+        localTypes = []
+        visiting = set()
+        visited = set()
+
+        def addLocalType(datatype):
+            """Append one local type after all local layout dependencies."""
+            typeKey = id(datatype)
+            if getattr(datatype, "unsupported", None):
+                return
+            if typeKey in visited:
+                return
+            if typeKey in visiting:
+                raise RuntimeError(
+                    "DataTypes involving %s have a cycle of inline members" %
+                    datatype.name)
+            visiting.add(typeKey)
+            if isinstance(datatype, StructType):
+                base = typeParser.get_type_for_id(datatype.baseTypeId)
+                if base is not None and base.isLocal:
+                    addLocalType(base)
+                for member in datatype.members:
+                    dependency = member.member_type
+                    if not dependency.isLocal:
+                        continue
+                    # Pointer members only need a forward declaration. Inline
+                    # members and enum/alias typedefs need a complete layout.
+                    if ((member.is_array or member.is_optional) and
+                            isinstance(dependency, StructType)):
+                        if dependency is not datatype:
+                            dependency.needs_forward_declaration = True
+                        continue
+                    addLocalType(dependency)
+            visiting.remove(typeKey)
+            visited.add(typeKey)
+            localTypes.append(datatype)
+
+        for datatypes in typeParser.types.values():
+            for datatype in datatypes.values():
+                if datatype.isLocal:
+                    addLocalType(datatype)
+
+        logger.info("Reordering nodes for minimal dependencies during printing")
+        self.sortNodes()
+        # Keep DataType nodes in declaration order before variables need them
+        # for value type-checking. The namespace loader registers static layouts.
+        orderedNodes = OrderedDict()
+        for nodeId, node in self.nodes.items():
+            if node.hidden:
+                orderedNodes[nodeId] = node
+        orderingDataTypes = set()
+
+        def addDataTypeNode(nodeId):
+            """Order a datatype node after the nodes needed by its layout."""
+            node = self.nodes.get(nodeId)
+            if node is None or node.hidden or node.id in orderedNodes:
+                return
+            if node.id in orderingDataTypes:
+                raise RuntimeError(
+                    "DataType inheritance cycle involving %s" % node.id)
+            orderingDataTypes.add(node.id)
+            baseTypeId = _baseDataTypeId(node)
+            if baseTypeId is not None:
+                addDataTypeNode(baseTypeId)
+            orderingDataTypes.remove(node.id)
+            orderedNodes[node.id] = node
+
+        for datatype in localTypes:
+            if isinstance(datatype, StructType):
+                for member in datatype.own_members:
+                    addDataTypeNode(member.data_type_id)
+            addDataTypeNode(datatype.nodeId)
+        for nodeId, node in self.nodes.items():
+            if nodeId not in orderedNodes:
+                orderedNodes[nodeId] = node
+        self.nodes = orderedNodes
+        generatedTypes = OrderedDict()
+        importedTypes = OrderedDict()
+        for datatype in typeParser.types_by_id.values():
+            if datatype.isLocal or getattr(datatype, "unsupported", None):
+                continue
+            namespaceTypes = importedTypes.setdefault(datatype.namespaceUri,
+                                                       OrderedDict())
+            namespaceTypes[datatype.name] = datatype
+        for datatype in localTypes:
+            namespaceTypes = generatedTypes.setdefault(
+                datatype.namespaceUri, OrderedDict())
+            namespaceTypes[datatype.name] = datatype
+        typeParser.types = generatedTypes
+        typeParser.no_builtin = True
+        typeParser.existing_types = importedTypes
+        typeParser.existing_types_array = set(typesArray)
+        return typeParser
+
     def generateParser(self, existing, infiles , bsdFile):
         self.all_files = []
-        import_bsd = []
+        self.explicitBsd = bool(bsdFile)
+        schema = (Path(self.standardTypesSchema) if getattr(self, "standardTypesSchema", None)
+                  else Path(__file__).resolve().parent.parent / "schema")
+        if not getattr(self, "standardTypesSchema", None):
+            for xmlfile in existing:
+                candidate = Path(xmlfile.name).parent
+                if (candidate / "Opc.Ua.Types.bsd").is_file():
+                    schema = candidate
+                    break
+        import_bsd = ["UA_TYPES#" + str(schema / "Opc.Ua.Types.bsd")]
         type_bsd = []
         for xmlfile in existing:
             if xmlfile.name == "deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml":
@@ -430,14 +703,13 @@ class NodeSet:
         selected_types = []
         type_csv = []
         type_xml = []
-        no_builtin = True
         outname = "outname"
 
         for bsd in bsdFile:
             type_bsd.append(bsd)
 
-        self.parser = CSVBSDTypeParser(opaque_map, selected_types, no_builtin, outname, import_bsd,
-                                    type_bsd, type_csv, type_xml, self.namespaces)
+        self.parser = CSVBSDTypeParser(opaque_map, selected_types, True, outname,
+                                       import_bsd, type_bsd, type_csv, type_xml, self.namespaces)
         self.parser.create_types()
 
         nodeset_base.close()

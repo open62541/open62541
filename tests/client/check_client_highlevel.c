@@ -553,7 +553,7 @@ START_TEST(Node_ReadWrite_Class) {
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODECLASS_OBJECT);
 
     /* Minimal nodeset does not contain UA_NS0ID_SERVER_GETMONITOREDITEMS node */
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_GENERATED_NAMESPACE_ZERO)
+#if defined(UA_GENERATED_NAMESPACE_ZERO)
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), UA_NODECLASS_METHOD);
 #endif
 
@@ -849,7 +849,7 @@ START_TEST(Node_ReadWrite_ValueRank) {
     UA_Int32 valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
     UA_StatusCode retval = UA_Client_readValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(valueRank, UA_VALUERANK_ANY);
+    ck_assert_int_eq(valueRank, UA_VALUERANK_SCALAR);
 
     // set the value to a scalar
     UA_Double val = 0.0;
@@ -864,6 +864,11 @@ START_TEST(Node_ReadWrite_ValueRank) {
     // shall fail when the value is not compatible
     retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);
     ck_assert(retval != UA_STATUSCODE_GOOD);
+
+    /* Relax the scalar default before writing an array value. */
+    UA_Int32 anyValueRank = UA_VALUERANK_ANY;
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &anyValueRank);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // set the value to an array
     UA_Double vec[3] = {0.0, 0.0, 0.0};
@@ -896,11 +901,20 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(arrayDimsReadSize, 0);
 
-    // Set a vector of size 1 as the value
+    /* Relax the scalar default before writing an array value. */
+    UA_Int32 valueRank = UA_VALUERANK_ANY;
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Set a vector of size 2 as the value
     UA_Double vec2[2] = {0.0, 0.0};
     UA_Variant value;
     UA_Variant_setArray(&value, vec2, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
     retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    valueRank = UA_VALUERANK_ONE_DIMENSION;
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // writing the array dimensions shall fail at first
@@ -1202,7 +1216,6 @@ START_TEST(Highlevel_BrowseSimplified) {
 }
 END_TEST
 
-#ifdef UA_ENABLE_METHODCALLS
 START_TEST(Highlevel_CallMethod_Error) {
     /* Call a method on a non-existent node */
     size_t outputSize = 0;
@@ -1216,7 +1229,6 @@ START_TEST(Highlevel_CallMethod_Error) {
     ck_assert(output == NULL);
 }
 END_TEST
-#endif
 
 START_TEST(Highlevel_browse_nullDescription) {
     UA_BrowseResult br = UA_Client_browse(client, NULL, 0, NULL);
@@ -1429,9 +1441,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_ext, Highlevel_translateBrowsePath_null);
     tcase_add_test(tc_ext, Highlevel_write_nullWriteValue);
     tcase_add_test(tc_ext, Highlevel_writeValueAttribute_nullVariant_returnsTypeMismatch);
-#ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_ext, Highlevel_CallMethod_Error);
-#endif
     tcase_add_test(tc_ext, Highlevel_addReference_invalidSource);
     tcase_add_test(tc_ext, Highlevel_deleteReference_invalidSource);
     tcase_add_test(tc_ext, Highlevel_deleteNode_invalidNode);

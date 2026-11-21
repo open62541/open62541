@@ -52,7 +52,7 @@ addMdnsDiscoveryDriver(UA_Server *server) {
                          &UA_TYPES[UA_TYPES_UINT32]);
     UA_KeyValueMap paramsMap = {5, params};
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_AVAHI
+#ifdef UA_ENABLE_DRIVER_MDNS_AVAHI
     UA_MdnsDriver *mdns = UA_MdnsDriver_Avahi(paramsMap);
 #else
     UA_MdnsDriver *mdns = UA_MdnsDriver_Mdnsd(paramsMap);

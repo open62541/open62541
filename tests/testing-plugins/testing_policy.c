@@ -197,10 +197,11 @@ compareThumbprint_testing(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 generateKey_testing(const UA_SecurityPolicy *policy,
-                    void *channelContext, const UA_ByteString *secret,
-                    const UA_ByteString *seed, UA_ByteString *out) {
-    ck_assert(secret != NULL);
-    ck_assert(seed != NULL);
+                    void *channelContext, UA_KeyDerivationDirection direction,
+                    const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                    UA_ByteString *ikmInOut, UA_ByteString *out) {
+    ck_assert(localNonce != NULL);
+    ck_assert(remoteNonce != NULL);
     ck_assert(out != NULL);
     SET_CALLED(generateKey);
     return UA_STATUSCODE_GOOD;
@@ -357,6 +358,7 @@ TestingPolicy(UA_SecurityPolicy *sp, UA_ByteString localCertificate,
     sp->certificateTypeId = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 20;
     sp->policyType = UA_SECURITYPOLICYTYPE_RSA;
+    sp->legacySequenceNumbers = true;
 
     /* Asymmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;

@@ -387,6 +387,14 @@ sym_getRemoteBlockSize_filestore(const UA_SecurityPolicy *sp,
     return isp->symEncryptionAlgorithm.getRemoteBlockSize(isp, channelContext);
 }
 
+static size_t
+sym_getLocalIvLength_filestore(const UA_SecurityPolicy *sp,
+                               const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symEncryptionAlgorithm.getLocalIvLength(isp, channelContext);
+}
+
 /*************************/
 /* Certificate Signature */
 /*************************/
@@ -509,12 +517,46 @@ setRemoteSymIv_filestore(const UA_SecurityPolicy *sp,
 }
 
 static UA_StatusCode
+setMessageSecurityParameters_filestore(const UA_SecurityPolicy *sp,
+                                       void *channelContext, UA_UInt32 tokenId,
+                                       UA_UInt32 previousSequenceNumber,
+                                       const UA_ByteString *additionalAuthData) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->setMessageSecurityParameters(isp, channelContext, tokenId,
+                                             previousSequenceNumber,
+                                             additionalAuthData);
+}
+
+static UA_StatusCode
 generateKey_filestore(const UA_SecurityPolicy *sp,
-                         void *channelContext, const UA_ByteString *secret,
-                         const UA_ByteString *seed, UA_ByteString *out) {
+                      void *channelContext, UA_KeyDerivationDirection direction,
+                      const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                      UA_ByteString *ikmInOut, UA_ByteString *out) {
     Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
     UA_SecurityPolicy *isp = pc->innerPolicy;
-    return isp->generateKey(isp, channelContext, secret, seed, out);
+    return isp->generateKey(isp, channelContext, direction, localNonce, remoteNonce, ikmInOut, out);
+}
+
+static UA_StatusCode
+generateEncryptedSecretKey_filestore(const UA_SecurityPolicy *sp,
+                                     void *channelContext,
+                                     const UA_ByteString *receiverPublicKey,
+                                     const UA_ByteString *senderPublicKey,
+                                     UA_ByteString *out) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->generateEncryptedSecretKey(isp, channelContext, receiverPublicKey,
+                                           senderPublicKey, out);
+}
+
+static UA_StatusCode
+hashCertificateForSignature_filestore(const UA_SecurityPolicy *sp,
+                                       const UA_ByteString *certificate,
+                                       UA_ByteString *hash) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->hashCertificateForSignature(isp, certificate, hash);
 }
 
 static UA_StatusCode
@@ -523,6 +565,14 @@ generateNonce_filestore(const UA_SecurityPolicy *sp,
     Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
     UA_SecurityPolicy *isp = pc->innerPolicy;
     return isp->generateNonce(isp, channelContext, out);
+}
+
+static UA_StatusCode
+generateEphemeralKey_filestore(const UA_SecurityPolicy *sp,
+                           void *channelContext, UA_ByteString *out) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->generateEphemeralKey(isp, channelContext, out);
 }
 
 static UA_StatusCode
@@ -636,6 +686,7 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     sp->certificateTypeId = isp->certificateTypeId;
     sp->securityLevel = isp->securityLevel;
     sp->policyType = isp->policyType;
+    sp->legacySequenceNumbers = isp->legacySequenceNumbers;
 
     /* Asymmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
@@ -676,6 +727,10 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     symEnc->getRemoteKeyLength = sym_getRemoteKeyLength_filestore;
     symEnc->getRemoteBlockSize = sym_getRemoteBlockSize_filestore;
     symEnc->getRemotePlainTextBlockSize = sym_getRemotePlainTextBlockSize_filestore;
+    /* Optional callback. A NULL pointer has a meaning (the IV length equals
+     * the block size), so it is forwarded only if the inner policy sets it. */
+    symEnc->getLocalIvLength = isp->symEncryptionAlgorithm.getLocalIvLength ?
+        sym_getLocalIvLength_filestore : NULL;
 
     /* Certificate Signing */
     UA_SecurityPolicySignatureAlgorithm *certSig = &sp->certSignatureAlgorithm;
@@ -696,10 +751,25 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     sp->setRemoteSymEncryptingKey = setRemoteSymEncryptingKey_filestore;
     sp->setRemoteSymSigningKey = setRemoteSymSigningKey_filestore;
     sp->setRemoteSymIv = setRemoteSymIv_filestore;
+    /* Set only by AEAD policies. NULL for all other policies. */
+    sp->setMessageSecurityParameters = isp->setMessageSecurityParameters ?
+        setMessageSecurityParameters_filestore : NULL;
     sp->compareCertificate = compareCertificate_filestore;
     sp->generateKey = generateKey_filestore;
+    if(isp->generateEncryptedSecretKey)
+        sp->generateEncryptedSecretKey = generateEncryptedSecretKey_filestore;
     sp->generateNonce = generateNonce_filestore;
+    sp->generateEphemeralKey = isp->generateEphemeralKey ?
+        generateEphemeralKey_filestore : NULL;
     sp->nonceLength = isp->nonceLength;
+    /* Forward the remaining scalar policy properties. Missing one here makes a
+     * wrapped policy silently misreport itself - e.g. an enhanced policy that
+     * loses secureChannelEnhancements would skip the IKM chaining. */
+    sp->secretLength = isp->secretLength;
+    sp->certThumbprintLength = isp->certThumbprintLength;
+    sp->hashCertificateForSignature = isp->hashCertificateForSignature ?
+        hashCertificateForSignature_filestore : NULL;
+    sp->secureChannelEnhancements = isp->secureChannelEnhancements;
     sp->makeCertThumbprint = makeThumbprint_filestore;
     sp->compareCertThumbprint = compareCertificateThumbprint_filestore;
     sp->updateCertificate = updateCertificate_filestore;

@@ -11,7 +11,7 @@
 #include "types_tests_di_generated.h"
 
 /* The tests-di nodeset is generated with NAMESPACE_MAP (see CMakeLists.txt),
- * which bakes the namespace index into the type array and makes it const.
+ * which bakes the namespace index into the const type array.
  * This test only covers that configuration. */
 #ifndef UA_TYPES_TESTS_DI_IS_CONST
 #error "tests-di must be generated with NAMESPACE_MAP to cover the const DataType array"
@@ -35,10 +35,9 @@ static void teardown(void) {
     server = NULL;
 }
 
-/* DI is the first namespace added, so it gets the pinned index and the
- * namespace-order check in the generated init code passes. */
+/* DI is the first namespace added, matching the baked datatype indexes. */
 START_TEST(Server_pinnedNamespaceMatches) {
-    UA_StatusCode retval = namespace_tests_di_generated(server);
+    UA_StatusCode retval = namespace_tests_di_generated(server, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t nsIndex = 0;
@@ -57,38 +56,33 @@ START_TEST(Server_pinnedNamespaceMatches) {
 }
 END_TEST
 
-/* Adding an unrelated namespace first shifts DI to index 3, so the indices
- * baked into the const array no longer match the server. The generated init
- * code must refuse the nodeset instead of registering unusable typeIds. This
- * logs the expected pinned-index error. */
-START_TEST(Server_pinnedNamespaceMismatch) {
-    UA_UInt16 otherNs = UA_Server_addNamespace(server, "urn:open62541.tests:not-di");
-    ck_assert_uint_eq(otherNs, DI_PINNED_NS_INDEX);
-
-    UA_StatusCode retval = namespace_tests_di_generated(server);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
-
-    /* The namespace is registered before the check, but at the wrong index */
-    size_t nsIndex = 0;
-    retval = UA_Server_getNamespaceByName(server, UA_STRING(DI_NAMESPACE_URI), &nsIndex);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+/* Copy mode adjusts the pinned input when DI is loaded at another index. */
+START_TEST(Server_copyPinnedNamespaceRemapped) {
+    ck_assert_uint_eq(UA_Server_addNamespace(server, "urn:open62541.tests:not-di"),
+                      DI_PINNED_NS_INDEX);
+    ck_assert_uint_eq(namespace_tests_di_generated(server, true), UA_STATUSCODE_GOOD);
+    size_t nsIndex;
+    ck_assert_uint_eq(UA_Server_getNamespaceByName(server, UA_STRING(DI_NAMESPACE_URI),
+                                                   &nsIndex), UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(nsIndex, DI_PINNED_NS_INDEX);
-
-    /* The check aborts before the types are added to the server config.
-     * Neither the baked nor the actual runtime index resolves. */
-    UA_NodeId typeId = UA_TYPES_TESTS_DI[0].typeId;
-    ck_assert_ptr_eq(UA_Server_findDataType(server, &typeId), NULL);
-    typeId.namespaceIndex = (UA_UInt16)nsIndex;
-    ck_assert_ptr_eq(UA_Server_findDataType(server, &typeId), NULL);
-}
-END_TEST
+    for(size_t i = 0; i < UA_TYPES_TESTS_DI_COUNT; i++) {
+        const UA_DataType *original = &UA_TYPES_TESTS_DI[i];
+        UA_NodeId id = original->typeId;
+        id.namespaceIndex = (UA_UInt16)nsIndex;
+        const UA_DataType *loaded = UA_Server_findDataType(server, &id);
+        ck_assert_ptr_ne(loaded, NULL);
+        ck_assert_ptr_ne(loaded, original);
+        ck_assert_uint_eq(original->typeId.namespaceIndex, DI_PINNED_NS_INDEX);
+        ck_assert_uint_eq(loaded->typeId.namespaceIndex, nsIndex);
+    }
+} END_TEST
 
 static Suite* testSuite_pinnedNamespace(void) {
     Suite *s = suite_create("Nodeset Compiler Pinned Namespace");
     TCase *tc = tcase_create("const DataType array");
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, Server_pinnedNamespaceMatches);
-    tcase_add_test(tc, Server_pinnedNamespaceMismatch);
+    tcase_add_test(tc, Server_copyPinnedNamespaceRemapped);
     suite_add_tcase(s, tc);
     return s;
 }

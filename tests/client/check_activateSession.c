@@ -32,6 +32,10 @@ addVariable(size_t size) {
     for(size_t i = 0; i < size; i++)
         array[i] = (UA_Int32)i;
     UA_Variant_setArray(&attr.value, array, size, &UA_TYPES[UA_TYPES_INT32]);
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 arrayDimension = (UA_UInt32)size;
+    attr.arrayDimensions = &arrayDimension;
+    attr.arrayDimensionsSize = 1;
 
     char name[] = "my.variable";
     attr.description = UA_LOCALIZEDTEXT("en-US", name);
@@ -230,6 +234,17 @@ START_TEST(Client_activateSession_sameUserAllowed) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Client_activateCurrentSession(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    lockServer(server);
+    session_list_entry *entry = LIST_FIRST(&server->sessions);
+    ck_assert_ptr_ne(entry, NULL);
+    ck_assert_uint_eq(entry->session.securityDiagnostics.clientUserIdHistorySize, 1);
+    ck_assert(UA_String_equal(
+        &entry->session.securityDiagnostics.clientUserIdHistory[0],
+        &usernamePasswords[0].username));
+    unlockServer(server);
+#endif
 
     UA_Client_delete(client);
 }

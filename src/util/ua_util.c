@@ -28,6 +28,16 @@
 #if defined(UA_ARCHITECTURE_WIN32)
 #include <wtypes.h>
 #include <winbase.h>
+#include <bcrypt.h>
+#elif defined(UA_ARCHITECTURE_POSIX)
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#include <psa/crypto.h>
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#include <openssl/rand.h>
 #endif
 
 #include "../../deps/parse_num.h"
@@ -108,25 +118,34 @@ adjustType(UA_Variant *value, const UA_DataType *targetType) {
 }
 
 size_t
-UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
+UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
+                      UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
     UA_assert(number);
-    u32 n = 0;
+    /* Accumulate in 64 bits. n stays below 2^32 between the digits, so n * base
+     * + digit cannot overflow for any base up to 36. */
+    u64 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
     while(progress < buflen) {
         u8 c = buf[progress];
+        u32 digit;
         if(c >= '0' && c <= '9' && c <= '0' + (base-1))
-           n = (n * base) + c - '0';
+           digit = c - '0';
         else if(base > 9 && c >= 'a' && c <= 'z' && c <= 'a' + (base-11))
-           n = (n * base) + c-'a' + 10;
+           digit = c-'a' + 10;
         else if(base > 9 && c >= 'A' && c <= 'Z' && c <= 'A' + (base-11))
-           n = (n * base) + c-'A' + 10;
+           digit = c-'A' + 10;
         else
            break;
+        n = (n * base) + digit;
+        /* The number does not fit into 32 bits. Report no valid digits
+         * instead of returning a wrapped value. */
+        if(n > UA_UINT32_MAX)
+            return 0;
         ++progress;
     }
-    *number = n;
+    *number = (u32)n;
     return progress;
 }
 
@@ -258,12 +277,10 @@ UA_StatusCode
 UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
                             UA_UInt16 *vid, UA_Byte *pcp) {
     /* Url must begin with "opc.eth://" */
-    if(endpointUrl->length < 11) {
+    if(endpointUrl->length < 11)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0) {
+    if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     /* Where does the host address end? */
     size_t curr = 10;
@@ -276,40 +293,33 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
     /* set host address */
     target->data = &endpointUrl->data[10];
     target->length = curr - 10;
-    if(curr == endpointUrl->length) {
+    if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
-    }
 
     /* Set VLAN */
     u32 value = 0;
     curr++;  /* skip ':' */
     size_t progress = UA_readNumber(&endpointUrl->data[curr],
                                     endpointUrl->length - curr, &value);
-    if(progress == 0 || value > 4096) {
+    if(progress == 0 || value > 4096)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
     curr += progress;
-    if(curr == endpointUrl->length || endpointUrl->data[curr] == '.') {
+    if(curr == endpointUrl->length || endpointUrl->data[curr] == '.')
         *vid = (UA_UInt16) value;
-    }
-    if(curr == endpointUrl->length) {
+    if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
-    }
 
     /* Set priority */
-    if(endpointUrl->data[curr] != '.') {
+    if(endpointUrl->data[curr] != '.')
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
     curr++;  /* skip '.' */
     progress = UA_readNumber(&endpointUrl->data[curr],
                              endpointUrl->length - curr, &value);
-    if(progress == 0 || value > 7) {
+    if(progress == 0 || value > 7)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
     curr += progress;
-    if(curr != endpointUrl->length) {
+    if(curr != endpointUrl->length)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
     *pcp = (UA_Byte) value;
 
     return UA_STATUSCODE_GOOD;
@@ -550,9 +560,8 @@ void
 UA_KeyValueMap_clear(UA_KeyValueMap *map) {
     if(!map)
         return;
-    if(map->mapSize > 0) {
+    if(map->mapSize > 0)
         UA_Array_delete(map->map, map->mapSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    }
     map->map = NULL;
     map->mapSize = 0;
 }
@@ -651,6 +660,77 @@ UA_KeyValueMap_merge(UA_KeyValueMap *lhs, const UA_KeyValueMap *rhs) {
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+logParameterError(const UA_Logger *logger, UA_LogCategory category,
+                  const char *logprefix, const UA_QualifiedName *name,
+                  const char *msg) {
+    UA_LOG_WARNING(logger, category, "%s\t| Parameter %S %s",
+                   logprefix ? logprefix : "", name->name, msg);
+}
+
+UA_StatusCode
+UA_KeyValueMap_validate(const UA_KeyValueMap *map,
+                        const UA_KeyValueRestriction *restrictions,
+                        size_t restrictionsSize, UA_Boolean rejectUnknown,
+                        const UA_Logger *logger, UA_LogCategory category,
+                        const char *logprefix) {
+    for(size_t i = 0; i < restrictionsSize; i++) {
+        const UA_KeyValueRestriction *r = &restrictions[i];
+        const UA_Variant *val = UA_KeyValueMap_get(map, r->name);
+
+        /* Value not present but required? */
+        if(!val) {
+            if(r->required) {
+                logParameterError(logger, category, logprefix, &r->name,
+                                  "required but not defined");
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+            continue;
+        }
+
+        /* A NULL restriction type accepts an opaque Variant of any type. */
+        if(r->type && val->type != r->type) {
+            logParameterError(logger, category, logprefix, &r->name,
+                              "has the wrong type");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        /* Scalar / array is allowed */
+        UA_Boolean scalar = UA_Variant_isScalar(val);
+        if(scalar && !r->scalar) {
+            logParameterError(logger, category, logprefix, &r->name,
+                              "must not be scalar");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        if(!scalar && !r->array) {
+            logParameterError(logger, category, logprefix, &r->name,
+                              "must not be an array");
+            return UA_STATUSCODE_BADCONNECTIONREJECTED;
+        }
+    }
+
+    /* Namespace zero is reserved. Other namespaces belong to the application. */
+    if(!rejectUnknown || !map)
+        return UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < map->mapSize; i++) {
+        const UA_QualifiedName *key = &map->map[i].key;
+        if(key->namespaceIndex != 0)
+            continue;
+        UA_Boolean known = false;
+        for(size_t j = 0; j < restrictionsSize; j++) {
+            if(UA_QualifiedName_equal(key, &restrictions[j].name)) {
+                known = true;
+                break;
+            }
+        }
+        if(!known) {
+            logParameterError(logger, category, logprefix, key, "is unknown");
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /***************************/
 /* Random Number Generator */
 /***************************/
@@ -690,6 +770,74 @@ UA_Guid_random(void) {
     result.data4[5] = (u8)(r >> 4);
     result.data4[6] = (u8)(r >> 8);
     result.data4[7] = (u8)(r >> 12);
+    return result;
+}
+
+/********************/
+/* Malloc Singleton */
+/********************/
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON_IMPLEMENTATION
+# include <stdlib.h>
+UA_EXPORT UA_TEST_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
+UA_EXPORT UA_TEST_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
+UA_EXPORT UA_TEST_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
+UA_EXPORT UA_TEST_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
+#endif
+
+/* Random bytes with a stronger distribution than UA_Guid_random /
+ * UA_UInt32_random above, for identifiers that must not repeat across
+ * separate server processes (e.g. the Session authenticationToken). Uses
+ * the linked crypto backend's DRBG when built with encryption support, and
+ * falls back to the operating system's random source otherwise. Returns
+ * UA_STATUSCODE_BADNOTSUPPORTED if no such source is available on this
+ * platform. */
+static UA_StatusCode
+UA_random_secureBytes(UA_Byte *buf, size_t length) {
+    if(length == 0)
+        return UA_STATUSCODE_GOOD;
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    /* PSA Crypto is shared by the supported mbedTLS 3 and 4 backends. */
+    if(psa_crypto_init() != PSA_SUCCESS ||
+       psa_generate_random(buf, length) != PSA_SUCCESS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    if(RAND_bytes(buf, (int)length) != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#elif defined(UA_ARCHITECTURE_WIN32)
+    if(!BCRYPT_SUCCESS(BCryptGenRandom(NULL, buf, (ULONG)length,
+                                        BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#elif defined(UA_ARCHITECTURE_POSIX)
+    int fd = open("/dev/urandom", O_RDONLY);
+    if(fd < 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t total = 0;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    while(total < length) {
+        ssize_t n = read(fd, buf + total, length - total);
+        if(n <= 0) {
+            res = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+        }
+        total += (size_t)n;
+    }
+    close(fd);
+    return res;
+#else
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+}
+
+UA_Guid
+UA_Guid_secureRandom(void) {
+    UA_Guid result;
+    if(UA_random_secureBytes((UA_Byte*)&result, sizeof(UA_Guid)) != UA_STATUSCODE_GOOD)
+        return UA_Guid_random(); /* No stronger random source on this platform */
     return result;
 }
 
@@ -778,7 +926,8 @@ getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN) {
         for(size_t i = 0; i < KNOWNREFTYPES; i++) {
             if(refTypeId->identifier.numeric != knownRefTypes[i].identifier)
                 continue;
-            memcpy(outBN->data, knownRefTypes[i].browseName.data, knownRefTypes[i].browseName.length);
+            memcpy(outBN->data, knownRefTypes[i].browseName.data,
+                   knownRefTypes[i].browseName.length);
             outBN->length = knownRefTypes[i].browseName.length;
             return UA_STATUSCODE_GOOD;
         }
@@ -1074,13 +1223,9 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao, UA_String 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
-        UA_Byte nodeIdBuf[512];
-        UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= nodeId_printEscape(&sao->typeDefinitionId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT);
-        res |= UA_String_append(&tmp, nodeIdBufStr);
-    }
+    if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId))
+        res |= nodeId_printEscape(&sao->typeDefinitionId, &tmp,
+                                 NULL, UA_ESCAPING_PERCENT);
 
     /* Print the BrowsePath */
     UA_RelativePathElement_init(&rpe);
@@ -1175,17 +1320,13 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId)) {
-        UA_Byte nodeIdBuf[512];
-        UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= nodeId_printEscape(&rvi->nodeId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT);
-        res |= UA_String_append(&tmp, nodeIdBufStr);
-    }
+    if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId))
+        res |= nodeId_printEscape(&rvi->nodeId, &tmp,
+                                 NULL, UA_ESCAPING_PERCENT);
 
     /* Print the attribute name */
     if(rvi->attributeId != UA_ATTRIBUTEID_VALUE) {
-        const char *attrName= UA_AttributeId_name((UA_AttributeId)rvi->attributeId);
+        const char *attrName = UA_AttributeId_name((UA_AttributeId)rvi->attributeId);
         res |= UA_String_append(&tmp, UA_STRING("#"));
         res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
     }
@@ -1216,6 +1357,41 @@ UA_replace(void *orig, const void *val, const UA_DataType *type) {
     memcpy(orig, tmp, type->memSize);
     return UA_STATUSCODE_GOOD;
 }
+
+#ifdef UA_DEBUG_DUMP_PKGS
+#include <ctype.h>
+#include <stdio.h>
+#include <string.h>
+void
+UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen) {
+    printf("--------------- HEX Package Start ---------------\n");
+    char ascii[17];
+    memset(ascii,0,17);
+    for(size_t i = 0; i < bufferLen; i++) {
+        if(i == 0)
+            printf("%08zx ", i);
+        else if(i%16 == 0)
+            printf(" |%s|\n%08zx ", ascii, i);
+        if(isprint((int)(buffer[i])))
+            ascii[i%16] = (char)buffer[i];
+        else
+            ascii[i%16] = '.';
+        if(i%8==0)
+            printf(" ");
+        printf("%02X ", (unsigned char)buffer[i]);
+
+    }
+    size_t fillPos = bufferLen %16;
+    ascii[fillPos] = 0;
+    for(size_t i=fillPos; i<16; i++) {
+        if(i%8==0)
+            printf(" ");
+        printf("   ");
+    }
+    printf(" |%s|\n%08zx\n", ascii, bufferLen);
+    printf("--------------- HEX Package END ---------------\n");
+}
+#endif
 
 /************************/
 /* Cryptography Helpers */
@@ -1311,259 +1487,197 @@ UA_TrustListDataType_contains(const UA_TrustListDataType *trustList,
 }
 
 UA_StatusCode
-UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+UA_TrustListDataType_add(const UA_TrustListDataType *src,
+                         UA_TrustListDataType *dst) {
     if(!dst)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(!src) {
+    if(!src)
         return UA_STATUSCODE_GOOD;
-    }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
 
+    /* UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES */
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
         if(dst->trustedCertificates == NULL)
-            dst->trustedCertificates = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            dst->trustedCertificates = (UA_ByteString*)
+                UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
         for(size_t i = 0; i < src->trustedCertificatesSize; i++) {
             if(UA_TrustListDataType_contains(dst, &src->trustedCertificates[i],
                                              UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES)) {
                 continue;
             }
-            retval = UA_Array_appendCopy((void**)&dst->trustedCertificates, &dst->trustedCertificatesSize,
-                                      &src->trustedCertificates[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
+            res = UA_Array_appendCopy((void**)&dst->trustedCertificates,
+                                      &dst->trustedCertificatesSize,
+                                      &src->trustedCertificates[i],
+                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(res != UA_STATUSCODE_GOOD) {
+                return res;
             }
         }
         dst->specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
     }
+
+    /* UA_TRUSTLISTMASKS_TRUSTEDCRLS */
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
         if(dst->trustedCrls == NULL)
-            dst->trustedCrls = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            dst->trustedCrls = (UA_ByteString*)
+                UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
         for(size_t i = 0; i < src->trustedCrlsSize; i++) {
             if(UA_TrustListDataType_contains(dst, &src->trustedCrls[i],
-                                             UA_TRUSTLISTMASKS_TRUSTEDCRLS)) {
+                                             UA_TRUSTLISTMASKS_TRUSTEDCRLS))
                 continue;
-            }
-            retval = UA_Array_appendCopy((void**)&dst->trustedCrls, &dst->trustedCrlsSize,
-                                      &src->trustedCrls[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
-            }
+            res = UA_Array_appendCopy((void**)&dst->trustedCrls,
+                                      &dst->trustedCrlsSize,
+                                      &src->trustedCrls[i],
+                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
         }
         dst->specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
     }
+
+    /* UA_TRUSTLISTMASKS_ISSUERCERTIFICATES */
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
         if(dst->issuerCertificates == NULL)
-            dst->issuerCertificates = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            dst->issuerCertificates = (UA_ByteString*)
+                UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
         for(size_t i = 0; i < src->issuerCertificatesSize; i++) {
             if(UA_TrustListDataType_contains(dst, &src->issuerCertificates[i],
-                                            UA_TRUSTLISTMASKS_ISSUERCERTIFICATES)) {
+                                            UA_TRUSTLISTMASKS_ISSUERCERTIFICATES))
                 continue;
-            }
-            retval = UA_Array_appendCopy((void**)&dst->issuerCertificates, &dst->issuerCertificatesSize,
-                                      &src->issuerCertificates[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
-            }
+            res = UA_Array_appendCopy((void**)&dst->issuerCertificates,
+                                      &dst->issuerCertificatesSize,
+                                      &src->issuerCertificates[i],
+                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
         }
         dst->specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
     }
+
+    /* UA_TRUSTLISTMASKS_ISSUERCRLS */
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
         if(dst->issuerCrls == NULL)
-            dst->issuerCrls = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            dst->issuerCrls = (UA_ByteString*)
+                UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
         for(size_t i = 0; i < src->issuerCrlsSize; i++) {
             if(UA_TrustListDataType_contains(dst, &src->issuerCrls[i],
-                                            UA_TRUSTLISTMASKS_ISSUERCRLS)) {
+                                            UA_TRUSTLISTMASKS_ISSUERCRLS))
                 continue;
-            }
-            retval = UA_Array_appendCopy((void**)&dst->issuerCrls, &dst->issuerCrlsSize,
-                                      &src->issuerCrls[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
-            }
+            res = UA_Array_appendCopy((void**)&dst->issuerCrls,
+                                      &dst->issuerCrlsSize,
+                                      &src->issuerCrls[i],
+                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
         }
         dst->specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCRLS;
     }
 
-    return retval;
+    return res;
 }
 
 UA_StatusCode
-UA_TrustListDataType_set(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+UA_TrustListDataType_set(const UA_TrustListDataType *src,
+                         UA_TrustListDataType *dst) {
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
-        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         dst->trustedCertificates = NULL;
         dst->trustedCertificatesSize = 0;
     }
+
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
-        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         dst->trustedCrls = NULL;
         dst->trustedCrlsSize = 0;
     }
+
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
-        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         dst->issuerCertificates = NULL;
         dst->issuerCertificatesSize = 0;
     }
+
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
-        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         dst->issuerCrls = NULL;
         dst->issuerCrlsSize = 0;
     }
+
     return UA_TrustListDataType_add(src, dst);
 }
 
+/* Remove bytestring elements from the given list. Keeps the ordering to ensure
+ * consistent behavior. */
+static void
+byteStringListRemove(size_t *listSizeP, UA_ByteString **listP,
+                     const size_t removeSize, const UA_ByteString *remove) {
+    size_t listSize = *listSizeP;
+    UA_ByteString *list = *listP;
+
+    size_t pos = 0; /* Entries before pos are tightly packed */
+    for(size_t i = 0; i < listSize; i++) {
+        /* Check if contained in the remove-list */
+        UA_Boolean keep = true;
+        for(size_t j = 0; j < removeSize; j++) {
+            if(UA_ByteString_equal(&list[i], &remove[j])) {
+                keep = false;
+                break;
+            }
+        }
+
+        /* Reinsert into the tightly packed list or clear the memory */
+        if(keep) {
+            if(pos != i) {
+                list[pos] = list[i];
+                UA_ByteString_init(&list[i]); /* Ownership moved to pos */
+            }
+            pos++;
+        } else {
+            UA_ByteString_clear(&list[i]);
+        }
+    }
+
+    /* Resize the new list. This never fails as the size is only decreased. At
+     * worst retains the bigger array with unused last entries. */
+    (void)UA_Array_resize((void**)listP, listSizeP, pos,
+                          &UA_TYPES[UA_TYPES_BYTESTRING]);
+    *listSizeP = pos; /* Keep the logical size even if realloc fails */
+}
+
 UA_StatusCode
-UA_TrustListDataType_remove(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+UA_TrustListDataType_remove(const UA_TrustListDataType *src,
+                            UA_TrustListDataType *dst) {
     if(!dst)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(!src) {
+    if(!src)
         return UA_STATUSCODE_GOOD;
-    }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Remove Trusted Certificates */
+    if(dst->trustedCertificatesSize > 0 && src->trustedCertificatesSize > 0)
+        byteStringListRemove(&dst->trustedCertificatesSize, &dst->trustedCertificates,
+                             src->trustedCertificatesSize, src->trustedCertificates);
 
-    /* remove trusted certificates */
-    if(dst->trustedCertificatesSize > 0 && src->trustedCertificatesSize > 0) {
-        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->trustedCertificatesSize, sizeof(UA_ByteString));
-        size_t newListSize = 0;
-        size_t oldListSize = dst->trustedCertificatesSize;
-        UA_Boolean isContained = false;
-        for(size_t i = 0; i < dst->trustedCertificatesSize; i++) {
-            for(size_t j = 0; j < src->trustedCertificatesSize; j++) {
-                if(UA_ByteString_equal(&dst->trustedCertificates[i], &src->trustedCertificates[j]))
-                    isContained = true;
-            }
-            if(!isContained) {
-                UA_ByteString_copy(&dst->trustedCertificates[i], &newList[newListSize]);
-                newListSize += 1;
-            }
-            isContained = false;
-        }
-        if(newListSize < dst->trustedCertificatesSize) {
-            if(newListSize == 0) {
-                UA_free(newList);
-                newList = NULL;
-            } else {
-                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_free(newList);
-                    return retval;
-                }
-            }
-        }
-        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        dst->trustedCertificatesSize = 0;
-        dst->trustedCertificates = newList;
-        dst->trustedCertificatesSize = newListSize;
-    }
+    /* Remove Issuer Certificates */
+    if(dst->issuerCertificatesSize > 0 && src->issuerCertificatesSize > 0)
+        byteStringListRemove(&dst->issuerCertificatesSize, &dst->issuerCertificates,
+                             src->issuerCertificatesSize, src->issuerCertificates);
 
-    /* remove issuer certificates */
-    if(dst->issuerCertificatesSize > 0 && src->issuerCertificatesSize > 0) {
-        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->issuerCertificatesSize, sizeof(UA_ByteString));
-        size_t newListSize = 0;
-        size_t oldListSize = dst->issuerCertificatesSize;
-        UA_Boolean isContained = false;
-        for(size_t i = 0; i < dst->issuerCertificatesSize; i++) {
-            for(size_t j = 0; j < src->issuerCertificatesSize; j++) {
-                if(UA_ByteString_equal(&dst->issuerCertificates[i], &src->issuerCertificates[j]))
-                    isContained = true;
-            }
-            if(!isContained) {
-                UA_ByteString_copy(&dst->issuerCertificates[i], &newList[newListSize]);
-                newListSize += 1;
-            }
-            isContained = false;
-        }
-        if(newListSize < dst->issuerCertificatesSize) {
-            if(newListSize == 0) {
-                UA_free(newList);
-                newList = NULL;
-            } else {
-                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_free(newList);
-                    return retval;
-                }
-            }
-        }
-        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        dst->issuerCertificatesSize = 0;
-        dst->issuerCertificates = newList;
-        dst->issuerCertificatesSize = newListSize;
-    }
+    /* Remove Trusted CRLs */
+    if(dst->trustedCrlsSize > 0 && src->trustedCrlsSize > 0)
+        byteStringListRemove(&dst->trustedCrlsSize, &dst->trustedCrls,
+                             src->trustedCrlsSize, src->trustedCrls);
 
-    /* remove trusted crls */
-    if(dst->trustedCrlsSize > 0 && src->trustedCrlsSize > 0) {
-        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->trustedCrlsSize, sizeof(UA_ByteString));
-        size_t newListSize = 0;
-        size_t oldListSize = dst->trustedCrlsSize;
-        UA_Boolean isContained = false;
-        for(size_t i = 0; i < dst->trustedCrlsSize; i++) {
-            for(size_t j = 0; j < src->trustedCrlsSize; j++) {
-                if(UA_ByteString_equal(&dst->trustedCrls[i], &src->trustedCrls[j]))
-                    isContained = true;
-            }
-            if(!isContained) {
-                UA_ByteString_copy(&dst->trustedCrls[i], &newList[newListSize]);
-                newListSize += 1;
-            }
-            isContained = false;
-        }
-        if(newListSize < dst->trustedCrlsSize) {
-            if(newListSize == 0) {
-                UA_free(newList);
-                newList = NULL;
-            } else {
-                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_free(newList);
-                    return retval;
-                }
-            }
-        }
-        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        dst->trustedCrlsSize = 0;
-        dst->trustedCrls = newList;
-        dst->trustedCrlsSize = newListSize;
-    }
+    /* Remove Issuer CRLs */
+    if(dst->issuerCrlsSize > 0 && src->issuerCrlsSize > 0)
+        byteStringListRemove(&dst->issuerCrlsSize, &dst->issuerCrls,
+                             src->issuerCrlsSize, src->issuerCrls);
 
-    /* remove issuer crls */
-    if(dst->issuerCrlsSize > 0 && src->issuerCrlsSize > 0) {
-        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->issuerCrlsSize, sizeof(UA_ByteString));
-        size_t newListSize = 0;
-        size_t oldListSize = dst->issuerCrlsSize;
-        UA_Boolean isContained = false;
-        for(size_t i = 0; i < dst->issuerCrlsSize; i++) {
-            for(size_t j = 0; j < src->issuerCrlsSize; j++) {
-                if(UA_ByteString_equal(&dst->issuerCrls[i], &src->issuerCrls[j]))
-                    isContained = true;
-            }
-            if(!isContained) {
-                UA_ByteString_copy(&dst->issuerCrls[i], &newList[newListSize]);
-                newListSize += 1;
-            }
-            isContained = false;
-        }
-        if(newListSize < dst->issuerCrlsSize) {
-            if(newListSize == 0) {
-                UA_free(newList);
-                newList = NULL;
-            } else {
-                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_free(newList);
-                    return retval;
-                }
-            }
-        }
-        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        dst->issuerCrlsSize = 0;
-        dst->issuerCrls = newList;
-        dst->issuerCrlsSize = newListSize;
-    }
-
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_UInt32

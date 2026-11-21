@@ -6,6 +6,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
+#include <stdlib.h>
 #include <check.h>
 #include <math.h>
 

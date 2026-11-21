@@ -11,6 +11,10 @@
 #include <time.h>
 #include <stdlib.h>
 #include <check.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 static UA_EventLoop *el;
 static char *testMsg = "open62541";
@@ -19,6 +23,7 @@ static UA_Boolean received;
 
 #define ETHERNET_INTERFACE "lo" /* use the loopback interface for testing */
 #define MULTICAST_MAC_ADDRESS "00-00-00-00-00-00"
+#define TEST_ETHERTYPE 0xb62c /* OPC UA PubSub EtherType */
 
 typedef struct TestContext {
     unsigned connCount;
@@ -77,16 +82,19 @@ START_TEST(listenETH) {
     UA_String interface = UA_STRING(ETHERNET_INTERFACE);
     UA_String address = UA_STRING(MULTICAST_MAC_ADDRESS);
     UA_Boolean listen = true;
+    UA_UInt16 etherType = TEST_ETHERTYPE;
 
-    UA_KeyValuePair params[3];
+    UA_KeyValuePair params[4];
     params[0].key = UA_QUALIFIEDNAME(0, "interface");
     UA_Variant_setScalar(&params[0].value, &interface, &UA_TYPES[UA_TYPES_STRING]);
     params[1].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&params[1].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     params[2].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&params[2].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    params[3].key = UA_QUALIFIEDNAME(0, "ethertype");
+    UA_Variant_setScalar(&params[3].value, &etherType, &UA_TYPES[UA_TYPES_UINT16]);
 
-    UA_KeyValueMap kvm = {3, params};
+    UA_KeyValueMap kvm = {4, params};
     UA_StatusCode res = cm->openConnection(cm, &kvm, NULL, &testContext, connectionCallback);
     if(res == UA_STATUSCODE_BADINTERNALERROR) {
         /* Raw Ethernet sockets are not available in all CI environments. */
@@ -101,10 +109,32 @@ START_TEST(listenETH) {
 
     ck_assert(testContext.connCount == 1);
 
+    /* Ordinary loopback IP traffic must not reach the Ethernet callback. Send
+     * and receive a UDP datagram while the raw listener is open to exercise
+     * the EtherType filter even on an otherwise idle test host. */
+    int udp = socket(AF_INET, SOCK_DGRAM, 0);
+    ck_assert_int_ge(udp, 0);
+    struct sockaddr_in udpAddress;
+    memset(&udpAddress, 0, sizeof(udpAddress));
+    udpAddress.sin_family = AF_INET;
+    udpAddress.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ck_assert_int_eq(bind(udp, (struct sockaddr*)&udpAddress, sizeof(udpAddress)), 0);
+    socklen_t udpAddressSize = sizeof(udpAddress);
+    ck_assert_int_eq(getsockname(udp, (struct sockaddr*)&udpAddress, &udpAddressSize), 0);
+    struct timeval timeout = {1, 0};
+    ck_assert_int_eq(setsockopt(udp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)), 0);
+    char unrelated[] = "unrelated IPv4 traffic";
+    received = false;
+    ck_assert_int_eq(sendto(udp, unrelated, sizeof(unrelated), 0,
+                           (struct sockaddr*)&udpAddress, udpAddressSize), sizeof(unrelated));
+    ck_assert_int_eq(recv(udp, unrelated, sizeof(unrelated), 0), sizeof(unrelated));
+    ck_assert_int_eq(close(udp), 0);
+
     for(size_t i = 0; i < 10; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
+    ck_assert(!received);
 
     /* Stop the EventLoop */
     int max_stop_iteration_count = 1000;
@@ -131,7 +161,7 @@ START_TEST(connectETH) {
     UA_String interface = UA_STRING(ETHERNET_INTERFACE);
     UA_String address = UA_STRING(MULTICAST_MAC_ADDRESS);
     UA_Boolean listen = true;
-    UA_UInt16 etherType = 0xb62c; /* OPC UA PubSub EtherType */
+    UA_UInt16 etherType = TEST_ETHERTYPE;
 
     UA_KeyValuePair params[4];
     params[0].key = UA_QUALIFIEDNAME(0, "address");

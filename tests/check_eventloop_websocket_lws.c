@@ -13,9 +13,7 @@
 #include <libwebsockets.h>
 #include <stdio.h>
 
-#ifdef UA_ENABLE_DISCOVERY
 #include "server/ua_server_internal.h"
-#endif
 
 static UA_ByteString loadFile(const char *path) {
     UA_ByteString out = UA_BYTESTRING_NULL;
@@ -134,6 +132,18 @@ static void run(UA_EventLoop *el, UA_Boolean *done) {
     ck_assert(*done);
 }
 
+static void
+stopEventLoop(UA_EventLoop *el) {
+    el->stop(el);
+    /* run() may return immediately while LWS has pending work. Bound the
+     * asynchronous shutdown by elapsed time, not the number of iterations. */
+    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 10 * UA_DATETIME_SEC;
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+          UA_DateTime_nowMonotonic() < deadline)
+        ck_assert_uint_eq(el->run(el, 50), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+}
+
 static UA_ConnectionManager *
 findWebSocketConnectionManager(UA_EventLoop *el) {
     const UA_String websocket = UA_STRING_STATIC("websocket");
@@ -204,13 +214,7 @@ START_TEST(clientConnectionFailureIsNotReentrant) {
     run(el, &ctx.clientClosed);
     ck_assert(!ctx.closingWasReentrant);
 
-    el->stop(el);
-    UA_Boolean stopped = false;
-    for(size_t i = 0; i < 200 && !stopped; i++) {
-        el->run(el, 50);
-        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
-    }
-    ck_assert(stopped);
+    stopEventLoop(el);
     el->free(el);
 }
 END_TEST
@@ -333,10 +337,7 @@ START_TEST(clientServerBinary) {
                       UA_STATUSCODE_GOOD);
     run(el, &ctx.clientClosed);
 
-    el->stop(el);
-    UA_Boolean stopped = false;
-    for(size_t i = 0; i < 200 && !stopped; i++) { el->run(el, 50); stopped = el->state == UA_EVENTLOOPSTATE_STOPPED; }
-    ck_assert(stopped);
+    stopEventLoop(el);
     el->free(el);
 }
 END_TEST
@@ -543,7 +544,6 @@ START_TEST(serverWebSocketListener) {
     UA_Server *server = startWebSocketServer(&port, &ws, false);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-#ifdef UA_ENABLE_DISCOVERY
     UA_EndpointDescription *endpoints = NULL;
     size_t endpointsSize = 0;
     ck_assert_uint_eq(
@@ -559,7 +559,6 @@ START_TEST(serverWebSocketListener) {
                                   &wssTransport));
     UA_Array_delete(endpoints, endpointsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-#endif
 
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
@@ -567,6 +566,46 @@ START_TEST(serverWebSocketListener) {
     UA_Server_delete(server);
 }
 END_TEST
+
+START_TEST(clientServerPlainWebSocketRoundtrip) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->tcpEnabled = false;
+    config->webSocketEnabled = true;
+    config->webSocketAllowUnencrypted = true;
+    config->webSocketEncryptionMode = UA_WEBSOCKET_ENCRYPTION_DISABLED;
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
+    const UA_String url = UA_STRING_STATIC("opc.ws://127.0.0.1:0/opcua");
+    ck_assert_uint_eq(UA_Array_copy(&url, 1, (void**)&config->serverUrls, &UA_TYPES[UA_TYPES_STRING]),
+                      UA_STATUSCODE_GOOD);
+    config->serverUrlsSize = 1;
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_String host, path;
+    UA_UInt16 port = 0;
+    ck_assert_uint_eq(UA_parseEndpointUrl(&config->applicationDescription.discoveryUrls[0],
+                                         &host, &port, &path), UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(port, 0);
+    UA_Client *client = UA_Client_new();
+    ck_assert_ptr_nonnull(client);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    ck_assert_uint_eq(cc->eventLoop->free(cc->eventLoop), UA_STATUSCODE_GOOD);
+    cc->eventLoop = config->eventLoop;
+    cc->externalEventLoop = true;
+    char endpoint[128];
+    snprintf(endpoint, sizeof(endpoint), "opc.ws://127.0.0.1:%u/opcua", (unsigned)port);
+    ck_assert_uint_eq(UA_Client_connect(client, endpoint), UA_STATUSCODE_GOOD);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME), &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME]));
+    UA_Variant_clear(&value);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+} END_TEST
 
 START_TEST(clientServerWebSocketRoundtrip) {
     UA_UInt16 port = 0;
@@ -878,13 +917,7 @@ START_TEST(clientServerRejectsPolicyMismatch) {
     }
     ck_assert(connected);
 
-    el->stop(el);
-    UA_Boolean stopped = false;
-    for(size_t i = 0; i < 200 && !stopped; i++) {
-        el->run(el, 50);
-        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
-    }
-    ck_assert(stopped);
+    stopEventLoop(el);
     el->free(el);
 }
 END_TEST
@@ -944,13 +977,7 @@ START_TEST(clientServerTlsCaCertificate) {
     ck_assert(connected);
     UA_ByteString_clear(&certificate);
 
-    el->stop(el);
-    UA_Boolean stopped = false;
-    for(size_t i = 0; i < 200 && !stopped; i++) {
-        el->run(el, 50);
-        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
-    }
-    ck_assert(stopped);
+    stopEventLoop(el);
     el->free(el);
 }
 END_TEST
@@ -1044,6 +1071,7 @@ int main(void) {
     tcase_add_test(tc, fragmentedBinaryAndTextRejection);
     tcase_add_test(tc, serverWebSocketListener);
     tcase_add_test(tc, serverRejectsIncompleteWebSocketConfiguration);
+    tcase_add_test(tc, clientServerPlainWebSocketRoundtrip);
     tcase_add_test(tc, clientServerWebSocketRoundtrip);
     tcase_add_test(tc, clientRejectsUntrustedWebSocketServer);
     tcase_add_test(tc, clientRejectsWebSocketHostnameMismatch);

@@ -195,16 +195,6 @@ UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id) {
 
 static UA_StatusCode
 validateDSRConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
-    /* Reject fixed byte offsets: the default reader locates DataSetMessages
-     * through the decoded payload rather than configured positions. */
-    if(UA_ExtensionObject_hasDecodedType(&dsr->config.messageSettings,
-           &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])) {
-        const UA_UadpDataSetReaderMessageDataType *settings =
-            (const UA_UadpDataSetReaderMessageDataType*)dsr->config.messageSettings.content.decoded.data;
-        if(settings->dataSetOffset != 0)
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-
     /* Check if used dataSet metaData is valid in context of the rest of the config */
     if(dsr->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
@@ -741,7 +731,7 @@ updateTargetsForState(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
             wv.nodeId = tvs->targetVariables[i].targetNodeId;
             wv.attributeId = tvs->targetVariables[i].attributeId;
             wv.indexRange = tvs->targetVariables[i].writeIndexRange;
-            Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &wv, &res);
+            res = writeNoAsync(psm->drv.server, &psm->drv.server->adminSession, &wv);
         }
         UA_DataValue_clear(&wv.value);
         if(res != UA_STATUSCODE_GOOD)
@@ -791,6 +781,21 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
+        /* Accept stored configuration before custom state machines are attached.
+         * Only the built-in running reader rejects fixed byte positions. */
+        if(!rg->config.customStateMachine &&
+           (rg->head.state == UA_PUBSUBSTATE_PREOPERATIONAL ||
+            rg->head.state == UA_PUBSUBSTATE_OPERATIONAL) &&
+           UA_ExtensionObject_hasDecodedType(&dsr->config.messageSettings,
+               &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])) {
+            const UA_UadpDataSetReaderMessageDataType *settings =
+                (const UA_UadpDataSetReaderMessageDataType*)dsr->config.messageSettings.content.decoded.data;
+            if(settings->dataSetOffset != 0) {
+                dsr->head.state = UA_PUBSUBSTATE_ERROR;
+                res = errorReason = UA_STATUSCODE_BADNOTSUPPORTED;
+                break;
+            }
+        }
         if(rg->head.state == UA_PUBSUBSTATE_DISABLED ||
            rg->head.state == UA_PUBSUBSTATE_ERROR ||
            rg->head.state == UA_PUBSUBSTATE_PAUSED) {
@@ -1100,7 +1105,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         writeVal.indexRange = tv->writeIndexRange;
         writeVal.nodeId = tv->targetNodeId;
         writeVal.value = writeValue;
-        Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &writeVal, &res);
+        res = writeNoAsync(psm->drv.server, &psm->drv.server->adminSession, &writeVal);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",
@@ -1481,12 +1486,16 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
     if((u64)dsrMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
         dsm->header.timestampEnabled = true;
-        dsm->header.timestamp = UA_DateTime_now();
+        UA_EventLoop *el = server->config.eventLoop;
+        dsm->header.timestamp = el->dateTime_now(el);
     }
 
-    if((u64)dsrMessageDataType->dataSetMessageContentMask &
-       (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS)
-        dsm->header.picoSecondsIncluded = false;
+    /* The EventLoop clock has 100 ns resolution, so the remainder is zero.
+     * PicoSeconds can only be included together with a Timestamp. */
+    dsm->header.picoSeconds = 0;
+    dsm->header.picoSecondsIncluded = dsm->header.timestampEnabled &&
+        ((u64)dsrMessageDataType->dataSetMessageContentMask &
+         (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) != 0;
 
     if((u64)dsrMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS)

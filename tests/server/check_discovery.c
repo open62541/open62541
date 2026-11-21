@@ -60,6 +60,32 @@ THREAD_CALLBACK(serverloop_lds) {
     return 0;
 }
 
+/* MdnsDiscoveryConfiguration of the last registration at the LDS */
+static UA_MdnsDiscoveryConfiguration receivedMdnsConfig;
+static UA_atomic(uintptr_t) receivedMdnsConfigSet;
+
+static void
+ldsNotificationCallback(UA_Server *server, UA_ApplicationNotificationType type,
+                        const UA_KeyValueMap payload) {
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_REGISTERSERVER)
+        return;
+    const UA_Variant *dc =
+        UA_KeyValueMap_get(&payload, UA_QUALIFIEDNAME(0, "discovery-configuration"));
+    if(!dc || !UA_Variant_hasArrayType(dc, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]))
+        return;
+    const UA_ExtensionObject *eo = (const UA_ExtensionObject*)dc->data;
+    for(size_t i = 0; i < dc->arrayLength; i++) {
+        if(!UA_ExtensionObject_hasDecodedType(
+               &eo[i], &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]))
+            continue;
+        UA_MdnsDiscoveryConfiguration_clear(&receivedMdnsConfig);
+        UA_MdnsDiscoveryConfiguration_copy(
+            (const UA_MdnsDiscoveryConfiguration*)eo[i].content.decoded.data,
+            &receivedMdnsConfig);
+        UA_atomic_store(&receivedMdnsConfigSet, true);
+    }
+}
+
 static void
 configure_lds_server(UA_Server *pServer) {
     UA_ServerConfig *config_lds = UA_Server_getConfig(pServer);
@@ -81,6 +107,7 @@ configure_lds_server(UA_Server *pServer) {
     UA_CertificateGroup_AcceptAll(&config_lds->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config_lds->sessionPKI);
 
+    config_lds->registeredServersEnabled = true;
     config_lds->applicationDescription.applicationType =
         UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config_lds->applicationDescription.applicationUri);
@@ -90,6 +117,7 @@ configure_lds_server(UA_Server *pServer) {
     config_lds->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en", "LDS Server");
     config_lds->registeredServerCleanupTimeout = registerTimeout;
+    config_lds->globalNotificationCallback = ldsNotificationCallback;
 }
 
 static void
@@ -115,6 +143,8 @@ teardown_lds(void) {
     UA_Server_run_shutdown(server_lds);
     UA_Server_delete(server_lds);
     server_lds = NULL;
+    UA_MdnsDiscoveryConfiguration_clear(&receivedMdnsConfig);
+    UA_atomic_store(&receivedMdnsConfigSet, false);
 }
 
 UA_Server *server_register;
@@ -199,6 +229,8 @@ setup_register(void) {
         &config_register->applicationDescription.discoveryUrlsSize,
         &registeredDiscoveryUrl, &UA_TYPES[UA_TYPES_STRING]);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    config_register->serverCapabilities =
+        UA_SERVERCAPABILITY_DA | UA_SERVERCAPABILITY_HD;
     UA_Server_run_startup(server_register);
     THREAD_CREATE(server_thread_register, serverloop_register);
 }
@@ -221,8 +253,11 @@ waitForRegisterRequestCompletion(void) {
     UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
 
-    while(UA_DiscoveryManager_getPendingRegistration(server_register, NULL))
+    for(size_t attempt = 0;
+        UA_DiscoveryManager_getPendingRegistration(server_register, NULL); attempt++) {
+        ck_assert_msg(attempt < 1000, "Discovery registration did not complete");
         UA_Server_run_iterate(server_register, true);
+    }
 
     UA_atomic_store(&running_register, true);
     THREAD_CREATE(server_thread_register, serverloop_register);
@@ -393,11 +428,9 @@ FindAndCheckDiscoveryUrls(const char *requestedEndpointUrl,
                           UA_Boolean expectRegistered) {
     UA_Client *client = UA_Client_newForUnitTest();
 
-    UA_StatusCode retval = UA_Client_connect(client, requestedEndpointUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return false;
-    }
+    /* Discovery services do not require a Session. */
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, requestedEndpointUrl);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
@@ -514,7 +547,8 @@ static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
                      const UA_String *expectedEndpointUrl) {
     UA_Client *client = UA_Client_newForUnitTest();
-    ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(client, discoveryUrl),
+                      UA_STATUSCODE_GOOD);
 
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
@@ -740,9 +774,13 @@ START_TEST(Server_getEndpoints_emptyPolicyId) {
 
     UA_UserTokenPolicy *policy = &config->accessControl.userTokenPolicies[0];
     UA_String_clear(&policy->policyId);
-    policy->policyId = UA_STRING_ALLOC("");
-    ck_assert_ptr_eq(policy->policyId.data,
-                     (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    /* Empty policy IDs can use the sentinel or own a terminated buffer. */
+    if(_i == 0)
+        policy->policyId.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+    else
+        policy->policyId = UA_STRING_ALLOC("");
+    ck_assert_uint_eq(policy->policyId.length, 0);
+    ck_assert_ptr_nonnull(policy->policyId.data);
 
     UA_EndpointDescription *endpoints = NULL;
     size_t endpointsSize = 0;
@@ -799,6 +837,83 @@ START_TEST(Server_registerUnregister) {
     unregisterServer();
 }
 END_TEST
+
+/* RegisterServer2 reports the ServerCapabilities of the registering server in
+ * a MdnsDiscoveryConfiguration */
+START_TEST(Server_registerServerCapabilities) {
+    UA_atomic_store(&receivedMdnsConfigSet, false);
+    registerServer();
+    ck_assert(UA_atomic_load(&receivedMdnsConfigSet));
+
+    const UA_String expected[2] = {UA_STRING_STATIC("DA"), UA_STRING_STATIC("HD")};
+    ck_assert_uint_eq(receivedMdnsConfig.serverCapabilitiesSize, 2);
+    for(size_t i = 0; i < 2; i++)
+        ck_assert(UA_String_equal(&receivedMdnsConfig.serverCapabilities[i],
+                                  &expected[i]));
+
+    /* No mDNS name. The LDS uses the first ServerName. */
+    ck_assert_uint_eq(receivedMdnsConfig.mdnsServerName.length, 0);
+
+    unregisterServer();
+}
+END_TEST
+
+START_TEST(Server_registerLimit) {
+    lockServer(server_lds);
+    server_lds->maxRegisteredServers = 1;
+    unlockServer(server_lds);
+
+    UA_RegisterServerRequest request;
+    UA_RegisterServerRequest_init(&request);
+    request.server.serverNamesSize = 1;
+    UA_LocalizedText serverName = UA_LOCALIZEDTEXT("en", "Test Server");
+    request.server.serverNames = &serverName;
+    request.server.discoveryUrlsSize = 1;
+    UA_String discoveryUrl = UA_STRING("opc.tcp://localhost:16664");
+    request.server.discoveryUrls = &discoveryUrl;
+    request.server.isOnline = true;
+
+    UA_RegisterServerResponse response;
+    UA_RegisterServerResponse_init(&response);
+    request.server.serverUri = UA_STRING("urn:open62541.test.first");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession,
+                           &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_RegisterServerResponse_clear(&response);
+    request.server.serverUri = UA_STRING("urn:open62541.test.second");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession,
+                           &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    UA_RegisterServerResponse_clear(&response);
+
+    request.server.serverUri = UA_STRING("urn:open62541.test.first");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_RegisterServerResponse_clear(&response);
+
+    request.server.isOnline = false;
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_RegisterServerResponse_clear(&response);
+
+    request.server.isOnline = true;
+    request.server.serverUri = UA_STRING("urn:open62541.test.second");
+    lockServer(server_lds);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    unlockServer(server_lds);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_RegisterServerResponse_clear(&response);
+} END_TEST
 
 START_TEST(Server_registerTimeout) {
     registerServer();
@@ -881,7 +996,7 @@ START_TEST(Server_registerServer2_withoutCertificate_rejected) {
     while(!Client_find_discovery()) {}
 
     UA_Client *client = UA_Client_newForUnitTest();
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_String uninvitedUri =
@@ -921,7 +1036,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_new_del = tcase_create("New Delete");
     tcase_add_test(tc_new_del, Server_new_delete);
     tcase_add_test(tc_new_del, Server_new_shutdown_delete);
-    tcase_add_test(tc_new_del, Server_getEndpoints_emptyPolicyId);
+    tcase_add_loop_test(tc_new_del, Server_getEndpoints_emptyPolicyId, 0, 2);
     tcase_add_loop_test(tc_new_del, Server_addEndpoint_rejectsInvalidSecurityMode, 0, 4);
     tcase_add_loop_test(tc_new_del, Server_getEndpoints_rejectsOutOfRangeSecurityMode, 0, 3);
     suite_add_tcase(s,tc_new_del);
@@ -932,6 +1047,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register, Server_registerUnregister);
     tcase_add_test(tc_register,
                    Server_findServers_preserves_registered_discoveryUrls);
+    tcase_add_test(tc_register, Server_registerServerCapabilities);
+    tcase_add_test(tc_register, Server_registerLimit);
     suite_add_tcase(s,tc_register);
 
     TCase *tc_register_find = tcase_create("RegisterServer and FindServers");

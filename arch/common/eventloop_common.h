@@ -16,22 +16,6 @@
 
 _UA_BEGIN_DECLS
 
-/* Typing restrictions for key-value parameters */
-typedef struct {
-    UA_QualifiedName name;
-    const UA_DataType *type;
-    UA_Boolean required;
-    UA_Boolean scalar;
-    UA_Boolean array;
-} UA_KeyValueRestriction;
-
-UA_StatusCode
-UA_KeyValueRestriction_validate(const UA_Logger *logger,
-                                const char *logprefix,
-                                const UA_KeyValueRestriction *restrictions,
-                                size_t restrictionsSize,
-                                const UA_KeyValueMap *map);
-
 /* (Re)allocate a static network buffer sized by the UInt32 parameter `name`.
  * If the parameter is not set, use defaultSize and write it back into the
  * params so that readers of the params (e.g. the SecureChannel constraint

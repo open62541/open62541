@@ -186,12 +186,12 @@ UA_EventLoopWIN32_nextTimer(UA_EventLoop *public_el);
 UA_StatusCode
 UA_EventLoopWIN32_addTimer(UA_EventLoop *public_el, UA_Callback cb,
                            void *application, void *data, UA_Double interval_ms,
-                           UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                           const UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
                            UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_EventLoopWIN32_modifyTimer(UA_EventLoop *public_el, UA_UInt64 callbackId,
-                              UA_Double interval_ms, UA_DateTime *baseTime,
+                              UA_Double interval_ms, const UA_DateTime *baseTime,
                               UA_TimerPolicy timerPolicy);
 
 void

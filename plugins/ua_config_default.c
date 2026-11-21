@@ -22,10 +22,8 @@
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
-#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_AMALGAMATION)
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#endif
 
 #include "../deps/mp_printf.h"
 
@@ -220,9 +218,9 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 /* Upper bound */
 #define SECURITY_POLICY_SIZE 14
 
-#define STRINGIFY(arg) #arg
+#define UA_STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
-    STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
+    UA_STRINGIFY(MAJOR) "." UA_STRINGIFY(MINOR) "." UA_STRINGIFY(PATCH) LABEL
 
 static UA_StatusCode
 addEndpoint(UA_ServerConfig *conf,
@@ -526,9 +524,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
     conf->registeredServerCleanupTimeout = 60 * 60;
-#endif
+    conf->announceRegisteredServers = true;
 
 #ifdef UA_ENABLE_HISTORIZING
     /* conf->accessHistoryDataCapability = false; */
@@ -1200,6 +1197,131 @@ UA_ServerConfig_addSecurityPolicyEccCurve448(UA_ServerConfig *config,
     config->securityPoliciesSize++;
     return UA_STATUSCODE_GOOD;
 }
+
+typedef UA_StatusCode
+(*AppTypePolicyConstructor)(UA_SecurityPolicy *policy, UA_ApplicationType applicationType,
+                            const UA_ByteString localCertificate,
+                            const UA_ByteString localPrivateKey, const UA_Logger *logger);
+
+/* Adds a policy whose constructor takes the ApplicationType, which the ECC
+ * policies need to pick the HKDF label */
+static UA_StatusCode
+addSecurityPolicyAppType(UA_ServerConfig *config, AppTypePolicyConstructor constructor,
+                         const UA_ByteString *certificate, const UA_ByteString *privateKey) {
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        constructor(&config->securityPolicies[config->securityPoliciesSize],
+                    UA_APPLICATIONTYPE_SERVER, localCertificate, localPrivateKey,
+                    config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The ECC AEAD SecurityPolicies of OPC UA Part 7 that are not in the default
+ * policy set. One server certificate cannot satisfy six curve families, and
+ * twelve extra policies would bloat every GetEndpoints response, so an
+ * application opts in to the curve it actually holds a certificate for. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384AesGcm(UA_ServerConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccNistP384AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccNistP384ChaChaPoly,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1AesGcm(UA_ServerConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccBrainpoolP256r1AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1ChaChaPoly(UA_ServerConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccBrainpoolP256r1ChaChaPoly,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1AesGcm(UA_ServerConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccBrainpoolP384r1AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1ChaChaPoly(UA_ServerConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccBrainpoolP384r1ChaChaPoly,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve25519AesGcm(UA_ServerConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccCurve25519AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve25519ChaChaPoly(UA_ServerConfig *config,
+                                                         const UA_ByteString *certificate,
+                                                         const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccCurve25519ChaChaPoly,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve448AesGcm(UA_ServerConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccCurve448AesGcm,
+                                    certificate, privateKey);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve448ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    return addSecurityPolicyAppType(config, UA_SecurityPolicy_EccCurve448ChaChaPoly,
+                                    certificate, privateKey);
+}
 #endif
 
 
@@ -1240,9 +1362,10 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
     }
 
     /* The non-deprecated ECC SecurityPolicies are the AEAD profiles, which are
-     * implemented only in the OpenSSL backend. The deprecated non-AEAD ECC
-     * policies (EccNistP256/P384, EccBrainpoolP256r1/P384r1) are not part of the
-     * default set; add them explicitly via UA_ServerConfig_addSecurityPolicyEcc*. */
+     * implemented only in the OpenSSL backend. The deprecated ECC policies
+     * (EccNistP256/P384, EccBrainpoolP256r1/P384r1, EccCurve25519/448) are not
+     * part of the default set; add them explicitly via
+     * UA_ServerConfig_addSecurityPolicyEcc*. */
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     /* EccNistP256AesGcm */
     retval = UA_SecurityPolicy_EccNistP256AesGcm(sp + *length, applicationType,
@@ -1261,26 +1384,6 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
                        "Could not add SecurityPolicy#EccNistP256_ChaChaPoly with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccCurve25519 */
-    retval = UA_SecurityPolicy_EccCurve25519(sp + *length, applicationType,
-                                             certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccCurve25519 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccCurve448 */
-    retval = UA_SecurityPolicy_EccCurve448(sp + *length, applicationType,
-                                           certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccCurve448 with error code %s",
                        UA_StatusCode_name(retval));
     }
 #endif
@@ -1318,9 +1421,9 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
     }
 #endif
 
-    /* The non-AEAD ECC SecurityPolicies (EccNistP256/P384,
-     * EccBrainpoolP256r1/P384r1) are deprecated (OPC UA Part 7), superseded by
-     * their *_AesGcm / *_ChaChaPoly variants. They are not part of the default
+    /* The ECC SecurityPolicies EccNistP256/P384, EccBrainpoolP256r1/P384r1 and
+     * EccCurve25519/448 are deprecated (OPC UA Part 7), superseded by their
+     * *_AesGcm / *_ChaChaPoly variants. They are not part of the default
      * policy set; use the UA_ServerConfig_addSecurityPolicyEcc* functions to add
      * them explicitly. */
 }
@@ -1927,9 +2030,9 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
     }
 #endif
 
-    /* The non-AEAD ECC SecurityPolicies (EccNistP256/P384,
-     * EccBrainpoolP256r1/P384r1) are deprecated (OPC UA Part 7), superseded by
-     * their *_AesGcm / *_ChaChaPoly variants. They are not part of the default
+    /* The ECC SecurityPolicies EccNistP256/P384, EccBrainpoolP256r1/P384r1 and
+     * EccCurve25519/448 are deprecated (OPC UA Part 7), superseded by their
+     * *_AesGcm / *_ChaChaPoly variants. They are not part of the default
      * policy set; use the UA_ServerConfig_addSecurityPolicyEcc* functions to add
      * them explicitly. */
 
@@ -1999,7 +2102,6 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
-#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_AMALGAMATION)
 
 /***************************/
 /* Default Client Settings */
@@ -2106,6 +2208,10 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
     if(config->maxAsyncServiceCalls == 0)
         config->maxAsyncServiceCalls = 32;
+    if(config->reconnectInterval == 0)
+        config->reconnectInterval = 250; /* 250ms */
+    if(config->reconnectIntervalMax == 0)
+        config->reconnectIntervalMax = 10 * 1000; /* 10 seconds */
 
     if(config->logging == NULL)
         config->logging = UA_Log_Stdout_new(UA_LOGLEVEL_INFO);
@@ -2214,12 +2320,6 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->maxTrustListSize = 0;
     config->maxRejectedListSize = 0;
 #endif
-
-    if(!config->certificateVerification.verifyCertificate) {
-        /* Certificate Verification that accepts every certificate. Can be
-         * overwritten when the policy is specialized. */
-        UA_CertificateGroup_AcceptAll(&config->certificateVerification);
-    }
 
     /* With encryption enabled, the applicationUri needs to match the URI from
      * the certificate */
@@ -2333,6 +2433,220 @@ clientConfig_setSecurityPolicies(UA_ClientConfig *config,
                                                  &config->securityPoliciesSize,
                                                  certificateAuth, privateKeyAuth);
 }
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+/* Append a policy to one of the policy arrays of the client. The array is not
+ * reallocated in place, since open SecureChannels and Sessions can reference
+ * its entries: the entries move to a new array and the old one is kept, without
+ * them, until the config is cleared. */
+static UA_StatusCode
+clientConfig_appendSecurityPolicy(UA_ClientConfig *config,
+                                  UA_SecurityPolicy **policies, size_t *policiesSize,
+                                  AppTypePolicyConstructor constructor,
+                                  const UA_ByteString *certificate,
+                                  const UA_ByteString *privateKey) {
+    UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
+        UA_calloc(*policiesSize + 1, sizeof(UA_SecurityPolicy));
+    if(!sp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_ClientConfig_PolicyHistory *previous = NULL;
+    if(*policies) {
+        previous = (UA_ClientConfig_PolicyHistory*)UA_malloc(sizeof(*previous));
+        if(!previous) {
+            UA_free(sp);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
+
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        constructor(&sp[*policiesSize], UA_APPLICATIONTYPE_CLIENT, localCertificate,
+                    localPrivateKey, config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(previous);
+        UA_free(sp);
+        return retval;
+    }
+
+    if(*policiesSize > 0)
+        memcpy(sp, *policies, *policiesSize * sizeof(UA_SecurityPolicy));
+    if(previous) {
+        previous->policies = *policies;
+        previous->policiesSize = 0; /* The new array owns the entries */
+        previous->next = config->securityPolicyHistory;
+        config->securityPolicyHistory = previous;
+    }
+    *policies = sp;
+    (*policiesSize)++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The ECC AEAD policies by URI, for the instances with the user certificate */
+static const struct {
+    UA_String uri;
+    AppTypePolicyConstructor constructor;
+} eccAeadPolicies[] = {
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm"),
+     UA_SecurityPolicy_EccNistP256AesGcm},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly"),
+     UA_SecurityPolicy_EccNistP256ChaChaPoly},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384_AesGcm"),
+     UA_SecurityPolicy_EccNistP384AesGcm},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384_ChaChaPoly"),
+     UA_SecurityPolicy_EccNistP384ChaChaPoly},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1_AesGcm"),
+     UA_SecurityPolicy_EccBrainpoolP256r1AesGcm},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1_ChaChaPoly"),
+     UA_SecurityPolicy_EccBrainpoolP256r1ChaChaPoly},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1_AesGcm"),
+     UA_SecurityPolicy_EccBrainpoolP384r1AesGcm},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1_ChaChaPoly"),
+     UA_SecurityPolicy_EccBrainpoolP384r1ChaChaPoly},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519_AesGcm"),
+     UA_SecurityPolicy_EccCurve25519AesGcm},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519_ChaChaPoly"),
+     UA_SecurityPolicy_EccCurve25519ChaChaPoly},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448_AesGcm"),
+     UA_SecurityPolicy_EccCurve448AesGcm},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448_ChaChaPoly"),
+     UA_SecurityPolicy_EccCurve448ChaChaPoly},
+};
+
+static AppTypePolicyConstructor
+eccAeadConstructor(const UA_String *uri) {
+    for(size_t i = 0; i < sizeof(eccAeadPolicies) / sizeof(eccAeadPolicies[0]); i++) {
+        if(UA_String_equal(uri, &eccAeadPolicies[i].uri))
+            return eccAeadPolicies[i].constructor;
+    }
+    return NULL;
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccNistP256AesGcm(UA_ClientConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccNistP256AesGcm,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccNistP256ChaChaPoly(UA_ClientConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccNistP256ChaChaPoly,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccNistP384AesGcm(UA_ClientConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccNistP384AesGcm,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccNistP384ChaChaPoly(UA_ClientConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccNistP384ChaChaPoly,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccBrainpoolP256r1AesGcm(UA_ClientConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccBrainpoolP256r1AesGcm,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccBrainpoolP256r1ChaChaPoly(UA_ClientConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccBrainpoolP256r1ChaChaPoly,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccBrainpoolP384r1AesGcm(UA_ClientConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccBrainpoolP384r1AesGcm,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccBrainpoolP384r1ChaChaPoly(UA_ClientConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccBrainpoolP384r1ChaChaPoly,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccCurve25519AesGcm(UA_ClientConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccCurve25519AesGcm,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccCurve25519ChaChaPoly(UA_ClientConfig *config,
+                                                         const UA_ByteString *certificate,
+                                                         const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccCurve25519ChaChaPoly,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccCurve448AesGcm(UA_ClientConfig *config,
+                                                   const UA_ByteString *certificate,
+                                                   const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccCurve448AesGcm,
+                                             certificate, privateKey);
+}
+
+UA_StatusCode
+UA_ClientConfig_addSecurityPolicyEccCurve448ChaChaPoly(UA_ClientConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    return clientConfig_appendSecurityPolicy(config, &config->securityPolicies,
+                                             &config->securityPoliciesSize,
+                                             UA_SecurityPolicy_EccCurve448ChaChaPoly,
+                                             certificate, privateKey);
+}
+#endif /* UA_ENABLE_ENCRYPTION_OPENSSL */
 
 UA_StatusCode
 UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
@@ -2455,8 +2769,37 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
     config->userIdentityToken.content.decoded.data = identityToken;
 
     /* Populate SecurityPolicies */
-    return clientConfig_setAuthenticationSecurityPolicies(config, certificateAuth, privateKeyAuth);
+    retval = clientConfig_setAuthenticationSecurityPolicies(config, certificateAuth,
+                                                            privateKeyAuth);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    /* The ECC AEAD policies outside of the default set: an instance with the
+     * user certificate for each one the client has configured, so that the
+     * certificate can sign the userTokenSignature of an endpoint with that
+     * policy. A user certificate on another curve does not fit the policy. */
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        const UA_String *uri = &config->securityPolicies[i].policyUri;
+        AppTypePolicyConstructor constructor = eccAeadConstructor(uri);
+        if(!constructor)
+            continue;
+        UA_Boolean present = false;
+        for(size_t j = 0; j < config->authSecurityPoliciesSize; j++)
+            present |= UA_String_equal(uri, &config->authSecurityPolicies[j].policyUri);
+        if(present)
+            continue;
+        UA_StatusCode res =
+            clientConfig_appendSecurityPolicy(config, &config->authSecurityPolicies,
+                                              &config->authSecurityPoliciesSize,
+                                              constructor, &certificateAuth,
+                                              &privateKeyAuth);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_LOG_INFO(config->logging, UA_LOGCATEGORY_APPLICATION,
+                        "The authentication certificate is not used with %S (%s)",
+                        *uri, UA_StatusCode_name(res));
+    }
+#endif
+    return UA_STATUSCODE_GOOD;
 }
 #endif
-
-#endif /* UA_ENABLE_DISCOVERY OR UA_ENABLE_AMALGAMATION*/

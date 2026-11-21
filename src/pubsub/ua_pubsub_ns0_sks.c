@@ -159,7 +159,7 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     /* Check whether the channel is encrypted according to specification */
     UA_Session *session = getSessionById(server, sessionId);
     if(!session || !session->channel)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
     if(session->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
 
@@ -238,7 +238,7 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     /* Check whether the channel is encrypted according to specification */
     UA_Session *session = getSessionById(server, sessionId);
     if(!session || !session->channel)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
     if(session->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
 
@@ -268,6 +268,14 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         return UA_STATUSCODE_BADNOTFOUND;
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
+    /* Access to a SecurityGroup is granted per ClientUserId. A Session that was
+     * activated with the Anonymous UserIdentityToken has no ClientUserId, so
+     * the check below has no identity to match the SecurityGroup against and
+     * cannot come to a meaningful decision. Reject the call instead of
+     * returning the keys. */
+    if(session->clientUserIdOfSession.length == 0)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     executable = server->config.accessControl.getUserExecutableOnObject(
         server, &server->config.accessControl, sessionId, sessionContext, methodId,
         methodContext, &sg->securityGroupNodeId, sgNodeCtx);

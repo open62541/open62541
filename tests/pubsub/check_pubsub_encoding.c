@@ -13,6 +13,83 @@
 #include "check.h"
 #include <stdlib.h>
 
+static void
+checkEmptyHeartbeat(UA_FieldEncoding encoding, unsigned int testCase) {
+    UA_Boolean paddedKeepAlive = (testCase & 4) != 0;
+    UA_DataSetMessageType messageType = paddedKeepAlive ?
+        UA_DATASETMESSAGE_KEEPALIVE : UA_DATASETMESSAGE_DATAKEYFRAME;
+    UA_DataSetMessage messages[2];
+    memset(messages, 0, sizeof(messages));
+    for(size_t i = 0; i < 2; i++) {
+        messages[i].header.dataSetMessageValid = true;
+        messages[i].header.fieldEncoding = encoding;
+        messages[i].header.dataSetMessageType = messageType;
+    }
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    m.version = 1;
+    m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    m.payloadHeaderEnabled = (testCase & 1) != 0;
+    m.messageCount = m.payloadHeaderEnabled ? 2 : 1;
+    m.dataSetWriterIds[0] = 1;
+    m.dataSetWriterIds[1] = 2;
+    m.payload.dataSetMessages = messages;
+
+    /* Each heartbeat contains a flags byte and a two-byte zero FieldCount.
+     * Two messages additionally need the payload header and DSM sizes. */
+    size_t expectedSize = m.payloadHeaderEnabled ? 16 : 4;
+    UA_DataSetMessage_EncodingMetaData metadata[2] = {{0}, {0}};
+    for(size_t i = 0; i < 2; i++) {
+        metadata[i].dataSetWriterId = m.dataSetWriterIds[i];
+        metadata[i].configuredSize = 16;
+    }
+    UA_NetworkMessage_EncodingOptions options = {m.messageCount, metadata};
+    const UA_NetworkMessage_EncodingOptions *eo = paddedKeepAlive ? &options : NULL;
+    /* Master also supports ConfiguredSize padding for keep-alives. The
+     * payload-free size calculation must still account for this padding. */
+    if(paddedKeepAlive)
+        expectedSize = m.payloadHeaderEnabled ? 42 : 17;
+    size_t calculatedSize = UA_NetworkMessage_calcSizeBinary(&m, eo);
+    ck_assert_uint_eq(calculatedSize, expectedSize);
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    if(testCase & 2) {
+        UA_StatusCode res = UA_ByteString_allocBuffer(&buffer, calculatedSize);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+    UA_StatusCode res = UA_NetworkMessage_encodeBinary(&m, &buffer, eo);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(buffer.length, calculatedSize);
+
+    UA_NetworkMessage decoded;
+    res = UA_NetworkMessage_decodeBinary(&buffer, &decoded, eo, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.messageCount, m.messageCount);
+    for(size_t i = 0; i < decoded.messageCount; i++) {
+        const UA_DataSetMessage *dsm = &decoded.payload.dataSetMessages[i];
+        ck_assert(dsm->header.dataSetMessageValid);
+        ck_assert_int_eq(dsm->header.dataSetMessageType, messageType);
+        ck_assert_int_eq(dsm->header.fieldEncoding, encoding);
+        ck_assert_uint_eq(dsm->fieldCount, 0);
+        ck_assert_ptr_eq(dsm->data.keyFrameFields, NULL);
+        if(m.payloadHeaderEnabled)
+            ck_assert_uint_eq(decoded.dataSetWriterIds[i], m.dataSetWriterIds[i]);
+    }
+    UA_NetworkMessage_clear(&decoded);
+    UA_ByteString_clear(&buffer);
+}
+
+START_TEST(UA_PubSub_EnDecode_EmptyVariantHeartbeat) {
+    checkEmptyHeartbeat(UA_FIELDENCODING_VARIANT, (unsigned int)_i);
+}
+END_TEST
+
+START_TEST(UA_PubSub_EnDecode_EmptyDataValueHeartbeat) {
+    checkEmptyHeartbeat(UA_FIELDENCODING_DATAVALUE, (unsigned int)_i);
+}
+END_TEST
+
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
@@ -574,6 +651,117 @@ START_TEST(UA_PubSub_Decode_WithBufferTooSmallShallReturnError) {
     UA_Array_delete(dmkf.data.keyFrameFields, dmkf.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+
+static size_t fieldCountMaxAlloc = 0;
+
+static void *
+fieldCountTrackingMalloc(size_t size) {
+    if(size > fieldCountMaxAlloc)
+        fieldCountMaxAlloc = size;
+    return malloc(size);
+}
+
+static void *
+fieldCountTrackingCalloc(size_t nelem, size_t elsize) {
+    size_t sz = nelem * elsize;
+    if(sz > fieldCountMaxAlloc)
+        fieldCountMaxAlloc = sz;
+    return calloc(nelem, elsize);
+}
+
+static void *
+fieldCountTrackingRealloc(void *ptr, size_t size) {
+    if(size > fieldCountMaxAlloc)
+        fieldCountMaxAlloc = size;
+    return realloc(ptr, size);
+}
+
+static void
+fieldCountTrackingFree(void *ptr) {
+    free(ptr);
+}
+
+START_TEST(UA_PubSub_Decode_KeyFrameFieldCountExceedsRemainingReturnsBadDecodingError) {
+    /* version=1, no flags -> single DataSetMessage. DSM header valid=1,
+     * fieldEncoding=VARIANT, type=DataKeyFrame (default). fieldCount is set
+     * to 0xFFFF although no bytes remain for even a single field. A correct
+     * decoder must reject this before allocating field storage sized from
+     * the unchecked wire value; the status code alone does not catch this,
+     * since the oversized allocation also ends up failing once the
+     * (nonexistent) field data is decoded. The allocation size is observed
+     * through the UA_ENABLE_MALLOC_SINGLETON hooks. */
+    UA_Byte raw[] = {
+        0x01,             /* NetworkMessage header */
+        0x01,             /* DataSetMessage header */
+        0xFF, 0xFF        /* fieldCount = 65535 */
+    };
+    UA_ByteString buf = { sizeof(raw), raw };
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+
+    void *(*origMalloc)(size_t) = UA_mallocSingleton;
+    void *(*origCalloc)(size_t, size_t) = UA_callocSingleton;
+    void *(*origRealloc)(void *, size_t) = UA_reallocSingleton;
+    void (*origFree)(void *) = UA_freeSingleton;
+
+    fieldCountMaxAlloc = 0;
+    UA_mallocSingleton = fieldCountTrackingMalloc;
+    UA_callocSingleton = fieldCountTrackingCalloc;
+    UA_reallocSingleton = fieldCountTrackingRealloc;
+    UA_freeSingleton = fieldCountTrackingFree;
+
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buf, &m, NULL, NULL);
+
+    UA_mallocSingleton = origMalloc;
+    UA_callocSingleton = origCalloc;
+    UA_reallocSingleton = origRealloc;
+    UA_freeSingleton = origFree;
+
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_uint_lt(fieldCountMaxAlloc, 1024 * 1024);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DeltaFrameFieldCountExceedsRemainingReturnsBadDecodingError) {
+    /* Same as above, but DataSetMessageType=DataDeltaFrame via the Flags2 byte. */
+    UA_Byte raw[] = {
+        0x01,             /* NetworkMessage header */
+        0x81,             /* DataSetMessage header: valid=1, Flags2 enabled */
+        0x01,             /* Flags2: dataSetMessageType = DataDeltaFrame */
+        0xFF, 0xFF        /* fieldCount = 65535 */
+    };
+    UA_ByteString buf = { sizeof(raw), raw };
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+
+    void *(*origMalloc)(size_t) = UA_mallocSingleton;
+    void *(*origCalloc)(size_t, size_t) = UA_callocSingleton;
+    void *(*origRealloc)(void *, size_t) = UA_reallocSingleton;
+    void (*origFree)(void *) = UA_freeSingleton;
+
+    fieldCountMaxAlloc = 0;
+    UA_mallocSingleton = fieldCountTrackingMalloc;
+    UA_callocSingleton = fieldCountTrackingCalloc;
+    UA_reallocSingleton = fieldCountTrackingRealloc;
+    UA_freeSingleton = fieldCountTrackingFree;
+
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buf, &m, NULL, NULL);
+
+    UA_mallocSingleton = origMalloc;
+    UA_callocSingleton = origCalloc;
+    UA_reallocSingleton = origRealloc;
+    UA_freeSingleton = origFree;
+
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_uint_lt(fieldCountMaxAlloc, 1024 * 1024);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+#endif /* UA_ENABLE_MALLOC_SINGLETON */
 
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     UA_NetworkMessage m;
@@ -2094,17 +2282,177 @@ START_TEST(UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset) {
     UA_NetworkMessage_clear(&m);
 } END_TEST
 
+START_TEST(UA_PubSub_Decode_PromotedFieldsTruncatedAfterString) {
+    /* A complete String followed by an Int32 that crosses the declared end.
+     * Clearing the failed message must also release the String. */
+    UA_Byte data[] = {0x81, 0x80, 0x02, 0x07, 0x00,
+                      0x0c, 0x01, 0x00, 0x00, 0x00, 'a',
+                      0x06, 0x2a, 0x00, 0x00, 0x00,
+                      0x01, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DataSetMessageSizeMustFit) {
+    /* Oversized first/last DSM, truncated first DSM, zero and maximal size. */
+    const UA_Byte sizes[][4] = {{10, 0, 3, 0}, {3, 0, 4, 0},
+                                 {2, 0, 4, 0}, {0, 0, 3, 0},
+                                 {3, 0, 0xff, 0xff}};
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x03, 0x00, 0x03, 0x00,
+                      0x01, 0x00, 0x00, 0x01, 0x00, 0x00};
+    memcpy(&data[6], sizes[_i], 4);
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DeclaredSizesPreserveSecurityFooter) {
+    /* Single DSMs have no Sizes array. Multiple DSMs include padding before
+     * the footer, which must be read after the declared payload spans. */
+    UA_Byte single[] = {0x81, 0x10, 0x05, 0, 0, 0, 0, 0, 0x02, 0,
+                        0x01, 0, 0, 0xaa, 0xbb};
+    UA_Byte multiple[] = {0xc1, 0x10, 0x02, 0x01, 0, 0x02, 0,
+                          0x05, 0, 0, 0, 0, 0, 0x02, 0,
+                          0x04, 0, 0x04, 0,
+                          0x01, 0, 0, 0xcc, 0x01, 0, 0, 0xdd,
+                          0xaa, 0xbb};
+    UA_ByteString buffer = {_i ? sizeof(multiple) : sizeof(single),
+                            _i ? multiple : single};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(m.securityFooter.length, 2);
+    ck_assert_uint_eq(m.securityFooter.data[0], 0xaa);
+    ck_assert_uint_eq(m.securityFooter.data[1], 0xbb);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored) {
+    /* The first DSM is an Event message, which cannot be decoded. The valid
+     * second DSM must not hide the error. */
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x02, 0x00, 0x03, 0x00,
+                      0x81, 0x02, 0x01, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_ne(rv, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(UA_PubSub_EnDecode_RawArrays) {
+    UA_UInt32 dims[2] = {2, 3};
+    size_t dimsSize = (_i % 2 == 0) ? 1 : 2;
+    size_t count = (_i % 2 == 0) ? 2 : 6;
+    UA_String strings[6] = {UA_STRING("one"), UA_STRING("two"), UA_STRING("three"),
+                            UA_STRING("four"), UA_STRING("five"), UA_STRING("six")};
+    const UA_DataType *type = &UA_TYPES[_i < 2 ? UA_TYPES_UINT32 : UA_TYPES_STRING];
+    UA_UInt32 data[6] = {11, 22, 33, 44, 55, 66};
+    UA_FieldMetaData field;
+    memset(&field, 0, sizeof(field));
+    field.dataType = type->typeId;
+    field.builtInType = (UA_Byte)(type->typeKind + 1);
+    field.maxStringLength = _i < 2 ? 0 : 8;
+    field.valueRank = (UA_Int32)dimsSize;
+    field.arrayDimensions = dims;
+    field.arrayDimensionsSize = dimsSize;
+    UA_DataSetMessage_EncodingMetaData emd;
+    memset(&emd, 0, sizeof(emd));
+    emd.fields = &field;
+    emd.fieldsSize = 1;
+    UA_NetworkMessage_EncodingOptions eo;
+    memset(&eo, 0, sizeof(eo));
+    eo.metaData = &emd;
+    eo.metaDataSize = 1;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    UA_Variant_setArray(&value.value, _i < 2 ? (void*)data : (void*)strings, count, type);
+    value.value.arrayDimensions = dims;
+    value.value.arrayDimensionsSize = dimsSize;
+    value.hasValue = true;
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
+    dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    dsm.fieldCount = 1;
+    dsm.data.keyFrameFields = &value;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.version = 1;
+    nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    nm.messageCount = 1;
+    nm.payload.dataSetMessages = &dsm;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    size_t expectedSize = UA_NetworkMessage_calcSizeBinary(&nm, &eo);
+    ck_assert_uint_gt(expectedSize, 0);
+    ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&nm, &encoded, &eo),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(encoded.length, expectedSize);
+    UA_NetworkMessage decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(&encoded, &decoded, &eo, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant *result = &decoded.payload.dataSetMessages[0].data.keyFrameFields[0].value;
+    ck_assert_uint_eq(result->arrayLength, count);
+    ck_assert(!UA_Variant_isScalar(result));
+    ck_assert_uint_eq(result->arrayDimensionsSize, dimsSize);
+    ck_assert_mem_eq(result->arrayDimensions, dims, dimsSize * sizeof(UA_UInt32));
+    if(_i < 2) {
+        ck_assert_mem_eq(result->data, data, count * sizeof(UA_UInt32));
+    } else {
+        for(size_t i = 0; i < count; i++)
+            ck_assert(UA_String_equal(&((UA_String*)result->data)[i], &strings[i]));
+    }
+    /* The decoded shape must survive copying and re-encoding. */
+    UA_Variant copy;
+    ck_assert_uint_eq(UA_Variant_copy(result, &copy), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_equal(result, &copy));
+    UA_Variant_clear(&copy);
+    UA_ByteString reencoded = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&decoded, &reencoded, &eo),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&encoded, &reencoded));
+    UA_ByteString_clear(&reencoded);
+    UA_NetworkMessage_clear(&decoded);
+
+    /* Reject truncated arrays, including partial String arrays that already
+     * own allocated members and must be cleaned up on the failure path. */
+    UA_ByteString truncated = {encoded.length - 1, encoded.data};
+    ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(&truncated, &decoded, &eo, NULL),
+                      UA_STATUSCODE_BADDECODINGERROR);
+    UA_NetworkMessage_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
+    tcase_add_loop_test(tc_encode, UA_PubSub_EnDecode_EmptyVariantHeartbeat, 0, 8);
+    tcase_add_loop_test(tc_encode, UA_PubSub_EnDecode_EmptyDataValueHeartbeat, 0, 8);
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
 
     TCase *tc_decode = tcase_create("decode");
     tcase_add_test(tc_decode, UA_PubSub_Decode_WithBufferTooSmallShallReturnError);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    tcase_add_test(tc_decode, UA_PubSub_Decode_KeyFrameFieldCountExceedsRemainingReturnsBadDecodingError);
+    tcase_add_test(tc_decode, UA_PubSub_Decode_DeltaFrameFieldCountExceedsRemainingReturnsBadDecodingError);
+#endif
     tcase_add_test(tc_decode, UA_PubSub_Decode_KeyFrameFieldCountMustFitBuffer);
     tcase_add_test(tc_decode, UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer);
     tcase_add_test(tc_decode, UA_PubSub_Decode_RawDataSizeMustFitBuffer);
 
     TCase *tc_ende1 = tcase_create("encode_decode1DS");
+    tcase_add_loop_test(tc_ende1, UA_PubSub_EnDecode_RawArrays, 0, 4);
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame);
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame);
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame);
@@ -2154,6 +2502,10 @@ int main(void) {
                    UA_PubSub_Encode_RejectsMissingRawFieldMetadata);
 
     TCase *tc_sizes = tcase_create("declared sizes");
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_PromotedFieldsTruncatedAfterString);
+    tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_DataSetMessageSizeMustFit, 0, 5);
+    tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_DeclaredSizesPreserveSecurityFooter, 0, 2);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_FailingDataSetMessageIsNotIgnored);
     tcase_add_test(tc_sizes, UA_PubSub_Decode_PromotedFieldsExceedDeclaredSize);
     tcase_add_test(tc_sizes, UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset);
 

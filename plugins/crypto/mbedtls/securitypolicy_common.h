@@ -11,9 +11,12 @@
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
+#include <mbedtls/md.h>
 #include <mbedtls/x509_crt.h>
 
 #include <psa/crypto.h>
+
+#include "securitypolicy_mbedtls_compat.h"
 
 /* Define MBEDTLS_ENTROPY_HARDWARE_ALT when the platform has no default
  * entropy source. */
@@ -40,18 +43,6 @@ UA_mbedTLS_PsaKey_import(UA_mbedTLS_PsaKey *target,
                          psa_key_type_t type, psa_key_usage_t usage,
                          psa_algorithm_t algorithm,
                          const UA_ByteString *material);
-
-UA_StatusCode
-UA_mbedTLS_PsaMacCompute(mbedtls_svc_key_id_t key,
-                         psa_algorithm_t algorithm,
-                         const UA_ByteString *input,
-                         UA_ByteString *output);
-
-UA_StatusCode
-UA_mbedTLS_PsaMacVerify(mbedtls_svc_key_id_t key,
-                        psa_algorithm_t algorithm,
-                        const UA_ByteString *input,
-                        const UA_ByteString *mac);
 
 UA_StatusCode
 UA_mbedTLS_PsaRandom(UA_ByteString *output);
@@ -92,31 +83,79 @@ UA_mbedTLS_PsaAsymmetricDecrypt(const mbedtls_pk_context *key,
                                 psa_algorithm_t algorithm,
                                 UA_ByteString *data);
 
+/* ECDH and HKDF key derivation. With `sessionSecret` the "opcua-secret" label
+ * of an EccEncryptedSecret is used; then key1 is the server's (receiver's) and
+ * key2 the client's (sender's) ephemeral public key. */
 UA_StatusCode
-UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
-                        const UA_ApplicationType applicationType,
-                        const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
-                        const UA_ByteString *key1,
-                        const UA_ByteString *key2,
-                        UA_ByteString *output);
+UA_mbedTLS_hashCertificate(const UA_ByteString *certificate,
+                           psa_algorithm_t hashAlgorithm, UA_ByteString *hash);
 
 UA_StatusCode
-UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
+UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
+                        const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
+                        const UA_ByteString *remotePublic,
+                        const UA_ByteString *firstNonce,
+                        const UA_ByteString *secondNonce,
+                        const UA_ByteString *label, UA_ByteString *output);
+
+UA_StatusCode
+UA_mbedTLS_EccGenerateEphemeralKey(const UA_SecurityPolicy *policy,
                             UA_mbedTLS_PsaKey *ephemeralKey,
                             psa_ecc_family_t family, size_t bits,
                             UA_ByteString *output);
 
 _UA_BEGIN_DECLS
 
+/* HMAC with the key absorbed into the inner and outer hash states. A message
+ * clones both into work. mbedtls_md uses a PSA hash driver if there is one.
+ * Without clone support the key is imported for psa_mac_*. */
+typedef struct {
+    mbedtls_md_context_t inner;
+    mbedtls_md_context_t outer;
+    mbedtls_md_context_t work;
+    UA_mbedTLS_PsaKey fallbackKey;
+    psa_algorithm_t hash;
+    UA_Boolean ready; /* inner, outer and work are usable */
+} UA_mbedTLS_HmacState;
+
+void
+UA_mbedTLS_HmacState_init(UA_mbedTLS_HmacState *hs);
+
+void
+UA_mbedTLS_HmacState_clear(UA_mbedTLS_HmacState *hs);
+
+/* Clears the old key first. On failure no key is set. */
+UA_StatusCode
+UA_mbedTLS_HmacState_setKey(UA_mbedTLS_HmacState *hs, psa_algorithm_t hash,
+                            const UA_ByteString *key);
+
+/* The signature length must be the hash length */
+UA_StatusCode
+UA_mbedTLS_HmacState_sign(UA_mbedTLS_HmacState *hs,
+                          const UA_ByteString *message,
+                          UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_HmacState_verify(UA_mbedTLS_HmacState *hs,
+                            const UA_ByteString *message,
+                            const UA_ByteString *signature);
+
 typedef struct {
     UA_ByteString localSymIv;
     UA_ByteString remoteSymIv;
 
     mbedtls_x509_crt remoteCertificate;
-    UA_mbedTLS_PsaKey localSymSigningKey;
+#if defined(UA_MBEDTLS_AES_CONTEXT)
+    mbedtls_aes_context localAes;  /* expanded encryption key */
+    mbedtls_aes_context remoteAes; /* expanded decryption key */
+    UA_Boolean localAesSet;
+    UA_Boolean remoteAesSet;
+#else
     UA_mbedTLS_PsaKey localSymEncryptingKey;
-    UA_mbedTLS_PsaKey remoteSymSigningKey;
     UA_mbedTLS_PsaKey remoteSymEncryptingKey;
+#endif
+    UA_mbedTLS_HmacState localMac;
+    UA_mbedTLS_HmacState remoteMac;
     psa_algorithm_t symmetricMacAlgorithm;
 } mbedtls_ChannelContext;
 

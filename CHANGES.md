@@ -3,11 +3,301 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Policy-provided certificate hash for session signatures
+
+`UA_SecurityPolicy.hashCertificateForSignature` replaces the global
+`UA_SecurityPolicy_hashCertificate` helper. Enhanced policies must implement
+this function pointer to hash a leaf DER certificate and allocate the result.
+`certThumbprintLength` describes the output size; it no longer selects the
+algorithm. `makeCertThumbprint` continues to handle the OPN-header thumbprint.
+
+### Explicit key-derivation direction
+
+`UA_SecurityPolicy.generateKey` takes `UA_KeyDerivationDirection` with
+`UA_KEYDERIVATION_LOCAL` for sending keys and `UA_KEYDERIVATION_REMOTE` for
+receiving keys. Its nonce arguments are always `localNonce, remoteNonce`.
+Custom policies must select the protocol's nonce order and derivation label
+from the direction, instead of inferring direction from the nonce values.
+
+### Explicit sequence-number handling
+
+`UA_SecurityPolicy.legacySequenceNumbers` replaces the removed
+`UA_SecurityPolicy_useLegacySequenceNumbers` helper. Custom policies must set
+this member: true for None and RSA, false for ECC. The core reads the member
+without inferring the behavior from the policy URI or type.
+
+### Separate random nonces and ephemeral keys
+
+`UA_SecurityPolicy.generateNonce` always fills its output with random data.
+ECC policies must implement the new `generateEphemeralKey` callback, which
+stores a fresh private key in the channel context and writes the public key
+to a caller-allocated `nonceLength` buffer. The old `"eph"` output-buffer
+marker is removed. Policies without key agreement leave the callback NULL.
+
+### All twelve ECC AEAD SecurityPolicies of OPC UA Part 7
+
+The OpenSSL backend now implements the ten ECC AEAD SecurityPolicies that were
+missing besides `ECC_nistP256_AesGcm` and `ECC_nistP256_ChaChaPoly`:
+`ECC_nistP384`, `ECC_brainpoolP256r1`, `ECC_brainpoolP384r1`, `ECC_curve25519`
+and `ECC_curve448`, each with `_AesGcm` and `_ChaChaPoly`. They have
+constructors `UA_SecurityPolicy_Ecc<Curve><Aead>` and server config helpers
+`UA_ServerConfig_addSecurityPolicyEcc<Curve><Aead>`, and for all twelve the
+client helpers `UA_ClientConfig_addSecurityPolicyEcc<Curve><Aead>`. They are
+not part of the default policy set, since a certificate is valid for one curve
+only. `UA_ClientConfig_setAuthenticationCert` also creates an instance with the
+user certificate for every ECC AEAD policy the client has configured.
+The certificate must be on the curve of the policy (Ed25519/Ed448 for the
+curve25519/curve448 policies); otherwise the constructor returns
+`BadCertificateInvalid`. The deprecated `ECC_curve25519` and `ECC_curve448`
+policies are now marked as such.
+
+### Own callback for the EccEncryptedSecret key derivation
+
+`UA_SecurityPolicy` has a new member `generateEncryptedSecretKey`. It derives
+the key material of an EccEncryptedSecret (UserIdentityToken) with the
+"opcua-secret" label. Before, the core wrote the marker bytes `0x03 0x03 0x04`
+into the output buffer of `generateKey` to select that label. Custom ECC
+SecurityPolicies must implement the new callback; others leave it NULL.
+
+### Explicit IKM accumulator in SecurityPolicy key derivation
+
+`UA_SecurityPolicy.generateKey` takes an additional `UA_ByteString *ikmInOut`
+parameter immediately before `out`. NULL disables IKM chaining; otherwise it
+points to a writable, caller-owned buffer of `secretLength` bytes containing
+the previous accumulator. A successful call updates it with the new chained
+IKM. `secret` and `seed` now always contain the original nonces, without an
+IKM prefix. Custom SecurityPolicies must update their callback signature;
+policies without SecureChannelEnhancements can ignore the new parameter.
+The separate `UA_PubSubSecurityPolicy.generateKey` interface is unchanged.
+
+### SecurityPolicies declare their key-agreement properties
+
+`UA_SecurityPolicy` has three new members: `secretLength` (the key-agreement
+shared secret, also the width of the v1.05.07 IKM accumulator),
+`certThumbprintLength` (the digest of the channel-bound SignatureData) and
+`secureChannelEnhancements`. Before, the core derived these from the policy URI
+and `nonceLength`, which does not hold for X25519/X448. Custom SecurityPolicies
+must set them; zero/false means "not applicable".
+`UA_SecurityPolicy_isEnhancedSecurity` is removed. Read
+`policy->secureChannelEnhancements` directly instead.
+
+### The ServerConfiguration Object needs the GDS receiver driver
+
+The ServerConfiguration Object (`ns=0;i=12637`) is only present if the server
+supports PushManagement (Part 12, 7.10.1). Builds without
+`UA_ENABLE_DRIVER_GDS_RECEIVER` no longer contain it. Before, they contained it
+with Variables without a value and Methods that returned `Bad_InternalError`.
+With `UA_ENABLE_DRIVER_GDS_RECEIVER`, all Variables of the ServerConfiguration
+have a value also while the driver is not started, and the driver restores
+these values when it stops.
+
+### UpdateCertificate checks the PrivateKey by itself
+
+The UpdateCertificate Method and `UA_GDSReceiver_updateCertificate` return
+`BadCertificateInvalid` instead of `BadNotSupported` if a valid PrivateKey does
+not match the certificate. `BadNotSupported` is now reserved for a PrivateKey
+that is invalid by itself: it does not decode, it is encrypted, or its
+components do not form a key pair. Before, a PrivateKey with changed private
+components (for example `d` or `p` of an RSA key) was accepted because its
+public key still matched the certificate.
+
+The new `UA_CertificateUtils_checkPrivateKey` in
+`open62541/plugin/certificategroup.h` performs this check.
+`UA_CertificateUtils_checkKeyPair` still compares only the public keys.
+
+### A CertificateGroup without verifyCertificate accepts all certificates
+
+`UA_CertificateGroup_AcceptAll` now leaves `verifyCertificate` NULL, and the
+server and the client accept every certificate of a CertificateGroup without
+`verifyCertificate`, with a warning per verification. Before, the server
+rejected the certificates of a CertificateGroup that was not configured. The
+default AccessControl always offers x509 user tokens. The server warns at
+startup if a SecurityPolicy other than #None is configured and the SecureChannel
+PKI, or the Session PKI while x509 user tokens are offered, accepts all
+certificates.
+
+### Retransmission queue capacity
+
+`UA_ServerConfig.maxRetransmissionQueueSize` now controls the retransmission
+capacity without an additional hard-coded limit of 256 messages per subscription.
+The configured limit is shared by all subscriptions in a session; overflow removes
+the oldest retained message. The default value of `0` permits growth subject to
+available memory. Applications that need bounded retention should configure a
+nonzero limit, or disable retransmission with `enableRetransmissionQueue`.
+
+### Deprecated ECC SecurityPolicies have SecurityLevel 0
+
+The OPC UA 1.05 Profile database marks the SecurityPolicies `ECC_nistP256`,
+`ECC_nistP384`, `ECC_brainpoolP256r1`, `ECC_brainpoolP384r1`, `ECC_curve25519`
+and `ECC_curve448` as deprecated. Their `securityLevel` is now 0, like
+`Basic128Rsa15` and `Basic256`. `UA_ServerConfig_addAllSecureEndpoints` creates
+no Endpoints for them, and clients that select an Endpoint by SecurityLevel rank
+them last.
+
+`ECC_curve25519` and `ECC_curve448` are no longer part of the default policy
+set (`UA_ServerConfig_addAllSecurityPolicies`,
+`UA_ServerConfig_setDefaultWithSecurityPolicies` and their `Secure` variants,
+`UA_ClientConfig_setDefaultEncryption`). To keep using them, add them with
+`UA_ServerConfig_addSecurityPolicyEccCurve25519` or
+`UA_ServerConfig_addSecurityPolicyEccCurve448` and create their Endpoints with
+`UA_ServerConfig_addEndpoint` or `UA_ServerConfig_addAllEndpoints`.
+
+`doc/security/policies.rst` lists all OPC UA 1.05 SecurityPolicies with their
+status, SecurityLevel and the backends that implement them.
+
+### Default ValueRank is scalar
+
+The default `ValueRank` for `UA_VariableAttributes` and
+`UA_VariableTypeAttributes` is now `UA_VALUERANK_SCALAR` (`-1`). Both the nodeset
+compiler and the runtime XML loader also apply the UANodeSet schema's scalar
+default when a Variable or VariableType omits `ValueRank`. They no longer
+inherit the rank from the type definition or supertype in that case.
+
+Array-valued nodes must declare a compatible rank explicitly. This also applies
+to VariableTypes intended to allow arrays. Older NodeSets that relied on rank
+inheritance can now contain incompatible nodes: the generated loader returns an
+error, while the runtime XML loader logs and omits rejected nodes.
+
+### Configure the advertised server profiles explicitly
+
+`UA_ServerConfig.serverProfileArray` and `serverProfileArraySize` now determine
+`Server.ServerCapabilities.ServerProfileArray` (`ns=0;i=2269`). The default is
+an empty String array. The SDK no longer automatically advertises
+`StandardUA2017`, `NodeManagement`, or `Methods` based on build options. Startup
+logs a warning when it writes an empty list, since clients and compliance tests
+expect the list to name the supported profiles.
+
+Applications must declare only profiles supported by their current configuration,
+including all mandatory ConformanceUnits. See
+[OPC UA Part 5, 6.3.2](https://reference.opcfoundation.org/specs/OPC-10000-5/6.3.2)
+and [Part 7, 4.5](https://reference.opcfoundation.org/specs/OPC-10000-7/4.5).
+Only Server Profiles and Facets belong in the list; Transport and Security
+Profile URIs are part of the EndpointDescriptions
+([Part 7, 4.4](https://reference.opcfoundation.org/specs/OPC-10000-7/4.4)).
+An empty declaration is not a claim of certification compliance. The SDK accepts
+vendor-defined URIs and preserves their order. It rejects empty entries but does
+not validate conformance.
+
+The config owns the array and strings. For example, after setting up the default
+config, allocate a declaration as follows (the URIs below are illustrative):
+
+```c
+UA_String profiles[] = {UA_STRING("urn:example:profile:server"),
+                        UA_STRING("urn:example:profile:facet")};
+UA_StatusCode res = UA_Array_copy(profiles, 2,
+    (void**)&config.serverProfileArray, &UA_TYPES[UA_TYPES_STRING]);
+if(res != UA_STATUSCODE_GOOD) {
+    UA_ServerConfig_clear(&config);
+    return res;
+}
+config.serverProfileArraySize = 2;
+```
+
+`UA_Server_newWithConfig()` takes ownership. When replacing an existing list,
+free it with `UA_Array_delete()` and reset both fields before assigning the new
+array. Modify the configuration only while stopped. A nonempty list is copied
+into the AddressSpace on creation and before each startup, including restarts.
+Direct node writes made before startup are overwritten, and the node has to
+accept the write.
+
+An empty list does not replace the value of a node with a read-only value
+source. With `MINIMAL` or `NONE` namespace zero, an empty list also keeps the
+node supplied by the application or an external nodestore (or its absence),
+unless it retracts a declaration applied earlier. A nonempty declaration
+requires the application to supply the node; the SDK does not create it.
+
+JSON configuration accepts `serverProfileArray: ["urn:example:profile:server"]`.
+Omitting the field leaves the default empty; `[]` clears a preceding declaration.
+Non-array values and non-string elements are rejected.
+
+Adding these fields changes the public configuration structure's binary layout.
+Rebuild dependent applications and bindings, and migrate profile declarations
+from direct node writes to the configuration fields.
+
+### Own memory functions on Zephyr
+
+With `CONFIG_OPEN62541_MALLOC_EXTERN`, `UA_malloc`, `UA_calloc`, `UA_realloc`
+and `UA_free` are declared as external functions that the application
+defines, instead of being mapped to `k_malloc` and friends.
+
+### Generate custom DataTypes from NodeSet2 definitions
+
+The NodeSet compiler now reads ``Definition`` elements from ``UADataType``
+nodes. It generates matching C declarations and const ``UA_TYPES_<NAME>``
+arrays. The generated loader can register these arrays unchanged or copy and
+remap their descriptors into server-owned storage. No-copy loading trusts the
+baked-in namespace indexes; the application must ensure they match the server.
+The ``DataTypeDefinition`` attribute is materialized from that layout when it
+is read. A separate BSD type dictionary is therefore no longer required when
+the NodeSet2 file contains complete datatype definitions.
+
+### Client reconnects with backoff and gives up
+
+A lost connection is re-dialed with a delay that starts at the new
+`UA_ClientConfig.reconnectInterval` (default 250 ms) and doubles up to
+`reconnectIntervalMax` (default 10 s). If the re-dial after the maximum delay
+fails, the client gives up with `BadConnectionRejected` or `BadConnectionClosed`.
+Before, a connection that closed before the SecureChannel opened was re-dialed
+without delay, and a refused re-dial ended the connection at once. The comment
+above these fields in `UA_ClientConfig` describes the full connect behavior.
+
+### Asynchronous client requests need an activated Session
+
+Asynchronous requests bound to a Session return `BadSessionNotActivated` while
+the Session is not activated, e.g. during its re-activation after a reconnect.
+Before, they were sent without an AuthenticationToken, and the rejection by the
+server discarded the Session.
+
+### Method support is always available
+
+`UA_ENABLE_METHODCALLS` is removed. The Method service set and method APIs are
+always compiled.
+
+### File transfer driver build option
+
+`UA_ENABLE_DRIVER_FILE_TRANSFER` controls the file transfer driver and defaults
+to ON on all architectures. The local filesystem backend supports POSIX and
+Win32; other architectures can supply a custom backend.
+
+### Percentage deadband support is always available
+
+`UA_ENABLE_DA` is removed. Percentage deadband support is always compiled with
+subscriptions, and DataAccess datatypes and the Part 8 subset are always included
+in the reduced namespace zero.
+
+### Discovery is controlled by server configuration
+
+`UA_ENABLE_DISCOVERY` and `UA_ENABLE_DISCOVERY_MULTICAST` are removed. Use
+`UA_ServerConfig.registeredServersEnabled` and `serversOnNetworkEnabled` to
+enable registration management and network discovery services. mDNS announcement
+and browsing require an attached driver, built with
+`UA_ENABLE_DRIVER_MDNS_MDNSD` or `UA_ENABLE_DRIVER_MDNS_AVAHI`.
+
 ### Optional UTC-only local time on POSIX
 
 The POSIX CMake option `UA_ARCH_LOCAL_TIME_IS_UTC` (default OFF) makes
 `UA_DateTime_localTimeUtcOffset()` return zero without linking C library timezone
 conversion functions. The stdout logger consequently uses UTC timestamps.
+
+### CertificateGroup parameters are validated
+
+The OpenSSL `UA_CertificateGroup_Memorystore` (and the Filestore, which builds on
+it) read the keys `0:maxTrustListSize` and `0:maxRejectedListSize`, while the
+documentation and the mbedTLS backend use `0:max-trust-listsize` and
+`0:max-rejected-listsize`. Both backends now use the documented keys. With
+OpenSSL, the old keys remain accepted and log a deprecation warning. The new
+key takes precedence if both are given.
+
+Keys in namespace zero are reserved for the plugin. `UA_CertificateGroup_Memorystore`
+and `UA_CertificateGroup_Filestore` now fail with `BadInvalidArgument` for an
+unknown namespace zero key and fail if a known key does not hold a `UInt32`
+scalar. Before, such parameters were silently ignored. Keys in other namespaces are still ignored.
+
+The validation is done with the new public `UA_KeyValueMap_validate` in
+`open62541/util.h`, which plugins can use to check their parameters against an
+array of `UA_KeyValueRestriction` (previously internal to the EventLoop
+implementations). With `rejectUnknown` set, it fails for unknown keys in
+namespace zero.
 
 ### Session and subscription diagnostics are named in the server namespace
 
@@ -73,6 +363,56 @@ now available with every `UA_ENABLE_ENCRYPTION` backend. They were limited to
 mbedTLS before. The PubSub security tests and the encrypted PubSub examples
 build with OpenSSL and LibreSSL as well.
 
+### Async cancellation still requires completion
+
+Cancellation of an asynchronous Read, Write or Call now preserves operation
+storage until completion. Applications must follow these ownership rules:
+
+- Read/Call output remains valid after cancellation until its setter takes
+  ownership. Synchronize concurrent access from the cancellation callback.
+- Whether canceled or not, complete each operation with exactly one matching
+  `UA_Server_setAsync*Result` call, then stop accessing its storage: the server
+  may free or reuse it. Canceled results are discarded.
+- Continue completing operations during shutdown. Shutdown cancels pending
+  service and local operations with `UA_STATUSCODE_BADSHUTDOWN` and waits for
+  outstanding setter calls. Keep driving an external event loop if used.
+
+The local `UA_Server_cancelAsync` API has been removed. Local requests complete
+normally, time out, or are canceled during shutdown.
+
+Deleting a monitored item no longer cancels asynchronous reads already started
+to sample its value. Applications must still complete those reads with
+`UA_Server_setAsyncReadResult`; the server discards the results.
+
+After response handling or local result delivery, the server calls the optional
+`asyncOperationCancelCallback` for each canceled operation still awaiting its
+setter call.
+
+Session closure rejects new requests immediately. While the server is running,
+final notifications and session-context cleanup are deferred to the event loop.
+Outstanding async responses emit `SERVICE_END` before `SESSION_CLOSED` and before
+the access-control `closeSession` callback releases the session context.
+
+Local async requests are rejected with `BadShutdown` unless the server is
+started. `UA_Server_run_shutdown` waits until `STOPPED`, including when called
+while already `STOPPING`. Calling this blocking shutdown during operation
+dispatch or async callbacks returns `BadInvalidState`; defer it until the callback
+returns or use `UA_Server_run_shutdown_async`.
+Shutdown also drains workers left by synchronous calls before startup or after
+a completed shutdown. Blocking shutdown starts their EventLoop if necessary;
+with nonblocking shutdown the caller must start and drive it.
+Datachange monitored items sample only while the server is `STARTED`. Items
+created before startup wait for their next sampling trigger; startup does not
+take an initial sample. Zero-interval items sampled on writes wait for a write.
+If startup fails while the server is `STOPPING`, keep driving an external event
+loop until `STOPPED` before retrying startup.
+
+Synchronous local Read/Write/Call APIs cancel deferred operations and report
+`BadWaitingForResponse`; their operation storage also survives until the setter call.
+This does not extend the lifetime of callback inputs: copy any contents needed
+later. In particular, a Write value pointer is only an identifier after its
+callback returns.
+
 ### PubSub security-policy nonce lengths
 
 Custom `UA_PubSubSecurityPolicy` implementations must initialize the new
@@ -92,6 +432,19 @@ APIs. Model changes update the affected Node's scalar String `NodeVersion`
 Property. Semantic changes also set the `SemanticsChanged` StatusCode bit on
 the next DataChange notification for Value MonitoredItems on the affected
 Variable.
+
+### Borrowed datatype arrays
+
+`UA_DataTypeArray` has a new trailing `borrowed` flag. With `cleanup = true`,
+configuration cleanup frees the list entry but leaves the datatypes and their
+referenced data untouched when `borrowed = true`. This supports per-client or
+per-server heap entries referring to shared static datatype arrays. With
+`cleanup = false`, neither the entry nor its contents are freed, regardless of
+`borrowed`.
+
+Zero-initialized entries and existing aggregate initializers retain their old
+cleanup behavior. Code that initializes entries field by field must initialize
+`borrowed` too. Rebuild consumers after this public structure change.
 
 ### UA_DataTypeArray.types is const
 

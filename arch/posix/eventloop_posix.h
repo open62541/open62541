@@ -15,16 +15,16 @@
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
-#include "arch/posix/posix.h"
-#endif
-
 #include "../common/timer.h"
 #include "../common/eventloop_common.h"
 #include "../../deps/mp_printf.h"
 
 #if !defined(__QNX__)
 # include "../deps/open62541_queue.h"
+#else
+/* QNX has its own queue.h, but since QNX 8.0 the network headers no longer
+ * include it */
+# include <sys/queue.h>
 #endif
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
@@ -368,12 +368,12 @@ UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el);
 UA_StatusCode
 UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el, UA_Callback cb,
                            void *application, void *data, UA_Double interval_ms,
-                           UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                           const UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
                            UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_EventLoopPOSIX_modifyTimer(UA_EventLoop *public_el, UA_UInt64 callbackId,
-                              UA_Double interval_ms, UA_DateTime *baseTime,
+                              UA_Double interval_ms, const UA_DateTime *baseTime,
                               UA_TimerPolicy timerPolicy);
 
 void

@@ -1133,6 +1133,49 @@ START_TEST(Server_HistorizingBackendMemory)
 }
 END_TEST
 
+/* The source timestamp of the only value a read of one value returns */
+static UA_DateTime
+readOneValue(UA_DateTime start, UA_DateTime end) {
+    UA_HistoryReadResponse response;
+    UA_HistoryReadResponse_init(&response);
+    requestHistory(start, end, &response, 1, false, NULL);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_HistoryData *data = (UA_HistoryData*)
+        response.results[0].historyData.content.decoded.data;
+    ck_assert_uint_eq(data->dataValuesSize, 1);
+    UA_DateTime ts = data->dataValues[0].sourceTimestamp;
+    UA_HistoryReadResponse_clear(&response);
+    return ts;
+}
+
+/* Part 11, 6.5.3.1: an unspecified start or end time is DateTime.MinValue,
+ * 0 on the wire. With a start time and a count alone, the values after the
+ * start are read forwards; with an end time and a count alone, the values
+ * before the end are read backwards (6.5.3.2). */
+START_TEST(Server_HistorizingUnspecifiedTimeIsZero)
+{
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 100);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 100;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(fillHistoricalDataBackend(backend), true);
+
+    /* Data: 5:00, 5:02, 5:03, 5:05, 5:06 */
+    ck_assert_int_eq(readOneValue(TIMESTAMP_5_01, 0), TIMESTAMP_5_02);
+    ck_assert_int_eq(readOneValue(0, TIMESTAMP_5_04), TIMESTAMP_5_03);
+
+    /* LLONG_MIN, which the backends use internally, means the same */
+    ck_assert_int_eq(readOneValue(TIMESTAMP_5_01, LLONG_MIN), TIMESTAMP_5_02);
+    ck_assert_int_eq(readOneValue(LLONG_MIN, TIMESTAMP_5_04), TIMESTAMP_5_03);
+
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
+}
+END_TEST
+
 START_TEST(Server_HistorizingRandomIndexBackend)
 {
     UA_HistoryDataBackend backend = UA_HistoryDataBackend_randomindextest(testData);
@@ -1407,6 +1450,69 @@ START_TEST(CircularBackendRejectsExcessNodes) {
     ck_assert_int_eq(stored->serverTimestamp, 100);
     backend.deleteMembers(&backend);
 } END_TEST
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+static size_t constructorAllocation;
+static void *(*constructorCalloc)(size_t, size_t);
+
+static void *
+failConstructorCalloc(size_t count, size_t size) {
+    if(--constructorAllocation == 0)
+        return NULL;
+    return constructorCalloc(count, size);
+}
+
+START_TEST(History_constructors_allocationFailure) {
+    constructorCalloc = UA_callocSingleton;
+    constructorAllocation = (_i == 1 || _i == 3) ? 2 : 1;
+    UA_callocSingleton = failConstructorCalloc;
+    void *context;
+    if(_i < 2) {
+        UA_HistoryDataGathering result = UA_HistoryDataGathering_Default(1);
+        context = result.context;
+    } else if(_i < 4) {
+        UA_HistoryDataBackend result = UA_HistoryDataBackend_Memory(1, 1);
+        context = result.context;
+    } else {
+        UA_HistoryDataGathering gatheringConfig;
+        memset(&gatheringConfig, 0, sizeof(gatheringConfig));
+        UA_HistoryDatabase result = UA_HistoryDatabase_default(gatheringConfig);
+        context = result.context;
+    }
+    UA_callocSingleton = constructorCalloc;
+    ck_assert_uint_eq(constructorAllocation, 0);
+    ck_assert_ptr_eq(context, NULL);
+} END_TEST
+
+START_TEST(History_store_allocationFailure) {
+    UA_Server *historyServer = UA_Server_newForUnitTest();
+    UA_HistoryDataBackend backend = (_i == 1) ?
+        UA_HistoryDataBackend_Memory_Circular(1, 4) : UA_HistoryDataBackend_Memory(1, 4);
+    ck_assert_ptr_ne(backend.context, NULL);
+    UA_NodeId node = UA_NODEID_NUMERIC(1, 42);
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.hasSourceTimestamp = true;
+    value.sourceTimestamp = 1;
+    ck_assert_uint_eq(backend.serverSetHistoryData(historyServer, backend.context,
+        NULL, NULL, &node, true, &value), UA_STATUSCODE_GOOD);
+
+    constructorCalloc = UA_callocSingleton;
+    constructorAllocation = 1;
+    UA_callocSingleton = failConstructorCalloc;
+    value.sourceTimestamp = 2;
+    UA_StatusCode res = (_i == 2) ?
+        backend.insertDataValue(historyServer, backend.context, NULL, NULL, &node, &value) :
+        backend.serverSetHistoryData(historyServer, backend.context, NULL, NULL,
+                                     &node, true, &value);
+    UA_callocSingleton = constructorCalloc;
+    size_t end = backend.getEnd(historyServer, backend.context, NULL, NULL, &node);
+    backend.deleteMembers(&backend);
+    UA_Server_delete(historyServer);
+    ck_assert_uint_eq(constructorAllocation, 0);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(end, 1);
+} END_TEST
+#endif
 
 static Suite *
 testSuite_Client(void) {
@@ -1418,6 +1524,7 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_HistorizingReadIndexRange);
     tcase_add_test(tc_server, Server_HistorizingStrategyValueSet);
     tcase_add_test(tc_server, Server_HistorizingBackendMemory);
+    tcase_add_test(tc_server, Server_HistorizingUnspecifiedTimeIsZero);
     tcase_add_test(tc_server, Server_HistorizingRandomIndexBackend);
     tcase_add_test(tc_server, Server_HistorizingUpdateDelete);
     tcase_add_test(tc_server, Server_HistorizingUpdateInsert);
@@ -1437,6 +1544,11 @@ testSuite_Client(void) {
     suite_add_tcase(s, tc_memory);
 
 #ifdef UA_ENABLE_MALLOC_SINGLETON
+    TCase *tc_constructors = tcase_create("History constructor allocation failures");
+    tcase_add_loop_test(tc_constructors, History_constructors_allocationFailure, 0, 5);
+    tcase_add_loop_test(tc_constructors, History_store_allocationFailure, 0, 3);
+    suite_add_tcase(s, tc_constructors);
+
     TCase *tc_oom = tcase_create("Server Historical Data Out Of Memory");
     tcase_add_checked_fixture(tc_oom, setup, teardown);
     tcase_add_test(tc_oom, Server_HistorizingReadHistoryDataOutOfMemory);

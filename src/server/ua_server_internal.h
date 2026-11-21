@@ -87,15 +87,20 @@ UA_StatusCode initNS0RBAC(UA_Server *server);
 
 #endif /* UA_ENABLE_RBAC */
 
-#ifdef UA_ENABLE_DISCOVERY
 
 typedef struct RegisteredServerRecord {
     LIST_ENTRY(RegisteredServerRecord) pointers;
     UA_RegisteredServer registeredServer;
+    /* Name of the ServerOnNetwork entry of the registration. That is the
+     * mdnsServerName from RegisterServer2 or else the first ServerName. Stored
+     * to remove the entry without the original request. */
+    UA_String mdnsServerName;
+    /* The announce flag of the ServerOnNetwork entry when it was last added
+     * or updated */
+    UA_Boolean announce;
     UA_DateTime lastSeen;
 } RegisteredServerRecord;
 
-#endif /* UA_ENABLE_DISCOVERY */
 
 typedef struct session_list_entry {
     UA_DelayedCallback cleanupCallback;
@@ -135,6 +140,9 @@ struct UA_Server {
 
     UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
+
+    /* ServerCapabilities derived from the config during startup */
+    UA_UInt64 serverCapabilities;
 
     /* List of registered drivers. The internally created drivers furthermore
      * have direct pointers for fast access below. */
@@ -180,6 +188,9 @@ struct UA_Server {
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
+
+    /* The ServerProfileArray node holds a declaration from the config */
+    UA_Boolean serverProfileArrayDeclared;
 
     /* Current depth while recursively instantiating node children */
     size_t nodeInstantiationDepth;
@@ -245,10 +256,10 @@ struct UA_Server {
     UA_NamespaceMetadata *namespaceMetadata;
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
     /* Registered Servers */
     LIST_HEAD(, RegisteredServerRecord) registeredServers;
     size_t registeredServersSize;
+    size_t maxRegisteredServers;
 
     /* Servers On Network
      * TODO: Use a TAILQ for easier updates */
@@ -256,13 +267,17 @@ struct UA_Server {
     UA_DateTime lastCounterResetTime;
     size_t serversOnNetworkSize;
     UA_ServerOnNetwork *serversOnNetwork;
-#endif /* UA_ENABLE_DISCOVERY */
 };
 
 /* In case the configuration was updated. Make the ->next pointer in the
  * internal customTypes point into the configuration. */
 const UA_DataTypeArray *
 serverCustomTypes(UA_Server *server);
+
+/* Exact lookup followed by simple-alias resolution. Takes the service lock
+ * internally. Unregistered structured types and cyclic hierarchies fail. */
+const UA_DataType *
+resolveDataTypeRepresentation(UA_Server *server, const UA_NodeId *typeId);
 
 /* Add a DiscoveryUrl if it is not already configured. Returns true only if
  * this call added the URL, so temporary transports can remove what they own. */
@@ -271,6 +286,22 @@ addServerDiscoveryUrl(UA_Server *server, const UA_String *url);
 
 void
 removeServerDiscoveryUrl(UA_Server *server, const UA_String *url);
+
+/* Re-derive server->serverCapabilities from the configured bitmask and the
+ * ApplicationType. This validates and normalizes the configuration. */
+void
+setupServerCapabilities(UA_Server *server);
+
+/* Returns the bit of the capability identifier. Zero if it is unknown. */
+UA_UInt64
+getServerCapability(const UA_String *identifier);
+
+/* Writes the identifiers of the capabilities in the bitmask to out and returns
+ * their number. The strings point to static memory. */
+#define UA_SERVERCAPABILITIES_MAX 64
+size_t
+getServerCapabilityIdentifiers(UA_UInt64 capabilities,
+                               UA_String out[UA_SERVERCAPABILITIES_MAX]);
 
 /* Whether the URL uses opc.http or opc.https. */
 UA_Boolean
@@ -763,28 +794,36 @@ readWithSession(UA_Server *server, UA_Session *session,
 UA_Boolean
 Operation_ReadWithNode(UA_Server *server, UA_Session *session,
                        const UA_Node *node, UA_TimestampsToReturn ttr,
-                       const UA_ReadValueId *rvi, UA_DataValue *dv);
+                       const UA_ReadValueId *rvi, UA_DataValue *dv,
+                       UA_Boolean *nonNullable);
 
 UA_Boolean
 Operation_WriteWithNode(UA_Server *server, UA_Session *session,
                         UA_Node *node, const UA_WriteValue *wv,
                         UA_StatusCode *result);
 
-/* Direct asynchronous wrappers for callers that already own a stable node
- * pointer. They retain the same async-operation storage and callbacks as the
- * NodeId-based UA_Server_*_async entry points. */
-UA_StatusCode
-readWithNode_async(UA_Server *server, UA_Session *session,
-                   const UA_Node *node, const UA_ReadValueId *operation,
-                   UA_TimestampsToReturn ttr,
-                   UA_ServerAsyncReadResultCallback callback,
-                   void *context, UA_UInt32 timeout);
+/* Synchronous facades. Results must be initialized. The optional node is
+ * borrowed for the duration of the read. All require the service mutex. */
+void
+readNoAsync(UA_Server *server, UA_Session *session, const UA_Node *node,
+            UA_TimestampsToReturn ttr, const UA_ReadValueId *rvi,
+            UA_DataValue *result);
 
 UA_StatusCode
-writeWithNode_async(UA_Server *server, UA_Session *session,
-                    UA_Node *node, const UA_WriteValue *operation,
-                    UA_ServerAsyncWriteResultCallback callback,
-                    void *context, UA_UInt32 timeout);
+writeNoAsync(UA_Server *server, UA_Session *session, const UA_WriteValue *value);
+
+void
+callNoAsync(UA_Server *server, UA_Session *session,
+            const UA_CallMethodRequest *request, UA_CallMethodResult *result);
+
+UA_StatusCode
+readValueAttributeRaw(UA_Server *server, UA_Session *session,
+                      const UA_VariableNode *node, UA_DataValue *result);
+
+void
+Operation_Read_complete(UA_Server *server, UA_DataValue *value,
+                        UA_TimestampsToReturn ttr, UA_UInt32 attributeId,
+                        UA_Boolean nonNullable);
 
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
@@ -811,6 +850,12 @@ translateBrowsePathToNodeIdsWithNode(UA_Server *server,
 UA_SecurityPolicy *
 getDefaultEncryptedSecurityPolicy(UA_Server *server,
                                   UA_SecurityPolicyType type);
+
+/* Returns the Server certificate a Client needs to encrypt a UserIdentityToken
+ * for the endpoint. */
+const UA_ByteString *
+getUserTokenEncryptionCertificate(UA_Server *server,
+                                  const UA_EndpointDescription *ed);
 
 /* If the channel is non-NULL, then only compatible endpoints are returned.
  * Depending on ECC/RSA for the SecurityPolicy of the existing channel. */
@@ -849,7 +894,6 @@ UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
-#ifdef UA_ENABLE_DISCOVERY
 UA_Driver * UA_DiscoveryManager_new(void);
 
 /* Narrow registration-state access for white-box tests. */
@@ -859,7 +903,6 @@ UA_DiscoveryManager_getPendingRegistration(UA_Server *server,
 UA_StatusCode
 UA_DiscoveryManager_cancelPendingRegistration(UA_Server *server);
 void cleanupRegisteredServers(UA_Server *server);
-#endif
 
 /* Binary protocol handling shared by stream-based server transports */
 #define UA_MAXSERVERCONNECTIONS 16
@@ -1167,6 +1210,20 @@ UA_StatusCode initNS0(UA_Server *server);
 
 /* Connect data sources to existing NS0 nodes */
 UA_StatusCode initNS0_dataSources(UA_Server *server);
+
+/* Write the ServerConfiguration variables that mirror the
+ * ApplicationDescription of the server config */
+UA_StatusCode writeNs0ApplicationDescription(UA_Server *server);
+
+/* Copy the configured profile declarations into the AddressSpace. During
+ * startup, an empty declaration is reported. */
+UA_StatusCode writeNs0ServerProfileArray(UA_Server *server, UA_Boolean startup);
+
+/* Write the ServerCapabilities derived during startup */
+UA_StatusCode writeNs0ServerCapabilities(UA_Server *server);
+
+/* Write the MaxTrustListSize of the server config */
+UA_StatusCode writeNs0MaxTrustListSize(UA_Server *server);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);

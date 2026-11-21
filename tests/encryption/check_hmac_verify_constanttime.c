@@ -15,6 +15,7 @@
  */
 
 #include <open62541/types.h>
+#include <stdlib.h>
 
 #include <string.h>
 
@@ -86,20 +87,17 @@ check_verify_helper(SignFn sign, VerifyFn verify, size_t macLen) {
 static UA_StatusCode
 mbedtlsPsaSign(psa_algorithm_t hashAlgorithm, const UA_ByteString *input,
                const UA_ByteString *signingKey, UA_ByteString *signature) {
-    const psa_algorithm_t macAlgorithm = PSA_ALG_HMAC(hashAlgorithm);
     const size_t macLength = PSA_HASH_LENGTH(hashAlgorithm);
     if(signature->length < macLength)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     signature->length = macLength;
-    UA_mbedTLS_PsaKey psaKey;
-    UA_mbedTLS_PsaKey_init(&psaKey);
-    UA_StatusCode retval = UA_mbedTLS_PsaKey_import(
-        &psaKey, PSA_KEY_TYPE_HMAC, PSA_KEY_USAGE_SIGN_MESSAGE,
-        macAlgorithm, signingKey);
+    UA_mbedTLS_HmacState hmac;
+    UA_mbedTLS_HmacState_init(&hmac);
+    UA_StatusCode retval =
+        UA_mbedTLS_HmacState_setKey(&hmac, hashAlgorithm, signingKey);
     if(retval == UA_STATUSCODE_GOOD)
-        retval = UA_mbedTLS_PsaMacCompute(psaKey.id, macAlgorithm,
-                                          input, signature);
-    UA_mbedTLS_PsaKey_clear(&psaKey);
+        retval = UA_mbedTLS_HmacState_sign(&hmac, input, signature);
+    UA_mbedTLS_HmacState_clear(&hmac);
     return retval;
 }
 
@@ -107,16 +105,13 @@ static UA_StatusCode
 mbedtlsPsaVerify(psa_algorithm_t hashAlgorithm, const UA_ByteString *input,
                  const UA_ByteString *signingKey,
                  const UA_ByteString *signature) {
-    const psa_algorithm_t macAlgorithm = PSA_ALG_HMAC(hashAlgorithm);
-    UA_mbedTLS_PsaKey psaKey;
-    UA_mbedTLS_PsaKey_init(&psaKey);
-    UA_StatusCode retval = UA_mbedTLS_PsaKey_import(
-        &psaKey, PSA_KEY_TYPE_HMAC, PSA_KEY_USAGE_VERIFY_MESSAGE,
-        macAlgorithm, signingKey);
+    UA_mbedTLS_HmacState hmac;
+    UA_mbedTLS_HmacState_init(&hmac);
+    UA_StatusCode retval =
+        UA_mbedTLS_HmacState_setKey(&hmac, hashAlgorithm, signingKey);
     if(retval == UA_STATUSCODE_GOOD)
-        retval = UA_mbedTLS_PsaMacVerify(psaKey.id, macAlgorithm,
-                                         input, signature);
-    UA_mbedTLS_PsaKey_clear(&psaKey);
+        retval = UA_mbedTLS_HmacState_verify(&hmac, input, signature);
+    UA_mbedTLS_HmacState_clear(&hmac);
     return retval;
 }
 

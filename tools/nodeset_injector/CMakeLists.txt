@@ -1,3 +1,18 @@
+# All injected models must agree on the namespace indices baked into their
+# datatype arrays, even when they have different dependency closures.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+file(GLOB_RECURSE injector_xml CONFIGURE_DEPENDS "${UA_NODESET_DIR}/*.xml")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    ${injector_xml} "${CMAKE_CURRENT_SOURCE_DIR}/generate_namespace_map.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/generate_namespace_map.py" "${UA_NODESET_DIR}"
+    RESULT_VARIABLE injector_map_result
+    OUTPUT_VARIABLE UA_NODESETINJECTOR_NAMESPACE_MAP
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT injector_map_result EQUAL 0)
+    message(FATAL_ERROR "Failed to generate the nodeset injector namespace map")
+endif()
+
 foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
 
     string(TOLOWER "${MODEL}" NODESET_NAME)
@@ -5,10 +20,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # ===================================================================
     # Level 0 — No dependency beyond the base OPC UA namespace
     # ===================================================================
-
-    # NOTE: RSL and GPOS depend on OPC UA Part 8 spatial types (3DFrame,
-    # 3DCartesianCoordinates) and use abstract VariableTypes as
-    # TypeDefinitions, which are not yet fully supported.
 
     # Standard pattern: single XML, no companion-spec dependency.
     # Model folders that follow the Opc.Ua.<Name>.NodeSet2.xml naming.
@@ -35,7 +46,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         endforeach()
 
         ua_generate_nodeset_and_datatypes(NAME "${NODESET_NAME}" FILE_CSV "${csv_file}"
-                                          IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                                           FILE_NS "${xml_file}" INTERNAL AUTOLOAD)
 
     # ===================================================================
@@ -65,12 +75,35 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         endforeach()
 
         ua_generate_nodeset_and_datatypes(NAME "${NODESET_NAME}" FILE_CSV "${csv_file}"
-                                          IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                                           FILE_NS "${xml_file}" INTERNAL AUTOLOAD DEPENDS "di")
 
     # ===================================================================
     # Level 2+ — Multiple / complex dependencies
     # ===================================================================
+
+    elseif(MODEL STREQUAL "IA-Examples")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/IA/Opc.Ua.IA.NodeIds.examples.csv"
+                FILE_NS "${UA_NODESET_DIR}/IA/Opc.Ua.IA.NodeSet2.examples.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia")
+
+    elseif(MODEL STREQUAL "MachineVision-AMCM")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/MachineVision/AMCM/Opc.Ua.MachineVision.AMCM.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/MachineVision/AMCM/Opc.Ua.MachineVision.AMCM.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery")
+
+    elseif(MODEL STREQUAL "CranesHoists")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/CranesHoists/Opc.Ua.CranesHoists.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "robotics")
 
     # Machinery needs both DI and IA
     elseif(MODEL STREQUAL "Machinery")
@@ -94,7 +127,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         endforeach()
 
         ua_generate_nodeset_and_datatypes(NAME "${NODESET_NAME}" FILE_CSV "${csv_file}"
-                                          IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                                           FILE_NS "${xml_file}" INTERNAL AUTOLOAD DEPENDS "di" DEPENDS "ia")
 
     elseif(MODEL STREQUAL "CAS")
@@ -107,15 +139,17 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "packml")
 
     elseif(MODEL STREQUAL "Pumps")
+        # The XML OptionSet layout is incomplete; retain the authoritative BSD.
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.csv"
+                FILE_BSD "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.bsd"
+                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery")
@@ -132,8 +166,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/Machinery/Jobs/Opc.Ua.Machinery.Jobs.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_ISA95_JOBCONTROL#${UA_NODESET_DIR}/ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/Machinery/Jobs/Opc.Ua.Machinery.Jobs.Nodeset2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "isa95-jobcontrol")
@@ -142,7 +174,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/Machinery/Result/Opc.Ua.Machinery_Result.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/Machinery/Result/Opc.Ua.Machinery_Result.NodeSet2.xml"
                 INTERNAL AUTOLOAD)
 
@@ -154,14 +185,21 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "irdi" DEPENDS "padim")
 
+    elseif(MODEL STREQUAL "Machinery-Examples")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/Machinery/Opc.Ua.Machinery.Examples.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/Machinery/Opc.Ua.Machinery.Examples.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "irdi" DEPENDS "padim" DEPENDS "machinery-processvalues"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs" DEPENDS "machinery-result")
+
     elseif(MODEL STREQUAL "MachineTool")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.MachineTool.NodeIds.csv"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_ISA95_JOBCONTROL#${UA_NODESET_DIR}/ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.types.bsd"
-                IMPORT_BSD "TYPES_MACHINERY_JOBS#${UA_NODESET_DIR}/Machinery/Jobs/Opc.Ua.Machinery.Jobs.Types.bsd"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery" DEPENDS "ia"
                 DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs")
@@ -196,9 +234,13 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # cannot be loaded simultaneously.
 
     elseif(MODEL STREQUAL "ECM")
+        set(ecm_csv "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.csv")
+        if(EXISTS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv")
+            set(ecm_csv "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv")
+        endif()
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
-                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.csv"
+                FILE_CSV "${ecm_csv}"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia")
@@ -207,8 +249,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/Machinery/Energy/Opc.Ua.Machinery.Energy.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_ECM#${UA_NODESET_DIR}/ECM/Opc.Ua.ECM.NodeSet2.bsd"
                 FILE_NS "${UA_NODESET_DIR}/Machinery/Energy/Opc.Ua.Machinery.Energy.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "ecm")
@@ -221,6 +261,26 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
                 DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs")
+
+    elseif(MODEL STREQUAL "SurfaceTechnology-CleaningPretreatment")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/SurfaceTechnology/CleaningPretreatment/Opc.Ua.ST.CleaningPretreatment.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/SurfaceTechnology/CleaningPretreatment/Opc.Ua.ST.CleaningPretreatment.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "irdi" DEPENDS "padim" DEPENDS "machinery-processvalues"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs" DEPENDS "stgeneraltypes")
+
+    elseif(MODEL STREQUAL "SurfaceTechnology-OCT-MSS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/SurfaceTechnology/OCT-MSS/Opc.Ua.ST-Mss.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/SurfaceTechnology/OCT-MSS/Opc.Ua.ST-Mss.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "irdi" DEPENDS "padim" DEPENDS "machinery-processvalues"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs" DEPENDS "stgeneraltypes")
 
     elseif(MODEL STREQUAL "STGeneralTypes")
         ua_generate_nodeset_and_datatypes(
@@ -248,6 +308,16 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery" DEPENDS "ia" DEPENDS "machinetool"
                 DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs")
+
+    elseif(MODEL STREQUAL "LaserSystems-Example")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/LaserSystems/LaserSystem-Example.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/LaserSystems/LaserSystem-Example.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs" DEPENDS "machinetool"
+                DEPENDS "lasersystems")
 
     elseif(MODEL STREQUAL "Onboarding")
         ua_generate_nodeset_and_datatypes(
@@ -285,7 +355,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.WotCon.NodeIds.csv"
-                FILE_BSD "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.WotCon.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.WotCon.NodeSet2.xml"
                 INTERNAL AUTOLOAD)
 
@@ -293,11 +362,75 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # Specs with non-standard file naming
     # ===================================================================
 
+    elseif(MODEL STREQUAL "AML-BaseTypes")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/AML/Opc.Ua.AMLBaseTypes.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "AML-Libraries")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/AML/Opc.Ua.AMLLibraries.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "aml-basetypes")
+
+    elseif(MODEL STREQUAL "DemoModel")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/DemoModel/DemoModel.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/DemoModel/DemoModel.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "RSL")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/RSL/NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/RSL/Opc.Ua.RSL.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "GPOS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/GPOS/Opc.Ua.GPOS.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/GPOS/Opc.Ua.GPOS.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "rsl")
+
+    elseif(MODEL STREQUAL "TestModel")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/TestModel/TestModel.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/TestModel/TestModel.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "UnattendedRetail")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/UnattendedRetail/Opc.Ua.UnattendedRetail.csv"
+                FILE_NS "${UA_NODESET_DIR}/UnattendedRetail/Opc.Ua.UnattendedRetail.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di")
+
+    elseif(MODEL STREQUAL "XML")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/XML/Opc.Ua.Xml.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/XML/Opc.Ua.Xml.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
     elseif(MODEL STREQUAL "DI")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Di.NodeIds.csv"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Di.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
+    elseif(MODEL STREQUAL "DI-PackageMetadata")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.PackageMetadata.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.PackageMetadata.NodeSet2.xml"
                 INTERNAL AUTOLOAD)
 
     elseif(MODEL STREQUAL "AutoID")
@@ -319,17 +452,23 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Flat/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Flat/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery")
+
+    elseif(MODEL STREQUAL "Glass-v2")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/Glass/Flat/v2/Opc.Ua.Glass.v2.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/Glass/Flat/v2/Opc.Ua.Glass.v2.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "isa95-jobcontrol" DEPENDS "machinery-jobs")
 
     elseif(MODEL STREQUAL "IJT")
         ua_generate_nodeset_and_datatypes(
                 NAME "ijt-base"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Base/Opc.Ua.Ijt.Base.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_MACHINERY_RESULT#${UA_NODESET_DIR}/Machinery/Result/Opc.Ua.Machinery_Result.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Base/Opc.Ua.Ijt.Base.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "amb" DEPENDS "ia"
@@ -338,9 +477,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Tightening/Opc.Ua.Ijt.Tightening.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_MACHINERY_RESULT#${UA_NODESET_DIR}/Machinery/Result/Opc.Ua.Machinery_Result.Types.bsd"
-                IMPORT_BSD "TYPES_IJT_BASE#${UA_NODESET_DIR}/IJT/Base/Opc.Ua.Ijt.Base.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Tightening/Opc.Ua.Ijt.Tightening.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "amb" DEPENDS "ia"
@@ -374,15 +510,21 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL AUTOLOAD
                 DEPENDS "di")
 
+    elseif(MODEL STREQUAL "ISA-95")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/ISA-95/Opc.ISA95.NodeSet2.xml"
+                INTERNAL AUTOLOAD)
+
     elseif(MODEL STREQUAL "ISA95-JOBCONTROL")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/opc.ua.isa95-jobcontrol.nodeids.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/opc.ua.isa95-jobcontrol.nodeset2.xml"
                 INTERNAL AUTOLOAD)
 
     elseif(MODEL STREQUAL "IREDES")
+        # The NodeSet does not contain complete inline datatype definitions.
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.IREDES.NodeIds.csv"
@@ -425,7 +567,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     elseif(MODEL STREQUAL "GDS")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/OpcUaGdsModel.csv"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Gds.NodeSet2.xml"
                 INTERNAL AUTOLOAD)
@@ -435,13 +576,9 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                                           FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.IRDI.NodeSet2.xml"
                                           INTERNAL AUTOLOAD)
 
-        set(TMP_NSURI "http://opcfoundation.org/UA/${MODEL}/")
-        configure_file(${PROJECT_SOURCE_DIR}/tools/nodeset_injector/empty.bsd.template
-                       "${CMAKE_BINARY_DIR}/bsd_files_gen/Opc.Ua.${MODEL}.Types.bsd")
         ua_generate_nodeset_and_datatypes(NAME "${NODESET_NAME}"
                                           FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                                           FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
-                                          FILE_BSD "${CMAKE_BINARY_DIR}/bsd_files_gen/Opc.Ua.${MODEL}.Types.bsd"
                                           INTERNAL AUTOLOAD DEPENDS "di" DEPENDS "irdi")
 
     elseif(MODEL STREQUAL "LADS")
@@ -464,9 +601,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/opc.ua.ttd.nodeids.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_MACHINERY_RESULT#${UA_NODESET_DIR}/Machinery/Result/Opc.Ua.Machinery_Result.Types.bsd"
-                IMPORT_BSD "TYPES_ISA95_JOBCONTROL#${UA_NODESET_DIR}/ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/opc.ua.ttd.nodeset2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -491,8 +625,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/WireHarness/opc.ua.wireharness.nodeids.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_WIREHARNESS_VEC#${UA_NODESET_DIR}/WireHarness/opc.ua.wireharness.vec.types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/WireHarness/opc.ua.wireharness.nodeset2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery" DEPENDS "machinery-result"
@@ -503,7 +635,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery" DEPENDS "ia"
@@ -519,7 +650,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/UAFX/opc.ua.fx.data.nodeset2.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/UAFX/opc.ua.fx.data.nodeset2.xml"
                 INTERNAL AUTOLOAD)
 
@@ -527,8 +657,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/UAFX/opc.ua.fx.ac.nodeset2.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_UAFX_DATA#${UA_NODESET_DIR}/UAFX/opc.ua.fx.data.nodeset2.bsd"
                 FILE_NS "${UA_NODESET_DIR}/UAFX/opc.ua.fx.ac.nodeset2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "uafx-data")
@@ -537,8 +665,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/UAFX/opc.ua.fx.cm.nodeset2.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_UAFX_DATA#${UA_NODESET_DIR}/UAFX/opc.ua.fx.data.nodeset2.bsd"
                 FILE_NS "${UA_NODESET_DIR}/UAFX/opc.ua.fx.cm.nodeset2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "uafx-data")
@@ -551,16 +677,41 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/GeneralTypes/1.03/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/GeneralTypes/1.03/Opc.Ua.PlasticsRubber.GeneralTypes.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di")
+
+    elseif(MODEL STREQUAL "PlasticsRubber-Dosing")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Dosing/Opc.Ua.PlasticsRubber.Dosing.Nodeids.csv"
+                FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Dosing/Opc.Ua.PlasticsRubber.Dosing.Nodeset2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "plasticsrubber-generaltypes")
+
+    elseif(MODEL STREQUAL "PlasticsRubber-FoamCutting")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/FlexiblePURFoam/Cutting/Opc.Ua.PlasticsRubber.FoamCutting.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/FlexiblePURFoam/Cutting/Opc.Ua.PlasticsRubber.FoamCutting.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "plasticsrubber-generaltypes")
+
+    elseif(MODEL STREQUAL "PlasticsRubber-GDD")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/GDD/Opc.Ua.PlasticsRubber.GDD.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/GDD/Opc.Ua.PlasticsRubber.GDD.NodeSet2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "plasticsrubber-generaltypes")
 
     elseif(MODEL STREQUAL "PlasticsRubber-TCD")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/TCD/1.01/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/TCD/1.01/Opc.Ua.PlasticsRubber.TCD.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes")
@@ -569,7 +720,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/IMM2MES/1.01/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/IMM2MES/1.01/Opc.Ua.PlasticsRubber.IMM2MES.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes")
@@ -578,7 +728,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/LDS/1.02/Opc.Ua.PlasticsRubber.LDS.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/LDS/1.02/Opc.Ua.PlasticsRubber.LDS.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes")
@@ -587,7 +736,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/HotRunner/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/HotRunner/1.00/Opc.Ua.PlasticsRubber.HotRunner.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes")
@@ -600,7 +748,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/GeneralTypes/1.01/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/GeneralTypes/1.01/Opc.Ua.PlasticsRubber.Extrusion.GeneralTypes.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes")
@@ -609,7 +756,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/ExtrusionLine/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/ExtrusionLine/1.00/Opc.Ua.PlasticsRubber.Extrusion.ExtrusionLine.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes")
@@ -618,7 +764,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Extruder/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Extruder/1.00/Opc.Ua.PlasticsRubber.Extrusion.Extruder.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -628,7 +773,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Die/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Die/1.00/Opc.Ua.PlasticsRubber.Extrusion.Die.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -638,7 +782,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/MeltPump/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/MeltPump/1.00/Opc.Ua.PlasticsRubber.Extrusion.MeltPump.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -648,7 +791,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Filter/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Filter/1.00/Opc.Ua.PlasticsRubber.Extrusion.Filter.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -658,7 +800,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/HaulOff/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/HaulOff/1.00/Opc.Ua.PlasticsRubber.Extrusion.HaulOff.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -668,7 +809,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Cutter/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Cutter/1.00/Opc.Ua.PlasticsRubber.Extrusion.Cutter.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -678,7 +818,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Calibrator/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Calibrator/1.00/Opc.Ua.PlasticsRubber.Extrusion.Calibrator.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -688,7 +827,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Calender/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Calender/1.00/Opc.Ua.PlasticsRubber.Extrusion.Calender.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -698,7 +836,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Pelletizer/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Pelletizer/1.00/Opc.Ua.PlasticsRubber.Extrusion.Pelletizer.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -708,7 +845,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Corrugator/1.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion/Corrugator/1.00/Opc.Ua.PlasticsRubber.Extrusion.Corrugator.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "plasticsrubber-generaltypes"
@@ -723,7 +859,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/GeneralTypes/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/GeneralTypes/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.GeneralTypes.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -733,7 +868,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/ExtrusionLine/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/ExtrusionLine/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.ExtrusionLine.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -744,7 +878,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Extruder/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Extruder/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Extruder.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -755,7 +888,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Die/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Die/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Die.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -766,7 +898,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/MeltPump/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/MeltPump/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.MeltPump.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -777,7 +908,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Filter/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Filter/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Filter.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -788,7 +918,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/HaulOff/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/HaulOff/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.HaulOff.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -799,7 +928,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Cutter/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Cutter/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Cutter.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -810,7 +938,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Calibrator/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Calibrator/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Calibrator.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -821,7 +948,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Calender/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Calender/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Calender.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -832,7 +958,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Pelletizer/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Pelletizer/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Pelletizer.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -843,7 +968,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Corrugator/2.00/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/PlasticsRubber/Extrusion_v2/Corrugator/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Corrugator.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -859,10 +983,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_MACHINERY_RESULT#${UA_NODESET_DIR}/Machinery/Result/Opc.Ua.Machinery_Result.Types.bsd"
-                IMPORT_BSD "TYPES_ISA95_JOBCONTROL#${UA_NODESET_DIR}/ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.types.bsd"
-                IMPORT_BSD "TYPES_MACHINERY_JOBS#${UA_NODESET_DIR}/Machinery/Jobs/Opc.Ua.Machinery.Jobs.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.Nodeset2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -877,6 +997,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/powertraindictionary.nodeset2.xml"
                 INTERNAL AUTOLOAD DEPENDS "irdi")
 
+        # Powertrain still requires layouts supplied only by its BSD dictionary.
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
@@ -898,10 +1019,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_MACHINERY_RESULT#${UA_NODESET_DIR}/Machinery/Result/Opc.Ua.Machinery_Result.Types.bsd"
-                IMPORT_BSD "TYPES_ISA95_JOBCONTROL#${UA_NODESET_DIR}/ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.types.bsd"
-                IMPORT_BSD "TYPES_MACHINERY_JOBS#${UA_NODESET_DIR}/Machinery/Jobs/Opc.Ua.Machinery.Jobs.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
@@ -913,7 +1030,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery"
@@ -923,7 +1039,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.Nodeset2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery"
@@ -937,7 +1052,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/FDI/OpcUaFdiPart5Model.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/FDI/Opc.Ua.Fdi5.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di")
@@ -946,7 +1060,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/FDI/OpcUaFdiPart7Model.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/FDI/Opc.Ua.Fdi7.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di")
@@ -959,7 +1072,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/Mining/General/1.0.0/NodeIds.csv"
-                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/Mining/General/1.0.0/Opc.Ua.Mining.General.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "machinery")
@@ -1033,6 +1145,15 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 FILE_NS "${UA_NODESET_DIR}/Mining/TransportDumping/General/1.0.0/Opc.Ua.Mining.TransportDumping.General.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "machinery" DEPENDS "mining-general")
+
+    elseif(MODEL STREQUAL "Mining-TransportDumping-Conveying")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/Mining/TransportDumping/Conveying/opc.ua.mining.transportdumping.conveying.nodeids.csv"
+                FILE_NS "${UA_NODESET_DIR}/Mining/TransportDumping/Conveying/opc.ua.mining.transportdumping.conveying.nodeset2.xml"
+                INTERNAL AUTOLOAD
+                DEPENDS "di" DEPENDS "ia" DEPENDS "machinery"
+                DEPENDS "mining-general")
 
     elseif(MODEL STREQUAL "Mining-TransportDumping-RearDumpTruck")
         ua_generate_nodeset_and_datatypes(

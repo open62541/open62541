@@ -331,11 +331,6 @@ stopServer(UA_Server *server) {
     /* Set to stopping and notify the application */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
 
-#if UA_MULTITHREADING >= 100
-    /* Stop regular callback for async operation processing */
-    UA_AsyncManager_stop(&server->asyncManager, server);
-#endif
-
     /* Stop the regular housekeeping tasks */
     if(server->houseKeepingCallbackId != 0) {
         removeCallback(server, server->houseKeepingCallbackId);
@@ -362,13 +357,18 @@ UA_Server_delete(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(server->state != UA_LIFECYCLESTATE_STOPPED) {
+    lockServer(server);
+    if(server->state != UA_LIFECYCLESTATE_STOPPED ||
+       !testStoppedCondition(server)) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "The server must be fully stopped before it can be deleted");
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    lockServer(server);
+    /* Prevent reentrant lifecycle calls and new operation storage during
+     * teardown. The driver list still owns the drained async manager. */
+    server->state = UA_LIFECYCLESTATE_STOPPING;
+    server->asyncManager.driver.server = NULL;
 
     /* All Session cleanup must complete during shutdown, before the EventLoop
      * and its delayed callbacks are destroyed. */
@@ -389,8 +389,6 @@ UA_Server_delete(UA_Server *server) {
     }
 
 #endif
-
-    UA_AsyncManager_clear(&server->asyncManager, server);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_assert(server->modelChangeDepth == 0);
@@ -422,12 +420,12 @@ UA_Server_delete(UA_Server *server) {
 #endif
 
     /* Clean up Discovery entries  */
-#ifdef UA_ENABLE_DISCOVERY
     /* Remove registered servers. Don't notify the application here */
     RegisteredServerRecord *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
         UA_RegisteredServer_clear(&rs->registeredServer);
+        UA_String_clear(&rs->mdnsServerName);
         UA_free(rs);
     }
     server->registeredServersSize = 0;
@@ -438,7 +436,6 @@ UA_Server_delete(UA_Server *server) {
                     &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
     server->serversOnNetwork = NULL;
     server->serversOnNetworkSize = 0;
-#endif
 
     /* Clean up the config */
     UA_ServerConfig_clear(&server->config);
@@ -470,9 +467,7 @@ serverHouseKeeping(UA_Server *server, void *_) {
     lockServer(server);
     UA_EventLoop *el = server->config.eventLoop;
     cleanupSessions(server, el->dateTime_nowMonotonic(el));
-#ifdef UA_ENABLE_DISCOVERY
     cleanupRegisteredServers(server);
-#endif
     unlockServer(server);
 }
 
@@ -545,6 +540,8 @@ UA_Server_init(UA_Server *server) {
     server->lastTokenId = STARTTOKENID;
 
     UA_AsyncManager_init(&server->asyncManager, server);
+    res = addDriver(server, &server->asyncManager.driver);
+    UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialize namespace 0 */
 #if defined(UA_GENERATED_NAMESPACE_ZERO) || defined(UA_NAMESPACE_ZERO_MINIMAL)
@@ -561,6 +558,9 @@ UA_Server_init(UA_Server *server) {
     res = UA_Server_injectNodesets(server);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
+
+    res = writeNs0ServerProfileArray(server, false);
+    UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_RBAC
     res = initNS0RBAC(server);
@@ -591,7 +591,6 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialized Discovery */
-#ifdef UA_ENABLE_DISCOVERY
     server->discoveryDriver = UA_DiscoveryManager_new();
     res = addDriver(server, server->discoveryDriver);
     UA_CHECK_STATUS(res, goto cleanup);
@@ -601,7 +600,6 @@ UA_Server_init(UA_Server *server) {
     server->serversOnNetworkRecordCounter = 1;
     server->serversOnNetworkSize = 0;
     server->serversOnNetwork = NULL;
-#endif
 
     /* Initialize PubSub */
 #ifdef UA_ENABLE_PUBSUB
@@ -633,7 +631,7 @@ UA_Server_init(UA_Server *server) {
             }
 
             UA_QualifiedName dataTypeBrowseName =
-                {type->typeId.namespaceIndex, UA_STRING_STATIC((char*)(uintptr_t)type->typeName)};
+                {type->typeId.namespaceIndex, UA_STRING((char*)(uintptr_t)type->typeName)};
             UA_DataTypeAttributes dta = UA_DataTypeAttributes_default;
             dta.displayName.text = UA_STRING((char*)(uintptr_t)type->typeName);
             res = UA_Server_addDataTypeNode(server, type->typeId, UA_NS0ID(STRUCTURE),
@@ -668,6 +666,7 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     UA_CHECK_MEM(server, UA_ServerConfig_clear(config); return NULL);
 
     server->config = *config;
+    server->maxRegisteredServers = 1000;
 
     /* If not defined, set logging to what the server has */
     if(!server->config.secureChannelPKI.logging)
@@ -820,6 +819,9 @@ UA_Server_addCertificates(UA_Server *server,
     UA_CertificateGroup *certGroup = getCertificateGroup(server, certificateGroupId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    /* E.g. UA_CertificateGroup_AcceptAll has no TrustList */
+    if(appendCertificates ? !certGroup->addToTrustList : !certGroup->setTrustList)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
@@ -870,6 +872,9 @@ UA_Server_removeCertificates(UA_Server *server,
     UA_CertificateGroup *certGroup = getCertificateGroup(server, certificateGroupId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    /* E.g. UA_CertificateGroup_AcceptAll has no TrustList */
+    if(!certGroup->getCertificateCrls || !certGroup->removeFromTrustList)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
     UA_ByteString *crls = NULL;
     size_t crlsSize = 0;
@@ -970,6 +975,51 @@ verifyServerApplicationUri(const UA_Server *server) {
 #endif
 }
 
+#if defined(UA_ENABLE_ENCRYPTION) && UA_LOGLEVEL <= 400
+static UA_Boolean
+offersX509Token(const UA_ServerConfig *sc) {
+    for(size_t i = 0; i < sc->accessControl.userTokenPoliciesSize; i++) {
+        if(sc->accessControl.userTokenPolicies[i].tokenType ==
+           UA_USERTOKENTYPE_CERTIFICATE)
+            return true;
+    }
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        const UA_EndpointDescription *ed = &sc->endpoints[i];
+        for(size_t j = 0; j < ed->userIdentityTokensSize; j++) {
+            if(ed->userIdentityTokens[j].tokenType ==
+               UA_USERTOKENTYPE_CERTIFICATE)
+                return true;
+        }
+    }
+    return false;
+}
+#endif
+
+/* A PKI without verifyCertificate accepts all certificates, as in the default
+ * configuration. Warn at startup if it is used with a SecurityPolicy other
+ * than #None. The Session PKI only verifies x509 user tokens. */
+static void
+warnAcceptAllPKI(const UA_Server *server) {
+#if defined(UA_ENABLE_ENCRYPTION) && UA_LOGLEVEL <= 400
+    const UA_ServerConfig *sc = &server->config;
+    size_t i = 0;
+    for(; i < sc->securityPoliciesSize; i++) {
+        if(sc->securityPolicies[i].policyType != UA_SECURITYPOLICYTYPE_NONE)
+            break;
+    }
+    if(i == sc->securityPoliciesSize)
+        return;
+    if(!sc->secureChannelPKI.verifyCertificate)
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "The SecureChannel PKI accepts all certificates. "
+                       "Configure a trust list for production use.");
+    if(!sc->sessionPKI.verifyCertificate && offersX509Token(sc))
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "The Session PKI accepts all certificates. "
+                       "Configure a trust list for production use.");
+#endif
+}
+
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
     UA_ServerStatistics stat;
@@ -1048,6 +1098,9 @@ UA_Server_run_startup(UA_Server *server) {
     if(server == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+    /* Startup failure can drain drivers; never wait on our own dispatch frame. */
+    if(server->asyncManager.activeDispatch != 0)
+        return UA_STATUSCODE_BADINVALIDSTATE;
     UA_ServerConfig *config = &server->config;
 
     if(config->webSocketEnabled) {
@@ -1162,8 +1215,14 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* Apply configuration changes made after creation or while stopped.
+     * Fail before starting the EventLoop or any transport. */
+    lockServer(server);
+    UA_StatusCode retVal = writeNs0ServerProfileArray(server, true);
+    unlockServer(server);
+    UA_CHECK_STATUS(retVal, return retVal);
+
     /* Start the EventLoop if not already started */
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_EventLoop *el = config->eventLoop;
     UA_CHECK_MEM_ERROR(el, return UA_STATUSCODE_BADINTERNALERROR,
                        config->logging, UA_LOGCATEGORY_SERVER,
@@ -1186,11 +1245,7 @@ UA_Server_run_startup(UA_Server *server) {
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
 
-    /* Async operation timeouts are only enforced with multithreading */
-#if UA_MULTITHREADING >= 100
-    /* Add regulare callback for async operation processing */
-    UA_AsyncManager_start(&server->asyncManager, server);
-#endif
+    warnAcceptAllPKI(server);
 
     /* Are there enough SecureChannels possible for the max number of sessions? */
     if(config->maxSecureChannels != 0 &&
@@ -1234,6 +1289,30 @@ UA_Server_run_startup(UA_Server *server) {
     UA_NodeId serverArray = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY);
     writeValueAttribute(server, serverArray, &var);
 
+    /* Right before startup so a changed application description reflects here */
+    UA_StatusCode adRes = writeNs0ApplicationDescription(server);
+    if(adRes != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                       "Could not write the ApplicationDescription to the "
+                       "ServerConfiguration object (%s)",
+                       UA_StatusCode_name(adRes));
+
+    /* Derive the ServerCapabilities from the config */
+    setupServerCapabilities(server);
+    UA_StatusCode capRes = writeNs0ServerCapabilities(server);
+    if(capRes != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                       "Could not write the ServerCapabilities to the "
+                       "ServerConfiguration object (%s)",
+                       UA_StatusCode_name(capRes));
+
+    UA_StatusCode tlRes = writeNs0MaxTrustListSize(server);
+    if(tlRes != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                       "Could not write the MaxTrustListSize to the "
+                       "ServerConfiguration object (%s)",
+                       UA_StatusCode_name(tlRes));
+
     /* Sample the start time and set it to the Server object */
     server->startTime = el->dateTime_now(el);
     UA_Variant_init(&var);
@@ -1242,7 +1321,8 @@ UA_Server_run_startup(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
     writeValueAttribute(server, startTime, &var);
 
-    /* Start all drivers. A failed transport aborts the startup only if the
+    /* Start all drivers. The async manager is required for Read/Write/Call.
+     * A failed transport aborts the startup only if the
      * server cannot be reached otherwise. Other drivers can fail in normal
      * setups (e.g. mDNS without multicast) and are only logged. */
     UA_StatusCode transportRes = UA_STATUSCODE_GOOD;
@@ -1250,6 +1330,13 @@ UA_Server_run_startup(UA_Server *server) {
         UA_StatusCode res = drv->start(drv);
         if(res == UA_STATUSCODE_GOOD)
             continue;
+        if(drv == &server->asyncManager.driver) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "Could not start the async driver (%s)",
+                         UA_StatusCode_name(res));
+            retVal = res;
+            goto undo;
+        }
         if(drv == server->binaryDriver || drv == server->webSocketDriver ||
            drv == server->httpDriver) {
             UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
@@ -1334,7 +1421,10 @@ UA_Server_run_shutdown_async(UA_Server *server) {
         return UA_LIFECYCLESTATE_STOPPED;
 
     lockServer(server);
-    if(server->state == UA_LIFECYCLESTATE_STARTED)
+    /* Synchronous facades can leave worker-owned storage even before startup
+     * or after a completed shutdown. STOPPED alone does not imply drained. */
+    if(server->state == UA_LIFECYCLESTATE_STARTED ||
+       (server->state == UA_LIFECYCLESTATE_STOPPED && !testStoppedCondition(server)))
         stopServer(server);
     if(server->state == UA_LIFECYCLESTATE_STOPPING)
         finishShutdown(server);
@@ -1348,9 +1438,24 @@ UA_Server_run_shutdown(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* Never wait for dispatch frames on our own call stack. */
+    lockServer(server);
+    if(server->asyncManager.activeDispatch != 0) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+    unlockServer(server);
+
     UA_Server_run_shutdown_async(server);
     UA_EventLoop *el = server->config.eventLoop;
     while(UA_Server_getLifecycleState(server) != UA_LIFECYCLESTATE_STOPPED) {
+        /* Pre-start or post-shutdown workers may finish from timed callbacks.
+         * Start their EventLoop without starting the server's drivers. */
+        if(el->state == UA_EVENTLOOPSTATE_FRESH || el->state == UA_EVENTLOOPSTATE_STOPPED) {
+            UA_StatusCode res = el->start(el);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+        }
         UA_StatusCode res = el->run(el, 100);
         if(res != UA_STATUSCODE_GOOD)
             return res;

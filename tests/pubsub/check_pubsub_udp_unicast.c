@@ -60,8 +60,7 @@ setupFolder(UA_Server *server, UA_NodeId *folderId) {
 
 
 static void
-setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNumber,
-                  UA_EventLoop *el) {
+setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_EventLoop *el) {
     UA_ServerConfig stack_config;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memset(&stack_config, 0, sizeof(UA_ServerConfig));
@@ -69,7 +68,9 @@ setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNu
         stack_config.eventLoop = el;
         stack_config.externalEventLoop = true;
     }
-    retVal |= UA_ServerConfig_setMinimal(&stack_config, portNumber, NULL);
+    /* PubSub uses the UDP ports below. Give each independent TCP server its
+     * own ephemeral port instead of relying on SO_REUSEPORT to share one. */
+    retVal |= UA_ServerConfig_setMinimal(&stack_config, 0, NULL);
     stack_config.eventLoop->dateTime_now = UA_DateTime_now_fake;
     stack_config.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     *server = UA_Server_newWithConfig(&stack_config);
@@ -277,13 +278,12 @@ UA_NodeId outVariableNodeId;
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
-    setupPubSubServer(&serverPublisher, &configPublisher, UA_PUBLISHER_PORT, NULL);
+    setupPubSubServer(&serverPublisher, &configPublisher, NULL);
     addUDPConnection(serverPublisher, "localhost", UA_PUBLISHER_PORT, &publisherConnectionId);
     setupPublishingUnicast(serverPublisher, publisherConnectionId, "127.0.0.1",
                            UA_SUBSCRIBER_PORT, PUBLISHVARIABLE_NODEID);
 
-    setupPubSubServer(&serverSubscriber, &configSubscriber,
-                      UA_SUBSCRIBER_PORT, NULL);
+    setupPubSubServer(&serverSubscriber, &configSubscriber, NULL);
 
     UA_NodeId folderId;
     setupFolder(serverSubscriber, &folderId);

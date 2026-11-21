@@ -8,10 +8,13 @@
 /* Test the UA_ServerConfig_addSecurityPolicyEcc*() public API functions.
  * These are the entry points users call to add individual ECC policies. */
 
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <stdlib.h>
 
 #include "test_helpers.h"
 #include "certificates.h"
@@ -238,6 +241,434 @@ START_TEST(config_add_multiple_ecc_policies) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+/* The certificate must be on the curve of the policy. UA_OpenSSL_LoadCertificate
+ * compares only the key type, so without the curve check of the ECC AEAD module
+ * a P-256 certificate would pass as the certificate of a P-384 policy, which
+ * then advertises an endpoint it cannot serve. */
+static void
+assertAddRejected(UA_StatusCode (*add)(UA_ServerConfig *, const UA_ByteString *,
+                                       const UA_ByteString *),
+                  UA_ByteString cert, UA_ByteString key) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    size_t prevSize = config->securityPoliciesSize;
+    ck_assert_uint_eq(add(config, &cert, &key), UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(config->securityPoliciesSize, prevSize);
+    UA_Server_delete(server);
+}
+
+START_TEST(config_add_ecc_wrong_curve) {
+    UA_ByteString cert256 = {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA};
+    UA_ByteString key256 = {KEY_P256_DER_LENGTH, KEY_P256_DER_DATA};
+    UA_ByteString certBp384 = {CERT_BP384R1_DER_LENGTH, CERT_BP384R1_DER_DATA};
+    UA_ByteString keyBp384 = {KEY_BP384R1_DER_LENGTH, KEY_BP384R1_DER_DATA};
+    UA_ByteString certEd25519 = {CERT_ED25519_DER_LENGTH, CERT_ED25519_DER_DATA};
+    UA_ByteString keyEd25519 = {KEY_ED25519_DER_LENGTH, KEY_ED25519_DER_DATA};
+
+    /* Another curve of another size */
+    assertAddRejected(UA_ServerConfig_addSecurityPolicyEccNistP384AesGcm,
+                      cert256, key256);
+    /* Another curve of the same size: a key-length check would let it pass */
+    assertAddRejected(UA_ServerConfig_addSecurityPolicyEccNistP384ChaChaPoly,
+                      certBp384, keyBp384);
+    assertAddRejected(UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1AesGcm,
+                      cert256, key256);
+    /* An Edwards certificate of the other curve */
+    assertAddRejected(UA_ServerConfig_addSecurityPolicyEccCurve448AesGcm,
+                      certEd25519, keyEd25519);
+    /* A Weierstrass certificate for an Edwards policy */
+    assertAddRejected(UA_ServerConfig_addSecurityPolicyEccCurve25519ChaChaPoly,
+                      cert256, key256);
+
+    /* The matching curve still works, so the check does not refuse
+     * everything */
+    UA_Server *server = UA_Server_newForUnitTest();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ByteString cert384 = {CERT_P384_DER_LENGTH, CERT_P384_DER_DATA};
+    UA_ByteString key384 = {KEY_P384_DER_LENGTH, KEY_P384_DER_DATA};
+    ck_assert_uint_eq(UA_ServerConfig_addSecurityPolicyEccNistP384AesGcm(config, &cert384,
+                                                                         &key384),
+                      UA_STATUSCODE_GOOD);
+
+    /* A certificate update is the other way to the same defect */
+    UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize - 1];
+    ck_assert_uint_eq(sp->updateCertificate(sp, certBp384, keyBp384),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(sp->updateCertificate(sp, cert384, key384), UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* Every add-helper of the ECC AEAD policies registers its policy */
+START_TEST(config_add_ecc_aead) {
+    const struct {
+        const char *uri;
+        UA_StatusCode (*add)(UA_ServerConfig *, const UA_ByteString *,
+                             const UA_ByteString *);
+        UA_ByteString cert;
+        UA_ByteString key;
+    } rows[] = {
+#define ROW(FRAG, FN, C) \
+        {"http://opcfoundation.org/UA/SecurityPolicy#" FRAG, \
+         UA_ServerConfig_addSecurityPolicy##FN, \
+         {CERT_##C##_DER_LENGTH, CERT_##C##_DER_DATA}, \
+         {KEY_##C##_DER_LENGTH, KEY_##C##_DER_DATA}}
+        ROW("ECC_nistP256_AesGcm", EccNistP256AesGcm, P256),
+        ROW("ECC_nistP256_ChaChaPoly", EccNistP256ChaChaPoly, P256),
+        ROW("ECC_nistP384_AesGcm", EccNistP384AesGcm, P384),
+        ROW("ECC_nistP384_ChaChaPoly", EccNistP384ChaChaPoly, P384),
+        ROW("ECC_brainpoolP256r1_AesGcm", EccBrainpoolP256r1AesGcm, BP256R1),
+        ROW("ECC_brainpoolP256r1_ChaChaPoly", EccBrainpoolP256r1ChaChaPoly, BP256R1),
+        ROW("ECC_brainpoolP384r1_AesGcm", EccBrainpoolP384r1AesGcm, BP384R1),
+        ROW("ECC_brainpoolP384r1_ChaChaPoly", EccBrainpoolP384r1ChaChaPoly, BP384R1),
+        ROW("ECC_curve25519_AesGcm", EccCurve25519AesGcm, ED25519),
+        ROW("ECC_curve25519_ChaChaPoly", EccCurve25519ChaChaPoly, ED25519),
+        ROW("ECC_curve448_AesGcm", EccCurve448AesGcm, ED448),
+        ROW("ECC_curve448_ChaChaPoly", EccCurve448ChaChaPoly, ED448)
+#undef ROW
+    };
+
+    /* All of them in one configuration */
+    UA_Server *server = UA_Server_newForUnitTest();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    size_t baseSize = config->securityPoliciesSize;
+    for(size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++) {
+        ck_assert_uint_eq(rows[i].add(config, &rows[i].cert, &rows[i].key),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(config->securityPoliciesSize, baseSize + i + 1);
+        UA_String uri = UA_STRING((char *)(uintptr_t)rows[i].uri);
+        ck_assert(UA_String_equal(&config->securityPolicies[baseSize + i].policyUri,
+                                  &uri));
+    }
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* The client counterparts: UA_ClientConfig_addSecurityPolicyEcc* */
+typedef struct {
+    const char *uri;
+    UA_StatusCode (*add)(UA_ClientConfig *, const UA_ByteString *,
+                         const UA_ByteString *);
+    UA_ByteString cert;
+    UA_ByteString key;
+} ClientEccRow;
+
+#define CROW(FRAG, FN, C) \
+    {"http://opcfoundation.org/UA/SecurityPolicy#" FRAG, \
+     UA_ClientConfig_addSecurityPolicy##FN, \
+     {CERT_##C##_DER_LENGTH, CERT_##C##_DER_DATA}, \
+     {KEY_##C##_DER_LENGTH, KEY_##C##_DER_DATA}}
+
+static const ClientEccRow clientRows[] = {
+    CROW("ECC_nistP256_AesGcm", EccNistP256AesGcm, P256),
+    CROW("ECC_nistP256_ChaChaPoly", EccNistP256ChaChaPoly, P256),
+    CROW("ECC_nistP384_AesGcm", EccNistP384AesGcm, P384),
+    CROW("ECC_nistP384_ChaChaPoly", EccNistP384ChaChaPoly, P384),
+    CROW("ECC_brainpoolP256r1_AesGcm", EccBrainpoolP256r1AesGcm, BP256R1),
+    CROW("ECC_brainpoolP256r1_ChaChaPoly", EccBrainpoolP256r1ChaChaPoly, BP256R1),
+    CROW("ECC_brainpoolP384r1_AesGcm", EccBrainpoolP384r1AesGcm, BP384R1),
+    CROW("ECC_brainpoolP384r1_ChaChaPoly", EccBrainpoolP384r1ChaChaPoly, BP384R1),
+    CROW("ECC_curve25519_AesGcm", EccCurve25519AesGcm, ED25519),
+    CROW("ECC_curve25519_ChaChaPoly", EccCurve25519ChaChaPoly, ED25519),
+    CROW("ECC_curve448_AesGcm", EccCurve448AesGcm, ED448),
+    CROW("ECC_curve448_ChaChaPoly", EccCurve448ChaChaPoly, ED448)
+};
+
+static size_t
+countPolicy(const UA_SecurityPolicy *policies, size_t size, const char *uri,
+            const UA_ByteString *cert) {
+    UA_String u = UA_STRING((char *)(uintptr_t)uri);
+    size_t n = 0;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_String_equal(&policies[i].policyUri, &u) &&
+           (!cert || UA_ByteString_equal(&policies[i].localCertificate, cert)))
+            n++;
+    }
+    return n;
+}
+
+START_TEST(client_config_add_ecc_aead) {
+    UA_ByteString rsaCert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString rsaKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(cc));
+    ck_assert_uint_eq(UA_ClientConfig_setDefaultEncryption(&cc, rsaCert, rsaKey,
+                                                           NULL, 0, NULL, 0),
+                      UA_STATUSCODE_GOOD);
+    size_t baseSize = cc.securityPoliciesSize;
+
+    /* All twelve, each with the certificate of its curve */
+    for(size_t i = 0; i < sizeof(clientRows) / sizeof(clientRows[0]); i++) {
+        const ClientEccRow *r = &clientRows[i];
+        ck_assert_uint_eq(r->add(&cc, &r->cert, &r->key), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(cc.securityPoliciesSize, baseSize + i + 1);
+        ck_assert_uint_eq(countPolicy(cc.securityPolicies, cc.securityPoliciesSize,
+                                      r->uri, &r->cert), 1);
+        ck_assert_int_eq(cc.securityPolicies[baseSize + i].secureChannelEnhancements,
+                         true);
+    }
+
+    /* A certificate on another curve is refused and adds nothing */
+    ck_assert_uint_eq(UA_ClientConfig_addSecurityPolicyEccNistP384AesGcm(
+                          &cc, &clientRows[0].cert, &clientRows[0].key),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(UA_ClientConfig_addSecurityPolicyEccCurve448ChaChaPoly(
+                          &cc, &clientRows[8].cert, &clientRows[8].key),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(cc.securityPoliciesSize, baseSize + 12);
+
+    UA_ClientConfig_clear(&cc);
+}
+END_TEST
+
+/* setAuthenticationCert adds an instance with the user certificate for every
+ * configured ECC AEAD policy that the certificate fits */
+START_TEST(client_config_auth_ecc_aead) {
+    UA_ByteString cert256 = {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA};
+    UA_ByteString key256 = {KEY_P256_DER_LENGTH, KEY_P256_DER_DATA};
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(cc));
+    ck_assert_uint_eq(UA_ClientConfig_setDefaultEncryption(&cc, cert256, key256,
+                                                           NULL, 0, NULL, 0),
+                      UA_STATUSCODE_GOOD);
+    const ClientEccRow *p384 = &clientRows[2];  /* ECC_nistP384_AesGcm */
+    const ClientEccRow *bp384 = &clientRows[6]; /* ECC_brainpoolP384r1_AesGcm */
+    const ClientEccRow *x448 = &clientRows[11]; /* ECC_curve448_ChaChaPoly */
+    ck_assert_uint_eq(p384->add(&cc, &p384->cert, &p384->key), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bp384->add(&cc, &bp384->cert, &bp384->key), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(x448->add(&cc, &x448->cert, &x448->key), UA_STATUSCODE_GOOD);
+
+    /* A P-384 user certificate fits ECC_nistP384_AesGcm only */
+    ck_assert_uint_eq(UA_ClientConfig_setAuthenticationCert(&cc, p384->cert, p384->key),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(countPolicy(cc.authSecurityPolicies, cc.authSecurityPoliciesSize,
+                                  p384->uri, &p384->cert), 1);
+    ck_assert_uint_eq(countPolicy(cc.authSecurityPolicies, cc.authSecurityPoliciesSize,
+                                  bp384->uri, NULL), 0);
+    ck_assert_uint_eq(countPolicy(cc.authSecurityPolicies, cc.authSecurityPoliciesSize,
+                                  x448->uri, NULL), 0);
+
+    /* Calling it again replaces the instances, it does not duplicate them */
+    ck_assert_uint_eq(UA_ClientConfig_setAuthenticationCert(&cc, p384->cert, p384->key),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(countPolicy(cc.authSecurityPolicies, cc.authSecurityPoliciesSize,
+                                  p384->uri, NULL), 1);
+
+    UA_ClientConfig_clear(&cc);
+}
+END_TEST
+#endif /* UA_ENABLE_ENCRYPTION_OPENSSL */
+
+/* --- Test: the per-policy crypto constants are declared, not re-derived ---
+ *
+ * secretLength, certThumbprintLength and secureChannelEnhancements are stated
+ * by each policy so that core code does not have to recover them by matching
+ * substrings of the policy URI. This pins the value of every shipped ECC
+ * policy; a new policy that forgets to set them shows up here as a zero.
+ *
+ * Note that secretLength is NOT nonceLength/2 in general: that holds for the
+ * Weierstrass curves, where the nonce is the ephemeral public key X||Y, but
+ * not for X25519/X448, where the nonce is the whole raw public key. */
+typedef struct {
+    const char *uri;
+    UA_StatusCode (*add)(UA_ServerConfig *, const UA_ByteString *,
+                         const UA_ByteString *);
+    const UA_ByteString cert;
+    const UA_ByteString key;
+    size_t nonceLength;
+    size_t secretLength;
+    size_t certThumbprintLength;
+    UA_Boolean enhanced;
+    const char *symUri; /* the symmetric algorithm URI, NULL: not checked */
+} EccPolicyConstants;
+
+#define AES128_GCM "http://opcfoundation.org/UA/security/aes128-gcm"
+#define AES256_GCM "http://opcfoundation.org/UA/security/aes256-gcm"
+#define CHACHA20_POLY1305 "http://opcfoundation.org/UA/security/chacha20-poly1305"
+
+/* Fixed SHA-256/SHA-384 digests of the DER fixtures, computed independently.
+ * In particular, X448 certificate hashes use SHA-384, not its HKDF SHA-256. */
+static void
+checkCertificateHash(const UA_SecurityPolicy *policy, const UA_ByteString *certificate) {
+    static const struct {
+        const UA_Byte *certificate;
+        UA_Byte digest[48];
+    } vectors[] = {
+        {CERT_P256_DER_DATA, {
+            0xa3, 0x67, 0xd2, 0xea, 0xbd, 0xd9, 0x09, 0x3f, 0x4f, 0x8b, 0x6e, 0xf6,
+            0x6c, 0xc4, 0x52, 0xa9, 0xea, 0x0a, 0x96, 0x15, 0x2d, 0x83, 0x95, 0x55,
+            0x81, 0xfc, 0x55, 0xce, 0x1a, 0x9d, 0xb1, 0xe8}},
+        {CERT_P384_DER_DATA, {
+            0x53, 0x2b, 0x7a, 0xca, 0x3d, 0x09, 0x0c, 0xe8, 0xf0, 0x0d, 0xc8, 0x06,
+            0x8c, 0x25, 0xa3, 0xf7, 0x99, 0xf5, 0xcc, 0xe0, 0x21, 0x4f, 0x75, 0xb6,
+            0xfb, 0xd2, 0xdd, 0x72, 0x8a, 0x49, 0x81, 0x8e, 0xb1, 0x03, 0xf6, 0x0e,
+            0x14, 0xfd, 0x8f, 0x96, 0xb9, 0x91, 0x93, 0xec, 0x09, 0x8c, 0x76, 0x0a}},
+        {CERT_BP256R1_DER_DATA, {
+            0x4b, 0xbd, 0x72, 0xc3, 0x88, 0x5d, 0x1a, 0x92, 0xcf, 0x94, 0xfc, 0xd7,
+            0x78, 0x36, 0xad, 0xe4, 0x5d, 0x44, 0x3c, 0xf6, 0x9a, 0xf3, 0xe9, 0x8b,
+            0xc7, 0x14, 0xee, 0xd1, 0x91, 0x09, 0x78, 0xee}},
+        {CERT_BP384R1_DER_DATA, {
+            0xa8, 0xa6, 0x8b, 0x5b, 0x3c, 0x11, 0x9d, 0xc1, 0x53, 0x09, 0xfa, 0x31,
+            0xba, 0x75, 0x4a, 0x19, 0x6a, 0x15, 0x19, 0xfb, 0xcd, 0xf1, 0xd3, 0x56,
+            0x0c, 0x71, 0x19, 0x02, 0x3c, 0x94, 0x8b, 0xee, 0xd7, 0x0c, 0x4d, 0xcc,
+            0x14, 0xdc, 0xe4, 0xd2, 0x32, 0x4a, 0x50, 0x9d, 0x78, 0x23, 0xd4, 0x8f}},
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+        {CERT_ED25519_DER_DATA, {
+            0x65, 0x65, 0x11, 0x89, 0x73, 0xfe, 0x07, 0x0a, 0xa0, 0x05, 0xd5, 0xe5,
+            0xdb, 0x42, 0xfc, 0xcb, 0xaa, 0xdd, 0xc3, 0x9b, 0x5c, 0xbf, 0x7d, 0x6f,
+            0x7d, 0x83, 0x69, 0xac, 0x45, 0x9d, 0x80, 0xa4}},
+        {CERT_ED448_DER_DATA, {
+            0x8a, 0x0e, 0x69, 0xa0, 0x0d, 0xc9, 0x85, 0xb7, 0xdd, 0x20, 0x82, 0xc0,
+            0x07, 0xec, 0x0d, 0xfe, 0x75, 0x0d, 0x27, 0x8b, 0xda, 0x1e, 0x36, 0xea,
+            0x33, 0x1d, 0x91, 0xa9, 0x10, 0xbd, 0xc1, 0x10, 0xae, 0x49, 0x43, 0x0d,
+            0x00, 0xc9, 0x7e, 0xba, 0x3d, 0xed, 0xd0, 0xf2, 0x5c, 0x72, 0x19, 0x62}},
+#endif
+    };
+    size_t i;
+    for(i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++) {
+        if(vectors[i].certificate == certificate->data)
+            break;
+    }
+    ck_assert_uint_lt(i, sizeof(vectors) / sizeof(vectors[0]));
+    ck_assert(policy->hashCertificateForSignature != NULL);
+    UA_ByteString hash = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(policy->hashCertificateForSignature(policy, certificate, &hash),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(hash.length, policy->certThumbprintLength);
+    ck_assert_mem_eq(hash.data, vectors[i].digest, hash.length);
+    UA_ByteString_clear(&hash);
+}
+
+START_TEST(ecc_policies_declare_their_crypto_constants) {
+    const EccPolicyConstants rows[] = {
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256",
+         UA_ServerConfig_addSecurityPolicyEccNistP256,
+         {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA},
+         {KEY_P256_DER_LENGTH, KEY_P256_DER_DATA}, 64, 32, 32, false, NULL},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384",
+         UA_ServerConfig_addSecurityPolicyEccNistP384,
+         {CERT_P384_DER_LENGTH, CERT_P384_DER_DATA},
+         {KEY_P384_DER_LENGTH, KEY_P384_DER_DATA}, 96, 48, 48, false, NULL},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1",
+         UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1,
+         {CERT_BP256R1_DER_LENGTH, CERT_BP256R1_DER_DATA},
+         {KEY_BP256R1_DER_LENGTH, KEY_BP256R1_DER_DATA}, 64, 32, 32, false, NULL},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1",
+         UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1,
+         {CERT_BP384R1_DER_LENGTH, CERT_BP384R1_DER_DATA},
+         {KEY_BP384R1_DER_LENGTH, KEY_BP384R1_DER_DATA}, 96, 48, 48, false, NULL},
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm",
+         UA_ServerConfig_addSecurityPolicyEccNistP256AesGcm,
+         {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA},
+         {KEY_P256_DER_LENGTH, KEY_P256_DER_DATA}, 64, 32, 32, true,
+         AES128_GCM},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly",
+         UA_ServerConfig_addSecurityPolicyEccNistP256ChaChaPoly,
+         {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA},
+         {KEY_P256_DER_LENGTH, KEY_P256_DER_DATA}, 64, 32, 32, true,
+         CHACHA20_POLY1305},
+        /* X25519/X448: nonce == raw public key == the shared secret */
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519",
+         UA_ServerConfig_addSecurityPolicyEccCurve25519,
+         {CERT_ED25519_DER_LENGTH, CERT_ED25519_DER_DATA},
+         {KEY_ED25519_DER_LENGTH, KEY_ED25519_DER_DATA}, 32, 32, 32, false, NULL},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448",
+         UA_ServerConfig_addSecurityPolicyEccCurve448,
+         {CERT_ED448_DER_LENGTH, CERT_ED448_DER_DATA},
+         {KEY_ED448_DER_LENGTH, KEY_ED448_DER_DATA}, 56, 56, 48, false, NULL},
+        /* The AEAD policies of Part 7. Every one is enhanced-security; the
+         * 384-bit tier derives with SHA-384, hence the 48-byte thumbprint. */
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384_AesGcm",
+         UA_ServerConfig_addSecurityPolicyEccNistP384AesGcm,
+         {CERT_P384_DER_LENGTH, CERT_P384_DER_DATA},
+         {KEY_P384_DER_LENGTH, KEY_P384_DER_DATA}, 96, 48, 48, true,
+         AES256_GCM},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384_ChaChaPoly",
+         UA_ServerConfig_addSecurityPolicyEccNistP384ChaChaPoly,
+         {CERT_P384_DER_LENGTH, CERT_P384_DER_DATA},
+         {KEY_P384_DER_LENGTH, KEY_P384_DER_DATA}, 96, 48, 48, true,
+         CHACHA20_POLY1305},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1_AesGcm",
+         UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1AesGcm,
+         {CERT_BP256R1_DER_LENGTH, CERT_BP256R1_DER_DATA},
+         {KEY_BP256R1_DER_LENGTH, KEY_BP256R1_DER_DATA}, 64, 32, 32, true,
+         AES128_GCM},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1_ChaChaPoly",
+         UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1ChaChaPoly,
+         {CERT_BP256R1_DER_LENGTH, CERT_BP256R1_DER_DATA},
+         {KEY_BP256R1_DER_LENGTH, KEY_BP256R1_DER_DATA}, 64, 32, 32, true,
+         CHACHA20_POLY1305},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1_AesGcm",
+         UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1AesGcm,
+         {CERT_BP384R1_DER_LENGTH, CERT_BP384R1_DER_DATA},
+         {KEY_BP384R1_DER_LENGTH, KEY_BP384R1_DER_DATA}, 96, 48, 48, true,
+         AES256_GCM},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1_ChaChaPoly",
+         UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1ChaChaPoly,
+         {CERT_BP384R1_DER_LENGTH, CERT_BP384R1_DER_DATA},
+         {KEY_BP384R1_DER_LENGTH, KEY_BP384R1_DER_DATA}, 96, 48, 48, true,
+         CHACHA20_POLY1305},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519_AesGcm",
+         UA_ServerConfig_addSecurityPolicyEccCurve25519AesGcm,
+         {CERT_ED25519_DER_LENGTH, CERT_ED25519_DER_DATA},
+         {KEY_ED25519_DER_LENGTH, KEY_ED25519_DER_DATA}, 32, 32, 32, true,
+         AES128_GCM},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519_ChaChaPoly",
+         UA_ServerConfig_addSecurityPolicyEccCurve25519ChaChaPoly,
+         {CERT_ED25519_DER_LENGTH, CERT_ED25519_DER_DATA},
+         {KEY_ED25519_DER_LENGTH, KEY_ED25519_DER_DATA}, 32, 32, 32, true,
+         CHACHA20_POLY1305},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448_AesGcm",
+         UA_ServerConfig_addSecurityPolicyEccCurve448AesGcm,
+         {CERT_ED448_DER_LENGTH, CERT_ED448_DER_DATA},
+         {KEY_ED448_DER_LENGTH, KEY_ED448_DER_DATA}, 56, 56, 48, true,
+         AES256_GCM},
+        {"http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448_ChaChaPoly",
+         UA_ServerConfig_addSecurityPolicyEccCurve448ChaChaPoly,
+         {CERT_ED448_DER_LENGTH, CERT_ED448_DER_DATA},
+         {KEY_ED448_DER_LENGTH, KEY_ED448_DER_DATA}, 56, 56, 48, true,
+         CHACHA20_POLY1305},
+#endif
+    };
+
+    for(size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++) {
+        const EccPolicyConstants *r = &rows[i];
+        UA_Server *server = UA_Server_newForUnitTest();
+        UA_ServerConfig *config = UA_Server_getConfig(server);
+        ck_assert_uint_eq(r->add(config, &r->cert, &r->key), UA_STATUSCODE_GOOD);
+
+        UA_String uri = UA_STRING((char *)(uintptr_t)r->uri);
+        const UA_SecurityPolicy *sp = NULL;
+        for(size_t j = 0; j < config->securityPoliciesSize; j++) {
+            if(UA_String_equal(&config->securityPolicies[j].policyUri, &uri))
+                sp = &config->securityPolicies[j];
+        }
+        ck_assert_msg(sp != NULL, "policy %s not registered", r->uri);
+
+        ck_assert_uint_eq(sp->nonceLength, r->nonceLength);
+        ck_assert_uint_eq(sp->secretLength, r->secretLength);
+        ck_assert_uint_eq(sp->certThumbprintLength, r->certThumbprintLength);
+        checkCertificateHash(sp, &r->cert);
+        ck_assert_int_eq(sp->secureChannelEnhancements, r->enhanced);
+        ck_assert(!sp->legacySequenceNumbers);
+
+        /* The AEAD cipher is both the symmetric signature and encryption */
+        if(r->symUri) {
+            UA_String symUri = UA_STRING((char *)(uintptr_t)r->symUri);
+            ck_assert(UA_String_equal(&sp->symSignatureAlgorithm.uri, &symUri));
+            ck_assert(UA_String_equal(&sp->symEncryptionAlgorithm.uri, &symUri));
+        }
+
+        if(r->enhanced)
+            ck_assert_uint_eq(sp->policyType, UA_SECURITYPOLICYTYPE_ECC_AEAD);
+
+        UA_Server_delete(server);
+    }
+}
+END_TEST
+
 static Suite* testSuite_ecc_config(void) {
     Suite *s = suite_create("ECC Config");
     TCase *tc = tcase_create("addSecurityPolicyEcc");
@@ -252,6 +683,13 @@ static Suite* testSuite_ecc_config(void) {
 #endif
     tcase_add_test(tc, config_add_ecc_wrong_cert);
     tcase_add_test(tc, config_add_multiple_ecc_policies);
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    tcase_add_test(tc, config_add_ecc_wrong_curve);
+    tcase_add_test(tc, config_add_ecc_aead);
+    tcase_add_test(tc, client_config_add_ecc_aead);
+    tcase_add_test(tc, client_config_auth_ecc_aead);
+#endif
+    tcase_add_test(tc, ecc_policies_declare_their_crypto_constants);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s, tc);
     return s;

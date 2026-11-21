@@ -854,6 +854,11 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
                                UA_NetworkMessage* nm,
                                const UA_NetworkMessage_EncodingOptions *eo,
                                const UA_DecodeBinaryOptions *bo) {
+    /* Reject empty input before the decoder performs pointer arithmetic. */
+    if(src->length == 0 || !src->data) {
+        memset(nm, 0, sizeof(*nm));
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
     /* Initialize the decoding context */
     PubSubDecodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubDecodeCtx));
@@ -1664,6 +1669,7 @@ decodeRawField(PubSubDecodeCtx *ctx,
     value->value.data = ctxCalloc(&ctx->ctx, count, type->memSize);
     if(!value->value.data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    value->value.arrayLength = count;
 
     /* Decode the content */
     uintptr_t val = (uintptr_t)value->value.data;

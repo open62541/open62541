@@ -6,7 +6,13 @@ import argparse
 parser = argparse.ArgumentParser(description="Run OPC UA examples with or without valgrind")
 parser.add_argument("--no-valgrind", action="store_true",
                     help="Run examples without valgrind (default: on)")
+parser.add_argument("--shards", type=int, default=os.environ.get("EXAMPLE_SHARDS", "1"),
+                    help="Number of parallel example jobs (default: 1)")
+parser.add_argument("--shard", type=int, default=os.environ.get("EXAMPLE_SHARD", "1"),
+                    help="One-based index of this example job (default: 1)")
 args_cli = parser.parse_args()
+if not 1 <= args_cli.shard <= args_cli.shards:
+    parser.error("require 1 <= shard <= shards")
 
 example_args = {
         "client_encryption":"opc.tcp://localhost:4840 client.cert.der client.key.der server.cert.der",
@@ -25,6 +31,10 @@ example_args = {
         "ci_server":"4840 server.cert.der server.key.der client.cert.der",
         "server_json_config":"server_json_config.json5",
         "client_json_config":"client_json_config.json5",
+        # The pinned POWERLINK model has invalid ranks. Exercise its precise
+        # rejection instead of expecting a running server. The companion tests
+        # pin the model revision and also verify the rejected node.
+        "server_nodeset_powerlink":"--check-invalid-nodeset",
         }
 
 server_needed_examples = {
@@ -36,23 +46,22 @@ server_needed_examples = {
         "client_connect_loop":"ci_server 4840 server.cert.der server.key.der client.cert.der",
         "client_encryption":"server_encryption server.cert.der server.key.der client.cert.der",
         "client_event_filter":"ci_server 4840 server.cert.der server.key.der client.cert.der",
+        "client_filetransfer_temporary":"server_filetransfer_temporary",
         "client_historical":"tutorial_server_historicaldata",
         "client_method_async":"ci_server 4840 server.cert.der server.key.der client.cert.der",
         "client_subscription_loop":"ci_server 4840 server.cert.der server.key.der client.cert.der",
         "custom_datatype_client":"custom_datatype_server",
         "discovery_client_find_servers":"discovery_server_lds",
         "discovery_server_register":"discovery_server_lds",
-        "discovery_server_multicast":"discovery_server_multicast",
+        "discovery_server_multicast":"discovery_server_lds",
         "pubsub_publish_encrypted":"pubsub_subscribe_encrypted",
         "pubsub_publish_encrypted_sks":"server_pubsub_central_sks server.cert.der server.key.der --enableUnencrypted --enableAnonymous",
         "pubsub_subscribe_encrypted":"pubsub_publish_encrypted",
         "pubsub_subscribe_encrypted_sks":"server_pubsub_central_sks server.cert.der server.key.der --enableUnencrypted --enableAnonymous",
         "pubsub_subscribe_standalone_dataset":"tutorial_pubsub_publish",
         "server_pubsub_subscribe_custom_monitoring":"server_pubsub_publish_on_demand",
-        "server_pubsub_publish_rt_offsets":"server_pubsub_publish_rt_offsets",
-        "server_pubsub_publish_rt_state_machine":"server_pubsub_publish_rt_state_machine",
-        "server_pubsub_subscribe_rt_offsets":"server_pubsub_subscribe_rt_offsets",
-        "server_pubsub_subscribe_rt_state_machine":"server_pubsub_subscribe_rt_state_machine",
+        "server_pubsub_publish_rt_state_machine":"server_pubsub_subscribe_rt_state_machine",
+        "server_pubsub_subscribe_rt_state_machine":"server_pubsub_publish_rt_state_machine",
         "tutorial_client_events":"tutorial_server_events",
         "tutorial_client_firststeps":"tutorial_server_firststeps",
         "tutorial_pubsub_connection":"tutorial_pubsub_subscribe",
@@ -71,7 +80,6 @@ client_needed_examples = {
         "server_nodeset":"client",
         "server_nodeset_loader":"client",
         "server_nodeset_plcopen":"client",
-        "server_nodeset_powerlink":"client",
         "server_settimestamp":"client",
         "server_testnodeset":"client",
         "tutorial_server_monitoreditems":"client",
@@ -83,6 +91,7 @@ client_needed_examples = {
         "discovery_server_lds":"discovery_client_find_servers",
         "server_encryption":"client_encryption opc.tcp://localhost:4840 client.cert.der client.key.der server.cert.der",
         "server_events_random":"tutorial_client_events opc.tcp://localhost:4840",
+        "server_filetransfer_temporary":"client_filetransfer_temporary",
         "server_pubsub_central_sks":"pubsub_publish_encrypted_sks",
         "tutorial_server_alarms_conditions":"tutorial_client_events opc.tcp://localhost:4840",
         "tutorial_server_datasource":"tutorial_client_events opc.tcp://localhost:4840",
@@ -119,17 +128,19 @@ os.chdir("../build")
 current_dir = os.getcwd()
 print(f"Current directory: {current_dir}")
 example_dir = os.path.join(current_dir, "bin", "examples")
-examples = os.listdir(example_dir)
+# All jobs must use the same ordering so no example is skipped or run twice.
+examples = sorted(example for example in os.listdir(example_dir) if example not in blacklist)
+total_examples = len(examples)
+examples = examples[args_cli.shard - 1::args_cli.shards]
+if not examples:
+    parser.error("the selected shard contains no examples")
+print(f"Running {len(examples)} of {total_examples} examples "
+      f"(shard {args_cli.shard}/{args_cli.shards})", flush=True)
 
 cur_dir = os.path.dirname(os.path.realpath(__file__)) # path of current file
 tests_path = os.path.join(cur_dir, os.pardir, os.pardir, os.pardir, "tests")
 
-# skipping examples that are in the blacklist
 for example in examples:
-    if example in blacklist:
-        print(f"Skipping {example}")
-        continue
-
     # get the arguments for the example
     args = example_args.get(example)
 

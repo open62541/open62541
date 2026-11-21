@@ -100,7 +100,7 @@ add_fuzzer(fuzz_attributeoperand fuzz_attributeoperand.cc)
 add_fuzzer(fuzz_parse_string fuzz_parse_string.cc)
 
 # Fuzzer for mdns dependency
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+if(UA_ENABLE_DRIVER_MDNS_MDNSD)
     add_fuzzer(fuzz_mdns_message fuzz_mdns_message.cc)
     add_fuzzer(fuzz_mdns_xht fuzz_mdns_xht.cc)
 endif()

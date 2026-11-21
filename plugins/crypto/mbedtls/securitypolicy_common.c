@@ -9,6 +9,7 @@
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/certificategroup.h>
 #include <open62541/types.h>
+#include <open62541/util.h>
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
@@ -30,8 +31,6 @@ static UA_StatusCode
 UA_mbedTLS_PsaEccGenerate(psa_ecc_family_t family, size_t bits,
                           UA_mbedTLS_PsaKey *keyPair,
                           UA_ByteString *publicKey);
-static void
-swapBuffers(UA_ByteString *bufA, UA_ByteString *bufB);
 
 static UA_Boolean
 mbedtlsValidByteString(const UA_ByteString *value) {
@@ -162,33 +161,188 @@ UA_mbedTLS_PsaHashCompute(psa_algorithm_t algorithm,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_mbedTLS_PsaMacCompute(mbedtls_svc_key_id_t key,
-                         psa_algorithm_t algorithm,
-                         const UA_ByteString *input,
-                         UA_ByteString *output) {
-    if(!mbedtlsValidByteString(input) || !mbedtlsValidByteString(output))
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    size_t outputLength = 0;
-    psa_status_t status = psa_mac_compute(key, algorithm, input->data,
-                                          input->length, output->data,
-                                          output->length, &outputLength);
-    if(status != PSA_SUCCESS)
-        return psaStatusToStatusCode(status);
-    if(outputLength != output->length)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    return UA_STATUSCODE_GOOD;
+void
+UA_mbedTLS_HmacState_init(UA_mbedTLS_HmacState *hs) {
+    mbedtls_md_init(&hs->inner);
+    mbedtls_md_init(&hs->outer);
+    mbedtls_md_init(&hs->work);
+    UA_mbedTLS_PsaKey_init(&hs->fallbackKey);
+    hs->hash = PSA_ALG_NONE;
+    hs->ready = false;
+}
+
+static void
+freeHashStates(UA_mbedTLS_HmacState *hs) {
+    mbedtls_md_free(&hs->inner);
+    mbedtls_md_free(&hs->outer);
+    mbedtls_md_free(&hs->work);
+    mbedtls_md_init(&hs->inner);
+    mbedtls_md_init(&hs->outer);
+    mbedtls_md_init(&hs->work);
+}
+
+void
+UA_mbedTLS_HmacState_clear(UA_mbedTLS_HmacState *hs) {
+    freeHashStates(hs);
+    UA_mbedTLS_PsaKey_clear(&hs->fallbackKey);
+    UA_mbedTLS_HmacState_init(hs);
+}
+
+/* RFC 2104: inner absorbs the key block XOR 0x36, outer XOR 0x5c */
+static int
+setupHashStates(UA_mbedTLS_HmacState *hs, psa_algorithm_t hash,
+                const UA_ByteString *key) {
+    const mbedtls_md_info_t *info =
+        mbedtls_md_info_from_type(mbedtls_md_type_from_psa_alg(hash));
+    uint8_t block[PSA_HMAC_MAX_HASH_BLOCK_SIZE] = {0};
+    const size_t blockSize = PSA_HASH_BLOCK_LENGTH(hash);
+    if(!info || mbedtls_md_get_size(info) != PSA_HASH_LENGTH(hash) ||
+       blockSize == 0 || blockSize > sizeof(block))
+        return MBEDTLS_ERR_MD_FEATURE_UNAVAILABLE;
+
+    /* A key longer than a block is replaced by its hash */
+    int err = 0;
+    if(key->length > blockSize)
+        err = mbedtls_md(info, key->data, key->length, block);
+    else if(key->length > 0)
+        memcpy(block, key->data, key->length);
+
+    for(size_t i = 0; i < blockSize; i++)
+        block[i] ^= 0x36;
+    if(!err)
+        err = mbedtls_md_setup(&hs->inner, info, 0);
+    if(!err)
+        err = mbedtls_md_starts(&hs->inner);
+    if(!err)
+        err = mbedtls_md_update(&hs->inner, block, blockSize);
+    for(size_t i = 0; i < blockSize; i++)
+        block[i] ^= 0x36 ^ 0x5c;
+    if(!err)
+        err = mbedtls_md_setup(&hs->outer, info, 0);
+    if(!err)
+        err = mbedtls_md_starts(&hs->outer);
+    if(!err)
+        err = mbedtls_md_update(&hs->outer, block, blockSize);
+    mbedtls_platform_zeroize(block, sizeof(block));
+
+    /* Some hardware hash drivers cannot clone */
+    if(!err)
+        err = mbedtls_md_setup(&hs->work, info, 0);
+    if(!err)
+        err = mbedtls_md_clone(&hs->work, &hs->inner);
+    return err;
 }
 
 UA_StatusCode
-UA_mbedTLS_PsaMacVerify(mbedtls_svc_key_id_t key,
-                        psa_algorithm_t algorithm,
-                        const UA_ByteString *input,
-                        const UA_ByteString *mac) {
-    if(!mbedtlsValidByteString(input) || !mbedtlsValidByteString(mac))
+UA_mbedTLS_HmacState_setKey(UA_mbedTLS_HmacState *hs, psa_algorithm_t hash,
+                            const UA_ByteString *key) {
+    if(!hs || !mbedtlsValidByteString(key) || !PSA_ALG_IS_HASH(hash) ||
+       PSA_HASH_LENGTH(hash) == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    return psaStatusToStatusCode(psa_mac_verify(
-        key, algorithm, input->data, input->length, mac->data, mac->length));
+    UA_mbedTLS_HmacState_clear(hs);
+    /* Before mbedtls_md_setup, so that md finds the PSA hash drivers */
+    UA_StatusCode res = UA_mbedTLS_PSA_Init();
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    hs->hash = hash;
+    if(setupHashStates(hs, hash, key) == 0) {
+        hs->ready = true;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* The PSA key is only needed without usable hash states */
+    freeHashStates(hs);
+    res = UA_mbedTLS_PsaKey_import(
+        &hs->fallbackKey, PSA_KEY_TYPE_HMAC,
+        PSA_KEY_USAGE_SIGN_MESSAGE | PSA_KEY_USAGE_VERIFY_MESSAGE,
+        PSA_ALG_HMAC(hash), key);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_mbedTLS_HmacState_clear(hs);
+    return res;
+}
+
+/* HMAC over in1 | in2. With hash states: H(outer, H(inner, in1 | in2)). The
+ * output size must be at least the hash length. */
+static UA_StatusCode
+hmacCompute(UA_mbedTLS_HmacState *hs,
+            const uint8_t *in1, size_t in1Length,
+            const uint8_t *in2, size_t in2Length,
+            uint8_t *out, size_t outSize) {
+    const size_t hashLength = PSA_HASH_LENGTH(hs->hash);
+    if(hashLength == 0 || outSize < hashLength)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(hs->ready) {
+        uint8_t innerHash[MBEDTLS_MD_MAX_SIZE];
+        int err = mbedtls_md_clone(&hs->work, &hs->inner);
+        if(!err && in1Length > 0)
+            err = mbedtls_md_update(&hs->work, in1, in1Length);
+        if(!err && in2Length > 0)
+            err = mbedtls_md_update(&hs->work, in2, in2Length);
+        if(!err)
+            err = mbedtls_md_finish(&hs->work, innerHash);
+        if(!err)
+            err = mbedtls_md_clone(&hs->work, &hs->outer);
+        if(!err)
+            err = mbedtls_md_update(&hs->work, innerHash, hashLength);
+        if(!err)
+            err = mbedtls_md_finish(&hs->work, out);
+        mbedtls_platform_zeroize(innerHash, sizeof(innerHash));
+        return err ? UA_STATUSCODE_BADINTERNALERROR : UA_STATUSCODE_GOOD;
+    }
+
+    if(mbedtls_svc_key_id_is_null(hs->fallbackKey.id))
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED; /* no key set */
+    size_t outLength = 0;
+    psa_mac_operation_t work = psa_mac_operation_init();
+    psa_status_t status = psa_mac_sign_setup(&work, hs->fallbackKey.id,
+                                             PSA_ALG_HMAC(hs->hash));
+    if(status == PSA_SUCCESS && in1Length > 0)
+        status = psa_mac_update(&work, in1, in1Length);
+    if(status == PSA_SUCCESS && in2Length > 0)
+        status = psa_mac_update(&work, in2, in2Length);
+    if(status == PSA_SUCCESS)
+        status = psa_mac_sign_finish(&work, out, hashLength, &outLength);
+    (void)psa_mac_abort(&work);
+    if(status == PSA_SUCCESS && outLength != hashLength)
+        status = PSA_ERROR_CORRUPTION_DETECTED;
+    return psaStatusToStatusCode(status);
+}
+
+UA_StatusCode
+UA_mbedTLS_HmacState_sign(UA_mbedTLS_HmacState *hs,
+                          const UA_ByteString *message,
+                          UA_ByteString *signature) {
+    if(!hs || !mbedtlsValidByteString(message) ||
+       !mbedtlsValidByteString(signature))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    const size_t hashLength = PSA_HASH_LENGTH(hs->hash);
+    if(hashLength == 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED; /* no key set */
+    if(signature->length != hashLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return hmacCompute(hs, message->data, message->length, NULL, 0,
+                       signature->data, signature->length);
+}
+
+UA_StatusCode
+UA_mbedTLS_HmacState_verify(UA_mbedTLS_HmacState *hs,
+                            const UA_ByteString *message,
+                            const UA_ByteString *signature) {
+    if(!hs || !mbedtlsValidByteString(message) ||
+       !mbedtlsValidByteString(signature))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    const size_t hashLength = PSA_HASH_LENGTH(hs->hash);
+    if(hashLength == 0 || signature->length != hashLength)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    uint8_t mac[MBEDTLS_MD_MAX_SIZE];
+    UA_StatusCode res = hmacCompute(hs, message->data, message->length,
+                                    NULL, 0, mac, sizeof(mac));
+    if(res == UA_STATUSCODE_GOOD &&
+       !UA_constantTimeEqual(signature->data, mac, hashLength))
+        res = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    mbedtls_platform_zeroize(mac, sizeof(mac));
+    return res;
 }
 
 UA_StatusCode
@@ -203,7 +357,7 @@ UA_mbedTLS_PsaRandom(UA_ByteString *output) {
 }
 
 UA_StatusCode
-UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
+UA_mbedTLS_EccGenerateEphemeralKey(const UA_SecurityPolicy *policy,
                             UA_mbedTLS_PsaKey *ephemeralKey,
                             psa_ecc_family_t family, size_t bits,
                             UA_ByteString *output) {
@@ -211,11 +365,7 @@ UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
        (output->length > 0 && !output->data))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    if(output->length < 3 || output->data[0] != 'e' ||
-       output->data[1] != 'p' || output->data[2] != 'h')
-        return UA_mbedTLS_PsaRandom(output);
-
-    if(!ephemeralKey)
+    if(!ephemeralKey || output->length != policy->nonceLength || !output->data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     return UA_mbedTLS_PsaEccGenerate(family, bits, ephemeralKey, output);
 }
@@ -228,67 +378,48 @@ UA_mbedTLS_PsaPHash(psa_algorithm_t hashAlgorithm,
     if(!mbedtlsValidByteString(secret) || !mbedtlsValidByteString(seed) ||
        !mbedtlsValidByteString(output) || !PSA_ALG_IS_HASH(hashAlgorithm))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    size_t hashLength = PSA_HASH_LENGTH(hashAlgorithm);
-    if(hashLength == 0)
+    const size_t hashLength = PSA_HASH_LENGTH(hashAlgorithm);
+    if(hashLength == 0 || hashLength > MBEDTLS_MD_MAX_SIZE)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
-    UA_ByteString a = UA_BYTESTRING_NULL;
-    UA_ByteString nextA = UA_BYTESTRING_NULL;
-    UA_ByteString macInput = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&a, hashLength);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    res = UA_ByteString_allocBuffer(&nextA, hashLength);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_mbedTLS_clearSensitiveByteString(&a);
-        return res;
-    }
-    res = UA_ByteString_allocBuffer(&macInput, hashLength + seed->length);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_mbedTLS_clearSensitiveByteString(&nextA);
-        UA_mbedTLS_clearSensitiveByteString(&a);
-        return res;
-    }
-
-    psa_algorithm_t macAlgorithm = PSA_ALG_HMAC(hashAlgorithm);
-    UA_mbedTLS_PsaKey hmacKey;
-    UA_mbedTLS_PsaKey_init(&hmacKey);
-    res = UA_mbedTLS_PsaKey_import(&hmacKey, PSA_KEY_TYPE_HMAC,
-                                   PSA_KEY_USAGE_SIGN_MESSAGE,
-                                   macAlgorithm, secret);
+    /* A(1) = HMAC(secret, seed), A(i+1) = HMAC(secret, A(i)),
+     * output = HMAC(secret, A(1) | seed) | HMAC(secret, A(2) | seed) | ... */
+    uint8_t a[MBEDTLS_MD_MAX_SIZE];
+    uint8_t block[MBEDTLS_MD_MAX_SIZE];
+    UA_mbedTLS_HmacState hmac;
+    UA_mbedTLS_HmacState_init(&hmac);
+    UA_StatusCode res =
+        UA_mbedTLS_HmacState_setKey(&hmac, hashAlgorithm, secret);
     if(res == UA_STATUSCODE_GOOD)
-        res = UA_mbedTLS_PsaMacCompute(hmacKey.id, macAlgorithm, seed, &a);
-    for(size_t offset = 0; offset < output->length; offset += hashLength) {
+        res = hmacCompute(&hmac, seed->data, seed->length, NULL, 0,
+                          a, sizeof(a));
+    for(size_t offset = 0;
+        res == UA_STATUSCODE_GOOD && offset < output->length;
+        offset += hashLength) {
+        res = hmacCompute(&hmac, a, hashLength, seed->data, seed->length,
+                          block, sizeof(block));
         if(res != UA_STATUSCODE_GOOD)
             break;
-        memcpy(macInput.data, a.data, hashLength);
-        memcpy(macInput.data + hashLength, seed->data, seed->length);
-        UA_ByteString block = {hashLength, output->data + offset};
-        UA_ByteString temporary = UA_BYTESTRING_NULL;
-        if(offset + hashLength > output->length) {
-            res = UA_ByteString_allocBuffer(&temporary, hashLength);
-            if(res != UA_STATUSCODE_GOOD)
-                break;
-            block = temporary;
-        }
-        res = UA_mbedTLS_PsaMacCompute(hmacKey.id, macAlgorithm, &macInput, &block);
-        if(temporary.data) {
-            if(res == UA_STATUSCODE_GOOD)
-                memcpy(output->data + offset, temporary.data, output->length - offset);
-            UA_mbedTLS_clearSensitiveByteString(&temporary);
-        }
-        if(res != UA_STATUSCODE_GOOD)
-            break;
-        res = UA_mbedTLS_PsaMacCompute(hmacKey.id, macAlgorithm, &a, &nextA);
-        swapBuffers(&a, &nextA);
+        const size_t n = UA_MIN(hashLength, output->length - offset);
+        memcpy(output->data + offset, block, n);
+        /* hmacCompute reads a completely before it overwrites it */
+        if(offset + n < output->length)
+            res = hmacCompute(&hmac, a, hashLength, NULL, 0, a, sizeof(a));
     }
 
-    UA_mbedTLS_PsaKey_clear(&hmacKey);
-    UA_mbedTLS_clearSensitiveByteString(&macInput);
-    UA_mbedTLS_clearSensitiveByteString(&nextA);
-    UA_mbedTLS_clearSensitiveByteString(&a);
+    UA_mbedTLS_HmacState_clear(&hmac);
+    mbedtls_platform_zeroize(a, sizeof(a));
+    mbedtls_platform_zeroize(block, sizeof(block));
     return res;
 }
+
+/* Not in place: MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS forbids overlapping */
+#ifndef UA_MBEDTLS_CIPHER_CHUNK_SIZE
+# define UA_MBEDTLS_CIPHER_CHUNK_SIZE 512
+#endif
+#if UA_MBEDTLS_CIPHER_CHUNK_SIZE < 16
+# error "UA_MBEDTLS_CIPHER_CHUNK_SIZE must be at least one AES block"
+#endif
 
 UA_StatusCode
 UA_mbedTLS_PsaCipher(mbedtls_svc_key_id_t key,
@@ -297,10 +428,7 @@ UA_mbedTLS_PsaCipher(mbedtls_svc_key_id_t key,
     if(!mbedtlsValidByteString(iv) || !mbedtlsValidByteString(data))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_ByteString output = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&output, data->length);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    uint8_t buffer[UA_MBEDTLS_CIPHER_CHUNK_SIZE + PSA_BLOCK_CIPHER_BLOCK_MAX_SIZE];
 
     psa_cipher_operation_t operation = PSA_CIPHER_OPERATION_INIT;
     psa_status_t status = encrypt ?
@@ -309,22 +437,38 @@ UA_mbedTLS_PsaCipher(mbedtls_svc_key_id_t key,
     if(status == PSA_SUCCESS)
         status = psa_cipher_set_iv(&operation, iv->data, iv->length);
 
-    size_t updateLength = 0;
-    if(status == PSA_SUCCESS)
-        status = psa_cipher_update(&operation, data->data, data->length,
-                                   output.data, output.length, &updateLength);
-    size_t finishLength = 0;
-    if(status == PSA_SUCCESS)
-        status = psa_cipher_finish(&operation, output.data + updateLength,
-                                   output.length - updateLength, &finishLength);
-    if(status != PSA_SUCCESS || updateLength + finishLength != data->length) {
-        (void)psa_cipher_abort(&operation);
-        UA_ByteString_clear(&output);
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    size_t readPos = 0;
+    size_t writePos = 0;
+    while(status == PSA_SUCCESS && readPos < data->length) {
+        size_t chunk = data->length - readPos;
+        if(chunk > UA_MBEDTLS_CIPHER_CHUNK_SIZE)
+            chunk = UA_MBEDTLS_CIPHER_CHUNK_SIZE;
+        size_t outLength = 0;
+        status = psa_cipher_update(&operation, data->data + readPos, chunk,
+                                   buffer, sizeof(buffer), &outLength);
+        readPos += chunk;
+        if(status == PSA_SUCCESS && writePos + outLength > readPos)
+            status = PSA_ERROR_CORRUPTION_DETECTED;
+        if(status != PSA_SUCCESS)
+            break;
+        memcpy(data->data + writePos, buffer, outLength);
+        writePos += outLength;
     }
 
-    memcpy(data->data, output.data, data->length);
-    UA_mbedTLS_clearSensitiveByteString(&output);
+    size_t finishLength = 0;
+    if(status == PSA_SUCCESS)
+        status = psa_cipher_finish(&operation, buffer, sizeof(buffer),
+                                   &finishLength);
+    if(status == PSA_SUCCESS && writePos + finishLength == data->length) {
+        memcpy(data->data + writePos, buffer, finishLength);
+        writePos += finishLength;
+    }
+
+    mbedtls_platform_zeroize(buffer, sizeof(buffer));
+    if(status != PSA_SUCCESS || writePos != data->length) {
+        (void)psa_cipher_abort(&operation);
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -532,45 +676,18 @@ psaEccGenerateSalt(size_t length, const UA_ByteString *label,
 
 UA_StatusCode
 UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
-                        const UA_ApplicationType applicationType,
                         const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
-                        const UA_ByteString *key1,
-                        const UA_ByteString *key2,
-                        UA_ByteString *output) {
-    if(!localEphemeralKeyPair || !mbedtlsValidByteString(key1) ||
-       !mbedtlsValidByteString(key2) || !mbedtlsValidByteString(output))
+                        const UA_ByteString *remotePublic,
+                        const UA_ByteString *firstNonce,
+                        const UA_ByteString *secondNonce,
+                        const UA_ByteString *label, UA_ByteString *output) {
+    if(!localEphemeralKeyPair || !mbedtlsValidByteString(firstNonce) ||
+       !mbedtlsValidByteString(secondNonce) || !mbedtlsValidByteString(output) ||
+       firstNonce->length == 0 || firstNonce->length != secondNonce->length)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_Byte encoded[PSA_EXPORT_PUBLIC_KEY_MAX_SIZE];
-    size_t encodedLength = 0;
-    if(psa_export_public_key(localEphemeralKeyPair->id, encoded, sizeof(encoded),
-                             &encodedLength) != PSA_SUCCESS ||
-       encodedLength != key1->length + 1 || encoded[0] != 0x04)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    UA_ByteString localPublic = {encodedLength - 1, encoded + 1};
-
-    const UA_ByteString *remotePublic = NULL;
-    const UA_ByteString *label = NULL;
-    static const UA_ByteString serverLabel = UA_STRING_STATIC("opcua-server");
-    static const UA_ByteString clientLabel = UA_STRING_STATIC("opcua-client");
-    static const UA_ByteString sessionLabel = UA_STRING_STATIC("opcua-secret");
-    if(output->length >= 3 && output->data[0] == 0x03 &&
-       output->data[1] == 0x03 && output->data[2] == 0x04) {
-        label = &sessionLabel;
-        remotePublic = (applicationType == UA_APPLICATIONTYPE_SERVER) ? key2 : key1;
-    } else if(UA_ByteString_equal(&localPublic, key1)) {
-        remotePublic = key2;
-        label = (applicationType == UA_APPLICATIONTYPE_SERVER) ?
-            &clientLabel : &serverLabel;
-    } else if(UA_ByteString_equal(&localPublic, key2)) {
-        remotePublic = key1;
-        label = (applicationType == UA_APPLICATIONTYPE_SERVER) ?
-            &serverLabel : &clientLabel;
-    } else {
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
 
     UA_Byte remoteEncoded[PSA_EXPORT_PUBLIC_KEY_MAX_SIZE];
-    if(remotePublic->length + 1 > sizeof(remoteEncoded))
+    if(remotePublic->length >= sizeof(remoteEncoded))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     remoteEncoded[0] = 0x04;
     memcpy(remoteEncoded + 1, remotePublic->data, remotePublic->length);
@@ -589,7 +706,7 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
     shared.length = sharedLength;
 
     UA_ByteString salt = UA_BYTESTRING_NULL;
-    res = psaEccGenerateSalt(output->length, label, key2, key1, &salt);
+    res = psaEccGenerateSalt(output->length, label, firstNonce, secondNonce, &salt);
     if(res != UA_STATUSCODE_GOOD) {
         UA_mbedTLS_clearSensitiveByteString(&shared);
         return res;
@@ -628,10 +745,17 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
 void
 UA_mbedTLS_ChannelContext_init(mbedtls_ChannelContext *context) {
     mbedtls_x509_crt_init(&context->remoteCertificate);
-    UA_mbedTLS_PsaKey_init(&context->localSymSigningKey);
+#if defined(UA_MBEDTLS_AES_CONTEXT)
+    UA_mbedTLS_compat_aesInit(&context->localAes);
+    UA_mbedTLS_compat_aesInit(&context->remoteAes);
+    context->localAesSet = false;
+    context->remoteAesSet = false;
+#else
     UA_mbedTLS_PsaKey_init(&context->localSymEncryptingKey);
-    UA_mbedTLS_PsaKey_init(&context->remoteSymSigningKey);
     UA_mbedTLS_PsaKey_init(&context->remoteSymEncryptingKey);
+#endif
+    UA_mbedTLS_HmacState_init(&context->localMac);
+    UA_mbedTLS_HmacState_init(&context->remoteMac);
 }
 
 void
@@ -639,10 +763,17 @@ UA_mbedTLS_ChannelContext_clear(mbedtls_ChannelContext *context) {
     UA_ByteString_clear(&context->localSymIv);
     UA_ByteString_clear(&context->remoteSymIv);
     mbedtls_x509_crt_free(&context->remoteCertificate);
-    UA_mbedTLS_PsaKey_clear(&context->localSymSigningKey);
+#if defined(UA_MBEDTLS_AES_CONTEXT)
+    UA_mbedTLS_compat_aesFree(&context->localAes);
+    UA_mbedTLS_compat_aesFree(&context->remoteAes);
+    context->localAesSet = false;
+    context->remoteAesSet = false;
+#else
     UA_mbedTLS_PsaKey_clear(&context->localSymEncryptingKey);
-    UA_mbedTLS_PsaKey_clear(&context->remoteSymSigningKey);
     UA_mbedTLS_PsaKey_clear(&context->remoteSymEncryptingKey);
+#endif
+    UA_mbedTLS_HmacState_clear(&context->localMac);
+    UA_mbedTLS_HmacState_clear(&context->remoteMac);
 }
 
 void
@@ -658,102 +789,21 @@ UA_mbedTLS_PolicyContext_clear(mbedtls_PolicyContext *context) {
     mbedtls_pk_free(&context->csrLocalPrivateKey);
 }
 
-static void
-swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB) {
-    UA_ByteString tmp = *bufA;
-    *bufA = *bufB;
-    *bufB = tmp;
-}
-
-/* Substring search on a (not necessarily null-terminated) UA_String. */
-static UA_Boolean
-policyUriContains(const UA_String *uri, const char *token) {
-    size_t n = strlen(token);
-    if(uri->length < n)
-        return false;
-    for(size_t i = 0; i + n <= uri->length; i++) {
-        if(memcmp(uri->data + i, token, n) == 0)
-            return true;
-    }
-    return false;
-}
-
-/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
- * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
- * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
- * CreateSession / ActivateSession SignatureData.
- *
- * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
- * policy's CertificateThumbprintAlgorithm (SHA-1 by default) and is produced by
- * makeCertThumbprint. The digest here is selected from the policy URI's curve. */
 UA_StatusCode
-UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
-                                  const UA_ByteString *certificate,
-                                  UA_ByteString *hash) {
-    if(!policy || !mbedtlsValidByteString(certificate) || !hash)
+UA_mbedTLS_hashCertificate(const UA_ByteString *certificate,
+                           psa_algorithm_t hashAlgorithm, UA_ByteString *hash) {
+    if(!mbedtlsValidByteString(certificate) || !hash || !PSA_ALG_IS_HASH(hashAlgorithm))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* Select the digest from the policy's elliptic curve, not a fixed
-     * algorithm. */
-    mbedtls_md_type_t mdType;
-    size_t hashLen;
-    if(policyUriContains(&policy->policyUri, "P384")) {
-        mdType = MBEDTLS_MD_SHA384;
-        hashLen = 48;
-    } else if(policyUriContains(&policy->policyUri, "P256")) {
-        mdType = MBEDTLS_MD_SHA256;
-        hashLen = 32;
-    } else {
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-    }
-
-    const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(mdType);
-    if(mdInfo == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_StatusCode ret = UA_ByteString_allocBuffer(hash, hashLen);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
-    UA_ByteString cert = {certificate->length, certificate->data};
-    psa_algorithm_t psaAlgorithm = (mdType == MBEDTLS_MD_SHA384) ?
-        PSA_ALG_SHA_384 : PSA_ALG_SHA_256;
-    if(UA_mbedTLS_PsaHashCompute(psaAlgorithm, &cert, hash) != UA_STATUSCODE_GOOD) {
+    size_t hashLength = PSA_HASH_LENGTH(hashAlgorithm);
+    if(hashLength == 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_StatusCode res = UA_ByteString_allocBuffer(hash, hashLength);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = UA_mbedTLS_PsaHashCompute(hashAlgorithm, certificate, hash);
+    if(res != UA_STATUSCODE_GOOD)
         UA_ByteString_clear(hash);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Backend-agnostic SecurityPolicy properties derived from the policy URI. Kept
- * out of the UA_SecurityPolicy struct (so its layout stays stable across the
- * 1.5 release family); see the #None fallback in ua_securitypolicy_none.c used
- * when no crypto backend is built. */
-
-/* True if the policy requires the OPC UA Part 6 v1.05.07
- * SecureChannelEnhancements behavior (the ECC_nistP256_* policies). */
-UA_Boolean
-UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
-    if(!policy)
-        return false;
-    static const UA_String eccNistP256AesGcm =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm");
-    static const UA_String eccNistP256ChaChaPoly =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly");
-    return UA_String_equal(&policy->policyUri, &eccNistP256AesGcm) ||
-           UA_String_equal(&policy->policyUri, &eccNistP256ChaChaPoly);
-}
-
-/* In the OPC UA reference stack the SequenceNumber handling depends on a
- * SecurityPolicy property `LegacySequenceNumbers`: false for all ECC policies
- * (and RSA-DH, which open62541 does not implement), true for None / RSA
- * (Basic*, Aes*_RsaOaep/RsaPss). Non-legacy starts the channel SequenceNumber
- * at 0 and wraps UA_UINT32_MAX -> 0; legacy starts at 1 with the "< 1024"
- * rollover. A NULL policy is treated as legacy. */
-UA_Boolean
-UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
-    if(!policy)
-        return true;
-    return policy->policyType != UA_SECURITYPOLICYTYPE_ECC &&
-           policy->policyType != UA_SECURITYPOLICYTYPE_ECC_AEAD;
+    return res;
 }
 
 UA_StatusCode
@@ -959,7 +1009,9 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
         }
     }
     if(mbedtls_x509write_csr_set_subject_name(&request, subject) != 0) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
+        /* The SubjectName argument cannot be parsed */
+        retval = (subjectName && subjectName->length > 0) ?
+            UA_STATUSCODE_BADINVALIDARGUMENT : UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
     retval = mbedtls_x509write_csrSetSubjectAltName(
@@ -1273,9 +1325,7 @@ UA_mbedTLS_symmetricSign(mbedtls_ChannelContext *context, size_t signatureLength
     if(!context || !mbedtlsValidByteString(message) ||
        !mbedtlsValidByteString(signature) || signature->length != signatureLength)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    return UA_mbedTLS_PsaMacCompute(context->localSymSigningKey.id,
-                                    context->symmetricMacAlgorithm,
-                                    message, signature);
+    return UA_mbedTLS_HmacState_sign(&context->localMac, message, signature);
 }
 
 UA_StatusCode
@@ -1287,9 +1337,7 @@ UA_mbedTLS_symmetricVerify(mbedtls_ChannelContext *context, size_t signatureLeng
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(signature->length != signatureLength)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    return UA_mbedTLS_PsaMacVerify(context->remoteSymSigningKey.id,
-                                   context->symmetricMacAlgorithm,
-                                   message, signature);
+    return UA_mbedTLS_HmacState_verify(&context->remoteMac, message, signature);
 }
 
 static UA_StatusCode
@@ -1301,10 +1349,35 @@ symmetricCrypt(void *channelContext, UA_ByteString *data, UA_Boolean encrypt) {
         &context->localSymIv : &context->remoteSymIv;
     if(iv->length != 16 || data->length % 16 != 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+#if defined(UA_MBEDTLS_AES_CONTEXT)
+    if(!(encrypt ? context->localAesSet : context->remoteAesSet))
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    int err = UA_mbedTLS_compat_aesCbc(
+        encrypt ? &context->localAes : &context->remoteAes, encrypt,
+        iv->data, data);
+    return err ? UA_STATUSCODE_BADSECURITYCHECKSFAILED : UA_STATUSCODE_GOOD;
+#else
     return UA_mbedTLS_PsaCipher(
         encrypt ? context->localSymEncryptingKey.id :
                   context->remoteSymEncryptingKey.id,
         PSA_ALG_CBC_NO_PADDING, encrypt, iv, data);
+#endif
+}
+
+static UA_StatusCode
+setSymEncryptingKey(mbedtls_ChannelContext *cc, UA_Boolean local,
+                    const UA_ByteString *key) {
+#if defined(UA_MBEDTLS_AES_CONTEXT)
+    UA_Boolean *set = local ? &cc->localAesSet : &cc->remoteAesSet;
+    *set = UA_mbedTLS_compat_aesSetKey(local ? &cc->localAes : &cc->remoteAes,
+                                       local, key) == 0;
+    return *set ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINVALIDARGUMENT;
+#else
+    return UA_mbedTLS_PsaKey_import(
+        local ? &cc->localSymEncryptingKey : &cc->remoteSymEncryptingKey,
+        PSA_KEY_TYPE_AES, local ? PSA_KEY_USAGE_ENCRYPT : PSA_KEY_USAGE_DECRYPT,
+        PSA_ALG_CBC_NO_PADDING, key);
+#endif
 }
 
 UA_StatusCode
@@ -1327,11 +1400,8 @@ UA_mbedTLS_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
                                             const UA_ByteString *key) {
     if(!policy || !channelContext || !mbedtlsValidByteString(key) || key->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    mbedtls_ChannelContext *cc =
-        (mbedtls_ChannelContext*)channelContext;
-    return UA_mbedTLS_PsaKey_import(
-        &cc->localSymEncryptingKey, PSA_KEY_TYPE_AES, PSA_KEY_USAGE_ENCRYPT,
-        PSA_ALG_CBC_NO_PADDING, key);
+    return setSymEncryptingKey((mbedtls_ChannelContext*)channelContext,
+                               true, key);
 }
 
 UA_StatusCode
@@ -1341,10 +1411,8 @@ UA_mbedTLS_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
     if(!policy || !channelContext || !mbedtlsValidByteString(key) || key->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
-    return UA_mbedTLS_PsaKey_import(
-        &cc->localSymSigningKey, PSA_KEY_TYPE_HMAC,
-        PSA_KEY_USAGE_SIGN_MESSAGE,
-        cc->symmetricMacAlgorithm, key);
+    return UA_mbedTLS_HmacState_setKey(
+        &cc->localMac, PSA_ALG_HMAC_GET_HASH(cc->symmetricMacAlgorithm), key);
 }
 
 UA_StatusCode
@@ -1369,12 +1437,8 @@ UA_mbedTLS_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
                                              const UA_ByteString *key) {
     if(!policy || !channelContext || !mbedtlsValidByteString(key) || key->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    mbedtls_ChannelContext *cc =
-        (mbedtls_ChannelContext*)channelContext;
-    return UA_mbedTLS_PsaKey_import(
-        &cc->remoteSymEncryptingKey, PSA_KEY_TYPE_AES,
-        PSA_KEY_USAGE_DECRYPT,
-        PSA_ALG_CBC_NO_PADDING, key);
+    return setSymEncryptingKey((mbedtls_ChannelContext*)channelContext,
+                               false, key);
 }
 
 UA_StatusCode
@@ -1385,10 +1449,8 @@ UA_mbedTLS_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
-    return UA_mbedTLS_PsaKey_import(
-        &cc->remoteSymSigningKey, PSA_KEY_TYPE_HMAC,
-        PSA_KEY_USAGE_VERIFY_MESSAGE,
-        cc->symmetricMacAlgorithm, key);
+    return UA_mbedTLS_HmacState_setKey(
+        &cc->remoteMac, PSA_ALG_HMAC_GET_HASH(cc->symmetricMacAlgorithm), key);
 }
 
 UA_StatusCode

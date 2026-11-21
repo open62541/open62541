@@ -575,7 +575,18 @@ typedef struct {
     UA_Byte priority;
     UA_ExtensionObject transportSettings;
     UA_ExtensionObject messageSettings;
+
+    /* The group properties are a key-value map whose members are defined in
+     * future versions of the OPC UA standard. We prefix the non-standard fields
+     * defined for open62541 with __.
+     *
+     * 0:__publish-basetime [datetime]: Defines the basetime for the cyclic
+     *     publishing interval. This also sets the timer policy
+     *     UA_TIMERPOLICY_BASETIME for the publishing interval. The basetime uses
+     *     the EventLoop's monotonic clock, in the same units as dateTime_nowMonotonic.
+     */
     UA_KeyValueMap groupProperties;
+
     UA_PubSubEncodingType encodingMimeType;
 
     /* non std. config parameter. maximum count of embedded DataSetMessage in

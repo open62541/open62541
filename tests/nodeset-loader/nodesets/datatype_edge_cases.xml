@@ -61,6 +61,35 @@
     <Definition Name="EmptyStructure"/>
   </UADataType>
 
+  <!-- Three levels, with each Definition declaring only its own fields. -->
+  <UADataType NodeId="ns=1;i=6013" BrowseName="1:GrandchildRecord">
+    <DisplayName>GrandchildRecord</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=6012</Reference>
+    </References>
+    <Definition Name="GrandchildRecord">
+      <Field Name="Label" DataType="i=12"/>
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="ns=1;i=6012" BrowseName="1:ChildRecord">
+    <DisplayName>ChildRecord</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=6011</Reference>
+    </References>
+    <Definition Name="ChildRecord">
+      <Field Name="Measurement" DataType="i=11"/>
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="ns=1;i=6011" BrowseName="1:BaseRecord">
+    <DisplayName>BaseRecord</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="BaseRecord">
+      <Field Name="Identifier" DataType="i=7"/>
+    </Definition>
+  </UADataType>
+
   <UADataType NodeId="ns=1;i=7001" BrowseName="1:PolymorphicStructure">
     <DisplayName>PolymorphicStructure</DisplayName>
     <References>

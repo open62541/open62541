@@ -295,6 +295,8 @@ START_TEST(SecurityTokenRolloverIsCommittedAfterVerification) {
     nm.securityEnabled = true;
     nm.securityHeader.networkMessageSigned = true;
     nm.securityHeader.securityTokenId = 2;
+    nm.securityHeader.messageNonceSize = 8;
+    nm.securityHeader.messageNonce[4] = 1;
 
     UA_Byte validSignature = 2;
     UA_ByteString validBuffer = {1, &validSignature};
@@ -321,6 +323,26 @@ START_TEST(SecurityTokenRolloverIsCommittedAfterVerification) {
                       UA_STATUSCODE_BADSECURITYCHECKSFAILED);
     ck_assert_uint_eq(rg.securityTokenId, 2);
     ck_assert_uint_eq(*(UA_Byte*)rg.securityPolicyContext, 2);
+
+    /* Accept the next stored key, then replay the previously accepted token.
+     * A valid old signature must not restore that token's active context. */
+    validSignature = 3;
+    ctx.pos = &validSignature;
+    ctx.end = &validSignature + 1;
+    ck_assert_uint_eq(verifyAndDecryptNetworkMessage(NULL, validBuffer, &ctx,
+                                                     &nm, &rg),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rg.securityTokenId, 3);
+
+    validSignature = 2;
+    nm.securityHeader.securityTokenId = 2;
+    ctx.pos = &validSignature;
+    ctx.end = &validSignature + 1;
+    ck_assert_uint_eq(verifyAndDecryptNetworkMessage(NULL, validBuffer, &ctx,
+                                                     &nm, &rg),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(rg.securityTokenId, 3);
+    ck_assert_uint_eq(*(UA_Byte*)rg.securityPolicyContext, 3);
 
     policy.deleteGroupContext(&policy, rg.securityPolicyContext);
     UA_PubSubKeyStorage_clearKeyList(&ks);

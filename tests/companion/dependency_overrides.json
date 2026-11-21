@@ -1,0 +1,10 @@
+[
+  {
+    "path": "IA/Opc.Ua.IA.NodeSet2.examples.xml",
+    "uri": "http://opcfoundation.org/UA/IA/",
+    "requested": "2025-05-25T00:00:00Z",
+    "available": "2025-05-23T00:00:00Z",
+    "reason": "The example and provider both name IA 1.01.4; the example's publication date is two days later than the bundled provider.",
+    "version": "1.01.4"
+  }
+]

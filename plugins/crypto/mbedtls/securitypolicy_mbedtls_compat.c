@@ -6,6 +6,7 @@
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
 #include <mbedtls/md.h>
+#include <mbedtls/platform_util.h>
 #include <mbedtls/psa_util.h>
 #include <mbedtls/version.h>
 #if MBEDTLS_VERSION_NUMBER < 0x04000000
@@ -34,6 +35,43 @@ UA_mbedTLS_compat_parsePrivateKey(mbedtls_pk_context *target,
 #endif
 }
 
+/* mbedTLS 3 checks the key as its own public key. For RSA, it checks the key
+ * with mbedtls_rsa_check_privkey: n = p*q, the exponents and the CRT values.
+ * For ECC, it checks that the public point is d*G.
+ *
+ * mbedTLS 4 decodes an RSA private key only if mbedtls_rsa_check_privkey
+ * accepts it. Its public key is always exported from the private key. PSA
+ * keeps only the private value d of an ECC key. The public point of a SEC1 key
+ * is decoded as it is and is not compared with d. Thus the public point is
+ * exported from a PSA copy of the private key (this is d*G) and compared with
+ * the stored public point. mbedtls_pk_check_pair of mbedTLS 4 only compares
+ * the stored public keys and does not accept a key pair as the public key. */
+int
+UA_mbedTLS_compat_checkPrivateKey(const mbedtls_pk_context *key) {
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    if(UA_mbedTLS_compat_isRsaKeyPair(key))
+        return 0; /* Checked when the key was decoded */
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attributes, mbedtls_pk_get_key_type(key));
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_EXPORT);
+    mbedtls_svc_key_id_t keyId = MBEDTLS_SVC_KEY_ID_INIT;
+    mbedtls_pk_context publicKey;
+    mbedtls_pk_init(&publicKey);
+    int ret = mbedtls_pk_import_into_psa(key, &attributes, &keyId);
+    if(ret == 0)
+        ret = mbedtls_pk_copy_public_from_psa(keyId, &publicKey);
+    if(ret == 0)
+        ret = mbedtls_pk_check_pair(&publicKey, key);
+    mbedtls_pk_free(&publicKey);
+    psa_destroy_key(keyId);
+    psa_reset_key_attributes(&attributes);
+    return ret;
+#else
+    return mbedtls_pk_check_pair(key, key, mbedtls_psa_get_random,
+                                 MBEDTLS_PSA_RANDOM_STATE);
+#endif
+}
+
 UA_Boolean
 UA_mbedTLS_compat_isEccKeyPair(const mbedtls_pk_context *key) {
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
@@ -53,36 +91,71 @@ UA_mbedTLS_compat_isRsaKeyPair(const mbedtls_pk_context *key) {
 }
 
 UA_Boolean
-UA_mbedTLS_compat_verifyCertificateSignature(const mbedtls_x509_crt *certificate,
-                                              mbedtls_x509_crt *issuer) {
+UA_mbedTLS_compat_isRsaKey(const mbedtls_pk_context *key) {
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    return key && PSA_KEY_TYPE_IS_RSA(mbedtls_pk_get_key_type(key));
+#else
+    return key && mbedtls_pk_can_do(key, MBEDTLS_PK_RSA);
+#endif
+}
+
+/* Certificates and CRLs carry the signature options only before mbedTLS 4.
+ * mbedTLS 4 replaces mbedtls_pk_type_t with mbedtls_pk_sigalg_t for the
+ * signature algorithm. */
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+typedef mbedtls_pk_sigalg_t UA_mbedTLS_SigPk;
+#define UA_MBEDTLS_SIG_OPTS(x509) NULL
+#else
+typedef mbedtls_pk_type_t UA_mbedTLS_SigPk;
+#define UA_MBEDTLS_SIG_OPTS(x509) ((x509)->MBEDTLS_PRIVATE(sig_opts))
+#endif
+
+/* Verify the signature over the TBS part of a certificate or CRL */
+static UA_Boolean
+verifyTbsSignature(const mbedtls_x509_buf *tbs, const mbedtls_x509_buf *signature,
+                   mbedtls_md_type_t md, UA_mbedTLS_SigPk sigPk,
+                   const void *sigOpts, mbedtls_pk_context *issuerKey) {
     size_t hashLength;
     unsigned char hash[MBEDTLS_MD_MAX_SIZE];
-    mbedtls_md_type_t md = certificate->MBEDTLS_PRIVATE(sig_md);
 #if !defined(MBEDTLS_USE_PSA_CRYPTO)
     const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(md);
     if(!mdInfo)
         return false;
     hashLength = mbedtls_md_get_size(mdInfo);
-    if(mbedtls_md(mdInfo, certificate->tbs.p, certificate->tbs.len, hash) != 0)
+    if(mbedtls_md(mdInfo, tbs->p, tbs->len, hash) != 0)
         return false;
 #else
-    if(psa_hash_compute(mbedtls_md_psa_alg_from_type(md),
-                        certificate->tbs.p, certificate->tbs.len,
+    if(psa_hash_compute(mbedtls_md_psa_alg_from_type(md), tbs->p, tbs->len,
                         hash, sizeof(hash), &hashLength) != PSA_SUCCESS)
         return false;
 #endif
 
-    const mbedtls_x509_buf *signature = &certificate->MBEDTLS_PRIVATE(sig);
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
-    return mbedtls_pk_verify_ext(certificate->MBEDTLS_PRIVATE(sig_pk),
-                                 &issuer->pk, md, hash, hashLength,
+    (void)sigOpts;
+    return mbedtls_pk_verify_ext(sigPk, issuerKey, md, hash, hashLength,
                                  signature->p, signature->len) == 0;
 #else
-    return mbedtls_pk_verify_ext(certificate->MBEDTLS_PRIVATE(sig_pk),
-                                 certificate->MBEDTLS_PRIVATE(sig_opts),
-                                 &issuer->pk, md, hash, hashLength,
+    return mbedtls_pk_verify_ext(sigPk, sigOpts, issuerKey, md, hash, hashLength,
                                  signature->p, signature->len) == 0;
 #endif
+}
+
+UA_Boolean
+UA_mbedTLS_compat_verifyCertificateSignature(const mbedtls_x509_crt *certificate,
+                                              mbedtls_x509_crt *issuer) {
+    return verifyTbsSignature(&certificate->tbs, &certificate->MBEDTLS_PRIVATE(sig),
+                              certificate->MBEDTLS_PRIVATE(sig_md),
+                              certificate->MBEDTLS_PRIVATE(sig_pk),
+                              UA_MBEDTLS_SIG_OPTS(certificate), &issuer->pk);
+}
+
+UA_Boolean
+UA_mbedTLS_compat_verifyCrlSignature(const mbedtls_x509_crl *crl,
+                                      mbedtls_x509_crt *issuer) {
+    return verifyTbsSignature(&crl->tbs, &crl->MBEDTLS_PRIVATE(sig),
+                              crl->MBEDTLS_PRIVATE(sig_md),
+                              crl->MBEDTLS_PRIVATE(sig_pk),
+                              UA_MBEDTLS_SIG_OPTS(crl), &issuer->pk);
 }
 
 int
@@ -195,5 +268,50 @@ UA_mbedTLS_compat_writeCsrDer(mbedtls_x509write_csr *request,
                                      MBEDTLS_PSA_RANDOM_STATE);
 #endif
 }
+
+#if defined(UA_MBEDTLS_AES_CONTEXT)
+void
+UA_mbedTLS_compat_aesInit(mbedtls_aes_context *ctx) {
+    mbedtls_aes_init(ctx);
+}
+
+void
+UA_mbedTLS_compat_aesFree(mbedtls_aes_context *ctx) {
+    mbedtls_aes_free(ctx);
+}
+
+int
+UA_mbedTLS_compat_aesSetKey(mbedtls_aes_context *ctx, UA_Boolean encrypt,
+                            const UA_ByteString *key) {
+    const unsigned int bits = (unsigned int)key->length * 8;
+    return encrypt ? mbedtls_aes_setkey_enc(ctx, key->data, bits) :
+                     mbedtls_aes_setkey_dec(ctx, key->data, bits);
+}
+
+int
+UA_mbedTLS_compat_aesCbc(mbedtls_aes_context *ctx, UA_Boolean encrypt,
+                         const UA_Byte iv[16], UA_ByteString *data) {
+    unsigned char ivCopy[16]; /* mbedtls_aes_crypt_cbc advances the IV */
+    memcpy(ivCopy, iv, sizeof(ivCopy));
+    return mbedtls_aes_crypt_cbc(ctx,
+                                 encrypt ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT,
+                                 data->length, ivCopy, data->data, data->data);
+}
+
+#if defined(UA_MBEDTLS_AES_CTR_CONTEXT)
+int
+UA_mbedTLS_compat_aesCtr(mbedtls_aes_context *ctx, const UA_Byte counter[16],
+                         UA_ByteString *data) {
+    unsigned char counterCopy[16]; /* mbedtls_aes_crypt_ctr advances it */
+    unsigned char streamBlock[16];
+    size_t offset = 0;
+    memcpy(counterCopy, counter, sizeof(counterCopy));
+    int err = mbedtls_aes_crypt_ctr(ctx, data->length, &offset, counterCopy,
+                                    streamBlock, data->data, data->data);
+    mbedtls_platform_zeroize(streamBlock, sizeof(streamBlock));
+    return err;
+}
+#endif
+#endif
 
 #endif

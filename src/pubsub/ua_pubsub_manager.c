@@ -441,10 +441,18 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = UA_PubSubManager_start(&psm->drv);
-    if(res != UA_STATUSCODE_GOOD) {
-        unlockServer(server);
-        return res;
+    /* Start the PubSubManager only if the server is running. Before startup the
+     * EventLoop and its ConnectionManagers are not started, so the components
+     * go to PAUSED here and to OPERATIONAL when the server startup starts the
+     * PubSubManager. Starting it here would make the connections open their
+     * transport on a ConnectionManager that is not started. */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(server->state == UA_LIFECYCLESTATE_STARTED) {
+        res = UA_PubSubManager_start(&psm->drv);
+        if(res != UA_STATUSCODE_GOOD) {
+            unlockServer(server);
+            return res;
+        }
     }
 
     /* Enable children before their parent groups and connections. Their state

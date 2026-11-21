@@ -13,6 +13,7 @@ target_compile_definitions(check_nodeset_loader_parser PRIVATE
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(check_nodeset_loader_adi.c)
     ua_add_test(check_nodeset_loader_all.c)
+    target_include_directories(check_nodeset_loader_all PRIVATE "${PROJECT_BINARY_DIR}/src_generated/tests")
     set_tests_properties(check_nodeset_loader_all PROPERTIES TIMEOUT 1800)
 
     set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")

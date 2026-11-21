@@ -1,0 +1,2 @@
+ModelChangeStructureDataType
+SemanticChangeStructureDataType

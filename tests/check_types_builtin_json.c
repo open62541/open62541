@@ -9,8 +9,8 @@
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
 
-#include "ua_types_encoding_binary.h"
-#include "ua_types_encoding_json.h"
+#include "ua_types_encoding.h"
+#include "util/ua_util_internal.h"
 
 #include <check.h>
 #include <float.h>
@@ -849,22 +849,27 @@ START_TEST(UA_Double_pluszero_json_encode) {
 }
 END_TEST
 
+static void
+checkMinusZeroJson(const void *src, void *decoded, const UA_DataType *type) {
+    UA_ByteString expected = UA_BYTESTRING("-0.0");
+    UA_ByteString json = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_calcSizeJson(src, type, NULL), expected.length);
+    ck_assert_uint_eq(UA_encodeJson(src, type, &json, NULL), UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&json, &expected));
+    ck_assert_uint_eq(UA_decodeJson(&json, decoded, type, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(memcmp(src, decoded, type->memSize), 0);
+    UA_ByteString_clear(&json);
+}
+
 START_TEST(UA_Double_minuszero_json_encode) {
-    UA_Double src = -0;
-    const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJson((void *) &src, type, NULL);
+    UA_Double src = -0.0, decoded = 0.0;
+    checkMinusZeroJson(&src, &decoded, &UA_TYPES[UA_TYPES_DOUBLE]);
+}
+END_TEST
 
-    UA_ByteString buf;
-    UA_ByteString_allocBuffer(&buf, size+1);
-
-    status s = UA_encodeJson(&src, type, &buf, NULL);
-    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-
-    // then
-    char* result = "0.0";
-    buf.data[size] = 0; /* zero terminate */
-    ck_assert_str_eq(result, (char*)buf.data);
-    UA_ByteString_clear(&buf);
+START_TEST(UA_Float_minuszero_json_encode) {
+    UA_Float src = -0.0f, decoded = 0.0f;
+    checkMinusZeroJson(&src, &decoded, &UA_TYPES[UA_TYPES_FLOAT]);
 }
 END_TEST
 
@@ -3274,6 +3279,21 @@ START_TEST(UA_UInt64_Overflow_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_UInt64_OverflowWrapped_json_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    /* 2^61 * 10, which wraps around to 2^62 in 64 bits */
+    UA_ByteString buf = UA_STRING("{\"UaType\":9,\"Value\":\"23058430092136939520\"}");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_SByte_Min_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -3439,6 +3459,21 @@ START_TEST(UA_Int64_TooBig_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
     UA_ByteString buf = UA_STRING("{\"UaType\":8,\"Value\":\"111111111111111111111111111111\"}");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_Int64_OverflowWrapped_json_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    /* -(2^61 * 10), whose absolute value wraps around to 2^62 in 64 bits */
+    UA_ByteString buf = UA_STRING("{\"UaType\":8,\"Value\":\"-23058430092136939520\"}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
@@ -5094,6 +5129,45 @@ START_TEST(UA_Variant_ExtensionObjectArray_json_decode) {
 }
 END_TEST
 
+/* The UaTypeId token of the ExtensionObject array is at a token index above
+ * UINT16_MAX. The truncated index would point into the filler strings. */
+START_TEST(UA_Variant_ExtensionObjectArray_largeTokenIndex_json_decode) {
+    const char *head = "{\"UaType\":24,\"Value\":["
+        "{\"UaType\":12,\"Value\":[";
+    const char *filler = "\"i=1\",";
+    const char *tail = "\"i=1\"]},"
+        "{\"UaType\":22,\"Value\":[{\"UaTypeId\":\"i=511\","
+        "\"ViewId\":\"i=99999\",\"ViewVersion\":1236}]}]}";
+    size_t fillerCount = 65535;
+    size_t len = strlen(head) + fillerCount * strlen(filler) + strlen(tail);
+    UA_ByteString buf;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&buf, len), UA_STATUSCODE_GOOD);
+    char *pos = (char*)buf.data;
+    memcpy(pos, head, strlen(head));
+    pos += strlen(head);
+    for(size_t i = 0; i < fillerCount; i++) {
+        memcpy(pos, filler, strlen(filler));
+        pos += strlen(filler);
+    }
+    memcpy(pos, tail, strlen(tail));
+
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_StatusCode retval =
+        UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    UA_ByteString_clear(&buf);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    UA_Variant *members = (UA_Variant*)out.data;
+    ck_assert(members[1].type == &UA_TYPES[UA_TYPES_VIEWDESCRIPTION]);
+    ck_assert_uint_eq(members[1].arrayLength, 1);
+    UA_ViewDescription *view = (UA_ViewDescription*)members[1].data;
+    ck_assert_uint_eq(view->viewId.identifier.numeric, 99999);
+    ck_assert_uint_eq(view->viewVersion, 1236);
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_Variant_MixedExtensionObjectArray_json_decode) {
     // given
     UA_Variant out;
@@ -5421,6 +5495,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_encode, UA_Double_onesmallest_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_pluszero_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_minuszero_json_encode);
+    tcase_add_test(tc_json_encode, UA_Float_minuszero_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_plusInf_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_minusInf_json_encode);
     tcase_add_test(tc_json_encode, UA_Double_nan_json_encode);
@@ -5575,6 +5650,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_Int64_Max_json_decode);
     tcase_add_test(tc_json_decode, UA_Int64_Overflow_json_decode);
     tcase_add_test(tc_json_decode, UA_Int64_TooBig_json_decode);
+    tcase_add_test(tc_json_decode, UA_Int64_OverflowWrapped_json_decode);
     tcase_add_test(tc_json_decode, UA_Int64_NoDigit_json_decode);
 
     tcase_add_test(tc_json_decode, UA_UInt64_json_decode_wrapped);
@@ -5582,6 +5658,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_UInt64_Min_json_decode);
     tcase_add_test(tc_json_decode, UA_UInt64_Max_json_decode);
     tcase_add_test(tc_json_decode, UA_UInt64_Overflow_json_decode);
+    tcase_add_test(tc_json_decode, UA_UInt64_OverflowWrapped_json_decode);
 
     tcase_add_test(tc_json_decode, UA_Float_json_decode);
     tcase_add_test(tc_json_decode, UA_Float_json_one_decode);
@@ -5676,6 +5753,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_VariantStringArray_WithoutDimension_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_BooleanArray_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectArray_json_decode);
+    tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectArray_largeTokenIndex_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_MixedExtensionObjectArray_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_bad1_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectWrap_json_decode);

@@ -129,9 +129,8 @@ static void
 teardown(void) {
     if(server == NULL)
         return;
-    if(server->state == UA_LIFECYCLESTATE_STARTED)
-        UA_Server_run_shutdown(server);
-    UA_Server_delete(server);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
     server = NULL;
 }
 

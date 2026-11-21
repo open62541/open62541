@@ -1,0 +1,31 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#ifndef UA_FREERTOS_H_
+#define UA_FREERTOS_H_
+
+/* FreeRTOS architecture configuration. */
+#cmakedefine UA_ARCHITECTURE_FREERTOS
+
+/* C99 Standard Includes */
+#include <stddef.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <float.h>
+#include <string.h>
+#include <assert.h>
+
+/* Custom memory-management can be defined for OS integration, arena-based
+ * malloc, etc. Defaults are set if UA_malloc is not already defined. */
+#if !defined(UA_malloc)
+# include <stdlib.h>
+# define UA_free free
+# define UA_malloc malloc
+# define UA_calloc calloc
+# define UA_realloc realloc
+#endif
+
+#endif /* UA_FREERTOS_H_ */

@@ -623,8 +623,8 @@ START_TEST(xml_decode_variant_customTypeLookup) {
     unrelatedType.typeId = UA_NODEID_NUMERIC(1, 1003);
     unrelatedType.binaryEncodingId = UA_NODEID_NUMERIC(1, 2003);
     unrelatedType.xmlEncodingId = UA_NODEID_NUMERIC(1, 3003);
-    UA_DataTypeArray customTypes = {NULL, 1, &testUnionType, false};
-    UA_DataTypeArray precedingTypes = {&customTypes, 1, &unrelatedType, false};
+    UA_DataTypeArray customTypes = {NULL, 1, &testUnionType, false, false};
+    UA_DataTypeArray precedingTypes = {&customTypes, 1, &unrelatedType, false, false};
     UA_DecodeXmlOptions options;
     memset(&options, 0, sizeof(options));
     options.customTypes = &precedingTypes;
@@ -659,7 +659,7 @@ START_TEST(xml_decode_variant_unwrapExtensionObjectArray) {
         "<Body><TestUnion><SwitchField>2</SwitchField><Text>second</Text>"
         "</TestUnion></Body></ExtensionObject>"
         "</ListOfExtensionObject></Value></Variant>");
-    UA_DataTypeArray customTypes = {NULL, 1, &testUnionType, false};
+    UA_DataTypeArray customTypes = {NULL, 1, &testUnionType, false, false};
     UA_DecodeXmlOptions options;
     memset(&options, 0, sizeof(options));
     options.customTypes = &customTypes;
@@ -705,7 +705,7 @@ START_TEST(xml_decode_variant_preserveMixedExtensionObjects) {
     types[1].binaryEncodingId = UA_NODEID_NUMERIC(1, 2002);
     types[1].xmlEncodingId = UA_NODEID_NUMERIC(1, 3002);
     types[1].typeName = "OtherUnion";
-    UA_DataTypeArray customTypes = {NULL, 2, types, false};
+    UA_DataTypeArray customTypes = {NULL, 2, types, false, false};
     UA_DecodeXmlOptions options;
     memset(&options, 0, sizeof(options));
     options.customTypes = &customTypes;

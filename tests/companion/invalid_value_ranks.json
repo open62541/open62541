@@ -1,0 +1,62 @@
+[
+  {
+    "path": "AML/Opc.Ua.AMLLibraries.NodeSet2.xml",
+    "sha256": "5e4848f6a4812b1573be1807735ff82e957d81718737b683048c669210e9ba23",
+    "node": "ns=2;i=339",
+    "reason": "Omitted ValueRank defaults to scalar, incompatible with the array value or VariableType."
+  },
+  {
+    "path": "ADI/Opc.Ua.Adi.NodeSet2.xml",
+    "sha256": "f5f9a759c1f23ec0b79927894bc7ba4b463a1c127faa074c2867ec6e4773a1c9",
+    "node": "ns=1;i=10575",
+    "reason": "Omitted ValueRank defaults to scalar, incompatible with the array value or VariableType."
+  },
+  {
+    "path": "FDI/Opc.Ua.Fdi5.NodeSet2.xml",
+    "sha256": "45838964e0f7a06f944a2651014da4b6f7fdb996c7f6578f1a562722e77560ea",
+    "node": "ns=2;i=2",
+    "reason": "UIPlugInType has rank 1 but its DI UIElementType supertype (i=6246) defaults to scalar."
+  },
+  {
+    "path": "Mining/DevelopmentSupport/Dozer/1.0.0/Opc.Ua.Mining.DevelopmentSupport.Dozer.NodeSet2.xml",
+    "sha256": "c44750ed4f5387fcbffb9ad8314910a527f2130efd0f71185d25cbcde8cb6e19",
+    "node": "ns=1;i=6013",
+    "reason": "The node has rank 1 but its VariableType omits ValueRank and therefore defaults to scalar."
+  },
+  {
+    "path": "Mining/Loading/General/1.0.0/Opc.Ua.Mining.Loading.General.NodeSet2.xml",
+    "sha256": "81573589277953cc9a748db2f95e348db2e24d41e78cfd215dcb8d252d48bfb8",
+    "node": "ns=1;i=6001",
+    "reason": "The node has rank 1 but its VariableType omits ValueRank and therefore defaults to scalar."
+  },
+  {
+    "path": "Mining/MineralProcessing/RockCrusher/1.0.0/Opc.Ua.Mining.MineralProcessing.RockCrusher.NodeSet2.xml",
+    "sha256": "2c9315f6f583af0af3dc3973dbcf0b4fb365625977bf28933dffc4000b3b7fa3",
+    "node": "ns=1;i=6013",
+    "reason": "The node has rank 1 but its VariableType omits ValueRank and therefore defaults to scalar."
+  },
+  {
+    "path": "Mining/TransportDumping/General/1.0.0/Opc.Ua.Mining.TransportDumping.General.NodeSet2.xml",
+    "sha256": "347c3da89b3ddf5ef545a9a7ee77209590e053d8143470fd3419498f3e7d2d7b",
+    "node": "ns=1;i=6014",
+    "reason": "The node has rank 1 but its VariableType omits ValueRank and therefore defaults to scalar."
+  },
+  {
+    "path": "POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml",
+    "sha256": "723252a7c49e47e86263ca454985e9f170cdbd34de6a5d90e0105e8365ff2c1e",
+    "node": "ns=1;i=1949",
+    "reason": "The node has rank 1 but its VariableType omits ValueRank and therefore defaults to scalar."
+  },
+  {
+    "path": "PADIM/Opc.Ua.PADIM.NodeSet2.xml",
+    "sha256": "2225bc3b7829b01cb72925d519fd49c4d6315231464715e7b509fb7ca4e6e40b",
+    "node": "ns=3;i=1128",
+    "reason": "SensorType has rank -2 but MultiStateDictionaryEntryDiscreteType (i=19084) defaults to scalar."
+  },
+  {
+    "path": "UAFX/opc.ua.fx.cm.nodeset2.xml",
+    "sha256": "6abfb436bfc07051d7c972dc36a4d8744a760cd1b94a72d37d621a4c272f7929",
+    "node": "ns=1;i=6192",
+    "reason": "The node has rank 1 but its VariableType omits ValueRank and therefore defaults to scalar."
+  }
+]

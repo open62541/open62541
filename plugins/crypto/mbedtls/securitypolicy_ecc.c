@@ -148,29 +148,67 @@ eccGetEncryptionKeyLength(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
-eccGenerateNonce(const UA_SecurityPolicy *policy, void *channelContext,
+eccGenerateEphemeralKey(const UA_SecurityPolicy *policy, void *channelContext,
               UA_ByteString *output) {
     const UA_mbedTLS_EccPolicyConfig *config = eccGetConfig(policy);
     EccChannelContext *context = (EccChannelContext*)channelContext;
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    return UA_mbedTLS_EccGenerateNonce(
+    return UA_mbedTLS_EccGenerateEphemeralKey(
         policy, context ? &context->localEphemeralKeyPair : NULL,
         config->family, config->keyBits, output);
 }
 
 static UA_StatusCode
-eccGenerateKey(const UA_SecurityPolicy *policy, void *channelContext,
-            const UA_ByteString *secret, const UA_ByteString *seed,
-            UA_ByteString *output) {
+eccHashCertificateForSignature(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *certificate, UA_ByteString *hash) {
+    const UA_mbedTLS_EccPolicyConfig *config = eccGetConfig(policy);
+    if(!config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return UA_mbedTLS_hashCertificate(certificate, config->hashAlgorithm, hash);
+}
+
+static UA_StatusCode
+eccGenerateKey(const UA_SecurityPolicy *policy,
+               void *channelContext, UA_KeyDerivationDirection direction,
+               const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+               UA_ByteString *ikmInOut, UA_ByteString *output) {
     const EccPolicyContext *policyContext =
         policy ? (const EccPolicyContext*)policy->policyContext : NULL;
     EccChannelContext *context = (EccChannelContext*)channelContext;
     if(!policyContext || !context)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    static const UA_ByteString serverLabel = UA_STRING_STATIC("opcua-server");
+    static const UA_ByteString clientLabel = UA_STRING_STATIC("opcua-client");
+    UA_Boolean local = (direction == UA_KEYDERIVATION_LOCAL);
+    UA_Boolean senderIsServer =
+        (policyContext->applicationType == UA_APPLICATIONTYPE_SERVER) == local;
     return UA_mbedTLS_PsaEccDerive(
-        policyContext->config->hashAlgorithm, policyContext->applicationType,
-        &context->localEphemeralKeyPair, secret, seed, output);
+        policyContext->config->hashAlgorithm, &context->localEphemeralKeyPair,
+        remoteNonce, local ? localNonce : remoteNonce,
+        local ? remoteNonce : localNonce,
+        senderIsServer ? &serverLabel : &clientLabel, output);
+}
+
+static UA_StatusCode
+eccGenerateEncryptedSecretKey(const UA_SecurityPolicy *policy, void *channelContext,
+                              const UA_ByteString *receiverPublicKey,
+                              const UA_ByteString *senderPublicKey,
+                              UA_ByteString *output) {
+    const EccPolicyContext *policyContext =
+        policy ? (const EccPolicyContext*)policy->policyContext : NULL;
+    EccChannelContext *context = (EccChannelContext*)channelContext;
+    if(!policyContext || !context)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    static const UA_ByteString label = UA_STRING_STATIC("opcua-secret");
+    const UA_ByteString *remote =
+        (policyContext->applicationType == UA_APPLICATIONTYPE_SERVER) ?
+        senderPublicKey : receiverPublicKey;
+    return UA_mbedTLS_PsaEccDerive(
+        policyContext->config->hashAlgorithm, &context->localEphemeralKeyPair,
+        remote, senderPublicKey, receiverPublicKey, &label, output);
 }
 
 static UA_StatusCode
@@ -254,6 +292,7 @@ UA_mbedTLS_SecurityPolicy_Ecc(UA_SecurityPolicy *policy,
     policy->certificateTypeId = UA_NODEID_NUMERIC(0, config->certificateTypeId);
     policy->securityLevel = config->securityLevel;
     policy->policyType = UA_SECURITYPOLICYTYPE_ECC;
+    policy->legacySequenceNumbers = false;
 
     UA_SecurityPolicySignatureAlgorithm *asymSig =
         &policy->asymSignatureAlgorithm;
@@ -307,8 +346,15 @@ UA_mbedTLS_SecurityPolicy_Ecc(UA_SecurityPolicy *policy,
     policy->setRemoteSymIv = UA_mbedTLS_setRemoteSymIv_generic;
     policy->compareCertificate = UA_mbedTLS_compareCertificate_generic;
     policy->generateKey = eccGenerateKey;
-    policy->generateNonce = eccGenerateNonce;
+    policy->generateEncryptedSecretKey = eccGenerateEncryptedSecretKey;
+    policy->generateNonce = UA_mbedTLS_sym_generateNonce_generic;
+    policy->generateEphemeralKey = eccGenerateEphemeralKey;
     policy->nonceLength = config->nonceLength;
+    /* The Weierstrass ephemeral key is X||Y, the shared secret one coordinate */
+    policy->secretLength = config->nonceLength / 2;
+    policy->certThumbprintLength = config->hashLength;
+    policy->hashCertificateForSignature = eccHashCertificateForSignature;
+    policy->secureChannelEnhancements = false;
     policy->makeCertThumbprint = UA_mbedTLS_makeCertificateThumbprint_generic;
     policy->compareCertThumbprint =
         UA_mbedTLS_compareCertificateThumbprint_generic;

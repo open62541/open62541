@@ -72,7 +72,7 @@ static UA_DataType PointType = {
     members
 };
 
-UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE};
+UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE, false};
 
 typedef struct {
     UA_Int16 a;
@@ -132,7 +132,7 @@ static UA_DataType OptType = {
         Opt_members
 };
 
-UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType, UA_FALSE};
+UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType, UA_FALSE, false};
 
 typedef struct {
     UA_String description;
@@ -192,7 +192,7 @@ static UA_DataType ArrayOptType = {
 };
 
 UA_DataTypeArray customDataTypesOptArrayStruct =
-    {&customDataTypesOptStruct, 3, &ArrayOptType, UA_FALSE};
+    {&customDataTypesOptStruct, 3, &ArrayOptType, UA_FALSE, false};
 
 typedef enum {
     UA_UNISWITCH_NONE = 0,
@@ -239,7 +239,7 @@ static UA_DataType UniType = {
 };
 
 UA_DataTypeArray customDataTypesUnion =
-    {&customDataTypesOptArrayStruct, 2, &UniType, UA_FALSE};
+    {&customDataTypesOptArrayStruct, 2, &UniType, UA_FALSE, false};
 
 typedef enum {
     UA_SELFCONTAININGUNIONSWITCH_NONE = 0,
@@ -292,7 +292,7 @@ UA_DataType selfContainingUnionType = {
 };
 
 UA_DataTypeArray customDataTypesSelfContainingUnion =
-    {NULL, 1, &selfContainingUnionType, UA_FALSE};
+    {NULL, 1, &selfContainingUnionType, UA_FALSE, false};
 
 START_TEST(UA_PubSub_EnDecode_CustomScalarDeltaFrame) {
     UA_NetworkMessage m;

@@ -75,7 +75,7 @@ def main():
         with open(output + "_generated.c", encoding="utf-8") as generated:
             source = generated.read()
 
-        type_id = "{0, UA_NODEIDTYPE_NUMERIC, {1LU}}, /* .typeId */"
+        type_id = "{1, UA_NODEIDTYPE_NUMERIC, {1LU}}, /* .typeId */"
         if type_id not in source:
             print("FAIL: generated output lacks the ThreeDFrame NodeId")
             return 1

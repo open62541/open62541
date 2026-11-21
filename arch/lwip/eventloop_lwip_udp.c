@@ -395,6 +395,11 @@ setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
 static UA_StatusCode
 setSocketPriority(UA_SOCKET sockfd, UA_UInt32 socketPriority,
                   const UA_Logger *logger) {
+#ifndef SO_PRIORITY
+    (void)sockfd;
+    (void)logger;
+    return socketPriority == 0 ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTSUPPORTED;
+#else
     int prio = (int)socketPriority;
     if(UA_setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &prio, sizeof(int)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -405,6 +410,7 @@ setSocketPriority(UA_SOCKET sockfd, UA_UInt32 socketPriority,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
+#endif
 }
 #endif
 
@@ -1274,9 +1280,8 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        &UDPConfigParameters[1],
-                                        UDP_PARAMETERSSIZE-1, params);
+        UA_KeyValueMap_validate(params, &UDPConfigParameters[1], UDP_PARAMETERSSIZE-1, false,
+                                el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "UDP");
     if(res != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return res;
@@ -1328,9 +1333,8 @@ UDP_eventSourceStart(UA_EventSource *es) {
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        udpManagerParams, UDP_MANAGERPARAMS,
-                                        &cm->eventSource.params);
+        UA_KeyValueMap_validate(&cm->eventSource.params, udpManagerParams, UDP_MANAGERPARAMS,
+                                false, el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP, "UDP");
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 

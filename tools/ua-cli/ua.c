@@ -11,12 +11,12 @@
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 
-#include <readline/readline.h>
-#include <readline/history.h>
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <readline/readline.h>
+#include <readline/history.h>
 
 static UA_Client *client = NULL;
 static UA_ClientConfig cc;

@@ -64,14 +64,22 @@ guidOrder(const void *p1_, const void *p2_, const UA_DataType *_);
 const UA_DataType *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes) {
-    /* Always look in built-in types first (may contain data types from all
-     * namespaces).
-     *
-     * TODO: The standard-defined types are ordered. See if binary search is
-     * more efficient. */
-    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(nodeIdOrder(&UA_TYPES[i].typeId, typeId, NULL) == UA_ORDER_EQ)
-            return &UA_TYPES[i];
+    /* Always look in UA_TYPES first. UA_TYPES is ordered and contains only
+     * types from ns0 with a numeric identifier. So we can use binary search to
+     * speed this up. */
+    if(typeId->namespaceIndex == 0 && typeId->identifierType == UA_NODEIDTYPE_NUMERIC) {
+        size_t first = 0;
+        size_t last = UA_TYPES_COUNT;
+        while(first < last) {
+            size_t middle = first + ((last - first) >> 1);
+            UA_UInt32 middleId = UA_TYPES[middle].typeId.identifier.numeric;
+            if(middleId == typeId->identifier.numeric)
+                return &UA_TYPES[middle];
+            if(middleId < typeId->identifier.numeric)
+                first = middle + 1;
+            else
+                last = middle;
+        }
     }
 
     /* Search in the customTypes */
@@ -128,8 +136,14 @@ UA_StatusCode
 UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(t2, t1, sizeof(UA_DataType));
+    t2->typeId = UA_NODEID_NULL;
+    t2->binaryEncodingId = UA_NODEID_NULL;
+    t2->xmlEncodingId = UA_NODEID_NULL;
     t2->members = NULL;
     t2->membersSize = 0;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    t2->typeName = NULL;
+#endif
 
     /* Copy the typename */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -143,6 +157,16 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
     *(void**)(uintptr_t)&t2->typeName = t2Name;
 #endif
 
+    /* Copy the node IDs */
+    res = UA_NodeId_copy(&t1->typeId, &t2->typeId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+    res = UA_NodeId_copy(&t1->binaryEncodingId, &t2->binaryEncodingId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+    res = UA_NodeId_copy(&t1->xmlEncodingId, &t2->xmlEncodingId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
     /* Copy the members */
     if(t1->membersSize > 0) {
@@ -161,6 +185,7 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
             if(m1->memberType == t1)
                 m2->memberType = t2;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
+            m2->memberName = NULL;
             nameLen = strlen(m1->memberName) + 1;
             char *mName = (char*)UA_malloc(nameLen);
             if(!mName) {
@@ -184,11 +209,13 @@ UA_cleanupDataTypeWithCustom(UA_DataTypeArray *customTypes) {
     while(customTypes) {
         UA_DataTypeArray *next = customTypes->next;
         if(customTypes->cleanup) {
-            for(size_t i = 0; i < customTypes->typesSize; ++i) {
-                UA_DataType *type = (UA_DataType*)(uintptr_t)&customTypes->types[i];
-                UA_DataType_clear(type);
+            if(!customTypes->borrowed) {
+                for(size_t i = 0; i < customTypes->typesSize; ++i) {
+                    UA_DataType *type = (UA_DataType*)(uintptr_t)&customTypes->types[i];
+                    UA_DataType_clear(type);
+                }
+                UA_free((void*)(uintptr_t)customTypes->types);
             }
-            UA_free((void*)(uintptr_t)customTypes->types);
             UA_free(customTypes);
         }
         customTypes = next;
@@ -229,22 +256,20 @@ UA_STRING(char *chars) {
     return s;
 }
 
+/* Make a copy with a trailing zero. The trailing zero is not required, but can
+ * avoid buffer overrun bugs with some libc methods. */
 UA_String
 UA_String_fromChars(const char *src) {
-    UA_String s; s.length = 0; s.data = NULL;
+    UA_String s = {0, NULL};
     if(!src)
         return s;
-    s.length = strlen(src);
-    if(s.length > 0) {
-        s.data = (u8*)UA_malloc(s.length);
-        if(UA_UNLIKELY(!s.data)) {
-            s.length = 0;
-            return s;
-        }
-        memcpy(s.data, src, s.length);
-    } else {
-        s.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
-    }
+    size_t len = strlen(src);
+    s.data = (u8*)UA_malloc(len+1);
+    if(!s.data)
+        return s;
+    memcpy(s.data, src, len);
+    s.data[len] = 0;
+    s.length = len;
     return s;
 }
 
@@ -280,16 +305,26 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
     return casecmp(s1->data, s2->data, s1->length) == 0;
 }
 
+/* Make a copy with a trailing zero. The trailing zero is not required, but can
+ * avoid buffer overrun bugs with some libc methods. */
 static UA_StatusCode
 String_copy(const void *src, void *dst, const UA_DataType *_) {
     const UA_String *srcS = (const UA_String*)src;
-    UA_String *dstS = (UA_String *)dst;
-    UA_StatusCode res =
-        UA_Array_copy(srcS->data, srcS->length, (void**)&dstS->data,
-                      &UA_TYPES[UA_TYPES_BYTE]);
-    if(res == UA_STATUSCODE_GOOD)
+    UA_String *dstS = (UA_String*)dst;
+    dstS->length = 0;
+    dstS->data = NULL;
+    /* Preserve the consistency check previously provided by UA_Array_copy. */
+    if(srcS->length > 0 && !srcS->data)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(srcS->data) {
+        dstS->data = (u8*)UA_malloc(srcS->length+1);
+        if(!dstS->data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(dstS->data, srcS->data, srcS->length);
+        dstS->data[srcS->length] = 0;
         dstS->length = srcS->length;
-    return res;
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -304,10 +339,11 @@ UA_String_append(UA_String *s, const UA_String s2) {
         return UA_STATUSCODE_GOOD;
     UA_Byte *buf = (UA_Byte*)
         UA_realloc((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL),
-                   s->length + s2.length);
+                   s->length + s2.length + 1);
     if(!buf)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy(buf + s->length, s2.data, s2.length);
+    buf[s->length + s2.length] = 0;
     s->data = buf;
     s->length += s2.length;
     return UA_STATUSCODE_GOOD;
@@ -329,41 +365,36 @@ UA_String_vformat(UA_String *str, const char *format, va_list args) {
     va_list args2;
     va_copy(args2, args);
 
-    /* Encode initially */
+    /* Encode initially (uses a trailing zero) */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     int out = mp_vsnprintf((char*)str->data, str->length, format, args);
     if(out < 0) {
         res = UA_STATUSCODE_BADENCODINGERROR;
-        goto errout;
+        va_end(args2);
+        return res;
     }
 
-    /* Output length zero */
-    if(out == 0) {
-        str->length = 0;
-        if(str->data == NULL)
-            str->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-        goto errout;
-    }
-
-    /* Encode into existing buffer. mp_snprintf adds a trailing \0. So out must
-     * be truly smaller than str->length for success. */
-    if(str->length > 0) {
+    if(str->length == 0) {
+        /* Allocate the output buffer and encode again (+1 length for the trailing \0) */
+        UA_String buf;
+        res = UA_ByteString_allocBuffer(&buf, (size_t)out + 1);
+        if(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
+            mp_vsnprintf((char*)buf.data, buf.length, format, args2);
+            buf.length--;
+            /* Empty strings can own a buffer. Keep it on allocation failure. */
+            UA_String_clear(str);
+            *str = buf;
+        }
+    } else {
+        /* Encode into existing buffer. mp_snprintf adds a trailing \0. So out must
+         * be truly smaller than str->length for success. */
         if((size_t)out < str->length) {
             str->length = (size_t)out;
         } else {
             res = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
         }
-        goto errout;
     }
 
-    /* Allocate and encode again (+1 length for the trailing \0) */
-    res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
-    if(res != UA_STATUSCODE_GOOD)
-        goto errout;
-    mp_vsnprintf((char*)str->data, str->length, format, args2);
-    str->length--;
-
- errout:
     va_end(args2);
     return res;
 }
@@ -556,7 +587,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     UA_CHECK(len == 4 || str.data[pos] == '-', return UA_STATUSCODE_BADDECODINGERROR);
     if(str.data[0] == '-')
         year = -year;
-    dts.tm_year = (UA_Int16)year - 1900;
+    dts.tm_year = (int)year - 1900;
     if(str.data[pos] == '-')
         pos++;
 
@@ -623,8 +654,11 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Convert to DateTime. Add or subtract one extra second here to prevent
      * underflow/overflow. This is reverted once the fractional part has been
-     * added. */
-    sinceunix -= (sinceunix > 0) ? 1 : -1;
+     * added. Keep the shift in its own variable: reading the sign of sinceunix
+     * again at the end would look at the already-shifted value, and the shift
+     * moves 0 to 1 and 1 to 0 -- the two instants whose sign it changes. */
+    long long shift = (sinceunix > 0) ? 1 : -1;
+    sinceunix -= shift;
     UA_DateTime dt = (UA_DateTime)
         (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
 
@@ -676,7 +710,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
  finish:
     /* Remove the underflow/overflow protection (see above) */
-    if(sinceunix > 0) {
+    if(shift > 0) {
         if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
             return UA_STATUSCODE_BADDECODINGERROR;
         dt += UA_DATETIME_SEC;
@@ -2925,9 +2959,25 @@ UA_DataType_isNumeric(const UA_DataType *type) {
 /* Parse NumericRange */
 /**********************/
 
+/* An index that does not fit into 32 bits still has a valid syntax. It cannot
+ * address an element, so it saturates and the range checks return
+ * Bad_IndexRangeNoData or partial results. Bad_IndexRangeInvalid is only for
+ * an invalid syntax (Part 4, 7.27). */
+static size_t
+readIndex(const UA_Byte *buf, size_t buflen, UA_UInt32 *index) {
+    size_t progress = UA_readNumber(buf, buflen, index);
+    if(progress > 0)
+        return progress;
+    while(progress < buflen && buf[progress] >= '0' && buf[progress] <= '9')
+        progress++;
+    if(progress > 0)
+        *index = UA_UINT32_MAX;
+    return progress;
+}
+
 static size_t
 readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
-    size_t progress = UA_readNumber(buf, buflen, &dim->min);
+    size_t progress = readIndex(buf, buflen, &dim->min);
     if(progress == 0)
         return 0;
     if(buflen <= progress + 1 || buf[progress] != ':') {
@@ -2936,7 +2986,7 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
     }
 
     ++progress;
-    size_t progress2 = UA_readNumber(&buf[progress], buflen - progress, &dim->max);
+    size_t progress2 = readIndex(&buf[progress], buflen - progress, &dim->max);
     if(progress2 == 0)
         return 0;
 
@@ -2957,6 +3007,13 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
     while(true) {
         /* alloc dimensions */
         if(idx >= dimensionsMax) {
+            /* UA_Variant_copyRange and UA_Variant_setRange index at most
+             * UA_MAX_ARRAY_DIMS dimensions. A longer range has a valid syntax
+             * but addresses no data (Part 4, 7.27). */
+            if(dimensionsMax >= UA_MAX_ARRAY_DIMS) {
+                retval = UA_STATUSCODE_BADINDEXRANGENODATA;
+                break;
+            }
             UA_NumericRangeDimension *newds;
             size_t newdssize = sizeof(UA_NumericRangeDimension) * (dimensionsMax + 2);
             newds = (UA_NumericRangeDimension*)UA_realloc(dimensions, newdssize);

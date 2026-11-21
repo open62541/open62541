@@ -173,6 +173,9 @@ START_TEST(httpSelectedEnhancedSecurityPolicyValidation) {
         "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm",
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT,
         UA_SECURITYPOLICYTYPE_ECC_AEAD);
+    /* The policy declares the SecureChannelEnhancements, the URI alone does
+     * not make it enhanced */
+    config->securityPolicies[0].secureChannelEnhancements = true;
     ck_assert_uint_eq(
         UA_Client_connect(client, "opc.https://127.0.0.1:4840/binary"),
         UA_STATUSCODE_BADSECURITYPOLICYREJECTED);

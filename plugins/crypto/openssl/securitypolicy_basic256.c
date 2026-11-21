@@ -64,6 +64,7 @@ Basic256_New_Context(const UA_SecurityPolicy * securityPolicy,
     UA_ByteString_init(&context->remoteSymSigningKey);
     UA_ByteString_init(&context->remoteSymEncryptingKey);
     UA_ByteString_init(&context->remoteSymIv);
+    UA_OpenSSL_SymContexts_init(&context->sym);
 
     UA_StatusCode retval = UA_copyCertificate(&context->remoteCertificate,
                                               remoteCertificate);
@@ -100,6 +101,7 @@ Basic256_Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
+    UA_OpenSSL_SymContexts_clear(&cc->sym);
     UA_free(cc);
 }
 
@@ -241,8 +243,15 @@ UA_Sym_Basic256_generateNonce(const UA_SecurityPolicy *policy,
 
 static UA_StatusCode
 UA_Sym_Basic256_generateKey(const UA_SecurityPolicy *policy,
-                            void *channelContext, const UA_ByteString *secret,
-                            const UA_ByteString *seed, UA_ByteString *out) {
+                            void *channelContext, UA_KeyDerivationDirection direction,
+                            const UA_ByteString *localNonce, const UA_ByteString *remoteNonce,
+                            UA_ByteString *ikmInOut, UA_ByteString *out) {
+    if(direction != UA_KEYDERIVATION_LOCAL && direction != UA_KEYDERIVATION_REMOTE)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    const UA_ByteString *secret = (direction == UA_KEYDERIVATION_LOCAL) ?
+        remoteNonce : localNonce;
+    const UA_ByteString *seed = (direction == UA_KEYDERIVATION_LOCAL) ?
+        localNonce : remoteNonce;
     return UA_Openssl_Random_Key_PSHA1_Derive(secret, seed, out);
 }
 
@@ -272,8 +281,8 @@ UA_SymEn_Basic256_Encrypt(const UA_SecurityPolicy *policy,
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    return UA_OpenSSL_AES_256_CBC_Encrypt(&cc->localSymIv,
-                                          &cc->localSymEncryptingKey, data);
+    return UA_OpenSSL_Sym_encrypt(&cc->sym, EVP_aes_256_cbc(), &cc->localSymEncryptingKey,
+                                  &cc->localSymIv, data);
 }
 
 static UA_StatusCode
@@ -282,8 +291,8 @@ UA_SymEn_Basic256_Decrypt(const UA_SecurityPolicy *policy,
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    return UA_OpenSSL_AES_256_CBC_Decrypt(&cc->remoteSymIv,
-                                          &cc->remoteSymEncryptingKey, data);
+    return UA_OpenSSL_Sym_decrypt(&cc->sym, EVP_aes_256_cbc(), &cc->remoteSymEncryptingKey,
+                                  &cc->remoteSymIv, data);
 }
 
 static size_t
@@ -305,8 +314,8 @@ UA_SymSig_Basic256_Verify(const UA_SecurityPolicy *policy, void *channelContext,
     if(channelContext == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    return UA_OpenSSL_HMAC_SHA1_Verify (message, &cc->remoteSymSigningKey,
-                                        signature);
+    return UA_OpenSSL_Sym_verify(&cc->sym, EVP_sha1(), &cc->remoteSymSigningKey,
+                                 message, signature);
 }
 
 static UA_StatusCode
@@ -316,7 +325,8 @@ UA_SymSig_Basic256_Sign(const UA_SecurityPolicy *policy,
     if(channelContext == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    return UA_OpenSSL_HMAC_SHA1_Sign(message, &cc->localSymSigningKey, signature);
+    return UA_OpenSSL_Sym_sign(&cc->sym, EVP_sha1(), &cc->localSymSigningKey,
+                               message, signature);
 }
 
 UA_StatusCode
@@ -330,11 +340,12 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *sp,
 
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
-    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256\0");
+    sp->policyUri = UA_STRING(UA_SECURITYPOLICY_URI_BASIC256);
     sp->certificateGroupId = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 0;
     sp->policyType = UA_SECURITYPOLICYTYPE_RSA;
+    sp->legacySequenceNumbers = true;
 
     /* Asymmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;

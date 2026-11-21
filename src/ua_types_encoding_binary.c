@@ -20,7 +20,7 @@
 
 #include <open62541/types.h>
 
-#include "ua_types_encoding_binary.h"
+#include "ua_types_encoding.h"
 #include "util/ua_util_internal.h"
 
 /**
@@ -282,6 +282,22 @@ FUNC_ENCODE_BINARY(UInt64) {
     }
     ctx->pos += 8;
     return UA_STATUSCODE_GOOD;
+}
+
+/* 9999-12-31 23:59:59 UTC */
+#define UA_DATETIME_ENCODE_MAX (265046774399LL * UA_DATETIME_SEC)
+
+/* Part 6, 5.2.2.5: a DateTime at or before 1601-01-01 00:00 UTC is encoded
+ * as 0, and one at or after 9999-12-31 23:59:59 UTC as the maximum Int64
+ * (0x7FFFFFFFFFFFFFFF). This is why DateTime is not overlayable: arrays go
+ * through here too. */
+FUNC_ENCODE_BINARY(DateTime) {
+    UA_DateTime v = *(const UA_DateTime*)_src;
+    if(v < 0)
+        v = 0;
+    else if(v >= UA_DATETIME_ENCODE_MAX)
+        v = UA_INT64_MAX;
+    return UInt64_encodeBinary(ctx, &v, NULL);
 }
 
 FUNC_DECODE_BINARY(UInt64) {
@@ -757,8 +773,13 @@ FUNC_ENCODE_BINARY(ExpandedNodeId) {
     if(src->serverIndex > 0)
         encoding |= UA_EXPANDEDNODEID_SERVERINDEX_FLAG;
 
-    /* Encode the NodeId. Can exchange the buffer. */
-    status ret = NodeId_encodeBinaryWithEncodingMask(ctx, &src->nodeId, encoding);
+    /* Encode the NodeId. Can exchange the buffer. With a NamespaceUri, the
+     * NamespaceIndex is encoded as 0 (Part 6, 5.2.2.10). The shallow copy
+     * changes only the index. */
+    UA_NodeId nodeId = src->nodeId;
+    if(encoding & UA_EXPANDEDNODEID_NAMESPACEURI_FLAG)
+        nodeId.namespaceIndex = 0;
+    status ret = NodeId_encodeBinaryWithEncodingMask(ctx, &nodeId, encoding);
     UA_CHECK_STATUS(ret, return ret);
 
     /* Encode the namespace. Internally uses encodeWithExchangeBuffer
@@ -810,7 +831,10 @@ FUNC_DECODE_BINARY(ExpandedNodeId) {
 /* QualifiedName */
 FUNC_ENCODE_BINARY(QualifiedName) {
     const UA_QualifiedName *src = (const UA_QualifiedName*)_src;
-    status ret = ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+    UA_UInt16 nsIndex = src->namespaceIndex;
+    if(ctx->opts.namespaceMapping)
+        nsIndex = UA_NamespaceMapping_local2Remote(ctx->opts.namespaceMapping, nsIndex);
+    status ret = ENCODE_DIRECT(&nsIndex, UInt16);
     /* Must check here so we can exchange the buffer in the string encoding */
     UA_CHECK_STATUS(ret, return ret);
     ret |= ENCODE_DIRECT(&src->name, String);
@@ -820,6 +844,9 @@ FUNC_ENCODE_BINARY(QualifiedName) {
 FUNC_DECODE_BINARY(QualifiedName) {
     UA_QualifiedName *dst = (UA_QualifiedName*)_dst;
     status ret = DECODE_DIRECT(&dst->namespaceIndex, UInt16);
+    if(ctx->opts.namespaceMapping)
+        dst->namespaceIndex = UA_NamespaceMapping_remote2Local(
+            ctx->opts.namespaceMapping, dst->namespaceIndex);
     ret |= DECODE_DIRECT(&dst->name, String);
     return ret;
 }
@@ -1755,7 +1782,7 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
     Float_encodeBinary,
     Double_encodeBinary,
     String_encodeBinary,
-    UInt64_encodeBinary, /* DateTime */
+    DateTime_encodeBinary,
     Guid_encodeBinary,
     String_encodeBinary, /* ByteString */
     String_encodeBinary, /* XmlElement */

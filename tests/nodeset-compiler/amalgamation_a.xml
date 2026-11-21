@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris><Uri>urn:open62541:test:amalgamation-a</Uri></NamespaceUris>
+  <!-- Identical public type names are shared through the imported header,
+       but each descriptor needs its own private member array. -->
+  <UADataType NodeId="ns=1;i=1001" BrowseName="1:AmalgamationState">
+    <DisplayName>AmalgamationState</DisplayName>
+    <References><Reference ReferenceType="i=45" IsForward="false">i=29</Reference></References>
+    <Definition Name="AmalgamationState">
+      <Field Name="Off" Value="0"/><Field Name="On" Value="1"/>
+    </Definition>
+  </UADataType>
+  <UAObject NodeId="ns=1;b=AAEC/w==" BrowseName="1:ByteStringNode">
+    <DisplayName>ByteStringNode</DisplayName>
+    <References>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference>
+      <Reference ReferenceType="i=40">i=58</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>

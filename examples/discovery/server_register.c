@@ -114,6 +114,7 @@ int main(int argc, char **argv) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
                      UA_StatusCode_name(retval));
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }

@@ -15,6 +15,8 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
 #include <unistd.h>
@@ -373,6 +375,9 @@ int main(int argc, char **argv) {
     /* Return value initialized to Status Good */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     server = UA_Server_new();
+
+    /* Use a different TCP port from the publisher running on the same host. */
+    UA_ServerConfig_setMinimal(UA_Server_getConfig(server), 4841, NULL);
 
     addPubSubConnection(server);
     addReaderGroup(server);

@@ -9,11 +9,11 @@
 #include "securitypolicy_ecc.h"
 
 static const UA_mbedTLS_EccPolicyConfig eccBrainpoolP256Config = {
-    "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1",
+    UA_SECURITYPOLICY_URI_ECC_BRAINPOOLP256R1,
     "http://www.w3.org/2000/09/xmldsig#hmac-sha2-256",
     "http://www.w3.org/2001/04/xmlenc#aes128-cbc",
     UA_NS0ID_ECCBRAINPOOLP256R1APPLICATIONCERTIFICATETYPE,
-    10,
+    0,
     PSA_ECC_FAMILY_BRAINPOOL_P_R1,
     256,
     PSA_ALG_SHA_256,

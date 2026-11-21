@@ -19,6 +19,12 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
     /* Server Description */
     UA_BuildInfo_clear(&config->buildInfo);
     UA_ApplicationDescription_clear(&config->applicationDescription);
+    /* Also allow cleanup after rejecting a nonzero count with no array. */
+    if((uintptr_t)config->serverProfileArray > (uintptr_t)UA_EMPTY_ARRAY_SENTINEL)
+        UA_Array_delete(config->serverProfileArray, config->serverProfileArraySize,
+                        &UA_TYPES[UA_TYPES_STRING]);
+    config->serverProfileArray = NULL;
+    config->serverProfileArraySize = 0;
 
     /* Stop and delete the EventLoop */
     UA_EventLoop *el = config->eventLoop;

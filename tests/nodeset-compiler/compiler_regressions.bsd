@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<opc:TypeDictionary xmlns:opc="http://opcfoundation.org/BinarySchema/"
+                    TargetNamespace="urn:open62541:test:compiler-regressions">
+  <opc:StructuredType Name="FixesKeywords">
+    <opc:Field Name="id" TypeName="opc:UInt32"/>
+    <opc:Field Name="unsigned" TypeName="opc:UInt32"/>
+    <opc:Field Name="default" TypeName="opc:UInt32"/>
+    <opc:Field Name="a-b" TypeName="opc:UInt32"/>
+    <opc:Field Name="and_eq" TypeName="opc:UInt32"/>
+  </opc:StructuredType>
+  <opc:StructuredType Name="3DRecord">
+    <opc:Field Name="id" TypeName="opc:UInt32"/>
+  </opc:StructuredType>
+  <opc:OpaqueType Name="Counter"/>
+  <opc:EnumeratedType Name="FixesLabels" LengthInBits="32">
+    <opc:EnumeratedValue Name="A+B" Value="0"/>
+    <opc:EnumeratedValue Name="A-B" Value="1"/>
+    <opc:EnumeratedValue Name="A B" Value="2"/>
+    <opc:EnumeratedValue Name="A+B_1" Value="3"/>
+  </opc:EnumeratedType>
+</opc:TypeDictionary>

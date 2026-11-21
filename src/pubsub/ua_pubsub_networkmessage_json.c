@@ -10,7 +10,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_networkmessage.h"
-#include "../ua_types_encoding_json.h"
+#include "../util/ua_util_internal.h"
 
 /* JSON keys for the NetworkMessage */
 static const char * UA_DECODEKEY_MESSAGES = "Messages";
@@ -29,11 +29,22 @@ static const char * UA_DECODEKEY_PAYLOAD = "Payload";
 
 /* -- json encoding/decoding -- */
 static UA_StatusCode writeJsonKey_UA_String(CtxJson *ctx, const UA_String *in) {
-    UA_STACKARRAY(char, out, in->length + 1);
+    char stackOut[256];
+    char *out = stackOut;
+    if(in->length >= sizeof(stackOut)) {
+        if(in->length == SIZE_MAX)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        out = (char*)UA_malloc(in->length + 1);
+        if(!out)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     if(in->length)
         memcpy(out, in->data, in->length);
     out[in->length] = 0;
-    return writeJsonKey(ctx, out);
+    UA_StatusCode res = writeJsonKey(ctx, out);
+    if(out != stackOut)
+        UA_free(out);
+    return res;
 }
 
 static UA_StatusCode

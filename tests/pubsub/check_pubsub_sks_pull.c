@@ -104,6 +104,16 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
     return UA_ByteString_equal(username, &session->clientUserIdOfSession);
 }
 
+/* The stock AccessControl plugin grants every object-level method call. Use
+ * the same answer here to check what the SKS method does on its own. */
+static UA_Boolean
+getUserExecutableOnObject_allow(UA_Server *server, UA_AccessControl *ac,
+                                const UA_NodeId *sessionId, void *sessionContext,
+                                const UA_NodeId *methodId, void *methodContext,
+                                const UA_NodeId *objectId, void *objectContext) {
+    return true;
+}
+
 static void
 setup(void) {
     UA_atomic_store(&running, true);
@@ -601,6 +611,36 @@ START_TEST(SecurityGroupKeyMethodsUseSignedChannel) {
     cleanupSessionContext();
     UA_Client_delete(client);
 } END_TEST
+/* A Session that was activated with the Anonymous UserIdentityToken carries no
+ * ClientUserId. The SecurityGroup cannot be matched against such a Session, so
+ * GetSecurityKeys must not return the keys - not even when the configured
+ * object-level check grants the call. */
+START_TEST(getSecuritykeysAnonymousSessionDenied) {
+    UA_ServerConfig *config = UA_Server_getConfig(sksServer);
+    UA_Boolean (*previousCheck)(UA_Server *, UA_AccessControl *, const UA_NodeId *,
+                                void *, const UA_NodeId *, void *, const UA_NodeId *,
+                                void *) = config->accessControl.getUserExecutableOnObject;
+    config->accessControl.getUserExecutableOnObject = getUserExecutableOnObject_allow;
+
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Connect without a user token, so the Session is activated anonymously */
+    UA_StatusCode retval = UA_Client_connect(sksClient, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CallResponse response = callGetSecurityKeys(sksClient, securityGroupId, 0, 0);
+    ck_assert(response.results != NULL);
+    ck_assert_msg(response.results->statusCode == UA_STATUSCODE_BADUSERACCESSDENIED,
+                  "Expected %s but error code : %s \n",
+                  UA_StatusCode_name(UA_STATUSCODE_BADUSERACCESSDENIED),
+                  UA_StatusCode_name(response.results->statusCode));
+    UA_CallResponse_clear(&response);
+    cleanupSessionContext();
+    UA_Client_delete(sksClient);
+
+    config->accessControl.getUserExecutableOnObject = previousCheck;
+}
+END_TEST
 
 int
 main(void) {
@@ -610,6 +650,7 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_pull, getSecuritykeysBadSecurityModeInsufficient);
     tcase_add_test(tc_pubsub_sks_pull, getSecuritykeysBadNotFound);
     tcase_add_test(tc_pubsub_sks_pull, getSecuritykeysBadUserAccessDenied);
+    tcase_add_test(tc_pubsub_sks_pull, getSecuritykeysAnonymousSessionDenied);
     tcase_add_test(tc_pubsub_sks_pull, getSecuritykeysGoodAndValidOutput);
     tcase_add_test(tc_pubsub_sks_pull, requestCurrentKeyWithFutureKeys);
     tcase_add_test(tc_pubsub_sks_pull, requestCurrentKeyOnly);
