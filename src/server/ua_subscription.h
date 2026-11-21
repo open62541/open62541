@@ -191,7 +191,7 @@ void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon, UA_Boolean notify);
 void UA_MonitoredItem_release(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
-void UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon);
 
 void
 notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
@@ -315,7 +315,8 @@ struct UA_Subscription {
     UA_DelayedCallback delayedMoreNotifications;
 
     /* MonitoredItems */
-    UA_UInt32 lastMonitoredItemId; /* increase the identifiers */
+    UA_UInt32 lastMonitoredItemId;
+    UA_Boolean monitoredItemIdsWrapped;
     UA_MonitoredItemIdTree monitoredItemsById;
     UA_UInt32 monitoredItemsSize;
 

@@ -1361,21 +1361,63 @@ removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-void
+static void *
+findTriggeringLink(void *context, UA_MonitoredItem *mon) {
+    UA_UInt32 id = *(const UA_UInt32*)context;
+    for(size_t i = 0; i < mon->triggeringLinksSize; i++) {
+        if(mon->triggeringLinks[i] == id)
+            return mon;
+    }
+    return NULL;
+}
+
+static UA_UInt32
+nextMonitoredItemId(UA_Subscription *sub) {
+    UA_UInt32 id = sub->lastMonitoredItemId + 1;
+    if(id == 0) {
+        id = 1;
+        sub->monitoredItemIdsWrapped = true;
+    }
+
+    if(!sub->monitoredItemIdsWrapped)
+        return id;
+
+    if(sub->monitoredItemsSize == UA_UINT32_MAX)
+        return 0;
+
+    /* A triggering link may still refer to a deleted item. Reusing its
+     * identifier before the link is pruned would change the link's target. */
+    const UA_UInt32 firstId = id;
+    do {
+        if(!UA_Subscription_getMonitoredItem(sub, id) &&
+           !ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+                     findTriggeringLink, &id))
+            return id;
+        id = (id == UA_UINT32_MAX) ? 1 : id + 1;
+    } while(id != firstId);
+
+    return 0;
+}
+
+UA_StatusCode
 UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(mon->samplingType != UA_MONITOREDITEMSAMPLINGTYPE_DELETED)
-        return;
-    mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_NONE;
+        return UA_STATUSCODE_GOOD;
 
     /* Register in Subscription and Server */
     UA_Subscription *sub = mon->subscription;
-    mon->monitoredItemId = ++sub->lastMonitoredItemId;
-    mon->subscription = sub;
+    UA_UInt32 id = nextMonitoredItemId(sub);
+    if(id == 0)
+        return UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
+    sub->lastMonitoredItemId = id;
+    mon->monitoredItemId = id;
+    mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_NONE;
     ZIP_INSERT(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
     sub->monitoredItemsSize++;
     server->monitoredItemsSize++;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void

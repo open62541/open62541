@@ -546,8 +546,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     newMon->lastValue.hasStatus = true;
     newMon->lastValue.status = ~(UA_StatusCode)0;
 
-    /* Register the Monitoreditem in the server and subscription */
-    UA_MonitoredItem_register(server, newMon);
+    /* Register the MonitoredItem in the server and subscription */
+    result->statusCode = UA_MonitoredItem_register(server, newMon);
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+        UA_MonitoredItem_delete(server, newMon, false);
+        return;
+    }
 
     /* Snapshot the creation result before callbacks can change the item. */
     UA_Double revisedSamplingInterval = newMon->parameters.samplingInterval;
