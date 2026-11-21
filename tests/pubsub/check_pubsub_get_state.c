@@ -26,11 +26,16 @@
 #include <stdlib.h>
 
 static UA_Server *server = NULL;
+static UA_NodeId removeOnStateChangeId;
+static UA_Boolean removeOnStateChangeDone;
+static UA_PubSubComponentType removeOnStateChangeType;
 
 static void setup(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "setup");
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
+    removeOnStateChangeId = UA_NODEID_NULL;
+    removeOnStateChangeDone = false;
     UA_Server_run_startup(server);
 }
 
@@ -474,6 +479,86 @@ START_TEST(Test_error_case) {
 
 } END_TEST
 
+static void
+removeComponentOnStateChange(UA_Server *serverArg, const UA_NodeId id,
+                             UA_PubSubState state, UA_StatusCode status) {
+    (void)state;
+    (void)status;
+    if(removeOnStateChangeDone ||
+       !UA_NodeId_equal(&id, &removeOnStateChangeId))
+        return;
+    removeOnStateChangeDone = true;
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    switch(removeOnStateChangeType) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        res = UA_Server_removePubSubConnection(serverArg, id);
+        break;
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        res = UA_Server_removeWriterGroup(serverArg, id);
+        break;
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        res = UA_Server_removeReaderGroup(serverArg, id);
+        break;
+    default:
+        ck_abort_msg("Unexpected PubSub component type");
+    }
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+START_TEST(Test_remove_connection_from_state_callback) {
+    UA_NodeId connectionId;
+    AddConnection("Connection", 1, &connectionId);
+
+    removeOnStateChangeId = connectionId;
+    removeOnStateChangeType = UA_PUBSUBCOMPONENT_CONNECTION;
+    UA_Server_getConfig(server)->pubSubConfig.stateChangeCallback =
+        removeComponentOnStateChange;
+    ck_assert_uint_eq(UA_Server_disablePubSubConnection(server, connectionId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(removeOnStateChangeDone);
+}
+END_TEST
+
+START_TEST(Test_remove_reader_group_from_state_callback) {
+    UA_NodeId connectionId;
+    AddConnection("Connection", 1, &connectionId);
+
+    UA_NodeId readerGroupId;
+    AddReaderGroup(&connectionId, "ReaderGroup", &readerGroupId);
+
+    removeOnStateChangeId = readerGroupId;
+    removeOnStateChangeType = UA_PUBSUBCOMPONENT_READERGROUP;
+    UA_Server_getConfig(server)->pubSubConfig.stateChangeCallback =
+        removeComponentOnStateChange;
+    ck_assert_uint_eq(UA_Server_enableReaderGroup(server, readerGroupId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(removeOnStateChangeDone);
+}
+END_TEST
+
+START_TEST(Test_remove_writer_group_from_state_callback) {
+    UA_NodeId connectionId;
+    AddConnection("Connection", 1, &connectionId);
+
+    UA_NodeId writerGroupId;
+    AddWriterGroup(&connectionId, "WriterGroup", 1, 100.0, &writerGroupId);
+
+    UA_NodeId publishedDataSetId;
+    UA_NodeId variableId;
+    UA_NodeId dataSetWriterId;
+    AddPublishedDataSet(&writerGroupId, "DataSet", "Writer", 1,
+                        &publishedDataSetId, &variableId, &dataSetWriterId);
+
+    removeOnStateChangeId = writerGroupId;
+    removeOnStateChangeType = UA_PUBSUBCOMPONENT_WRITERGROUP;
+    UA_Server_getConfig(server)->pubSubConfig.stateChangeCallback =
+        removeComponentOnStateChange;
+    ck_assert_uint_eq(UA_Server_enableWriterGroup(server, writerGroupId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(removeOnStateChangeDone);
+}
+END_TEST
+
 int main(void) {
     TCase *tc_normal_operation = tcase_create("normal_operation");
     tcase_add_checked_fixture(tc_normal_operation, setup, teardown);
@@ -489,10 +574,20 @@ int main(void) {
     tcase_add_test(tc_error_case, Test_error_case);
 #endif
 
+    TCase *tc_callback_lifetime = tcase_create("callback lifetime");
+    tcase_add_checked_fixture(tc_callback_lifetime, setup, teardown);
+    tcase_add_test(tc_callback_lifetime,
+                   Test_remove_connection_from_state_callback);
+    tcase_add_test(tc_callback_lifetime,
+                   Test_remove_reader_group_from_state_callback);
+    tcase_add_test(tc_callback_lifetime,
+                   Test_remove_writer_group_from_state_callback);
+
     Suite *s = suite_create("PubSub getState test suite");
     suite_add_tcase(s, tc_normal_operation);
     suite_add_tcase(s, tc_corner_cases);
     suite_add_tcase(s, tc_error_case);
+    suite_add_tcase(s, tc_callback_lifetime);
 
     /* TODO: how to provoke and test an error state? */
 

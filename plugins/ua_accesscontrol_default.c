@@ -7,9 +7,10 @@
  */
 
 #include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/nodeids.h>
 
 /* Example access control management. Anonymous and username / password login.
- * The access rights are maximally permissive.
+ * The access rights are maximally permissive except for GDS PushManagement.
  *
  * FOR PRODUCTION USE, THIS EXAMPLE PLUGIN SHOULD BE REPLACED WITH LESS
  * PERMISSIVE ACCESS CONTROL.
@@ -153,10 +154,54 @@ getUserAccessLevel_default(UA_Server *server, UA_AccessControl *ac,
     return 0xFF;
 }
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+/* The example plugin has no SecurityAdmin role assignment. Applications that
+ * use PushManagement provide their own AccessControl implementation. */
+static UA_Boolean
+isGdsPushManagementMethod(const UA_NodeId *methodId) {
+    if(!methodId || methodId->namespaceIndex != 0 ||
+       methodId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return false;
+    switch(methodId->identifier.numeric) {
+    case UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE:
+    case UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST:
+    case UA_NS0ID_SERVERCONFIGURATION_GETREJECTEDLIST:
+    case UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_READ:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENWITHMASKS:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSEANDUPDATE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_ADDCERTIFICATE:
+    case UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_REMOVECERTIFICATE:
+        return true;
+    default:
+        return false;
+    }
+}
+#endif
+
 static UA_Boolean
 getUserExecutable_default(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext) {
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+    if(isGdsPushManagementMethod(methodId))
+        return false;
+#endif
     return true;
 }
 
@@ -165,6 +210,10 @@ getUserExecutableOnObject_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *methodId, void *methodContext,
                                   const UA_NodeId *objectId, void *objectContext) {
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+    if(isGdsPushManagementMethod(methodId))
+        return false;
+#endif
     return true;
 }
 
@@ -371,7 +420,8 @@ UA_AccessControl_default(UA_ServerConfig *config,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
     UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
-                   "AccessControl: Unconfigured AccessControl. Users have all permissions.");
+                   "AccessControl: Example AccessControl in use. Configure a "
+                   "user-specific policy for production.");
     UA_AccessControl *ac = &config->accessControl;
 
     if(ac->clear)
@@ -533,4 +583,3 @@ UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
 
     return UA_STATUSCODE_GOOD;
 }
-
