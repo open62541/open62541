@@ -61,28 +61,8 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
         goto cleanup;
 
 #ifdef UA_ENABLE_LWS
-    retval = UA_ByteString_copy(&src->webSocketCaCertificate,
-                                &dst->webSocketCaCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
     dst->webSocketMaxQueueSize = src->webSocketMaxQueueSize;
 #endif
-    retval = UA_ByteString_copy(&src->httpCaCertificate,
-                                &dst->httpCaCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-    retval = UA_ByteString_copy(&src->httpClientCertificate,
-                                &dst->httpClientCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-    retval = UA_ByteString_copy(&src->httpClientPrivateKey,
-                                &dst->httpClientPrivateKey);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-    retval = UA_String_copy(&src->httpClientPrivateKeyPassword,
-                            &dst->httpClientPrivateKeyPassword);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
     dst->httpAllowUnencrypted = src->httpAllowUnencrypted;
     dst->httpTimeout = src->httpTimeout;
     dst->httpMaxMsgSize = src->httpMaxMsgSize;
@@ -218,6 +198,21 @@ error:
 
 void
 UA_ClientConfig_clear(UA_ClientConfig *config) {
+    /* Stop and delete owned managers before their borrowed verification group
+     * and other configuration resources are cleared. */
+    UA_EventLoop *el = config->eventLoop;
+    if(el && !config->externalEventLoop) {
+        if(el->state != UA_EVENTLOOPSTATE_FRESH &&
+           el->state != UA_EVENTLOOPSTATE_STOPPED) {
+            el->stop(el);
+            while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
+                el->run(el, 100);
+            }
+        }
+        el->free(el);
+        config->eventLoop = NULL;
+    }
+
     UA_ApplicationDescription_clear(&config->clientDescription);
     UA_String_clear(&config->endpointUrl);
     UA_ExtensionObject_clear(&config->userIdentityToken);
@@ -236,13 +231,6 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_UserTokenPolicy_clear(&config->userTokenPolicy);
 
     UA_String_clear(&config->applicationUri);
-#ifdef UA_ENABLE_LWS
-    UA_ByteString_clear(&config->webSocketCaCertificate);
-#endif
-    UA_ByteString_clear(&config->httpCaCertificate);
-    UA_ByteString_clear(&config->httpClientCertificate);
-    UA_ByteString_clear(&config->httpClientPrivateKey);
-    UA_String_clear(&config->httpClientPrivateKeyPassword);
 
     if(config->certificateVerification.clear)
         config->certificateVerification.clear(&config->certificateVerification);
@@ -262,20 +250,6 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
             previous->policies[i].clear(&previous->policies[i]);
         UA_free(previous->policies);
         UA_free(previous);
-    }
-
-    /* Stop and delete the EventLoop */
-    UA_EventLoop *el = config->eventLoop;
-    if(el && !config->externalEventLoop) {
-        if(el->state != UA_EVENTLOOPSTATE_FRESH &&
-           el->state != UA_EVENTLOOPSTATE_STOPPED) {
-            el->stop(el);
-            while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
-                el->run(el, 100);
-            }
-        }
-        el->free(el);
-        config->eventLoop = NULL;
     }
 
     /* Logging */

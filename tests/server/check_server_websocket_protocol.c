@@ -11,8 +11,7 @@
 #include <stdlib.h>
 
 static UA_Server *server;
-static UA_ConnectionManager *mock, *hiddenProvider;
-static UA_String hiddenProtocol;
+static UA_ConnectionManager *mock;
 static UA_KeyValueMap captured;
 static unsigned openCalls, callbackFields;
 static UA_StatusCode openResult;
@@ -83,18 +82,11 @@ setup(void) {
     config->webSocketMaxMsgSize = 131072;
     config->webSocketMaxChunks = 8;
     config->webSocketMaxQueueSize = 32768;
-    /* Opaque test values: this suite checks forwarding to the provider. */
-    config->webSocketCertificate = UA_BYTESTRING_ALLOC("provider certificate");
-    config->webSocketPrivateKey = UA_BYTESTRING_ALLOC("provider private key");
     setServerUrl("opc.ws://localhost:0/ua");
 
-    /* Keep these protocol-manager tests independent of installed providers. */
+    /* Defaults do not install a provider; this suite registers its own. */
     UA_String protocol = UA_STRING("websocket");
-    hiddenProvider = findConnectionManager(config->eventLoop, &protocol);
-    if(hiddenProvider) {
-        hiddenProtocol = hiddenProvider->protocol;
-        hiddenProvider->protocol = UA_STRING("websocket-hidden");
-    }
+    ck_assert_ptr_null(findConnectionManager(config->eventLoop, &protocol));
     openCalls = 0;
     callbackFields = 3;
     openResult = UA_STATUSCODE_GOOD;
@@ -111,8 +103,6 @@ setup(void) {
 static void
 teardown(void) {
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
-    if(hiddenProvider)
-        hiddenProvider->protocol = hiddenProtocol;
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
     UA_KeyValueMap_clear(&captured);
 }
@@ -131,26 +121,24 @@ hasDiscoveryUrl(const char *url) {
 static const struct {
     const char *url, *path, *host, *advertised;
     UA_UInt16 port;
-    UA_Boolean secure, password;
+    UA_Boolean secure;
 } listenerCases[] = {
-    {"opc.ws://localhost:0/ua", "/ua", "localhost", "opc.ws://localhost:4862/ua", 0, false, false},
-    {"opc.ws://:0/ua", "/ua", NULL, "opc.ws://192.0.2.15:4862/ua", 0, false, false},
-    {"opc.ws://example.test", "/", "example.test", "opc.ws://example.test:4840", 4840, false, false},
-    {"opc.wss://example.test/ua", "/ua", "example.test", "opc.wss://example.test:443/ua", 443, true, false},
-    {"opc.wss://:0", "/", NULL, "opc.wss://192.0.2.15:4862", 0, true, true}
+    {"opc.ws://localhost:0/ua", "/ua", "localhost", "opc.ws://localhost:4862/ua", 0, false},
+    {"opc.ws://:0/ua", "/ua", NULL, "opc.ws://192.0.2.15:4862/ua", 0, false},
+    {"opc.ws://example.test", "/", "example.test", "opc.ws://example.test:4840", 4840, false},
+    {"opc.wss://example.test/ua", "/ua", "example.test", "opc.wss://example.test:443/ua", 443, true},
+    {"opc.wss://:0", "/", NULL, "opc.wss://192.0.2.15:4862", 0, true}
 };
 
 START_TEST(webSocketProviderReceivesConfiguration) {
     setServerUrl(listenerCases[_i].url);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    if(listenerCases[_i].password)
-        config->webSocketPrivateKeyPassword = UA_STRING_ALLOC("provider password");
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(openCalls, 1);
     ck_assert_uint_eq(*(const UA_UInt16 *)capturedScalar("port", &UA_TYPES[UA_TYPES_UINT16]),
                       listenerCases[_i].port);
     ck_assert(*(const UA_Boolean *)capturedScalar("listen", &UA_TYPES[UA_TYPES_BOOLEAN]));
-    ck_assert_uint_eq(*(const UA_Boolean *)capturedScalar("useSSL", &UA_TYPES[UA_TYPES_BOOLEAN]),
+    ck_assert_uint_eq(*(const UA_Boolean *)capturedScalar("tls", &UA_TYPES[UA_TYPES_BOOLEAN]),
                       listenerCases[_i].secure);
     ck_assert(*(const UA_Boolean *)capturedScalar("binary-only", &UA_TYPES[UA_TYPES_BOOLEAN]));
     UA_String expected = UA_STRING((char *)(uintptr_t)listenerCases[_i].path);
@@ -172,21 +160,10 @@ START_TEST(webSocketProviderReceivesConfiguration) {
     } else {
         ck_assert_ptr_null(host);
     }
-    if(listenerCases[_i].secure) {
-        ck_assert(UA_ByteString_equal((const UA_ByteString *)capturedScalar(
-            "certificate", &UA_TYPES[UA_TYPES_BYTESTRING]), &config->webSocketCertificate));
-        ck_assert(UA_ByteString_equal((const UA_ByteString *)capturedScalar(
-            "private-key", &UA_TYPES[UA_TYPES_BYTESTRING]), &config->webSocketPrivateKey));
-    } else {
-        ck_assert_ptr_null(UA_KeyValueMap_get(&captured, UA_QUALIFIEDNAME(0, "certificate")));
-        ck_assert_ptr_null(UA_KeyValueMap_get(&captured, UA_QUALIFIEDNAME(0, "private-key")));
-    }
-    if(listenerCases[_i].password) {
-        ck_assert(UA_String_equal((const UA_String *)capturedScalar(
-            "private-key-password", &UA_TYPES[UA_TYPES_STRING]), &config->webSocketPrivateKeyPassword));
-    } else {
-        ck_assert_ptr_null(UA_KeyValueMap_get(&captured, UA_QUALIFIEDNAME(0, "private-key-password")));
-    }
+    ck_assert_ptr_null(UA_KeyValueMap_get(&captured, UA_QUALIFIEDNAME(0, "tls-context")));
+    ck_assert_ptr_null(UA_KeyValueMap_get(&captured, UA_QUALIFIEDNAME(0, "certificate")));
+    ck_assert_ptr_null(UA_KeyValueMap_get(&captured, UA_QUALIFIEDNAME(0, "private-key")));
+    ck_assert_ptr_null(UA_KeyValueMap_get(&captured, UA_QUALIFIEDNAME(0, "private-key-password")));
     ck_assert(hasDiscoveryUrl(listenerCases[_i].advertised));
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(TestConnectionManager_getCounters(mock, listenerId, NULL, NULL),
@@ -214,14 +191,6 @@ START_TEST(webSocketRejectsInvalidConfiguration) {
         config->webSocketEncryptionMode = UA_WEBSOCKET_ENCRYPTION_DISABLED;
         break;
     case 5:
-        setServerUrl("opc.wss://localhost:443");
-        UA_ByteString_clear(&config->webSocketCertificate);
-        break;
-    case 6:
-        setServerUrl("opc.wss://localhost:443");
-        UA_ByteString_clear(&config->webSocketPrivateKey);
-        break;
-    case 7:
         openResult = UA_STATUSCODE_BADCONNECTIONREJECTED;
         expected = UA_STATUSCODE_BADINTERNALERROR;
         break;
@@ -231,7 +200,7 @@ START_TEST(webSocketRejectsInvalidConfiguration) {
         break;
     }
     ck_assert_uint_eq(UA_Server_run_startup(server), expected);
-    ck_assert_uint_eq(openCalls, _i == 7 ? 1 : 0);
+    ck_assert_uint_eq(openCalls, _i == 5 ? 1 : 0);
     ck_assert_uint_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPED);
 } END_TEST
 
@@ -267,7 +236,7 @@ int main(void) {
     TCase *tc = tcase_create("provider configuration");
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_loop_test(tc, webSocketProviderReceivesConfiguration, 0, 5);
-    tcase_add_loop_test(tc, webSocketRejectsInvalidConfiguration, 0, 9);
+    tcase_add_loop_test(tc, webSocketRejectsInvalidConfiguration, 0, 7);
     tcase_add_loop_test(tc, webSocketIncompleteListenerMetadata, 0, 3);
     tcase_add_test(tc, webSocketFailedListenerIsNotAdvertised);
     suite_add_tcase(suite, tc);

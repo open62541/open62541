@@ -22,6 +22,7 @@
 #endif
 
 #include <check.h>
+#include "testing_tls.h"
 #include <stdio.h>
 
 static uintptr_t clientConnectionId;
@@ -37,18 +38,37 @@ static void clientCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                            UA_ConnectionState state,
                            const UA_KeyValueMap *params, UA_ByteString msg);
 
+static UA_ByteString loadFile(const char *path);
+
+static void
+configureHttpServer(UA_ServerConfig *config, UA_Boolean secure) {
+    UA_TlsConfig tls = {0};
+    if(secure) {
+        tls.certificateChain = loadFile("server_cert.der");
+        tls.privateKey = loadFile("server_key.der");
+    }
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("test-http-server"), secure ? &tls : NULL);
+    ck_assert_ptr_nonnull(cm);
+    ck_assert_uint_eq(config->eventLoop->registerEventSource(config->eventLoop, &cm->eventSource), UA_STATUSCODE_GOOD);
+}
+
 static UA_ConnectionManager *
 getHttpConnectionManager(UA_ServerConfig *config) {
-    const UA_String protocol = UA_STRING_STATIC("http");
-    for(UA_EventSource *es = config->eventLoop->eventSources; es;
-        es = es->next) {
-        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
-            continue;
-        UA_ConnectionManager *cm = (UA_ConnectionManager *)es;
-        if(UA_String_equal(&cm->protocol, &protocol))
-            return cm;
-    }
-    return NULL;
+    const UA_String name = UA_STRING_STATIC("test-http-client");
+    for(UA_EventSource *es = config->eventLoop->eventSources; es; es = es->next)
+        if(es->eventSourceType == UA_EVENTSOURCETYPE_CONNECTIONMANAGER &&
+           UA_String_equal(&es->name, &name))
+            return (UA_ConnectionManager*)es;
+    /* The client has its own trust policy; sharing the loop does not mean
+     * sharing the server's ConnectionManager configuration. */
+    UA_ByteString cert = loadFile("server_cert.der");
+    UA_TlsConfig tls = testTlsConfig(NULL, NULL, &cert);
+    UA_ByteString_clear(&cert);
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(name, &tls);
+    ck_assert_ptr_nonnull(cm);
+    ck_assert_uint_eq(config->eventLoop->registerEventSource(config->eventLoop,
+                                                           &cm->eventSource), UA_STATUSCODE_GOOD);
+    return cm;
 }
 
 static UA_UInt16
@@ -74,7 +94,7 @@ getAdvertisedPort(UA_ServerConfig *config, const char *prefix,
 
 static void
 openRawHttpClient(UA_ConnectionManager *http, UA_UInt16 port,
-                  UA_Boolean useSSL, const UA_ByteString *caCertificate) {
+                  UA_Boolean useSSL) {
     UA_String address = UA_STRING("127.0.0.1");
     UA_UInt16 timeout = 10;
     UA_KeyValuePair params[5] = {0};
@@ -88,10 +108,7 @@ openRawHttpClient(UA_ConnectionManager *http, UA_UInt16 port,
     ADD_OPEN_PARAM("address", &address, UA_TYPES_STRING);
     ADD_OPEN_PARAM("port", &port, UA_TYPES_UINT16);
     ADD_OPEN_PARAM("timeout", &timeout, UA_TYPES_UINT16);
-    ADD_OPEN_PARAM("useSSL", &useSSL, UA_TYPES_BOOLEAN);
-    if(caCertificate)
-        ADD_OPEN_PARAM("ca-certificate", (void *)(uintptr_t)caCertificate,
-                       UA_TYPES_BYTESTRING);
+    ADD_OPEN_PARAM("tls", &useSSL, UA_TYPES_BOOLEAN);
 #undef ADD_OPEN_PARAM
     UA_KeyValueMap map = {paramsSize, params};
     clientConnectionId = 0;
@@ -478,11 +495,8 @@ START_TEST(binaryServiceOverHttps) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpEnabled = false;
     config->httpEnabled = true;
-    config->httpCertificate = loadFile("server_cert.der");
-    config->httpPrivateKey = loadFile("server_key.der");
+    configureHttpServer(config, true);
     config->httpListenAddress = UA_STRING_ALLOC("");
-    ck_assert_uint_gt(config->httpCertificate.length, 0);
-    ck_assert_uint_gt(config->httpPrivateKey.length, 0);
     ck_assert_ptr_nonnull(config->httpListenAddress.data);
     UA_UsernamePasswordLogin login = {
         UA_STRING_STATIC("user"), UA_STRING_STATIC("password")};
@@ -536,12 +550,10 @@ START_TEST(binaryServiceOverHttps) {
     publicEndpoint[advertisedUrl.length] = 0;
     UA_ClientConfig publicConfig;
     memset(&publicConfig, 0, sizeof(publicConfig));
+    (void)getHttpConnectionManager(config);
     publicConfig.eventLoop = config->eventLoop;
     publicConfig.externalEventLoop = true;
     ck_assert_uint_eq(UA_ClientConfig_setDefault(&publicConfig),
-                      UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(UA_ByteString_copy(&config->httpCertificate,
-                                         &publicConfig.httpCaCertificate),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_ClientConfig_setAuthenticationUsername(
                           &publicConfig, "user", "password"),
@@ -615,7 +627,7 @@ START_TEST(binaryServiceOverHttps) {
 
     UA_ConnectionManager *http = getHttpConnectionManager(config);
     ck_assert_ptr_nonnull(http);
-    openRawHttpClient(http, port, true, &config->httpCertificate);
+    openRawHttpClient(http, port, true);
 
     UA_String path = UA_STRING("/ua");
 #ifdef UA_ENABLE_JSON_ENCODING
@@ -916,7 +928,7 @@ START_TEST(binaryServiceOverHttps) {
                       UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 20; i++)
         config->eventLoop->run(config->eventLoop, 20);
-    openRawHttpClient(http, port, true, &config->httpCertificate);
+    openRawHttpClient(http, port, true);
     lockServer(server);
     UA_Session *sessionAfterReconnect =
         getSessionByToken(server, &authenticationToken);
@@ -1208,7 +1220,7 @@ START_TEST(binaryServiceOverHttps) {
     ck_assert_uint_eq(secondSession->responseQueueSize, 0);
     unlockServer(server);
 
-    openRawHttpClient(http, port, true, &config->httpCertificate);
+    openRawHttpClient(http, port, true);
     UA_PublishRequest_init(&pendingPublishRequest);
     pendingPublishRequest.requestHeader.timestamp = UA_DateTime_now();
     pendingPublishRequest.requestHeader.requestHandle = 55;
@@ -1339,7 +1351,7 @@ START_TEST(binaryServiceOverHttps) {
     }
     ck_assert_uint_eq(httpsDiscoveryUrls, 1);
     ck_assert_uint_ne(port, 0);
-    openRawHttpClient(http, port, true, &config->httpCertificate);
+    openRawHttpClient(http, port, true);
     findRequest.requestHeader.timestamp = UA_DateTime_now();
     findRequest.requestHeader.requestHandle = 50;
     sendServiceRequest(http, config->eventLoop, &path, &findRequest,
@@ -1370,6 +1382,7 @@ START_TEST(oversizedServerResponseReturnsServiceFault) {
     UA_ServerConfig *serverConfig = UA_Server_getConfig(server);
     serverConfig->tcpEnabled = false;
     serverConfig->httpEnabled = true;
+    configureHttpServer(serverConfig, false);
     serverConfig->httpAllowUnencrypted = true;
     serverConfig->httpMaxMsgSize = 4096;
     serverConfig->httpListenAddress = UA_STRING_ALLOC("127.0.0.1");
@@ -1515,10 +1528,7 @@ START_TEST(securePolicyServiceOverHttps) {
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:open62541.unconfigured.application");
-    config->httpCertificate = serverCertificate;
-    config->httpPrivateKey = serverPrivateKey;
-    serverCertificate = UA_BYTESTRING_NULL;
-    serverPrivateKey = UA_BYTESTRING_NULL;
+    configureHttpServer(config, true);
 
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -1557,12 +1567,13 @@ START_TEST(securePolicyServiceOverHttps) {
     publicEndpoint[advertisedUrl.length] = 0;
     UA_ClientConfig publicConfig;
     memset(&publicConfig, 0, sizeof(publicConfig));
+    (void)getHttpConnectionManager(config);
     publicConfig.eventLoop = config->eventLoop;
     publicConfig.externalEventLoop = true;
     ck_assert_uint_eq(
         UA_ClientConfig_setDefaultEncryption(
             &publicConfig, clientCertificate, clientPrivateKey,
-            &config->httpCertificate, 1, NULL, 0),
+            &serverCertificate, 1, NULL, 0),
         UA_STATUSCODE_GOOD);
     publicConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     publicConfig.securityPolicyUri = UA_STRING_ALLOC(
@@ -1575,9 +1586,6 @@ START_TEST(securePolicyServiceOverHttps) {
     publicConfig.clientDescription.applicationUri =
         UA_STRING_ALLOC("urn:open62541.client.application");
     ck_assert_ptr_nonnull(publicConfig.clientDescription.applicationUri.data);
-    ck_assert_uint_eq(UA_ByteString_copy(&config->httpCertificate,
-                                         &publicConfig.httpCaCertificate),
-                      UA_STATUSCODE_GOOD);
     UA_Client *publicClient = UA_Client_newWithConfig(&publicConfig);
     ck_assert_ptr_nonnull(publicClient);
     ck_assert_uint_eq(UA_Client_connect(publicClient, publicEndpoint),
@@ -1626,7 +1634,7 @@ START_TEST(securePolicyServiceOverHttps) {
 
     UA_ConnectionManager *http = getHttpConnectionManager(config);
     ck_assert_ptr_nonnull(http);
-    openRawHttpClient(http, port, true, &config->httpCertificate);
+    openRawHttpClient(http, port, true);
 
     UA_SecurityPolicy clientPolicy;
     memset(&clientPolicy, 0, sizeof(clientPolicy));
@@ -1636,7 +1644,7 @@ START_TEST(securePolicyServiceOverHttps) {
                       UA_STATUSCODE_GOOD);
     void *clientChannelContext = NULL;
     ck_assert_uint_eq(clientPolicy.newChannelContext(
-                          &clientPolicy, &config->httpCertificate,
+                          &clientPolicy, &serverCertificate,
                           &clientChannelContext),
                       UA_STATUSCODE_GOOD);
 
@@ -1685,7 +1693,7 @@ START_TEST(securePolicyServiceOverHttps) {
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult,
                       UA_STATUSCODE_GOOD);
     ck_assert(UA_ByteString_equal(&createResponse.serverCertificate,
-                                  &config->httpCertificate));
+                                  &serverCertificate));
     ck_assert_uint_ge(createResponse.serverNonce.length, 32);
 
     UA_ByteString createSignatureData = UA_BYTESTRING_NULL;
@@ -1879,6 +1887,8 @@ START_TEST(securePolicyServiceOverHttps) {
               closeStatus == UA_STATUSCODE_BADNOTFOUND);
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     UA_Server_delete(server);
+    UA_ByteString_clear(&serverCertificate);
+    UA_ByteString_clear(&serverPrivateKey);
 }
 END_TEST
 #endif
@@ -1889,6 +1899,7 @@ START_TEST(unencryptedHttpRequiresExplicitOptIn) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpEnabled = false;
     config->httpEnabled = true;
+    configureHttpServer(config, false);
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
     config->serverUrls =
@@ -1910,6 +1921,7 @@ START_TEST(binaryServiceOverUnencryptedHttp) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpEnabled = false;
     config->httpEnabled = true;
+    configureHttpServer(config, false);
     config->httpAllowUnencrypted = true;
     config->httpListenAddress = UA_STRING_ALLOC("");
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
@@ -1927,7 +1939,7 @@ START_TEST(binaryServiceOverUnencryptedHttp) {
     ck_assert_uint_ne(port, 0);
     UA_ConnectionManager *http = getHttpConnectionManager(config);
     ck_assert_ptr_nonnull(http);
-    openRawHttpClient(http, port, false, NULL);
+    openRawHttpClient(http, port, false);
 
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
@@ -2008,6 +2020,7 @@ START_TEST(startupListensOnHttpWithoutTcpSocket) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpReuseAddr = false;
     config->httpEnabled = true;
+    configureHttpServer(config, false);
     config->httpAllowUnencrypted = true;
     config->httpListenAddress = UA_STRING_ALLOC("");
     char tcpUrl[64];
@@ -2039,6 +2052,7 @@ START_TEST(unencryptedHttpPasswordNeedsIndependentOptIn) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpEnabled = false;
     config->httpEnabled = true;
+    configureHttpServer(config, false);
     config->httpAllowUnencrypted = true;
     config->httpListenAddress = UA_STRING_ALLOC("");
 
@@ -2126,8 +2140,7 @@ START_TEST(emptyAdvertisedHostnameRejected) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpEnabled = false;
     config->httpEnabled = true;
-    config->httpCertificate = loadFile("server_cert.der");
-    config->httpPrivateKey = loadFile("server_key.der");
+    configureHttpServer(config, true);
     config->httpListenAddress = UA_STRING_ALLOC("");
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -2149,6 +2162,7 @@ START_TEST(duplicateHttpSchemeRejected) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpEnabled = false;
     config->httpEnabled = true;
+    configureHttpServer(config, false);
     config->httpAllowUnencrypted = true;
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -2172,8 +2186,7 @@ START_TEST(httpAndHttpsListenersCoexist) {
     config->tcpEnabled = false;
     config->httpEnabled = true;
     config->httpAllowUnencrypted = true;
-    config->httpCertificate = loadFile("server_cert.der");
-    config->httpPrivateKey = loadFile("server_key.der");
+    configureHttpServer(config, true);
     config->httpListenAddress = UA_STRING_ALLOC("");
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -2200,7 +2213,7 @@ START_TEST(httpAndHttpsListenersCoexist) {
     UA_String plainPath = UA_STRING("/plain");
     UA_String securePath = UA_STRING("/secure");
 
-    openRawHttpClient(http, httpPort, false, NULL);
+    openRawHttpClient(http, httpPort, false);
     sendServiceRequest(http, config->eventLoop, &plainPath, &request,
                        &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]);
     sendInvalidRequest(http, config->eventLoop, &securePath,
@@ -2208,7 +2221,7 @@ START_TEST(httpAndHttpsListenersCoexist) {
     ck_assert_uint_eq(http->closeConnection(http, clientConnectionId),
                       UA_STATUSCODE_GOOD);
 
-    openRawHttpClient(http, httpsPort, true, &config->httpCertificate);
+    openRawHttpClient(http, httpsPort, true);
     sendServiceRequest(http, config->eventLoop, &securePath, &request,
                        &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]);
     sendInvalidRequest(http, config->eventLoop, &plainPath,
@@ -2228,8 +2241,7 @@ newHttpsServerForPath(const char *url) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpEnabled = false;
     config->httpEnabled = true;
-    config->httpCertificate = loadFile("server_cert.der");
-    config->httpPrivateKey = loadFile("server_key.der");
+    configureHttpServer(config, true);
     config->httpListenAddress = UA_STRING_ALLOC("");
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -2257,7 +2269,7 @@ START_TEST(httpEndpointPathsAreCanonical) {
      * endpoint instead of separately stored endpoint state. */
     UA_ConnectionManager *http = getHttpConnectionManager(config);
     ck_assert_ptr_nonnull(http);
-    openRawHttpClient(http, port, true, &config->httpCertificate);
+    openRawHttpClient(http, port, true);
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
     request.requestHeader.timestamp = UA_DateTime_now();
@@ -2336,7 +2348,7 @@ START_TEST(httpEndpointPathsAreCanonical) {
 
     http = getHttpConnectionManager(config);
     ck_assert_ptr_nonnull(http);
-    openRawHttpClient(http, port, true, &config->httpCertificate);
+    openRawHttpClient(http, port, true);
     sendServiceRequest(http, config->eventLoop, &factoryPath, &request,
                        &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]);
     UA_String factoryDiscoveryPath = UA_STRING("/factory/discovery");
@@ -2382,6 +2394,16 @@ runPythonHttpServer(const char *portString, const char *completionMarker) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->tcpEnabled = false;
     config->httpEnabled = true;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("python-http"), NULL);
+    if(!cm) {
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
+    if(config->eventLoop->registerEventSource(config->eventLoop, &cm->eventSource) != UA_STATUSCODE_GOOD) {
+        cm->eventSource.free(&cm->eventSource);
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
     config->httpAllowUnencrypted = true;
     config->httpListenAddress = UA_STRING_ALLOC("127.0.0.1");
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,

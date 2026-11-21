@@ -230,6 +230,10 @@ runClientScenario(HttpClientScenario scenario) {
     UA_ServerConfig *serverConfig = UA_Server_getConfig(server);
     serverConfig->tcpEnabled = false;
     serverConfig->httpEnabled = true;
+    UA_ConnectionManager *http = UA_ConnectionManager_new_HTTP(UA_STRING("test-http"), NULL);
+    ck_assert_ptr_nonnull(http);
+    ck_assert_uint_eq(serverConfig->eventLoop->registerEventSource(
+        serverConfig->eventLoop, &http->eventSource), UA_STATUSCODE_GOOD);
     serverConfig->httpAllowUnencrypted = true;
     serverConfig->httpListenAddress = UA_STRING_ALLOC("127.0.0.1");
     UA_Array_delete(serverConfig->serverUrls, serverConfig->serverUrlsSize,
@@ -302,19 +306,6 @@ runClientScenario(HttpClientScenario scenario) {
     ck_assert_ptr_nonnull(client);
     ck_assert_uint_eq(UA_Client_connect(client, endpoint),
                       UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
-    UA_Client_delete(client);
-
-    memset(&clientConfig, 0, sizeof(clientConfig));
-    clientConfig.eventLoop = serverConfig->eventLoop;
-    clientConfig.externalEventLoop = true;
-    ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
-                      UA_STATUSCODE_GOOD);
-    clientConfig.httpAllowUnencrypted = true;
-    clientConfig.httpClientCertificate = UA_BYTESTRING_ALLOC("certificate");
-    client = UA_Client_newWithConfig(&clientConfig);
-    ck_assert_ptr_nonnull(client);
-    ck_assert_uint_eq(UA_Client_connect(client, endpoint),
-                      UA_STATUSCODE_BADINVALIDARGUMENT);
     UA_Client_delete(client);
 
     memset(&clientConfig, 0, sizeof(clientConfig));

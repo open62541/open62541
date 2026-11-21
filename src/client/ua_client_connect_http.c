@@ -22,19 +22,6 @@ __Client_validateHttpConnection(UA_Client *client, UA_Boolean useTls) {
                        "opc.http:// only supports SecurityPolicy None");
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
     }
-    if((client->config.httpClientCertificate.length == 0) !=
-       (client->config.httpClientPrivateKey.length == 0)) {
-        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "HTTP TLS client certificate and private key must be "
-                     "configured together");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    if(client->config.httpClientPrivateKeyPassword.length > 0 &&
-       client->config.httpClientPrivateKey.length == 0) {
-        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "HTTP TLS private-key password requires a private key");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -54,7 +41,7 @@ __Client_openHttpConnection(UA_Client *client, UA_ConnectionManager *cm,
     ADD_HTTP_PARAM("port", &port, UA_TYPES_UINT16);
     ADD_HTTP_PARAM("address", (void *)(uintptr_t)hostname, UA_TYPES_STRING);
     ADD_HTTP_PARAM("path", (void *)(uintptr_t)requestPath, UA_TYPES_STRING);
-    ADD_HTTP_PARAM("useSSL", &useTls, UA_TYPES_BOOLEAN);
+    ADD_HTTP_PARAM("tls", &useTls, UA_TYPES_BOOLEAN);
     ADD_HTTP_PARAM("timeout", &client->config.httpTimeout, UA_TYPES_UINT16);
     ADD_HTTP_PARAM("recv-max-message-size", &client->config.httpMaxMsgSize,
                    UA_TYPES_UINT32);
@@ -63,19 +50,7 @@ __Client_openHttpConnection(UA_Client *client, UA_ConnectionManager *cm,
                    UA_TYPES_UINT32);
     ADD_HTTP_PARAM("send-max-message-size", &client->config.httpMaxMsgSize,
                    UA_TYPES_UINT32);
-    if(client->config.httpCaCertificate.length > 0)
-        ADD_HTTP_PARAM("ca-certificate", &client->config.httpCaCertificate,
-                       UA_TYPES_BYTESTRING);
-    if(client->config.httpClientCertificate.length > 0) {
-        ADD_HTTP_PARAM("certificate", &client->config.httpClientCertificate,
-                       UA_TYPES_BYTESTRING);
-        ADD_HTTP_PARAM("private-key", &client->config.httpClientPrivateKey,
-                       UA_TYPES_BYTESTRING);
-    }
-    if(client->config.httpClientPrivateKeyPassword.length > 0)
-        ADD_HTTP_PARAM("private-key-password",
-                       &client->config.httpClientPrivateKeyPassword,
-                       UA_TYPES_STRING);
+
 #undef ADD_HTTP_PARAM
 
     client->channel.transport = UA_SECURECHANNEL_TRANSPORT_HTTP;

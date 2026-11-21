@@ -152,13 +152,6 @@ UA_HttpProtocolManager_validateConfig(UA_Driver *drv) {
                            "Plaintext username/password authentication is "
                            "explicitly enabled via allowNonePolicyPassword");
     }
-    if(haveSecureUrl && (config->httpCertificate.length == 0 ||
-                         config->httpPrivateKey.length == 0)) {
-        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                     "HTTP transport is enabled for opc.https:// but its TLS "
-                     "certificate or private key is empty");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -926,7 +919,7 @@ openHttpListener(UA_HttpProtocolManager *hpm, const UA_String *serverUrl) {
     } while(0)
     ADD_HTTP_PARAM("port", &port, UA_TYPES_UINT16);
     ADD_HTTP_PARAM("listen", &yes, UA_TYPES_BOOLEAN);
-    ADD_HTTP_PARAM("useSSL", &secure, UA_TYPES_BOOLEAN);
+    ADD_HTTP_PARAM("tls", &secure, UA_TYPES_BOOLEAN);
     ADD_HTTP_PARAM("timeout", &config->httpTimeout, UA_TYPES_UINT16);
     ADD_HTTP_PARAM("recv-max-message-size", &config->httpMaxMsgSize,
                    UA_TYPES_UINT32);
@@ -934,17 +927,9 @@ openHttpListener(UA_HttpProtocolManager *hpm, const UA_String *serverUrl) {
                    &config->httpMaxDecompressedMsgSize, UA_TYPES_UINT32);
     ADD_HTTP_PARAM("send-max-message-size", &config->httpMaxMsgSize,
                    UA_TYPES_UINT32);
-    if(secure) {
-        ADD_HTTP_PARAM("certificate", &config->httpCertificate,
-                       UA_TYPES_BYTESTRING);
-        ADD_HTTP_PARAM("private-key", &config->httpPrivateKey,
-                       UA_TYPES_BYTESTRING);
-    }
+
     if(listenAddress->length > 0)
         ADD_HTTP_PARAM("address", (void *)(uintptr_t)listenAddress,
-                       UA_TYPES_STRING);
-    if(secure && config->httpPrivateKeyPassword.length > 0)
-        ADD_HTTP_PARAM("private-key-password", &config->httpPrivateKeyPassword,
                        UA_TYPES_STRING);
 #undef ADD_HTTP_PARAM
     UA_KeyValueMap map = {n, p};
@@ -967,7 +952,6 @@ static void clearHttpListeners(UA_HttpProtocolManager *hpm) {
         unregisterHttpDiscoveryUrl(listener);
         UA_String_clear(&listener->endpointUrl);
     }
-    hpm->connectionManager = NULL;
 }
 
 static void
@@ -993,8 +977,16 @@ static UA_StatusCode startHttp(UA_Driver *drv) {
 
     /* Resolve the HTTP ConnectionManager. */
     const UA_String protocol = UA_STRING_STATIC("http");
-    hpm->connectionManager =
-        findConnectionManager(config->eventLoop, &protocol);
+    /* Keep the selected manager across restarts. Other applications sharing
+     * the loop may have registered managers with different TLS policies. */
+    UA_Boolean registered = false;
+    for(UA_EventSource *es = config->eventLoop->eventSources; es; es = es->next)
+        if(es == (UA_EventSource*)hpm->connectionManager) {
+            registered = true;
+            break;
+        }
+    if(!registered)
+        hpm->connectionManager = findConnectionManager(config->eventLoop, &protocol);
     if(!hpm->connectionManager) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                      "No HTTP ConnectionManager is configured");

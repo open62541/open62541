@@ -10,6 +10,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <check.h>
+#include "testing-plugins/testing_tls.h"
 #include <libwebsockets.h>
 #include <stdio.h>
 
@@ -157,38 +158,57 @@ findWebSocketConnectionManager(UA_EventLoop *el) {
     return NULL;
 }
 
+static void
+addClientWebSocketManager(UA_EventLoop *el, UA_Boolean trusted) {
+    UA_ByteString cert = loadFile("server_cert.der");
+    UA_TlsConfig tls = testTlsConfig(NULL, NULL, trusted ? &cert : NULL);
+    UA_ByteString_clear(&cert);
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("test-wss-client"), &tls);
+    ck_assert_ptr_nonnull(cm);
+    ck_assert_uint_eq(el->registerEventSource(el, &cm->eventSource), UA_STATUSCODE_GOOD);
+}
+
 static UA_Client *
 newTrustedWebSocketClient(UA_ServerConfig *serverConfig) {
     UA_ClientConfig clientConfig;
     memset(&clientConfig, 0, sizeof(clientConfig));
+    addClientWebSocketManager(serverConfig->eventLoop, true);
     clientConfig.eventLoop = serverConfig->eventLoop;
     clientConfig.externalEventLoop = true;
     ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
                       UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(
-        UA_ByteString_copy(&serverConfig->webSocketCertificate,
-                           &clientConfig.webSocketCaCertificate),
-        UA_STATUSCODE_GOOD);
     UA_Client *client = UA_Client_newWithConfig(&clientConfig);
     ck_assert_ptr_nonnull(client);
     return client;
 }
 
-START_TEST(clientDefaultHasWebSocketManager) {
-    UA_ClientConfig config;
-    memset(&config, 0, sizeof(config));
-    ck_assert_uint_eq(UA_ClientConfig_setDefault(&config),
-                      UA_STATUSCODE_GOOD);
-    ck_assert_ptr_nonnull(findWebSocketConnectionManager(config.eventLoop));
-    ck_assert_uint_eq(config.webSocketMaxQueueSize, 1U << 20);
-    UA_ClientConfig_clear(&config);
+START_TEST(defaultsRequireExplicitWebTransports) {
+    UA_Client *client = UA_Client_new();
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(client); ck_assert_ptr_nonnull(server);
+    UA_EventLoop *loops[] = {UA_Client_getConfig(client)->eventLoop,
+                             UA_Server_getConfig(server)->eventLoop};
+    const UA_String http = UA_STRING_STATIC("http");
+    const UA_String websocket = UA_STRING_STATIC("websocket");
+    for(size_t i = 0; i < 2; i++) {
+        for(UA_EventSource *es = loops[i]->eventSources; es; es = es->next) {
+            if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+                continue;
+            UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+            ck_assert(!UA_String_equal(&cm->protocol, &http));
+            ck_assert(!UA_String_equal(&cm->protocol, &websocket));
+        }
+    }
+    ck_assert_uint_eq(UA_Client_getConfig(client)->webSocketMaxQueueSize, 1U << 20);
+    UA_Client_delete(client);
+    UA_Server_delete(server);
 }
 END_TEST
 
 START_TEST(clientConnectionFailureIsNotReentrant) {
     TestContext ctx = {0};
     UA_ConnectionManager *ws =
-        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-failure"));
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-failure"), NULL);
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
     ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource),
@@ -222,7 +242,7 @@ END_TEST
 START_TEST(clientServerBinary) {
     TestContext ctx = {0};
     UA_ConnectionManager *ws =
-        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws"));
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws"), NULL);
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
     ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource), UA_STATUSCODE_GOOD);
@@ -345,7 +365,7 @@ END_TEST
 START_TEST(rejectsInvalidConnectionParameters) {
     TestContext ctx = {0};
     UA_ConnectionManager *ws =
-        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-invalid"));
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-invalid"), NULL);
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
     ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource),
@@ -382,7 +402,7 @@ START_TEST(rejectsInvalidConnectionParameters) {
         ws->openConnection(ws, &paramsMap, &ctx, &ctx, callback),
         UA_STATUSCODE_BADINVALIDARGUMENT);
 
-    params[3].key = UA_QUALIFIEDNAME(0, "useSSL");
+    params[3].key = UA_QUALIFIEDNAME(0, "tls");
     UA_Variant_setScalar(&params[3].value, &useSSL,
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
     params[4].key = UA_QUALIFIEDNAME(0, "certificate");
@@ -404,7 +424,7 @@ END_TEST
 START_TEST(fragmentedBinaryAndTextRejection) {
     TestContext ctx = {0};
     UA_ConnectionManager *ws =
-        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-frames"));
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-frames"), NULL);
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
     ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource),
@@ -482,9 +502,7 @@ startWebSocketServer(UA_UInt16 *portOut, UA_ConnectionManager **wsOut,
     ck_assert(!config->webSocketEnabled);
     ck_assert_uint_eq(config->webSocketMaxQueueSize,
                       config->webSocketBufSize * 16);
-    UA_ConnectionManager *ws =
-        findWebSocketConnectionManager(config->eventLoop);
-    ck_assert_ptr_nonnull(ws);
+    ck_assert_ptr_null(findWebSocketConnectionManager(config->eventLoop));
 
     UA_ByteString certificate = loadFile("server_cert.der");
     UA_ByteString privateKey = loadFile("server_key.der");
@@ -508,8 +526,12 @@ startWebSocketServer(UA_UInt16 *portOut, UA_ConnectionManager **wsOut,
     (void)addSecureEndpoint;
 #endif
     config->webSocketEnabled = true;
-    config->webSocketCertificate = certificate;
-    config->webSocketPrivateKey = privateKey;
+    UA_TlsConfig tls = {0};
+    tls.certificateChain = certificate;
+    tls.privateKey = privateKey;
+    UA_ConnectionManager *tlsManager = UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("test-wss-server"), &tls);
+    ck_assert_ptr_nonnull(tlsManager);
+    ck_assert_uint_eq(config->eventLoop->registerEventSource(config->eventLoop, &tlsManager->eventSource), UA_STATUSCODE_GOOD);
 
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -534,7 +556,7 @@ startWebSocketServer(UA_UInt16 *portOut, UA_ConnectionManager **wsOut,
     ck_assert_uint_ne(*portOut, 0);
     const UA_String expectedPath = UA_STRING_STATIC("opcua");
     ck_assert(UA_String_equal(&path, &expectedPath));
-    *wsOut = ws;
+    *wsOut = tlsManager;
     return server;
 }
 
@@ -571,6 +593,11 @@ START_TEST(clientServerPlainWebSocketRoundtrip) {
     UA_Server *server = UA_Server_new();
     ck_assert_ptr_nonnull(server);
     UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_LWS_WebSocket(
+        UA_STRING("test-plain-websocket"), NULL);
+    ck_assert_ptr_nonnull(cm);
+    ck_assert_uint_eq(config->eventLoop->registerEventSource(
+        config->eventLoop, &cm->eventSource), UA_STATUSCODE_GOOD);
     config->tcpEnabled = false;
     config->webSocketEnabled = true;
     config->webSocketAllowUnencrypted = true;
@@ -712,8 +739,12 @@ START_TEST(serverRejectsIncompleteWebSocketConfiguration) {
     config->serverUrlsSize = 0;
     UA_ByteString certificate = loadFile("server_cert.der");
     UA_ByteString privateKey = loadFile("server_key.der");
-    config->webSocketCertificate = certificate;
-    config->webSocketPrivateKey = privateKey;
+    UA_TlsConfig tls = {0};
+    tls.certificateChain = certificate;
+    tls.privateKey = privateKey;
+    UA_ConnectionManager *tlsManager = UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("test-wss-server"), &tls);
+    ck_assert_ptr_nonnull(tlsManager);
+    ck_assert_uint_eq(config->eventLoop->registerEventSource(config->eventLoop, &tlsManager->eventSource), UA_STATUSCODE_GOOD);
     const UA_String tcpUrl = UA_STRING_STATIC("opc.tcp://localhost:4840");
     ck_assert_uint_eq(UA_Array_appendCopy((void**)&config->serverUrls,
                                          &config->serverUrlsSize, &tcpUrl,
@@ -733,6 +764,7 @@ START_TEST(clientRejectsUntrustedWebSocketServer) {
 
     UA_ClientConfig clientConfig;
     memset(&clientConfig, 0, sizeof(clientConfig));
+    addClientWebSocketManager(serverConfig->eventLoop, false);
     clientConfig.eventLoop = serverConfig->eventLoop;
     clientConfig.externalEventLoop = true;
     ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
@@ -761,14 +793,11 @@ START_TEST(clientRejectsWebSocketHostnameMismatch) {
 
     UA_ClientConfig clientConfig;
     memset(&clientConfig, 0, sizeof(clientConfig));
+    addClientWebSocketManager(serverConfig->eventLoop, true);
     clientConfig.eventLoop = serverConfig->eventLoop;
     clientConfig.externalEventLoop = true;
     ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
                       UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(
-        UA_ByteString_copy(&serverConfig->webSocketCertificate,
-                           &clientConfig.webSocketCaCertificate),
-        UA_STATUSCODE_GOOD);
     clientConfig.timeout = 1000;
     clientConfig.noReconnect = true;
     UA_Client *client = UA_Client_newWithConfig(&clientConfig);
@@ -799,6 +828,7 @@ START_TEST(clientServerEncryptedWebSocketRoundtrip) {
 
     UA_ClientConfig clientConfig;
     memset(&clientConfig, 0, sizeof(clientConfig));
+    addClientWebSocketManager(serverConfig->eventLoop, true);
     clientConfig.eventLoop = serverConfig->eventLoop;
     clientConfig.externalEventLoop = true;
     ck_assert_uint_eq(
@@ -810,10 +840,6 @@ START_TEST(clientServerEncryptedWebSocketRoundtrip) {
     clientConfig.securityPolicyUri = UA_STRING_ALLOC(
         "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert_ptr_nonnull(clientConfig.securityPolicyUri.data);
-    ck_assert_uint_eq(UA_ByteString_copy(
-                          &certificate,
-                          &clientConfig.webSocketCaCertificate),
-                      UA_STATUSCODE_GOOD);
 
     UA_Client *client = UA_Client_newWithConfig(&clientConfig);
     ck_assert_ptr_nonnull(client);
@@ -848,7 +874,7 @@ END_TEST
 START_TEST(clientServerRejectsPolicyMismatch) {
     TestContext ctx = {0};
     UA_ConnectionManager *ws =
-        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-policy"));
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-policy"), NULL);
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
     ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource),
@@ -924,32 +950,32 @@ END_TEST
 
 START_TEST(clientServerTlsCaCertificate) {
     TestContext ctx = {0};
+    UA_ByteString certificate = loadFile("server_cert.der");
+    UA_ByteString privateKey = loadFile("server_key.der");
+    ck_assert_ptr_nonnull(certificate.data);
+    ck_assert_ptr_nonnull(privateKey.data);
+    UA_TlsConfig tls = testTlsConfig(&certificate, &privateKey, NULL);
     UA_ConnectionManager *ws =
-        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("wss"));
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("wss"), &tls);
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
     ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource), UA_STATUSCODE_GOOD);
+    tls = testTlsConfig(NULL, NULL, &certificate);
+    UA_ConnectionManager *clientCM = UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("client"), &tls);
+    ck_assert_uint_eq(el->registerEventSource(el, &clientCM->eventSource), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
 
     UA_UInt16 port = 0;
     UA_Boolean listen = true;
     UA_Boolean useSSL = true;
-    UA_ByteString certificate = loadFile("server_cert.der");
-    UA_ByteString privateKey = loadFile("server_key.der");
-    ck_assert_ptr_nonnull(certificate.data);
-    ck_assert_ptr_nonnull(privateKey.data);
     UA_KeyValuePair lp[5] = {0};
     lp[0].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&lp[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     lp[1].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&lp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    lp[2].key = UA_QUALIFIEDNAME(0, "useSSL");
+    lp[2].key = UA_QUALIFIEDNAME(0, "tls");
     UA_Variant_setScalar(&lp[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    lp[3].key = UA_QUALIFIEDNAME(0, "certificate");
-    UA_Variant_setScalar(&lp[3].value, &certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    lp[4].key = UA_QUALIFIEDNAME(0, "private-key");
-    UA_Variant_setScalar(&lp[4].value, &privateKey, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_KeyValueMap lpm = {5, lp};
+    UA_KeyValueMap lpm = {3, lp};
     ck_assert_uint_eq(ws->openConnection(ws, &lpm, &ctx, &ctx, callback),
                       UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&privateKey);
@@ -960,15 +986,13 @@ START_TEST(clientServerTlsCaCertificate) {
     UA_Variant_setScalar(&cp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     cp[1].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&cp[1].value, &ctx.port, &UA_TYPES[UA_TYPES_UINT16]);
-    cp[2].key = UA_QUALIFIEDNAME(0, "useSSL");
+    cp[2].key = UA_QUALIFIEDNAME(0, "tls");
     UA_Variant_setScalar(&cp[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    cp[3].key = UA_QUALIFIEDNAME(0, "ca-certificate");
-    UA_Variant_setScalar(&cp[3].value, &certificate,
-                         &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_KeyValueMap cpm = {4, cp};
-    ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback),
+    UA_KeyValueMap cpm = {3, cp};
+    ck_assert_uint_eq(clientCM->openConnection(clientCM, &cpm, &ctx, &ctx, callback),
                       UA_STATUSCODE_GOOD);
-    ctx.clientId = ctx.listenerId + 1;
+
+    ctx.clientId = 1; /* First connection on the dedicated client manager. */
     UA_Boolean connected = false;
     for(size_t i = 0; i < 200 && !connected; i++) {
         el->run(el, 50);
@@ -995,11 +1019,13 @@ START_TEST(serverStartupWithoutWebSocketProvider) {
     /* If webSocketEnabled is true and no websocket provider in EventLoop, startup fails */
     server = UA_Server_new();
     ck_assert_ptr_ne(server, NULL);
-    UA_EventLoop *el = UA_EventLoop_new_POSIX(server->config.logging);
-    server->config.eventLoop = el;
+    UA_EventLoop *el = server->config.eventLoop;
+    ck_assert_ptr_null(findWebSocketConnectionManager(el));
     server->config.webSocketEnabled = true;
     server->config.webSocketAllowUnencrypted = true;
     UA_String wsUrl = UA_STRING("opc.ws://localhost:4840");
+    UA_Array_delete(server->config.serverUrls, server->config.serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_copy(&wsUrl, 1, (void**)&server->config.serverUrls, &UA_TYPES[UA_TYPES_STRING]);
     server->config.serverUrlsSize = 1;
 
@@ -1012,15 +1038,17 @@ END_TEST
 START_TEST(serverWebSocketEncryptionMode) {
     UA_Server *server = UA_Server_new();
     ck_assert_ptr_ne(server, NULL);
-    UA_EventLoop *el = UA_EventLoop_new_POSIX(server->config.logging);
-    server->config.eventLoop = el;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("websocket"));
+    UA_EventLoop *el = server->config.eventLoop;
+    ck_assert_ptr_null(findWebSocketConnectionManager(el));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("websocket"), NULL);
     el->registerEventSource(el, &cm->eventSource);
     server->config.webSocketEnabled = true;
 
     /* opc.ws:// fails if webSocketAllowUnencrypted is false (default) */
     server->config.webSocketAllowUnencrypted = false;
     UA_String wsUrl = UA_STRING("opc.ws://localhost:4840");
+    UA_Array_delete(server->config.serverUrls, server->config.serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_copy(&wsUrl, 1, (void**)&server->config.serverUrls, &UA_TYPES[UA_TYPES_STRING]);
     server->config.serverUrlsSize = 1;
     UA_StatusCode res = UA_Server_run_startup(server);
@@ -1064,7 +1092,7 @@ END_TEST
 int main(void) {
     Suite *s = suite_create("LWS WebSocket ConnectionManager");
     TCase *tc = tcase_create("integration");
-    tcase_add_test(tc, clientDefaultHasWebSocketManager);
+    tcase_add_test(tc, defaultsRequireExplicitWebTransports);
     tcase_add_test(tc, clientConnectionFailureIsNotReentrant);
     tcase_add_test(tc, clientServerBinary);
     tcase_add_test(tc, rejectsInvalidConnectionParameters);

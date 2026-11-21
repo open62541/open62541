@@ -113,7 +113,9 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
 #endif /* UA_ENABLE_ENCRYPTION */
 
 /* Creates a server config on the default port 4840 with no server
- * certificate. */
+ * certificate. HTTP and WebSocket ConnectionManagers must be registered
+ * explicitly after configuring security. A borrowed group must have a stable
+ * address: use the final server's config or application-owned storage. */
 UA_INLINABLE( UA_StatusCode
 UA_ServerConfig_setDefault(UA_ServerConfig *config) ,{
     return UA_ServerConfig_setMinimal(config, 4840, NULL);

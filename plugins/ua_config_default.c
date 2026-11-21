@@ -324,22 +324,6 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         if(tcpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
 
-#ifdef UA_ENABLE_LWS
-        /* Add the WebSocket connection manager. A server opens a WebSocket
-         * listener when an opc.wss ServerUrl and TLS credentials are configured. */
-        UA_ConnectionManager *wsCM =
-            UA_ConnectionManager_new_LWS_WebSocket(
-                UA_STRING("websocket connection manager"));
-        if(wsCM)
-            conf->eventLoop->registerEventSource(conf->eventLoop,
-                                                 (UA_EventSource*)wsCM);
-        UA_ConnectionManager *httpCM =
-            UA_ConnectionManager_new_HTTP(UA_STRING("http connection manager"));
-        if(httpCM)
-            conf->eventLoop->registerEventSource(conf->eventLoop,
-                                                 (UA_EventSource*)httpCM);
-#endif
-
         /* Add the UDP connection manager */
 #if defined(UA_ARCHITECTURE_LWIP)
         UA_ConnectionManager *udpCM =
@@ -2244,22 +2228,6 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
             UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
 #endif
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)tcpCM);
-
-#ifdef UA_ENABLE_LWS
-        /* Add the WebSocket connection manager. The client selects it
-         * automatically for opc.wss EndpointUrls. */
-        UA_ConnectionManager *wsCM =
-            UA_ConnectionManager_new_LWS_WebSocket(
-                UA_STRING("websocket connection manager"));
-        if(wsCM)
-            config->eventLoop->registerEventSource(config->eventLoop,
-                                                    (UA_EventSource*)wsCM);
-        UA_ConnectionManager *httpCM =
-            UA_ConnectionManager_new_HTTP(UA_STRING("http connection manager"));
-        if(httpCM)
-            config->eventLoop->registerEventSource(config->eventLoop,
-                                                    (UA_EventSource*)httpCM);
-#endif
 
 #if defined(UA_ARCHITECTURE_LWIP)
         UA_ConnectionManager *udpCM =

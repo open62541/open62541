@@ -875,18 +875,6 @@ PARSE_JSON(WebSocketConfigurationField) {
             retval = UInt32Field_parseJson(ctx, &config->webSocketMaxChunks, NULL);
         } else if(strcmp(field, "webSocketMaxQueueSize") == 0) {
             retval = UInt32Field_parseJson(ctx, &config->webSocketMaxQueueSize, NULL);
-        } else if(strcmp(field, "certificate") == 0) {
-            UA_ByteString_clear(&config->webSocketCertificate);
-            retval = CertificateFileField_parseJson(
-                ctx, &config->webSocketCertificate, NULL);
-        } else if(strcmp(field, "privateKey") == 0) {
-            UA_ByteString_clear(&config->webSocketPrivateKey);
-            retval = CertificateFileField_parseJson(
-                ctx, &config->webSocketPrivateKey, NULL);
-        } else if(strcmp(field, "privateKeyPassword") == 0) {
-            UA_String_clear(&config->webSocketPrivateKeyPassword);
-            retval = StringField_parseJson(
-                ctx, &config->webSocketPrivateKeyPassword, NULL);
         } else {
             LOG_UNKNOWN_FIELD(ctx, field);
         }
@@ -923,18 +911,6 @@ PARSE_JSON(HttpConfigurationField) {
             UA_String_clear(&config->httpListenAddress);
             retval = StringField_parseJson(
                 ctx, &config->httpListenAddress, NULL);
-        } else if(strcmp(field, "certificate") == 0) {
-            UA_ByteString_clear(&config->httpCertificate);
-            retval = CertificateFileField_parseJson(
-                ctx, &config->httpCertificate, NULL);
-        } else if(strcmp(field, "privateKey") == 0) {
-            UA_ByteString_clear(&config->httpPrivateKey);
-            retval = CertificateFileField_parseJson(
-                ctx, &config->httpPrivateKey, NULL);
-        } else if(strcmp(field, "privateKeyPassword") == 0) {
-            UA_String_clear(&config->httpPrivateKeyPassword);
-            retval = StringField_parseJson(
-                ctx, &config->httpPrivateKeyPassword, NULL);
         } else {
             LOG_UNKNOWN_FIELD(ctx, field);
         }
@@ -1752,35 +1728,10 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                 else if(strcmp(field, "webSocketMaxQueueSize") == 0)
                     retval = UInt32Field_parseJson(
                         &ctx, &config->webSocketMaxQueueSize, NULL);
-                else if(strcmp(field, "webSocketCaCertificate") == 0) {
-                    UA_ByteString_clear(&config->webSocketCaCertificate);
-                    retval = CertificateFileField_parseJson(
-                        &ctx, &config->webSocketCaCertificate, NULL);
-                }
 #endif
                 else if(strcmp(field, "httpAllowUnencrypted") == 0)
                     retval = BooleanField_parseJson(
                         &ctx, &config->httpAllowUnencrypted, NULL);
-                else if(strcmp(field, "httpCaCertificate") == 0) {
-                    UA_ByteString_clear(&config->httpCaCertificate);
-                    retval = CertificateFileField_parseJson(
-                        &ctx, &config->httpCaCertificate, NULL);
-                }
-                else if(strcmp(field, "httpClientCertificate") == 0) {
-                    UA_ByteString_clear(&config->httpClientCertificate);
-                    retval = CertificateFileField_parseJson(
-                        &ctx, &config->httpClientCertificate, NULL);
-                }
-                else if(strcmp(field, "httpClientPrivateKey") == 0) {
-                    UA_ByteString_clear(&config->httpClientPrivateKey);
-                    retval = CertificateFileField_parseJson(
-                        &ctx, &config->httpClientPrivateKey, NULL);
-                }
-                else if(strcmp(field, "httpClientPrivateKeyPassword") == 0) {
-                    UA_String_clear(&config->httpClientPrivateKeyPassword);
-                    retval = StringField_parseJson(
-                        &ctx, &config->httpClientPrivateKeyPassword, NULL);
-                }
                 else if(strcmp(field, "httpTimeout") == 0)
                     retval = UInt16Field_parseJson(&ctx, &config->httpTimeout, NULL);
                 else if(strcmp(field, "httpMaxMsgSize") == 0)

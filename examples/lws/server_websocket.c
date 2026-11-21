@@ -37,20 +37,35 @@ main(int argc, char **argv) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->webSocketEnabled = true;
-    config->webSocketCertificate = certificate;
-    config->webSocketPrivateKey = privateKey;
-    certificate = UA_BYTESTRING_NULL;
-    privateKey = UA_BYTESTRING_NULL;
+    /* HTTP/WS managers are opt-in. Configure security first, then register the
+     * manager on the final server's EventLoop before starting the server.
+     * To reuse configured channel trust, set verification to BORROWED and
+     * group.borrowed to &config->secureChannelPKI. */
+    UA_TlsConfig tls = {0};
+    tls.certificateChain = certificate;
+    tls.privateKey = privateKey; /* Decrypted DER; decrypt PEM keys first. */
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_LWS_WebSocket(
+        UA_STRING("websocket-tls"), &tls);
+    UA_TlsConfig_clear(&tls); /* Constructor failure leaves ownership here. */
+    if(!cm) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                     "Could not configure the TLS identity (use a decrypted DER key)");
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
+    UA_StatusCode res = config->eventLoop->registerEventSource(config->eventLoop, &cm->eventSource);
+    if(res != UA_STATUSCODE_GOOD) {
+        cm->eventSource.free(&cm->eventSource);
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
 
     const UA_String websocketUrl = argc == 4 ? UA_STRING(argv[3]) :
         UA_STRING("opc.wss://localhost:4843/opcua");
-    UA_StatusCode res =
-        UA_Array_appendCopy((void**)&config->serverUrls,
+    res = UA_Array_appendCopy((void**)&config->serverUrls,
                             &config->serverUrlsSize, &websocketUrl,
                             &UA_TYPES[UA_TYPES_STRING]);
 
-    UA_ByteString_clear(&certificate);
-    UA_ByteString_clear(&privateKey);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Could not configure the WebSocket server: %s",

@@ -44,11 +44,13 @@ struct HTTPConnection {
     HTTPConnectionManager *manager;
     uintptr_t connectionId;
     UA_String address;
+    char *interfaceName; /* lws retains info.iface for the vhost lifetime */
     UA_String path;
     UA_UInt16 port;
     UA_Boolean listener;
     UA_Boolean closing;
     UA_Boolean useSSL;
+    UA_LWSTlsBinding tls;
     UA_UInt16 timeout;
     UA_UInt32 maxConnections;
     UA_UInt32 acceptedConnectionsCount;
@@ -67,6 +69,7 @@ struct HTTPConnection {
 
 struct HTTPConnectionManager {
     UA_ConnectionManager cm;
+    UA_LWSTlsState tls;
     LIST_HEAD(, HTTPConnection) connections;
     LIST_HEAD(, HTTPAcceptedConnection) acceptedConnections;
     UA_UInt32 lastConnectionId;
@@ -98,6 +101,7 @@ UA_UInt32 UA_HTTP_nextConnectionId(HTTPConnectionManager *manager);
 UA_StatusCode UA_HTTP_sendClientRequest(HTTPConnection *connection,
                                         const UA_KeyValueMap *params,
                                         UA_ByteString *buffer);
+void UA_HTTP_tlsVerificationResult(struct lws *wsi, UA_StatusCode status);
 void UA_HTTP_closeClientRequests(HTTPConnection *connection);
 HTTPAcceptedConnection *
 UA_HTTP_findAcceptedConnection(HTTPConnectionManager *manager,

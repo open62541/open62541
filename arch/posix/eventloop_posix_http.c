@@ -22,11 +22,9 @@ static const UA_KeyValueRestriction httpConnectionParams[] = {
     {{0, UA_STRING_STATIC("timeout")}, &UA_TYPES[UA_TYPES_UINT16], false, true, false},
     {{0, UA_STRING_STATIC("max-connections")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
-    {{0, UA_STRING_STATIC("useSSL")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
-    {{0, UA_STRING_STATIC("certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
-    {{0, UA_STRING_STATIC("private-key")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
-    {{0, UA_STRING_STATIC("private-key-password")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
-    {{0, UA_STRING_STATIC("ca-certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("tls")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("tls-verify-hostname")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("tls-client-auth")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("recv-max-message-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     {{0, UA_STRING_STATIC("recv-max-decompressed-message-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     {{0, UA_STRING_STATIC("send-max-message-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
@@ -46,10 +44,8 @@ static const UA_KeyValueRestriction httpSendParams[] = {
 typedef struct {
     const UA_String *address;
     const UA_String *path;
-    const UA_ByteString *certificate;
-    const UA_ByteString *privateKey;
-    const UA_String *privateKeyPassword;
-    const UA_ByteString *caCertificate;
+    UA_LWSTlsState *tlsContext;
+    UA_LWSTlsOptions tlsOptions;
     UA_UInt16 port;
     UA_UInt16 timeout;
     UA_UInt32 maxConnections;
@@ -442,8 +438,10 @@ UA_HTTP_removeConnection(HTTPConnection *connection) {
                              UA_CONNECTIONSTATE_CLOSING,
                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     }
+    UA_LWS_unbindTls(manager->cm.eventSource.eventLoop, &connection->tls);
     UA_String_clear(&connection->address);
     UA_String_clear(&connection->path);
+    UA_free(connection->interfaceName);
     UA_free(connection);
     UA_LWS_releaseContext(manager->cm.eventSource.eventLoop);
 
@@ -494,18 +492,10 @@ UA_HTTP_closeConnection(HTTPConnection *connection) {
 }
 
 static UA_StatusCode
-parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
+parseConfig(HTTPConnectionManager *manager, const UA_KeyValueMap *params, HTTPConfig *config) {
     memset(config, 0, sizeof(*config));
     config->address = (const UA_String*)GET_PARAM(params, "address", UA_TYPES_STRING);
     config->path = (const UA_String*)GET_PARAM(params, "path", UA_TYPES_STRING);
-    config->certificate = (const UA_ByteString*)GET_PARAM(
-        params, "certificate", UA_TYPES_BYTESTRING);
-    config->privateKey = (const UA_ByteString*)GET_PARAM(
-        params, "private-key", UA_TYPES_BYTESTRING);
-    config->privateKeyPassword = (const UA_String*)GET_PARAM(
-        params, "private-key-password", UA_TYPES_STRING);
-    config->caCertificate = (const UA_ByteString*)GET_PARAM(
-        params, "ca-certificate", UA_TYPES_BYTESTRING);
     const UA_UInt16 *port = (const UA_UInt16*)GET_PARAM(
         params, "port", UA_TYPES_UINT16);
     const UA_UInt16 *timeout = (const UA_UInt16*)GET_PARAM(
@@ -521,7 +511,7 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
     const UA_Boolean *listen = (const UA_Boolean*)GET_PARAM(
         params, "listen", UA_TYPES_BOOLEAN);
     const UA_Boolean *useSSL = (const UA_Boolean*)GET_PARAM(
-        params, "useSSL", UA_TYPES_BOOLEAN);
+        params, "tls", UA_TYPES_BOOLEAN);
     config->port = port ? *port : 0;
     config->timeout = (timeout && *timeout) ? *timeout : 30;
     config->maxConnections = (maxConnections && *maxConnections) ?
@@ -534,23 +524,9 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
     config->useSSL = useSSL && *useSSL;
     if(!config->listener && (!config->address || config->address->length == 0))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if((config->certificate && !config->privateKey) ||
-       (!config->certificate && config->privateKey) ||
-       (config->certificate &&
-        (config->certificate->length == 0 || config->privateKey->length == 0 ||
-         config->certificate->length > UINT_MAX ||
-         config->privateKey->length > UINT_MAX)) ||
-       (config->caCertificate && (config->caCertificate->length == 0 ||
-                                  config->caCertificate->length > UINT_MAX)) ||
-       (config->listener && !config->useSSL &&
-        (config->certificate || config->caCertificate)) ||
-       (config->listener && config->useSSL && !config->certificate))
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-#ifndef LWS_WITH_TLS
-    if(config->useSSL || config->certificate || config->caCertificate)
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-#endif
-    return UA_STATUSCODE_GOOD;
+    config->tlsContext = &manager->tls;
+    return UA_LWS_validateTls(&manager->tls, config->listener, config->useSSL,
+                              params, &config->tlsOptions);
 }
 
 /**************************/
@@ -560,14 +536,10 @@ parseConfig(const UA_KeyValueMap *params, HTTPConfig *config) {
 static struct lws_vhost *
 createLwsVhost(HTTPConnection *connection, struct lws_context *context,
                const HTTPConfig *config) {
-    char *interfaceName = connection->listener ?
+    connection->interfaceName = connection->listener ?
         UA_HTTP_copyCString(config->address, "") : NULL;
-    char *password = UA_HTTP_copyCString(config->privateKeyPassword, "");
-    if((connection->listener && !interfaceName) || !password) {
-        UA_free(interfaceName);
-        UA_free(password);
+    if(connection->listener && !connection->interfaceName)
         return NULL;
-    }
 
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(info));
@@ -577,7 +549,7 @@ createLwsVhost(HTTPConnection *connection, struct lws_context *context,
     if(connection->useSSL || !connection->listener)
         info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = connection->listener ? config->port : CONTEXT_PORT_NO_LISTEN;
-    info.iface = connection->listener && interfaceName[0] ? interfaceName : NULL;
+    info.iface = connection->listener && connection->interfaceName[0] ? connection->interfaceName : NULL;
     info.protocols = connection->listener ?
         UA_HTTP_serverProtocols : UA_HTTP_clientProtocols;
     if(connection->listener) {
@@ -588,34 +560,14 @@ createLwsVhost(HTTPConnection *connection, struct lws_context *context,
     info.user = connection->listener ? connection : NULL;
     info.timeout_secs = config->timeout;
     info.connect_timeout_secs = config->timeout;
-#ifdef LWS_WITH_TLS
-    if(config->certificate) {
-        if(connection->listener) {
-            info.server_ssl_cert_mem = config->certificate->data;
-            info.server_ssl_cert_mem_len = (unsigned int)config->certificate->length;
-            info.server_ssl_private_key_mem = config->privateKey->data;
-            info.server_ssl_private_key_mem_len = (unsigned int)config->privateKey->length;
-            info.ssl_private_key_password = password;
-        } else {
-            info.client_ssl_cert_mem = config->certificate->data;
-            info.client_ssl_cert_mem_len = (unsigned int)config->certificate->length;
-            info.client_ssl_key_mem = config->privateKey->data;
-            info.client_ssl_key_mem_len = (unsigned int)config->privateKey->length;
-            info.client_ssl_private_key_password = password;
-        }
-    }
-    if(config->caCertificate) {
-        if(connection->listener) {
-            info.server_ssl_ca_mem = config->caCertificate->data;
-            info.server_ssl_ca_mem_len = (unsigned int)config->caCertificate->length;
-            info.options |= LWS_SERVER_OPTION_REQUIRE_VALID_OPENSSL_CLIENT_CERT;
-        } else {
-            info.client_ssl_ca_mem = config->caCertificate->data;
-            info.client_ssl_ca_mem_len = (unsigned int)config->caCertificate->length;
-        }
-    }
-#endif
+    if(!connection->listener || connection->useSSL)
+        UA_LWS_configureTls(&info, config->tlsContext, connection->listener, &config->tlsOptions);
 
+    connection->tls.options = config->tlsOptions;
+    UA_LWS_bindTls(connection->manager->cm.eventSource.eventLoop,
+                    &connection->tls, NULL, config->tlsContext, connection->listener);
+    if(!connection->listener)
+        connection->tls.verificationResult = UA_HTTP_tlsVerificationResult;
     struct lws_vhost *vhost = lws_create_vhost(context, &info);
 #ifdef LWS_WITH_TLS
     if(vhost && !connection->listener &&
@@ -625,8 +577,15 @@ createLwsVhost(HTTPConnection *connection, struct lws_context *context,
     }
 #endif
     UA_LWS_clearActiveLogger();
-    UA_free(interfaceName);
-    UA_free(password);
+
+    if(vhost && connection->tls.status != UA_STATUSCODE_GOOD) {
+        lws_vhost_destroy(vhost);
+        vhost = NULL;
+    }
+    if(vhost)
+        connection->tls.vhost = vhost;
+    else
+        UA_LWS_unbindTls(connection->manager->cm.eventSource.eventLoop, &connection->tls);
     return vhost;
 }
 
@@ -643,7 +602,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     if(res != UA_STATUSCODE_GOOD)
         return res;
     HTTPConfig config;
-    res = parseConfig(params, &config);
+    res = parseConfig((HTTPConnectionManager*)cm, params, &config);
     if(res != UA_STATUSCODE_GOOD)
         return res;
     const UA_Boolean *validate = (const UA_Boolean*)GET_PARAM(
@@ -660,6 +619,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     connection->manager = manager;
     connection->connectionId = UA_HTTP_nextConnectionId(manager);
     if(connection->connectionId == 0) {
+        UA_free(connection->interfaceName);
         UA_free(connection);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -682,6 +642,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_String_copy(config.path, &connection->path) != UA_STATUSCODE_GOOD)) {
         UA_String_clear(&connection->address);
         UA_String_clear(&connection->path);
+        UA_free(connection->interfaceName);
         UA_free(connection);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -690,6 +651,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     if(!lwsContext) {
         UA_String_clear(&connection->address);
         UA_String_clear(&connection->path);
+        UA_free(connection->interfaceName);
         UA_free(connection);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
@@ -698,6 +660,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_LWS_releaseContext(cm->eventSource.eventLoop);
         UA_String_clear(&connection->address);
         UA_String_clear(&connection->path);
+        UA_free(connection->interfaceName);
         UA_free(connection);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
@@ -811,6 +774,9 @@ static UA_StatusCode
 HTTP_eventSourceDelete(UA_ConnectionManager *cm) {
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING)
         return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode res = UA_LWS_clearTlsConfig(&((HTTPConnectionManager*)cm)->tls);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     UA_String_clear(&cm->eventSource.name);
     UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_free(cm);
@@ -818,7 +784,7 @@ HTTP_eventSourceDelete(UA_ConnectionManager *cm) {
 }
 
 UA_ConnectionManager *
-UA_ConnectionManager_new_HTTP(const UA_String eventSourceName) {
+UA_ConnectionManager_new_HTTP(const UA_String eventSourceName, UA_TlsConfig *tlsConfig) {
     HTTPConnectionManager *manager =
         (HTTPConnectionManager*)UA_calloc(1, sizeof(*manager));
     if(!manager)
@@ -840,5 +806,10 @@ UA_ConnectionManager_new_HTTP(const UA_String eventSourceName) {
     manager->cm.openConnection = HTTP_openConnection;
     manager->cm.sendWithConnection = HTTP_sendWithConnection;
     manager->cm.closeConnection = HTTP_closeConnection;
+    if(UA_LWS_initTlsConfig(&manager->tls, tlsConfig) != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&manager->cm.eventSource.name);
+        UA_free(manager);
+        return NULL;
+    }
     return &manager->cm;
 }

@@ -123,7 +123,7 @@ createWebSocketServerConnection(UA_BinaryProtocolManager *bpm,
         UA_Variant_setScalar(&params[paramsSize++].value, &listen,
                              &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-        params[paramsSize].key = UA_QUALIFIEDNAME(0, "useSSL");
+        params[paramsSize].key = UA_QUALIFIEDNAME(0, "tls");
         UA_Variant_setScalar(&params[paramsSize++].value, &secure,
                              &UA_TYPES[UA_TYPES_BOOLEAN]);
 
@@ -160,37 +160,6 @@ createWebSocketServerConnection(UA_BinaryProtocolManager *bpm,
                                  &UA_TYPES[UA_TYPES_STRING]);
         }
 
-        /* TLS credentials — only required for opc.wss:// */
-        if(secure) {
-            /* TLS credentials are configured on the WebSocket ConnectionManager.
-             * They are separate from the keys used by the UACP SecurityPolicies.
-             * Do not forward empty values. The TLS listener requires a non-empty
-             * certificate/private-key pair. */
-            UA_ByteString *certificate = &config->webSocketCertificate;
-            UA_ByteString *privateKey = &config->webSocketPrivateKey;
-            if(certificate->length == 0 || privateKey->length == 0) {
-                UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                             "The WebSocket server (opc.wss://) requires a "
-                             "non-empty TLS certificate and private key");
-                openResult = UA_STATUSCODE_BADINVALIDARGUMENT;
-                continue;
-            }
-            params[paramsSize].key = UA_QUALIFIEDNAME(0, "certificate");
-            UA_Variant_setScalar(&params[paramsSize++].value, certificate,
-                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
-            params[paramsSize].key = UA_QUALIFIEDNAME(0, "private-key");
-            UA_Variant_setScalar(&params[paramsSize++].value, privateKey,
-                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
-
-            if(config->webSocketPrivateKeyPassword.length > 0) {
-                params[paramsSize].key =
-                    UA_QUALIFIEDNAME(0, "private-key-password");
-                UA_Variant_setScalar(&params[paramsSize++].value,
-                                     &config->webSocketPrivateKeyPassword,
-                                     &UA_TYPES[UA_TYPES_STRING]);
-            }
-        }
-
         UA_KeyValueMap paramsMap = {paramsSize, params};
         openResult = cm->openConnection(cm, &paramsMap, bpm, NULL,
                                         serverNetworkCallback);
@@ -216,20 +185,6 @@ startWebSocketTransport(UA_BinaryProtocolManager *bpm) {
 
     if(!config->webSocketEnabled)
         return UA_STATUSCODE_GOOD;
-
-    /* Fail early if any opc.wss:// URL is configured without TLS credentials */
-    for(size_t i = 0; i < config->serverUrlsSize; i++) {
-        if(!isSecureWebSocketUrl(&config->serverUrls[i]))
-            continue;
-        if(config->webSocketCertificate.length == 0 ||
-           config->webSocketPrivateKey.length == 0) {
-            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                         "WebSocket transport is enabled but its TLS certificate "
-                         "or private key is empty");
-            return UA_STATUSCODE_BADCONFIGURATIONERROR;
-        }
-        break;
-    }
 
     UA_BinaryConnectionConfig_set(&bpm->connectionConfig,
                                   config->webSocketBufSize,

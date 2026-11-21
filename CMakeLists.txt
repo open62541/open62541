@@ -577,6 +577,7 @@ if(UA_ENABLE_LWS)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         set_source_files_properties(
             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.c
+            ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws_tls.c
             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http.c
             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_client.c
             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_server.c
@@ -1246,7 +1247,8 @@ if(UA_ENABLE_LWS)
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_compression.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_server.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_websocket_lws.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.c)
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws_tls.c)
     if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
         set_source_files_properties(
             ${PROJECT_SOURCE_DIR}/deps/picohttpparser.c

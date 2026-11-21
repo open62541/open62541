@@ -24,11 +24,21 @@ struct HTTPClientRequest {
     UA_UInt64 timeoutId;
     UA_HTTPContentEncoding responseEncoding;
     UA_StatusCode completionStatus;
+    UA_StatusCode tlsStatus;
     UA_DelayedCallback completionCallback;
     UA_ByteString compressedBody;
     UA_Boolean completed;
     struct lws *wsi;
 };
+
+/* HTTP vhosts can have several independent handshakes in flight. Keep the
+ * verification result on the request, not on their shared TLS binding. */
+void
+UA_HTTP_tlsVerificationResult(struct lws *wsi, UA_StatusCode status) {
+    HTTPClientRequest *request = (HTTPClientRequest*)lws_wsi_user(wsi);
+    if(request)
+        request->tlsStatus = status;
+}
 
 static UA_StatusCode
 setRequestPayload(HTTPClientRequest *request, UA_ByteString *source) {
@@ -247,6 +257,9 @@ requestHasHeader(const HTTPClientRequest *request, const char *name) {
 static int
 callbackHttpClient(struct lws *wsi, enum lws_callback_reasons reason,
                    void *user, void *in, size_t len) {
+    int tlsResult = UA_LWS_tlsCallback(wsi, reason, user, in, len);
+    if(tlsResult != -2)
+        return tlsResult;
     switch(reason) {
     case LWS_CALLBACK_WSI_DESTROY:
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
@@ -283,7 +296,8 @@ callbackHttpClient(struct lws *wsi, enum lws_callback_reasons reason,
         UA_LOG_WARNING(eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                        "HTTP %u\t| Connection Error %.*s",
                        (unsigned)connection->connectionId, (int)len, (char*)in);
-        finishClientRequest(request, wsi, UA_STATUSCODE_BADCONNECTIONCLOSED);
+        finishClientRequest(request, wsi, request->tlsStatus != UA_STATUSCODE_GOOD ?
+                            request->tlsStatus : UA_STATUSCODE_BADCONNECTIONCLOSED);
         return 0;
     case LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP: {
         int responseStatus = lws_http_client_http_response(wsi);

@@ -13,6 +13,9 @@
 
 _UA_BEGIN_DECLS
 
+/* Register HTTP and WebSocket ConnectionManagers explicitly after configuring
+ * security. A borrowed group must have a stable address: use the final client's
+ * config or application-owned storage. */
 UA_StatusCode UA_EXPORT
 UA_ClientConfig_setDefault(UA_ClientConfig *config);
 

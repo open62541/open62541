@@ -1161,13 +1161,6 @@ UA_Server_run_startup(UA_Server *server) {
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
 
-        if(haveSecureUrl && (config->webSocketCertificate.length == 0 ||
-                             config->webSocketPrivateKey.length == 0)) {
-            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                         "WebSocket transport is enabled for opc.wss:// but its TLS "
-                         "certificate or private key is empty");
-            return UA_STATUSCODE_BADCONFIGURATIONERROR;
-        }
     }
 
     UA_StatusCode httpValidation =

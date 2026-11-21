@@ -75,21 +75,13 @@
   // Enable SO_REUSEADDR for OPC UA TCP transport.
   tcpReuseAddr: true,
 
-  // Optional CA certificate for opc.wss TLS. This trust anchor is separate
-  // from the OPC UA SecurityPolicy trust list. If omitted, libwebsockets uses
-  // the system trust store. PEM bundles and DER certificates are supported.
-  // webSocketCaCertificate: "./certs/websocket_ca.pem",
+  // Configure HTTP/WebSocket TLS identity and trust in code by constructing
+  // a ConnectionManager with UA_TlsConfig and registering it on the EventLoop.
+  // A default manager uses system trust without a client certificate.
 
   // Maximum bytes queued while a WebSocket peer is not writable.
   webSocketMaxQueueSize: 1048576,
 
-  // opc.https uses the system TLS trust store by default. Configure an
-  // independent CA and mutual-TLS identity here when required. Encrypted
-  // client private keys additionally use httpClientPrivateKeyPassword.
-  // httpCaCertificate: "./certs/http_ca.pem",
-  // httpClientCertificate: "./certs/http_client_cert.pem",
-  // httpClientPrivateKey: "./certs/http_client_key.pem",
-  // httpClientPrivateKeyPassword: "secret",
   httpTimeout: 60,
   httpMaxMsgSize: 16777216,
   httpMaxDecompressedMsgSize: 16777216,

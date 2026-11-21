@@ -196,7 +196,7 @@ START_TEST(LoadFromFile_HttpConfiguration) {
     UA_ByteString json = UA_STRING(
         "{httpEnabled:true,httpAllowUnencrypted:false,"
         "http:{listenAddress:'127.0.0.1',maxMsgSize:4096,"
-        "maxDecompressedMsgSize:8192,timeout:30,privateKeyPassword:'test-password'}}");
+        "maxDecompressedMsgSize:8192,timeout:30}}");
     UA_ServerConfig config;
     UA_StatusCode res = UA_ServerConfig_loadFromFile(&config, json);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -206,9 +206,7 @@ START_TEST(LoadFromFile_HttpConfiguration) {
     ck_assert_uint_eq(config.httpMaxDecompressedMsgSize, 8192);
     ck_assert_uint_eq(config.httpTimeout, 30);
     UA_String address = UA_STRING("127.0.0.1");
-    UA_String password = UA_STRING("test-password");
     ck_assert(UA_String_equal(&config.httpListenAddress, &address));
-    ck_assert(UA_String_equal(&config.httpPrivateKeyPassword, &password));
     UA_ServerConfig_clear(&config);
 } END_TEST
 

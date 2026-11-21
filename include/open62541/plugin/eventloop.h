@@ -326,6 +326,66 @@ typedef void
       void *application, void **connectionContext, UA_ConnectionState state,
       const UA_KeyValueMap *params, UA_ByteString msg);
 
+/**
+ * TLS Configuration
+ * -----------------
+ * Each HTTP or WebSocket ConnectionManager has one TLS configuration shared by all its
+ * connections. Pass it to the constructor. Use separate managers when independent
+ * identities or trust policies are required. Construct and register the managers on the
+ * client/server EventLoop after configuring security and before connecting or starting
+ * the server.
+ *
+ * A NULL configuration or zero initialization selects system trust without a local
+ * identity. A successful constructor moves the configuration and zeros the source. On
+ * failure, it returns NULL and leaves ownership with the caller. The manager clears
+ * owned material when freed. Private keys must be decrypted DER; use
+ * UA_CertificateUtils_decryptPrivateKey to prepare them.
+ *
+ * UA_TLSVERIFY_BORROWED references an existing CertificateGroup. UA_TLSVERIFY_OWNED
+ * embeds a group whose lifecycle is transferred to the manager. A borrowed group must
+ * have a stable address and outlive the manager. Use the final client/server object's
+ * group or application-owned storage. For managers on a shared external EventLoop, the
+ * application must ensure this lifetime and coordinate cleanup.
+ *
+ * The CertificateGroup decides trust, issuer/CRL handling and rejected-certificate
+ * storage. An explicitly selected group with a NULL verifyCertificate accepts any
+ * chain, following the CertificateGroup contract. The transport checks the hostname and
+ * TLS certificate purpose. The application protocol verifies the OPC UA ApplicationUri.
+ *
+ * A borrowed group can be shared with SecureChannel verification or other managers when
+ * the trust policy is identical. A separate group can represent DefaultHttpsGroup. The
+ * application selects the group explicitly.
+ *
+ * The libwebsockets implementation supports TLS configuration with its OpenSSL backend.
+ * Other TLS backends reject non-NULL configurations. TLS session resumption is disabled
+ * so each new connection consults current trust settings, including changes made to a
+ * borrowed group. Mutating that group must be serialized with the EventLoop or
+ * synchronized by the plugin.
+ */
+typedef enum {
+    UA_TLSVERIFY_SYSTEM = 0,
+    UA_TLSVERIFY_BORROWED,
+    UA_TLSVERIFY_OWNED
+} UA_TlsVerificationMode;
+
+typedef struct {
+    UA_TlsVerificationMode mode;
+    union {
+        UA_CertificateGroup *borrowed;
+        UA_CertificateGroup owned;
+    } group;
+} UA_TlsVerification;
+
+typedef struct {
+    UA_ByteString certificateChain; /* Concatenated DER or PEM, leaf first */
+    UA_ByteString privateKey;       /* Decrypted DER */
+    UA_TlsVerification verification;
+} UA_TlsConfig;
+
+/* Clears identity material (including zeroing the private key) and an owned
+ * group. Never clears a borrowed group. No generic deep-copy operation exists. */
+UA_EXPORT void UA_TlsConfig_clear(UA_TlsConfig *config);
+
 struct UA_ConnectionManager {
     /* Every ConnectionManager is treated like an EventSource from the
      * perspective of the EventLoop. */
@@ -791,6 +851,12 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * ``sendWithConnection`` and the accepted connection id. Sequential HTTP/1.1
  * keep-alive requests reuse the same id and context.
  *
+ * The constructor's ``tlsConfig`` may be NULL. This selects system trust without a
+ * local certificate or private key. With TLS support enabled, the manager can open TLS
+ * client connections but cannot present a client certificate or create TLS listeners.
+ * Plain connections are supported. The ``tls`` connection parameter controls whether a
+ * connection uses TLS; passing NULL does not disable TLS.
+ *
  * **Open Connection Parameters:**
  *
  * 0:address [string]
@@ -817,25 +883,24 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * 0:listen [boolean]
  *    Create a listening connection (default: false).
  *
- * 0:useSSL [bool]
+ * 0:tls [boolean]
  *    Encrypt the connection with TLS (default: false).
  *
- * 0:certificate [bytestring]
- *    DER or PEM encoded local certificate. For listeners this is the server
- *    certificate. For clients it enables mutual TLS.
+ * 0:tls-verify-hostname [boolean]
+ *    Clients only. Verify the peer's hostname (default: true). For HTTP this also
+ *    applies after an HTTP-to-HTTPS redirect, even if ``tls`` is initially false.
  *
- * 0:private-key [bytestring]
- *    DER or PEM encoded private key for ``certificate``.
+ * 0:tls-client-auth [string]
+ *    TLS listeners only. "none" (default), "optional" (verify a certificate if
+ *    presented), or "required" (require and verify a client certificate).
  *
- * 0:private-key-password [string]
- *    Password for an encrypted private key.
+ * These behavior parameters are captured when opening the connection. Listener settings
+ * apply to accepted connections. Wrong types, values and roles are rejected. Identity
+ * and trust come from the constructor configuration.
  *
- * 0:ca-certificate [bytestring]
- *    DER or PEM encoded CA certificate used to validate the TLS peer. For a
- *    listener, setting this requires clients to present a trusted certificate.
- *    A client uses the system trust store when this parameter is omitted.
- *    Clients may configure TLS credentials and trust with ``useSSL=false``;
- *    they apply when an HTTP request redirects to HTTPS.
+ * TLS uses the manager-wide configuration. A TLS listener requires a local certificate
+ * and key. HTTP clients also use this configuration when a plain HTTP request redirects
+ * to HTTPS.
  *
  * 0:recv-max-message-size [uint32]
  *    Maximum size of a reassembled response body for clients or request body
@@ -913,7 +978,8 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * before the ConnectionManager reaches the stopped state. Incoming chunked
  * request bodies are decoded and delivered as one reassembled message. */
 UA_EXPORT UA_ConnectionManager *
-UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
+UA_ConnectionManager_new_HTTP(const UA_String eventSourceName,
+                              UA_TlsConfig *tlsConfig);
 
 /**
  * libwebsockets WebSocket Connection Manager
@@ -922,6 +988,12 @@ UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
  * ``sendWithConnection`` is sent as one binary WebSocket message. Incoming
  * fragments belonging to one WebSocket message are reassembled and delivered
  * together in one connection callback.
+ *
+ * The constructor's ``tlsConfig`` may be NULL. This selects system trust without a
+ * local certificate or private key. With TLS support enabled, the manager can open TLS
+ * client connections but cannot present a client certificate or create TLS listeners.
+ * Plain connections are supported. The ``tls`` connection parameter controls whether a
+ * connection uses TLS; passing NULL does not disable TLS.
  *
  * **Open Connection Parameters:**
  *
@@ -948,23 +1020,22 @@ UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
  *    Reject incoming text messages and accept only binary WebSocket messages
  *    (default: true).
  *
- * 0:useSSL [bool]
- *    Encrypt the connection with TLS (default: false). TLS listeners require
- *    ``certificate`` and ``private-key``.
+ * 0:tls [boolean]
+ *    Encrypt the connection with TLS (default: false).
  *
- * 0:certificate [bytestring]
- *    DER or PEM encoded local certificate. For listeners this is the server
- *    certificate. For clients it enables mutual TLS.
+ * 0:tls-verify-hostname [boolean]
+ *    Clients only. Verify the peer's hostname (default: true).
  *
- * 0:private-key [bytestring]
- *    DER or PEM encoded private key for ``certificate``.
+ * 0:tls-client-auth [string]
+ *    TLS listeners only. "none" (default), "optional" (verify a certificate if
+ *    presented), or "required" (require and verify a client certificate).
  *
- * 0:private-key-password [string]
- *    Password for an encrypted private key.
+ * These behavior parameters are captured when opening the connection. Listener settings
+ * apply to accepted connections. Wrong types, values and roles are rejected. Identity
+ * and trust come from the constructor configuration.
  *
- * 0:ca-certificate [bytestring]
- *    DER or PEM encoded CA certificate used to validate the TLS peer for
- *    client connections. If omitted, the system trust store is used.
+ * TLS uses the manager-wide configuration. A TLS listener requires a local certificate
+ * and key.
  *
  * 0:recv-max-message-size [uint32]
  *    Maximum size of one reconstructed incoming WebSocket message. Zero or
@@ -983,12 +1054,15 @@ UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
  * 0:validate [boolean]
  *    Validate parameters without opening a connection.
  *
- * Listener callbacks provide ``listen-address`` and ``listen-port``. Active
- * and accepted connections provide ``remote-address``. Secure client
- * connections validate the server certificate and hostname using either
- * ``ca-certificate`` or the system trust store. */
+ * Listener callbacks provide ``listen-address`` and ``listen-port``. Active and
+ * accepted connections provide ``remote-address``. Secure client connections validate
+ * the server certificate and hostname using the selected CertificateGroup or the system
+ * trust store. On a TLS verification failure, closing callbacks include ``status``
+ * [StatusCode] with the group result when available.
+ */
 UA_EXPORT UA_ConnectionManager *
-UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
+UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName,
+                                       UA_TlsConfig *tlsConfig);
 
 /**
  * MQTT Connection Manager

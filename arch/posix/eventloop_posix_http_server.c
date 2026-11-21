@@ -613,6 +613,9 @@ UA_HTTP_closeAcceptedConnections(HTTPListenConnection *listener) {
 static int
 callbackHttpServer(struct lws *wsi, enum lws_callback_reasons reason,
                    void *user, void *in, size_t len) {
+    int tlsResult = UA_LWS_tlsCallback(wsi, reason, user, in, len);
+    if(tlsResult != -2)
+        return tlsResult;
     (void)user;
     HTTPAcceptedConnection *connection =
         (HTTPAcceptedConnection*)lws_get_opaque_user_data(wsi);

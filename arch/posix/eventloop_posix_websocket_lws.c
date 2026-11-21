@@ -42,6 +42,8 @@ struct WSConnection {
     struct lws_protocols protocols[2];
     UA_UInt16 port;
     UA_Boolean useSSL;
+    UA_LWSTlsBinding tls;
+    UA_Boolean borrowedVhost;
     UA_Boolean binaryOnly;
     UA_ByteString receive;
     size_t receiveSize;
@@ -58,6 +60,8 @@ struct WSConnection {
 
 struct WSManager {
     UA_ConnectionManager cm;
+    UA_LWSTlsState tls;
+    size_t pendingRemovals;
     struct lws_context *lwsContext;
     LIST_HEAD(, WSConnection) connections;
     uintptr_t lastId;
@@ -71,11 +75,9 @@ static const UA_KeyValueRestriction wsParams[] = {
     {{0, UA_STRING_STATIC("path")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("subprotocol")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("binary-only")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
-    {{0, UA_STRING_STATIC("useSSL")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
-    {{0, UA_STRING_STATIC("certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
-    {{0, UA_STRING_STATIC("private-key")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
-    {{0, UA_STRING_STATIC("private-key-password")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
-    {{0, UA_STRING_STATIC("ca-certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("tls")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("tls-verify-hostname")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("tls-client-auth")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("recv-max-message-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     {{0, UA_STRING_STATIC("send-max-message-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     {{0, UA_STRING_STATIC("send-max-queue-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
@@ -94,7 +96,7 @@ static char *copyString(const UA_String *s, const char *fallback) {
 
 static void notify(WSConnection *c, UA_ConnectionState state, UA_ByteString msg,
                    UA_Boolean metadata) {
-    UA_KeyValuePair kv[2];
+    UA_KeyValuePair kv[3];
     size_t size = 0;
     UA_String address = {c->address ? strlen(c->address) : 0,
                          (UA_Byte*)c->address};
@@ -109,6 +111,10 @@ static void notify(WSConnection *c, UA_ConnectionState state, UA_ByteString msg,
             UA_Variant_setScalar(&kv[size++].value, &port,
                                  &UA_TYPES[UA_TYPES_UINT16]);
         }
+    }
+    if(c->tls.status != UA_STATUSCODE_GOOD) {
+        kv[size].key = UA_QUALIFIEDNAME(0, "status");
+        UA_Variant_setScalar(&kv[size++].value, &c->tls.status, &UA_TYPES[UA_TYPES_STATUSCODE]);
     }
     UA_KeyValueMap params = {size, kv};
     c->callback(&c->manager->cm, c->id, c->application, &c->context,
@@ -127,6 +133,9 @@ static void clearMessages(WSConnection *c) {
 static void destroyConnection(WSConnection *c) {
     if(c->ownsVhost && c->vhost)
         lws_vhost_destroy(c->vhost);
+    if(c->borrowedVhost && c->tls.context)
+        c->tls.context->users--;
+    UA_LWS_unbindTls(c->manager->cm.eventSource.eventLoop, &c->tls);
     UA_free(c->address);
     UA_free(c->path);
     UA_free(c->subprotocol);
@@ -139,7 +148,12 @@ static void removeWSConnectionDelayed(void *application, void *context) {
     (void)application;
     WSConnection *c = (WSConnection*)context;
     notify(c, UA_CONNECTIONSTATE_CLOSING, UA_BYTESTRING_NULL, false);
+    WSManager *m = c->manager;
     destroyConnection(c);
+    m->pendingRemovals--;
+    if(m->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING &&
+       LIST_EMPTY(&m->connections) && !m->pendingRemovals)
+        m->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
 }
 
 static void removeWSConnection(WSConnection *c) {
@@ -149,12 +163,13 @@ static void removeWSConnection(WSConnection *c) {
     LIST_REMOVE(c, next);
     c->state = WS_STATE_REMOVED;
     c->wsi = NULL;
+    m->pendingRemovals++;
     c->removeCallback.callback = removeWSConnectionDelayed;
     c->removeCallback.context = c;
     m->cm.eventSource.eventLoop->addDelayedCallback(m->cm.eventSource.eventLoop,
                                                      &c->removeCallback);
     if(m->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING &&
-       LIST_EMPTY(&m->connections))
+       LIST_EMPTY(&m->connections) && !m->pendingRemovals)
         m->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
 }
 
@@ -193,6 +208,9 @@ static int writePending(WSConnection *c) {
 
 static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
                       void *user, void *in, size_t len) {
+    int tlsResult = UA_LWS_tlsCallback(wsi, reason, user, in, len);
+    if(tlsResult != -2)
+        return tlsResult;
     WSConnection *c = (WSConnection*)lws_get_opaque_user_data(wsi);
     if(reason == LWS_CALLBACK_FILTER_PROTOCOL_CONNECTION) {
         WSConnection *listener =
@@ -283,6 +301,10 @@ static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
             return -1;
         c->wsi = wsi;
         c->vhost = listener->vhost;
+        c->borrowedVhost = true;
+        c->tls.context = listener->tls.context;
+        if(c->tls.context)
+            c->tls.context->users++;
         char peer[128] = {0};
         lws_get_peer_simple(wsi, peer, sizeof(peer));
         c->address = copyString(NULL, peer);
@@ -390,12 +412,17 @@ static void stop(UA_ConnectionManager *cm) {
     WSConnection *c, *tmp;
     LIST_FOREACH_SAFE(c, &m->connections, next, tmp)
         closeConnection(cm, c->id);
-    if(LIST_EMPTY(&m->connections))
+    if(LIST_EMPTY(&m->connections) && !m->pendingRemovals)
         cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
 }
 
 static UA_StatusCode deleteManager(UA_ConnectionManager *cm) {
     WSManager *m = (WSManager*)cm;
+    if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING || m->pendingRemovals)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    UA_StatusCode res = UA_LWS_clearTlsConfig(&m->tls);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     if(m->lwsContext)
         UA_LWS_releaseContext(cm->eventSource.eventLoop);
     UA_KeyValueMap_clear(&cm->eventSource.params);
@@ -421,12 +448,17 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP, "WebSocket");
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    for(size_t i = 0; i < params->mapSize; i++) {
+        size_t j;
+        for(j = 0; j < sizeof(wsParams) / sizeof(wsParams[0]); j++)
+            if(UA_QualifiedName_equal(&params->map[i].key, &wsParams[j].name))
+                break;
+        if(j == sizeof(wsParams) / sizeof(wsParams[0]))
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
     const UA_Boolean *validate = (const UA_Boolean*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "validate"), &UA_TYPES[UA_TYPES_BOOLEAN]);
-    if(validate && *validate)
-        return UA_STATUSCODE_GOOD;
-    if(!cb || cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     const UA_UInt16 *port = (const UA_UInt16*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "port"), &UA_TYPES[UA_TYPES_UINT16]);
     const UA_String *address = (const UA_String*)UA_KeyValueMap_getScalar(
@@ -440,17 +472,7 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
     const UA_Boolean *listen = (const UA_Boolean*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "listen"), &UA_TYPES[UA_TYPES_BOOLEAN]);
     const UA_Boolean *useSSL = (const UA_Boolean*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "useSSL"), &UA_TYPES[UA_TYPES_BOOLEAN]);
-    const UA_ByteString *certificate = (const UA_ByteString*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "certificate"), &UA_TYPES[UA_TYPES_BYTESTRING]);
-    const UA_ByteString *privateKey = (const UA_ByteString*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "private-key"), &UA_TYPES[UA_TYPES_BYTESTRING]);
-    const UA_String *keyPassword = (const UA_String*)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "private-key-password"), &UA_TYPES[UA_TYPES_STRING]);
-    const UA_ByteString *caCertificate =
-        (const UA_ByteString*)UA_KeyValueMap_getScalar(
-            params, UA_QUALIFIEDNAME(0, "ca-certificate"),
-            &UA_TYPES[UA_TYPES_BYTESTRING]);
+        params, UA_QUALIFIEDNAME(0, "tls"), &UA_TYPES[UA_TYPES_BOOLEAN]);
     const UA_UInt32 *recvMaxMessageSize = (const UA_UInt32*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "recv-max-message-size"), &UA_TYPES[UA_TYPES_UINT32]);
     const UA_UInt32 *sendMaxMessageSize = (const UA_UInt32*)UA_KeyValueMap_getScalar(
@@ -463,22 +485,24 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
        (subprotocol && subprotocol->length == 0))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_Boolean secure = useSSL && *useSSL;
-    if((certificate && !privateKey) || (!certificate && privateKey) ||
-       (certificate && (certificate->length > UINT_MAX ||
-                        privateKey->length > UINT_MAX)) ||
-       (caCertificate && caCertificate->length > UINT_MAX) ||
-       (certificate && !secure) || (caCertificate && !secure) ||
-       ((listen && *listen) && secure && !certificate) ||
-       ((listen && *listen) && caCertificate))
+    WSManager *m = (WSManager*)cm;
+    UA_LWSTlsState *tlsContext = secure ? &m->tls : NULL;
+    UA_LWSTlsOptions tlsOptions;
+    res = UA_LWS_validateTls(&m->tls, listen && *listen, secure, params, &tlsOptions);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(validate && *validate)
+        return UA_STATUSCODE_GOOD;
+    if(!cb || cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode failureStatus = UA_STATUSCODE_BADNOTCONNECTED;
-    WSManager *m = (WSManager*)cm;
     WSConnection *c = newConnection(m);
     if(!c)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     c->listener = listen && *listen;
     c->useSSL = secure;
+    c->tls.options = tlsOptions;
     c->binaryOnly = !binaryOnly || *binaryOnly;
     c->recvMaxMessageSize = recvMaxMessageSize ? *recvMaxMessageSize : 0;
     c->sendMaxMessageSize = sendMaxMessageSize ? *sendMaxMessageSize : 0;
@@ -509,39 +533,9 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
     vi.iface = c->listener && c->address[0] ? c->address : NULL;
     if(c->useSSL)
         vi.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
-#ifdef LWS_WITH_TLS
-    char *password = copyString(keyPassword, "");
-    if(keyPassword && !password) {
-        failureStatus = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto fail;
-    }
-    if(certificate) {
-        if(c->listener) {
-            vi.server_ssl_cert_mem = certificate->data;
-            vi.server_ssl_cert_mem_len = (unsigned int)certificate->length;
-            vi.server_ssl_private_key_mem = privateKey->data;
-            vi.server_ssl_private_key_mem_len = (unsigned int)privateKey->length;
-            vi.ssl_private_key_password = password;
-        } else {
-            vi.client_ssl_cert_mem = certificate->data;
-            vi.client_ssl_cert_mem_len = (unsigned int)certificate->length;
-            vi.client_ssl_key_mem = privateKey->data;
-            vi.client_ssl_key_mem_len = (unsigned int)privateKey->length;
-            vi.client_ssl_private_key_password = password;
-        }
-    }
-    if(caCertificate) {
-        vi.client_ssl_ca_mem = caCertificate->data;
-        vi.client_ssl_ca_mem_len = (unsigned int)caCertificate->length;
-    }
-#else
-    char *password = NULL;
-    if(c->useSSL || certificate || caCertificate) {
-        failureStatus = UA_STATUSCODE_BADNOTSUPPORTED;
-        goto fail;
-    }
-#endif
+    UA_LWS_configureTls(&vi, tlsContext, c->listener, &tlsOptions);
     UA_LWS_useContextLogger(&vi, m->lwsContext);
+    UA_LWS_bindTls(cm->eventSource.eventLoop, &c->tls, NULL, tlsContext, c->listener);
     c->vhost = lws_create_vhost(m->lwsContext, &vi);
     if(c->vhost && c->useSSL && !c->listener &&
        lws_init_vhost_client_ssl(&vi, c->vhost)) {
@@ -549,7 +543,7 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         c->vhost = NULL;
     }
     UA_LWS_clearActiveLogger();
-    UA_free(password);
+
     if(!c->vhost) {
         UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                        "WebSocket %lu\t| Could not create the %s vhost for "
@@ -560,6 +554,9 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         goto fail;
     }
     c->ownsVhost = true;
+    c->tls.vhost = c->vhost;
+    if(c->tls.status != UA_STATUSCODE_GOOD)
+        goto failVhost;
 
     if(c->listener) {
         if(c->address[0] == 0) {
@@ -692,7 +689,7 @@ static UA_StatusCode closeConnection(UA_ConnectionManager *cm, uintptr_t id) {
 }
 
 UA_ConnectionManager *
-UA_ConnectionManager_new_LWS_WebSocket(const UA_String name) {
+UA_ConnectionManager_new_LWS_WebSocket(const UA_String name, UA_TlsConfig *tlsConfig) {
     static const UA_String protocol = UA_STRING_STATIC("websocket");
     WSManager *m = (WSManager*)UA_calloc(1, sizeof(*m));
     if(!m)
@@ -710,6 +707,11 @@ UA_ConnectionManager_new_LWS_WebSocket(const UA_String name) {
     m->cm.freeNetworkBuffer = freeBuffer;
     m->cm.sendWithConnection = sendConnection;
     m->cm.closeConnection = closeConnection;
+    if(UA_LWS_initTlsConfig(&m->tls, tlsConfig) != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&m->cm.eventSource.name);
+        UA_free(m);
+        return NULL;
+    }
     return &m->cm;
 }
 

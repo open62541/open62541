@@ -17,9 +17,6 @@ typedef struct {
     UA_UInt16 port;
     UA_String address;
     UA_String path;
-    UA_String password;
-    UA_ByteString certificate;
-    UA_ByteString privateKey;
 } TestHttpManager;
 
 static UA_StatusCode
@@ -33,37 +30,23 @@ captureOpen(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     const UA_UInt16 *port = (const UA_UInt16 *)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "port"), &UA_TYPES[UA_TYPES_UINT16]);
     const UA_Boolean *useTls = (const UA_Boolean *)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "useSSL"), &UA_TYPES[UA_TYPES_BOOLEAN]);
+        params, UA_QUALIFIEDNAME(0, "tls"), &UA_TYPES[UA_TYPES_BOOLEAN]);
     const UA_String *address = (const UA_String *)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "address"), &UA_TYPES[UA_TYPES_STRING]);
     const UA_String *path = (const UA_String *)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "path"), &UA_TYPES[UA_TYPES_STRING]);
-    const UA_String *password = (const UA_String *)UA_KeyValueMap_getScalar(
-        params, UA_QUALIFIEDNAME(0, "private-key-password"),
-        &UA_TYPES[UA_TYPES_STRING]);
-    const UA_ByteString *certificate =
-        (const UA_ByteString *)UA_KeyValueMap_getScalar(
-            params, UA_QUALIFIEDNAME(0, "certificate"),
-            &UA_TYPES[UA_TYPES_BYTESTRING]);
-    const UA_ByteString *privateKey =
-        (const UA_ByteString *)UA_KeyValueMap_getScalar(
-            params, UA_QUALIFIEDNAME(0, "private-key"),
-            &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const char *hidden[] = {"tls-context", "certificate", "private-key", "ca-certificate"};
+    for(size_t i = 0; i < 4; i++)
+        ck_assert_ptr_null(UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, (char*)(uintptr_t)hidden[i])));
     ck_assert_ptr_nonnull(port);
     ck_assert_ptr_nonnull(useTls);
     ck_assert_ptr_nonnull(address);
     ck_assert_ptr_nonnull(path);
-    ck_assert_ptr_nonnull(password);
-    ck_assert_ptr_nonnull(certificate);
-    ck_assert_ptr_nonnull(privateKey);
     manager->opened = true;
     manager->port = *port;
     manager->useTls = *useTls;
     manager->address = *address;
     manager->path = *path;
-    manager->password = *password;
-    manager->certificate = *certificate;
-    manager->privateKey = *privateKey;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -78,30 +61,14 @@ START_TEST(httpConfigurationValidation) {
     ck_assert_uint_eq(__Client_validateHttpConnection(client, false),
                       UA_STATUSCODE_GOOD);
 
-    config->httpClientCertificate = UA_BYTESTRING_ALLOC("certificate");
-    ck_assert_uint_eq(__Client_validateHttpConnection(client, true),
-                      UA_STATUSCODE_BADINVALIDARGUMENT);
-    config->httpClientPrivateKey = UA_BYTESTRING_ALLOC("private-key");
-    ck_assert_uint_eq(__Client_validateHttpConnection(client, true),
-                      UA_STATUSCODE_GOOD);
-
-    UA_ByteString_clear(&config->httpClientCertificate);
-    UA_ByteString_clear(&config->httpClientPrivateKey);
-    config->httpClientPrivateKeyPassword = UA_STRING_ALLOC("password");
-    ck_assert_uint_eq(__Client_validateHttpConnection(client, true),
-                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(__Client_validateHttpConnection(client, true), UA_STATUSCODE_GOOD);
     UA_Client_delete(client);
 }
 END_TEST
 
-START_TEST(httpProviderReceivesTlsConfiguration) {
+START_TEST(httpProviderReceivesConnectionParameters) {
     UA_Client *client = UA_Client_new();
     ck_assert_ptr_nonnull(client);
-    UA_ClientConfig *config = UA_Client_getConfig(client);
-    config->httpClientCertificate = UA_BYTESTRING_ALLOC("certificate");
-    config->httpClientPrivateKey = UA_BYTESTRING_ALLOC("private-key");
-    config->httpClientPrivateKeyPassword = UA_STRING_ALLOC("password");
-
     TestHttpManager manager;
     memset(&manager, 0, sizeof(manager));
     manager.cm.openConnection = captureOpen;
@@ -116,12 +83,6 @@ START_TEST(httpProviderReceivesTlsConfiguration) {
     ck_assert_uint_eq(manager.port, 8443);
     ck_assert(UA_String_equal(&manager.address, &hostname));
     ck_assert(UA_String_equal(&manager.path, &path));
-    ck_assert(UA_String_equal(&manager.password,
-                              &config->httpClientPrivateKeyPassword));
-    ck_assert(UA_ByteString_equal(&manager.certificate,
-                                  &config->httpClientCertificate));
-    ck_assert(UA_ByteString_equal(&manager.privateKey,
-                                  &config->httpClientPrivateKey));
     ck_assert_uint_eq(client->channel.transport,
                       UA_SECURECHANNEL_TRANSPORT_HTTP);
     ck_assert_uint_eq(client->channel.encoding,
@@ -129,6 +90,28 @@ START_TEST(httpProviderReceivesTlsConfiguration) {
     UA_Client_delete(client);
 }
 END_TEST
+
+START_TEST(clientRequiresExplicitTransportManager) {
+    const char *urls[] = {"opc.http://localhost:4840/ua",
+                          "opc.https://localhost:4840/ua",
+                          "opc.ws://localhost:4840/ua",
+                          "opc.wss://localhost:4840/ua"};
+    UA_Client *client = UA_Client_new();
+    ck_assert_ptr_nonnull(client);
+    UA_Client_getConfig(client)->httpAllowUnencrypted = true;
+    ck_assert_uint_eq(UA_Client_connect(client, urls[_i]), UA_STATUSCODE_BADNOTSUPPORTED);
+    /* Connecting must not install a provider implicitly either. */
+    const UA_String http = UA_STRING_STATIC("http"), ws = UA_STRING_STATIC("websocket");
+    for(UA_EventSource *es = UA_Client_getConfig(client)->eventLoop->eventSources;
+        es; es = es->next) {
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        ck_assert(!UA_String_equal(&cm->protocol, &http));
+        ck_assert(!UA_String_equal(&cm->protocol, &ws));
+    }
+    UA_Client_delete(client);
+} END_TEST
 
 static void
 configureDirectEndpoint(UA_ClientConfig *config, const char *url,
@@ -188,7 +171,8 @@ int main(void) {
     Suite *suite = suite_create("OPC UA HTTP client protocol");
     TCase *tc = tcase_create("provider-neutral setup");
     tcase_add_test(tc, httpConfigurationValidation);
-    tcase_add_test(tc, httpProviderReceivesTlsConfiguration);
+    tcase_add_loop_test(tc, clientRequiresExplicitTransportManager, 0, 4);
+    tcase_add_test(tc, httpProviderReceivesConnectionParameters);
     tcase_add_test(tc, httpSelectedSecurityPolicyValidation);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc, httpSelectedEnhancedSecurityPolicyValidation);

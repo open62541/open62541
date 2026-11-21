@@ -370,6 +370,9 @@ configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_key.der
                ${CMAKE_BINARY_DIR}/tests/client_key.der COPYONLY)
 
 if(UA_ENABLE_LWS)
+    if(UA_LWS_USES_OPENSSL AND UA_ENABLE_ENCRYPTION)
+        ua_add_test(check_eventloop_tls.c)
+    endif()
     ua_add_test(check_eventloop_http.c WRAPPER ${Python3_EXECUTABLE}
                 ${PROJECT_SOURCE_DIR}/tools/lws/httpServer.py --run-test)
     target_include_directories(check_eventloop_http PRIVATE

@@ -317,6 +317,7 @@ struct UA_EventLoopPOSIX {
 #ifdef UA_ENABLE_LWS
     /* One libwebsockets context shared by all users of this EventLoop */
     void *lwsContext;
+    void *lwsTlsBindings; /* UA_LWSTlsBinding list, event-loop local */
     void *lwsLogContext;
     size_t lwsContextUsers;
     UA_EventLoop *lwsForeignLoop;
