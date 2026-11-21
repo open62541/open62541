@@ -150,6 +150,39 @@ START_TEST(parseExpandedNodeIdIntegerFailNSU2) {
     ck_assert_int_eq(id.nodeId.identifier.numeric, 0);
 } END_TEST
 
+START_TEST(parseNamespaceIndexRange) {
+    UA_NodeId id;
+    UA_StatusCode res = UA_NodeId_parse(&id, UA_STRING("ns=65535;i=85"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(id.namespaceIndex, 65535);
+    res = UA_NodeId_parse(&id, UA_STRING("ns=65536;i=85"));
+    ck_assert_int_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    res = UA_NodeId_parse(&id, UA_STRING("ns=65537;i=85"));
+    ck_assert_int_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+
+    UA_ExpandedNodeId eid;
+    res = UA_ExpandedNodeId_parse(&eid, UA_STRING("svr=1;ns=65535;i=85"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eid.nodeId.namespaceIndex, 65535);
+    res = UA_ExpandedNodeId_parse(&eid, UA_STRING("svr=1;ns=65536;i=85"));
+    ck_assert_int_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+
+    UA_QualifiedName qn;
+    res = UA_QualifiedName_parse(&qn, UA_STRING("65535:Objects"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(qn.namespaceIndex, 65535);
+    UA_QualifiedName_clear(&qn);
+    res = UA_QualifiedName_parse(&qn, UA_STRING("65536:Objects"));
+    ck_assert_int_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+
+#ifdef UA_ENABLE_JSON_ENCODING
+    /* The JSON decoder uses the same parser */
+    UA_ByteString json = UA_STRING("\"ns=65536;i=2253\"");
+    res = UA_decodeJson(&json, &id, &UA_TYPES[UA_TYPES_NODEID], NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+#endif
+} END_TEST
+
 START_TEST(parseRelativePath) {
     UA_RelativePath rp;
     UA_String ex = UA_STRING("");
@@ -520,6 +553,7 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
+    tcase_add_test(tc, parseNamespaceIndexRange);
     tcase_add_test(tc, parseRelativePath);
     tcase_add_test(tc, parseRelativePathMalformed);
     tcase_add_test(tc, parseRelativePathWithServer);
