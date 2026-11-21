@@ -446,6 +446,9 @@ insertDataValue_backend_memory(UA_Server *server,
             item->storeSize = 0;
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
+        /* The circular backend frees every non-NULL slot it writes to */
+        memset(&item->dataStore[item->storeSize], 0,
+               sizeof(UA_DataValueMemoryStoreItem*) * (newStoreSize - item->storeSize));
         item->storeSize = newStoreSize;
     }
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
@@ -463,6 +466,8 @@ insertDataValue_backend_memory(UA_Server *server,
     }
     item->dataStore[index] = newItem;
     ++item->storeEnd;
+    /* The circular backend continues writing after the last stored value */
+    item->lastInserted = item->storeEnd;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -582,6 +587,11 @@ removeDataValue_backend_memory(UA_Server *server,
     }
     memmove(&item->dataStore[index1], &item->dataStore[index2], sizeof(UA_DataValueMemoryStoreItem*) * (item->storeEnd - index2));
     item->storeEnd -= index2 - index1;
+    /* Clear the vacated slots. The circular backend frees every non-NULL slot
+     * it writes to and continues after the last stored value. */
+    memset(&item->dataStore[item->storeEnd], 0,
+           sizeof(UA_DataValueMemoryStoreItem*) * (index2 - index1));
+    item->lastInserted = item->storeEnd;
 #else
     (void)index1;
     (void)index2;
