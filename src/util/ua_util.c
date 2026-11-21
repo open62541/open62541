@@ -16,6 +16,7 @@
 #include <open62541/server.h>
 #include <open62541/util.h>
 #include <open62541/common.h>
+#include <open62541/plugin/eventloop.h>
 // Not used in this translation unit, but exposes symbols that are used in other translation units
 #include <open62541/server_config_default.h>
 #include <open62541/transport_generated.h>
@@ -1696,4 +1697,17 @@ UA_TrustListDataType_getSize(const UA_TrustListDataType *trustList) {
         size += (UA_UInt32)trustList->issuerCrls[i].length;
     }
     return size;
+}
+
+void
+UA_TlsConfig_clear(UA_TlsConfig *config) {
+    if(!config)
+        return;
+    UA_ByteString_clear(&config->certificateChain);
+    UA_ByteString_memZero(&config->privateKey);
+    UA_ByteString_clear(&config->privateKey);
+    if(config->verification.mode == UA_TLSVERIFY_OWNED &&
+       config->verification.group.owned.clear)
+        config->verification.group.owned.clear(&config->verification.group.owned);
+    memset(config, 0, sizeof(*config));
 }

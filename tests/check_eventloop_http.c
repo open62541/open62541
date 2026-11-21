@@ -17,6 +17,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <check.h>
+#include "testing-plugins/testing_tls.h"
 
 #ifndef _WIN32
 # include <arpa/inet.h>
@@ -117,7 +118,7 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 START_TEST(sendGetRequest) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("httpCM"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("httpCM"), NULL);
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     el->registerEventSource(el, &cm->eventSource);
     el->start(el);
@@ -133,7 +134,7 @@ START_TEST(sendGetRequest) {
     UA_Variant_setScalar(&params[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     params[1].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    params[2].key = UA_QUALIFIEDNAME(0, "useSSL");
+    params[2].key = UA_QUALIFIEDNAME(0, "tls");
     UA_Variant_setScalar(&params[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
     params[3].key = UA_QUALIFIEDNAME(0, "timeout");
     UA_Variant_setScalar(&params[3].value, &timeout, &UA_TYPES[UA_TYPES_UINT16]);
@@ -184,7 +185,7 @@ START_TEST(sendGetRequest) {
 } END_TEST
 
 START_TEST(sendPostRequest) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("httpCM"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("httpCM"), NULL);
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     el->registerEventSource(el, &cm->eventSource);
     el->start(el);
@@ -199,7 +200,7 @@ START_TEST(sendPostRequest) {
     UA_Variant_setScalar(&params[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     params[1].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    params[2].key = UA_QUALIFIEDNAME(0, "useSSL");
+    params[2].key = UA_QUALIFIEDNAME(0, "tls");
     UA_Variant_setScalar(&params[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap kvm = {paramsSize, params};
 
@@ -373,7 +374,7 @@ serverConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 START_TEST(serverBinaryRoundtrip) {
     HTTPServerTestContext ctx = {0};
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("httpCM"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("httpCM"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm);
     ck_assert_ptr_nonnull(eventLoop);
@@ -776,9 +777,7 @@ closeHTTPConnectionIfPresent(UA_ConnectionManager *cm, uintptr_t connectionId) {
 static void
 openHTTPListener(UA_ConnectionManager *cm, HTTPTestContext *ctx,
                  UA_UInt16 timeout, UA_UInt32 recvMax, UA_UInt32 sendMax,
-                 UA_Boolean useSSL, const UA_ByteString *certificate,
-                 const UA_ByteString *privateKey,
-                 const UA_ByteString *caCertificate) {
+                 UA_Boolean useSSL, UA_Boolean requireClientCertificate) {
     UA_UInt16 port = 0;
     UA_Boolean listen = true;
     UA_KeyValuePair parameters[8] = {0};
@@ -802,24 +801,14 @@ openHTTPListener(UA_ConnectionManager *cm, HTTPTestContext *ctx,
         UA_Variant_setScalar(&parameters[size++].value, &sendMax,
                              &UA_TYPES[UA_TYPES_UINT32]);
     }
-    if(useSSL) {
-        parameters[size].key = UA_QUALIFIEDNAME(0, "useSSL");
-        UA_Variant_setScalar(&parameters[size++].value, &useSSL,
-                             &UA_TYPES[UA_TYPES_BOOLEAN]);
-        parameters[size].key = UA_QUALIFIEDNAME(0, "certificate");
-        UA_Variant_setScalar(&parameters[size++].value,
-                             (void*)(uintptr_t)certificate,
-                             &UA_TYPES[UA_TYPES_BYTESTRING]);
-        parameters[size].key = UA_QUALIFIEDNAME(0, "private-key");
-        UA_Variant_setScalar(&parameters[size++].value,
-                             (void*)(uintptr_t)privateKey,
-                             &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_String clientAuth = UA_STRING("required");
+    if(requireClientCertificate) {
+        parameters[size].key = UA_QUALIFIEDNAME(0, "tls-client-auth");
+        UA_Variant_setScalar(&parameters[size++].value, &clientAuth, &UA_TYPES[UA_TYPES_STRING]);
     }
-    if(caCertificate) {
-        parameters[size].key = UA_QUALIFIEDNAME(0, "ca-certificate");
-        UA_Variant_setScalar(&parameters[size++].value,
-                             (void*)(uintptr_t)caCertificate,
-                             &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(useSSL) {
+        parameters[size].key = UA_QUALIFIEDNAME(0, "tls");
+        UA_Variant_setScalar(&parameters[size++].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
     }
     UA_KeyValueMap map = {size, parameters};
     ck_assert_uint_eq(cm->openConnection(cm, &map, ctx, NULL,
@@ -831,10 +820,7 @@ openHTTPListener(UA_ConnectionManager *cm, HTTPTestContext *ctx,
 
 static void
 openHTTPClient(UA_ConnectionManager *cm, HTTPTestContext *ctx,
-               UA_UInt32 recvMax, UA_UInt32 sendMax, UA_Boolean useSSL,
-               const UA_ByteString *certificate,
-               const UA_ByteString *privateKey,
-               const UA_ByteString *caCertificate) {
+               UA_UInt32 recvMax, UA_UInt32 sendMax, UA_Boolean useSSL) {
     UA_String address = UA_STRING("127.0.0.1");
     UA_KeyValuePair parameters[8] = {0};
     size_t size = 0;
@@ -855,25 +841,8 @@ openHTTPClient(UA_ConnectionManager *cm, HTTPTestContext *ctx,
                              &UA_TYPES[UA_TYPES_UINT32]);
     }
     if(useSSL) {
-        parameters[size].key = UA_QUALIFIEDNAME(0, "useSSL");
-        UA_Variant_setScalar(&parameters[size++].value, &useSSL,
-                             &UA_TYPES[UA_TYPES_BOOLEAN]);
-        if(certificate) {
-            parameters[size].key = UA_QUALIFIEDNAME(0, "certificate");
-            UA_Variant_setScalar(&parameters[size++].value,
-                                 (void*)(uintptr_t)certificate,
-                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
-            parameters[size].key = UA_QUALIFIEDNAME(0, "private-key");
-            UA_Variant_setScalar(&parameters[size++].value,
-                                 (void*)(uintptr_t)privateKey,
-                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
-        }
-    }
-    if(caCertificate) {
-        parameters[size].key = UA_QUALIFIEDNAME(0, "ca-certificate");
-        UA_Variant_setScalar(&parameters[size++].value,
-                             (void*)(uintptr_t)caCertificate,
-                             &UA_TYPES[UA_TYPES_BYTESTRING]);
+        parameters[size].key = UA_QUALIFIEDNAME(0, "tls");
+        UA_Variant_setScalar(&parameters[size++].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
     }
     UA_KeyValueMap map = {size, parameters};
     ck_assert_uint_eq(cm->openConnection(cm, &map, ctx, NULL,
@@ -982,14 +951,14 @@ sendHandledRequest(UA_ConnectionManager *cm, HTTPTestContext *ctx,
 START_TEST(serverLargeAndEmptyBodies) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_ECHO;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
+    openHTTPClient(cm, &ctx, 0, 0, false);
 
     const size_t largeSize = 128 * 1024 + 17;
     sendPatternRequest(cm, &ctx, largeSize);
@@ -1013,14 +982,14 @@ START_TEST(clientRequestHandles) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_FIXED_RESPONSE;
     ctx.fixedResponseSize = 2;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
+    openHTTPClient(cm, &ctx, 0, 0, false);
 
     UA_String method = UA_STRING("POST");
     UA_String path = UA_STRING("/handles");
@@ -1078,14 +1047,14 @@ START_TEST(clientRequestHandles) {
 START_TEST(serverRequestLifecycle) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_DUPLICATE_RESPONSE;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
+    openHTTPClient(cm, &ctx, 0, 0, false);
     sendPatternRequest(cm, &ctx, 4);
     runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 200);
     ck_assert_uint_eq(ctx.firstSendStatus, UA_STATUSCODE_GOOD);
@@ -1107,14 +1076,14 @@ START_TEST(serverRequestLifecycle) {
 START_TEST(serverBrokenCarrierIsolation) {
     HTTPTestContext first = {0};
     first.mode = HTTP_TEST_NO_RESPONSE;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &first, 30, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &first, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &first, 30, 0, 0, false, false);
+    openHTTPClient(cm, &first, 0, 0, false);
 
     /* Leave one request outstanding, then break only its client-side carrier. */
     sendPatternRequest(cm, &first, 0);
@@ -1122,7 +1091,7 @@ START_TEST(serverBrokenCarrierIsolation) {
 
     HTTPTestContext sibling = {0};
     sibling.port = first.port;
-    openHTTPClient(cm, &sibling, 0, 0, false, NULL, NULL, NULL);
+    openHTTPClient(cm, &sibling, 0, 0, false);
     ck_assert_uint_eq(cm->closeConnection(cm, first.clientId),
                       UA_STATUSCODE_GOOD);
     runUntilCount(eventLoop, &first.acceptedClosingCount, 1, 100);
@@ -1148,14 +1117,14 @@ START_TEST(clientRequestFailureIsolation) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_ONE_REQUEST_FAILS;
     ctx.fixedResponseSize = 2;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
+    openHTTPClient(cm, &ctx, 0, 0, false);
 
     sendHandledRequest(cm, &ctx, "/fail");
     sendHandledRequest(cm, &ctx, "/ok");
@@ -1172,7 +1141,7 @@ START_TEST(clientRequestFailureIsolation) {
 
 START_TEST(clientSynchronousConnectionFailure) {
     HTTPTestContext ctx = {0};
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
@@ -1197,14 +1166,14 @@ START_TEST(clientRequestTimeoutIsolation) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_ONE_REQUEST_STALLS;
     ctx.fixedResponseSize = 2;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
+    openHTTPClient(cm, &ctx, 0, 0, false);
 
     /* The slow request overrides the binding timeout. Its sibling must finish
      * normally and the shared client binding must remain usable. */
@@ -1250,13 +1219,13 @@ START_TEST(serverResponseFailureIsolation) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_FIXED_RESPONSE;
     ctx.fixedResponseSize = 8 * 1024 * 1024;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
 
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
@@ -1282,7 +1251,7 @@ START_TEST(serverResponseFailureIsolation) {
 
     /* A failed response carrier does not affect a new sibling carrier. */
     ctx.fixedResponseSize = 2;
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPClient(cm, &ctx, 0, 0, false);
     sendPatternRequest(cm, &ctx, 0);
     runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 100);
     ck_assert_uint_eq(ctx.requestCount, 2);
@@ -1298,13 +1267,13 @@ START_TEST(serverResponseFailureIsolation) {
 START_TEST(serverListenerCloseWithIdleCarrier) {
 #ifndef _WIN32
     HTTPTestContext ctx = {0};
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
 
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
@@ -1332,7 +1301,7 @@ START_TEST(serverListenerCloseWithIdleCarrier) {
 START_TEST(serverListenerCloseFromRequestCallback) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_CLOSE_LISTENER;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm);
     ck_assert_ptr_nonnull(eventLoop);
@@ -1340,8 +1309,8 @@ START_TEST(serverListenerCloseFromRequestCallback) {
                                                      &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
+    openHTTPClient(cm, &ctx, 0, 0, false);
 
     /* Listener teardown is requested from inside the accepted connection's
      * request callback. Destruction is deferred until the callback has fully
@@ -1387,7 +1356,7 @@ START_TEST(serverContentEncodingAndExpansionLimit) {
 #ifndef _WIN32
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_ECHO;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
@@ -1509,13 +1478,13 @@ START_TEST(clientCompressedResponse) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_FIXED_RESPONSE;
     ctx.fixedResponseSize = 4096;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
 
     UA_String address = UA_STRING("127.0.0.1");
     UA_UInt32 wireLimit = 1024;
@@ -1555,13 +1524,13 @@ START_TEST(clientCompressedResponse) {
 START_TEST(clientRejectsDuplicateContentEncoding) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_DUPLICATE_ENCODING_RESPONSE;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
     openHTTPClientWithTimeout(cm, &ctx, 1);
 
     sendPatternRequest(cm, &ctx, 0);
@@ -1577,14 +1546,14 @@ START_TEST(clientRejectsDuplicateContentEncoding) {
 START_TEST(serverTimeoutAndListenerClose) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_NO_RESPONSE;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 1, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 1, 0, 0, false, false);
+    openHTTPClient(cm, &ctx, 0, 0, false);
     sendPatternRequest(cm, &ctx, 0);
     runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 150);
     ck_assert_uint_eq(ctx.acceptedClosingCount, 1);
@@ -1607,13 +1576,13 @@ START_TEST(serverReceiveAndKeepAliveTimeouts) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_FIXED_RESPONSE;
     ctx.fixedResponseSize = 2;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 1, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 1, 0, 0, false, false);
 
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
@@ -1705,7 +1674,7 @@ START_TEST(serverReceiveAndKeepAliveTimeouts) {
 START_TEST(serverConnectionCapAndRequestDeadline) {
 #ifndef _WIN32
     HTTPTestContext ctx = {0};
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
@@ -1773,33 +1742,39 @@ START_TEST(clientServerMutualTls) {
     UA_ByteString privateKey = loadFile("server_key.der");
     ck_assert_ptr_nonnull(certificate.data);
     ck_assert_ptr_nonnull(privateKey.data);
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("https"));
+    UA_TlsConfig config = testTlsConfig(&certificate, &privateKey, &certificate);
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("https"), &config);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
+    config = testTlsConfig(&certificate, &privateKey, &certificate);
+    UA_ConnectionManager *clientCM = UA_ConnectionManager_new_HTTP(UA_STRING("client"), &config);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &clientCM->eventSource), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, true, &certificate, &privateKey,
-                     &certificate);
-    openHTTPClient(cm, &ctx, 0, 0, true, &certificate, &privateKey,
-                   &certificate);
+    openHTTPListener(cm, &ctx, 30, 0, 0, true, true);
+    openHTTPClient(clientCM, &ctx, 0, 0, true);
 
-    sendPatternRequest(cm, &ctx, 0);
+    sendPatternRequest(clientCM, &ctx, 0);
     runUntilCount(eventLoop, &ctx.responseCount, 1, 300);
     ck_assert_uint_eq(ctx.requestCount, 1);
     ck_assert_uint_eq(ctx.responseStatus, 202);
     ck_assert(ctx.responseHeaderReceived);
 
-    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    closeHTTPConnectionIfPresent(clientCM, ctx.clientId);
     runUntilCount(eventLoop, &ctx.clientClosingCount, 1, 100);
 
-    /* The listener CA makes a client certificate mandatory. */
-    openHTTPClient(cm, &ctx, 0, 0, true, NULL, NULL, &certificate);
-    sendPatternRequest(cm, &ctx, 0);
+    /* The listener's client-auth policy requires a certificate. */
+    config = testTlsConfig(NULL, NULL, &certificate);
+    clientCM = UA_ConnectionManager_new_HTTP(UA_STRING("anonymous-client"), &config);
+    ck_assert_ptr_nonnull(clientCM);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &clientCM->eventSource), UA_STATUSCODE_GOOD);
+    openHTTPClient(clientCM, &ctx, 0, 0, true);
+    sendPatternRequest(clientCM, &ctx, 0);
     runUntilCount(eventLoop, &ctx.responseCompleteCount, 2, 200);
     ck_assert_uint_ne(ctx.lastRequestStatus, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(ctx.requestCount, 1);
-    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    closeHTTPConnectionIfPresent(clientCM, ctx.clientId);
     runUntilCount(eventLoop, &ctx.clientClosingCount, 2, 100);
 
     UA_ByteString_clear(&certificate);
@@ -1813,7 +1788,8 @@ START_TEST(clientHttpToHttpsRedirect) {
     ctx.port = httpPort;
     UA_ByteString certificate = loadFile("server_cert.der");
     ck_assert_ptr_nonnull(certificate.data);
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("redirect"));
+    UA_TlsConfig config = testTlsConfig(NULL, NULL, _i == 0 ? &certificate : NULL);
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("redirect"), &config);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
@@ -1822,8 +1798,7 @@ START_TEST(clientHttpToHttpsRedirect) {
 
     /* The Python fixture redirects to its HTTPS listener. TLS is needed only
      * after following Location, but the original binding's CA policy applies. */
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL,
-                   _i == 0 ? &certificate : NULL);
+    openHTTPClient(cm, &ctx, 0, 0, false);
     UA_String path = UA_STRING("/redirect-to-https");
     UA_KeyValuePair parameter = {UA_QUALIFIEDNAME(0, "path"), {0}};
     UA_Variant_setScalar(&parameter.value, &path, &UA_TYPES[UA_TYPES_STRING]);
@@ -1847,14 +1822,14 @@ START_TEST(messageSizeLimits) {
     /* Client send limit. */
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_EMPTY_RESPONSE;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 4, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 0, 4, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 4, 0, false, false);
+    openHTTPClient(cm, &ctx, 0, 4, false);
     UA_ByteString tooLarge = UA_BYTESTRING_ALLOC("12345");
     ck_assert_uint_eq(cm->sendWithConnection(cm, ctx.clientId,
                                              &UA_KEYVALUEMAP_NULL, &tooLarge),
@@ -1867,7 +1842,7 @@ START_TEST(messageSizeLimits) {
     ck_assert_uint_eq(ctx.requestCount, 1);
     closeHTTPConnectionIfPresent(cm, ctx.clientId);
     runUntilCount(eventLoop, &ctx.clientClosingCount, 1, 100);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    openHTTPClient(cm, &ctx, 0, 0, false);
     sendPatternRequest(cm, &ctx, 5);
     runUntilCount(eventLoop, &ctx.acceptedClosingCount, 2, 200);
     ck_assert_uint_eq(ctx.requestCount, 1);
@@ -1879,14 +1854,14 @@ START_TEST(messageSizeLimits) {
     memset(&ctx, 0, sizeof(ctx));
     ctx.mode = HTTP_TEST_FIXED_RESPONSE;
     ctx.fixedResponseSize = 5;
-    cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 4, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 4, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 4, false, false);
+    openHTTPClient(cm, &ctx, 4, 0, false);
     sendPatternRequest(cm, &ctx, 0);
     runUntilCount(eventLoop, &ctx.requestCount, 1, 100);
     ck_assert_uint_eq(ctx.firstSendStatus, UA_STATUSCODE_BADRESPONSETOOLARGE);
@@ -1900,14 +1875,14 @@ START_TEST(messageSizeLimits) {
     memset(&ctx, 0, sizeof(ctx));
     ctx.mode = HTTP_TEST_FIXED_RESPONSE;
     ctx.fixedResponseSize = 5;
-    cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
-    openHTTPClient(cm, &ctx, 4, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
+    openHTTPClient(cm, &ctx, 4, 0, false);
     sendPatternRequest(cm, &ctx, 0);
     runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 200);
     ck_assert_uint_eq(ctx.lastRequestStatus,
@@ -1919,7 +1894,7 @@ START_TEST(messageSizeLimits) {
 } END_TEST
 
 START_TEST(parameterValidation) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
@@ -1944,7 +1919,7 @@ START_TEST(parameterValidation) {
                       UA_STATUSCODE_GOOD);
 
     UA_Boolean useSSL = true;
-    parameters[3].key = UA_QUALIFIEDNAME(0, "useSSL");
+    parameters[3].key = UA_QUALIFIEDNAME(0, "tls");
     UA_Variant_setScalar(&parameters[3].value, &useSSL,
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap incompleteTlsMap = {4, parameters};
@@ -2033,13 +2008,13 @@ START_TEST(chunkedRequestAndKeepAlive) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_FIXED_RESPONSE;
     ctx.fixedResponseSize = 2;
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"), NULL);
     UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
     ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
-    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, false);
 
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     ck_assert_int_ge(fd, 0);

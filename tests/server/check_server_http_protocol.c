@@ -195,22 +195,11 @@ START_TEST(httpStartupWithoutProviderFails) {
     config->serverUrlsSize = 1;
     config->serverUrls[0] = UA_STRING_ALLOC("opc.http://localhost:0/ua");
 
-    /* Hide the default provider when libwebsockets is enabled. */
     const UA_String protocol = UA_STRING_STATIC("http");
-    UA_ConnectionManager *provider =
-        findConnectionManager(config->eventLoop, &protocol);
-    UA_String providerProtocol = UA_STRING_NULL;
-    if(provider) {
-        const UA_String unavailable =
-            UA_STRING_STATIC("http-unavailable");
-        providerProtocol = provider->protocol;
-        provider->protocol = unavailable;
-    }
+    ck_assert_ptr_null(findConnectionManager(config->eventLoop, &protocol));
 
     ck_assert_uint_eq(UA_Server_run_startup(server),
                       UA_STATUSCODE_BADCONFIGURATIONERROR);
-    if(provider)
-        provider->protocol = providerProtocol;
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
 }
 END_TEST
@@ -456,8 +445,6 @@ START_TEST(closingHttpListenerCleansOnlyItsChannels) {
     config->tcpEnabled = false;
     config->httpEnabled = true;
     config->httpAllowUnencrypted = true;
-    config->httpCertificate = UA_BYTESTRING_ALLOC("certificate");
-    config->httpPrivateKey = UA_BYTESTRING_ALLOC("private-key");
     UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
     config->serverUrls =

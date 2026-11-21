@@ -498,6 +498,7 @@ UA_LWS_acquireContext(UA_EventLoop *eventLoop) {
 #else
         info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
 #endif
+        info.user = eventLoop;
         info.port = CONTEXT_PORT_NO_LISTEN;
         info.log_cx = logContext;
         info.event_lib_custom = &evlib_open62541;

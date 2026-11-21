@@ -362,9 +362,13 @@ be visible in the cmake GUIs.
    Enable the ``libwebsockets`` transport provider. It supplies the generic
    HTTP client/server ConnectionManager, OPC UA services over HTTPS
    (``opc.https://``), and OPC UA Binary over WebSockets (``opc.ws://`` and
-   ``opc.wss://``). The server transports remain opt-in through
-   ``httpEnabled`` and ``webSocketEnabled``. ``opc.https`` requires a TLS
-   certificate and private key. Binary and, when ``UA_ENABLE_JSON_ENCODING``
+   ``opc.wss://``). Applications construct and register HTTP and WebSocket
+   ConnectionManagers after configuring security and before connecting or
+   starting the server. The server transports also require ``httpEnabled`` or
+   ``webSocketEnabled``. HTTPS and WSS listeners require a TLS certificate and
+   private key in the manager's constructor configuration.
+
+   Binary and, when ``UA_ENABLE_JSON_ENCODING``
    is enabled, JSON service bodies can coexist on the same endpoint URL and
    are exposed as separate Binary and ``/json`` endpoint paths. Each logical
    channel remains pinned to one encoding. Internally, Session routing contexts

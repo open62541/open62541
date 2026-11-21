@@ -22,6 +22,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/plugin/log_stdout.h>
+#include "interop_tls.h"
 
 #ifdef UA_ENABLE_ENCRYPTION
 #include <open62541/plugin/certificategroup_default.h>
@@ -64,6 +65,7 @@ static int g_failed = 0;
 static int g_skipped = 0;
 
 #ifdef UA_ENABLE_LWS
+static UA_Boolean g_webSocket;
 static UA_ByteString g_webSocketCaCertificate = {0, NULL};
 #endif
 
@@ -71,9 +73,10 @@ static UA_StatusCode
 setDefaultClientConfig(UA_ClientConfig *cc) {
     UA_StatusCode retval = UA_ClientConfig_setDefault(cc);
 #ifdef UA_ENABLE_LWS
-    if(retval == UA_STATUSCODE_GOOD && g_webSocketCaCertificate.length > 0)
-        retval = UA_ByteString_copy(&g_webSocketCaCertificate,
-                                    &cc->webSocketCaCertificate);
+    if(retval == UA_STATUSCODE_GOOD && g_webSocket)
+        retval = interopConfigureTls(cc->eventLoop, false, NULL, NULL,
+                                     g_webSocketCaCertificate.length ?
+                                     &g_webSocketCaCertificate : NULL);
 #endif
     return retval;
 }
@@ -187,14 +190,6 @@ configureEncryption(UA_ClientConfig *cc, const char *policyUri,
                                              trustList, trustListSize, NULL, 0);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-#ifdef UA_ENABLE_LWS
-    if(g_webSocketCaCertificate.length > 0) {
-        retval = UA_ByteString_copy(&g_webSocketCaCertificate,
-                                    &cc->webSocketCaCertificate);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
-#endif
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     UA_String_clear(&cc->clientDescription.applicationUri);
     cc->clientDescription.applicationUri =
@@ -678,6 +673,7 @@ interopClientMain(int argc, char *argv[], UA_Boolean webSocket) {
     }
 
 #ifdef UA_ENABLE_LWS
+    g_webSocket = webSocket;
     if(webSocket && trustListSize > 0)
         g_webSocketCaCertificate = trustList[0];
 #else

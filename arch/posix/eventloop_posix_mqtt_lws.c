@@ -219,6 +219,9 @@ sendPendingPublish(MQTTLwsConnection *connection) {
 static int
 callbackMqtt(struct lws *wsi, enum lws_callback_reasons reason,
              void *user, void *in, size_t len) {
+    int tlsResult = UA_LWS_tlsCallback(wsi, reason, user, in, len);
+    if(tlsResult != -2)
+        return tlsResult;
     MQTTLwsConnection *connection = (MQTTLwsConnection*)user;
     if(!connection)
         connection = (MQTTLwsConnection*)lws_get_opaque_user_data(wsi);

@@ -2454,9 +2454,6 @@ struct UA_ServerConfig {
                                     * (default: 0 -> unbounded) */
     UA_UInt32 webSocketMaxQueueSize; /* Max bytes queued for a slow WebSocket
                                       * peer (default: 16 * webSocketBufSize) */
-    UA_ByteString webSocketCertificate; /* TLS certificate, DER or PEM */
-    UA_ByteString webSocketPrivateKey;  /* TLS private key, DER or PEM */
-    UA_String webSocketPrivateKeyPassword;
 
     UA_Boolean httpEnabled; /* Default: false */
     /* Allow the non-standard, unencrypted opc.http scheme. This removes
@@ -2476,9 +2473,6 @@ struct UA_ServerConfig {
      * the corresponding ServerUrl. An explicitly set empty String
      * listens on all interfaces without changing the advertised hostname. */
     UA_String httpListenAddress;
-    UA_ByteString httpCertificate;  /* TLS certificate, DER or PEM */
-    UA_ByteString httpPrivateKey;   /* TLS private key, DER or PEM */
-    UA_String httpPrivateKeyPassword;
 
     /* Security and Encryption
      * ~~~~~~~~~~~~~~~~~~~~~~~ */

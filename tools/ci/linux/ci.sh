@@ -309,6 +309,7 @@ function unit_tests_libwebsockets {
           -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_ENCRYPTION=OPENSSL \
           -DUA_ENABLE_HTTP_COMPRESSION=ON \
           -DUA_ENABLE_LWS_MQTT=${LWS_MQTT:-ON} \
           -DUA_ENABLE_PUBSUB=OFF \
@@ -329,6 +330,7 @@ function unit_tests_libwebsockets {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_JSON_ENCODING=OFF \
           -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_ENCRYPTION=OPENSSL \
           -DUA_ENABLE_HTTP_COMPRESSION=ON \
           -DUA_ENABLE_LWS_MQTT=OFF \
           -DUA_ENABLE_PUBSUB=OFF \
@@ -355,6 +357,7 @@ function unit_tests_libwebsockets_tsan {
           -DUA_ENABLE_DEBUG_SANITIZER=OFF \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_ENCRYPTION=OPENSSL \
           -DUA_ENABLE_HTTP_COMPRESSION=ON \
           -DUA_ENABLE_LWS_MQTT=OFF \
           -DUA_ENABLE_PUBSUB=OFF \

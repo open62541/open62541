@@ -17,6 +17,7 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
+#include "../common/interop_tls.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,15 +79,8 @@ configureClient(UA_ClientConfig *config, const UA_ByteString *clientCertificate,
         UA_STRING_ALLOC("urn:open62541.client.application");
     if(config->clientDescription.applicationUri.length == 0)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    res = UA_ByteString_copy(serverCertificate, &config->httpCaCertificate);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    res = UA_ByteString_copy(clientCertificate,
-                             &config->httpClientCertificate);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    res = UA_ByteString_copy(clientPrivateKey,
-                             &config->httpClientPrivateKey);
+    res = interopConfigureTls(config->eventLoop, true, clientCertificate,
+                               clientPrivateKey, serverCertificate);
     if(res != UA_STATUSCODE_GOOD)
         return res;
     /* Transport-profile matching keeps endpoint selection on HTTPS even when

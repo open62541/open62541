@@ -53,7 +53,8 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 int main(int argc, const char **argv) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("httpCM"));
+    /* HTTP managers are registered explicitly. NULL selects system TLS trust. */
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("httpCM"), NULL);
     el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     el->registerEventSource(el, &cm->eventSource);
     el->start(el);
@@ -69,7 +70,7 @@ int main(int argc, const char **argv) {
     UA_Variant_setScalar(&configParams[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     configParams[1].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&configParams[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    configParams[2].key = UA_QUALIFIEDNAME(0, "useSSL");
+    configParams[2].key = UA_QUALIFIEDNAME(0, "tls");
     UA_Variant_setScalar(&configParams[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_KeyValueMap configMap = {configParamsSize, configParams};

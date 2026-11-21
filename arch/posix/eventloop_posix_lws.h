@@ -54,4 +54,46 @@ UA_LWS_releaseContext(UA_EventLoop *eventLoop);
 void
 UA_LWS_requestWritable(struct lws *wsi);
 
+typedef struct {
+    size_t users;
+    UA_TlsConfig config;
+} UA_LWSTlsState;
+
+typedef enum {
+    UA_TLSCLIENTAUTH_NONE = 0,
+    UA_TLSCLIENTAUTH_OPTIONAL,
+    UA_TLSCLIENTAUTH_REQUIRED
+} UA_LWSTlsClientAuth;
+
+typedef struct {
+    UA_Boolean verifyHostname;
+    UA_LWSTlsClientAuth clientAuth;
+} UA_LWSTlsOptions;
+
+typedef struct UA_LWSTlsBinding {
+    struct UA_LWSTlsBinding *next;
+    struct lws_vhost *vhost;
+    UA_LWSTlsState *context;
+    UA_StatusCode status;
+    UA_LWSTlsOptions options;
+    void (*verificationResult)(struct lws *wsi, UA_StatusCode status);
+    UA_Boolean listener;
+} UA_LWSTlsBinding;
+
+UA_StatusCode UA_LWS_initTlsConfig(UA_LWSTlsState *state, UA_TlsConfig *config);
+UA_StatusCode UA_LWS_clearTlsConfig(UA_LWSTlsState *state);
+UA_StatusCode UA_LWS_validateTls(UA_LWSTlsState *state,
+                                UA_Boolean listener, UA_Boolean tls,
+                                const UA_KeyValueMap *params, UA_LWSTlsOptions *options);
+void UA_LWS_configureTls(struct lws_context_creation_info *info,
+                        UA_LWSTlsState *context, UA_Boolean listener,
+                        const UA_LWSTlsOptions *options);
+void UA_LWS_bindTls(UA_EventLoop *el, UA_LWSTlsBinding *binding,
+                    struct lws_vhost *vhost, UA_LWSTlsState *context,
+                    UA_Boolean listener);
+void UA_LWS_unbindTls(UA_EventLoop *el, UA_LWSTlsBinding *binding);
+int UA_LWS_tlsCallback(struct lws *wsi, enum lws_callback_reasons reason,
+                       void *user, void *in, size_t len);
+int UA_LWS_verifyTls(struct lws *wsi, void *storeContext, void *ssl, int preverify);
+
 #endif /* UA_EVENTLOOP_LIBWEBSOCKETS_H_ */

@@ -2799,19 +2799,10 @@ initConnect(UA_Client *client) {
             params[paramsSize].key = UA_QUALIFIEDNAME(0, "binary-only");
             UA_Variant_setScalar(&params[paramsSize++].value, &binaryOnly,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
-            params[paramsSize].key = UA_QUALIFIEDNAME(0, "useSSL");
+            params[paramsSize].key = UA_QUALIFIEDNAME(0, "tls");
             UA_Variant_setScalar(&params[paramsSize++].value, &useSSL,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
-#ifdef UA_ENABLE_LWS
-            if(client->config.webSocketCaCertificate.length > 0) {
-                params[paramsSize].key =
-                    UA_QUALIFIEDNAME(0, "ca-certificate");
-                UA_Variant_setScalar(
-                    &params[paramsSize++].value,
-                    &client->config.webSocketCaCertificate,
-                    &UA_TYPES[UA_TYPES_BYTESTRING]);
-            }
-#endif
+
             params[paramsSize].key =
                 UA_QUALIFIEDNAME(0, "recv-max-message-size");
             UA_Variant_setScalar(

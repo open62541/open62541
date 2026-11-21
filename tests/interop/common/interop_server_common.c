@@ -16,6 +16,7 @@
  */
 
 #include <open62541/server.h>
+#include "interop_tls.h"
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/certificategroup_default.h>
@@ -252,11 +253,8 @@ interopServerMain(int argc, char *argv[], UA_InteropTransport transport) {
        transport == UA_INTEROP_TRANSPORT_WEBSOCKET) {
         config->webSocketEnabled = true;
         config->tcpEnabled = false;
-        retval = UA_ByteString_copy(&certificate,
-                                    &config->webSocketCertificate);
-        if(retval == UA_STATUSCODE_GOOD)
-            retval = UA_ByteString_copy(&privateKey,
-                                        &config->webSocketPrivateKey);
+        retval = interopConfigureTls(config->eventLoop, false,
+                                      &certificate, &privateKey, NULL);
         if(retval == UA_STATUSCODE_GOOD) {
             UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                             &UA_TYPES[UA_TYPES_STRING]);
@@ -280,10 +278,8 @@ interopServerMain(int argc, char *argv[], UA_InteropTransport transport) {
         if(!config->httpListenAddress.data)
             retval = UA_STATUSCODE_BADOUTOFMEMORY;
         if(retval == UA_STATUSCODE_GOOD)
-            retval = UA_ByteString_copy(&certificate,
-                                        &config->httpCertificate);
-        if(retval == UA_STATUSCODE_GOOD)
-            retval = UA_ByteString_copy(&privateKey, &config->httpPrivateKey);
+            retval = interopConfigureTls(config->eventLoop, true,
+                                          &certificate, &privateKey, NULL);
         if(retval == UA_STATUSCODE_GOOD) {
             UA_Array_delete(config->serverUrls, config->serverUrlsSize,
                             &UA_TYPES[UA_TYPES_STRING]);

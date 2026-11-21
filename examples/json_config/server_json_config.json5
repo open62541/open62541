@@ -54,17 +54,14 @@
   },
 
   // OPC UA Binary over WebSockets is opt-in. Uncomment the opc.wss URL above,
-  // provide the TLS files and enable this block. These TLS credentials protect
-  // the WebSocket transport and are separate from OPC UA SecurityPolicies.
+  // enable this block and register a WebSocket ConnectionManager constructed
+  // with UA_TlsConfig. Configure HTTPS identity on its HTTP manager likewise.
   webSocketEnabled: false,
   webSocket: {
     webSocketBufSize: 65535,
     webSocketMaxMsgSize: 0,
     webSocketMaxChunks: 0,
     webSocketMaxQueueSize: 1048576,
-    // certificate: "./certs/server_cert.der",
-    // privateKey: "./certs/server_key.pem",
-    // privateKeyPassword: "secret",
   },
 
   // OPC UA services over HTTP(S) are opt-in. Part 6 defines opc.https;
@@ -81,9 +78,6 @@
     maxDecompressedMsgSize: 0, // 0 uses the 64 MiB safety default
     timeout: 60,
     // listenAddress: "", // Bind all interfaces
-    // certificate: "./certs/server_cert.der",
-    // privateKey: "./certs/server_key.pem",
-    // privateKeyPassword: "secret",
   },
 
   // Endpoint definitions exposed to clients. Match the client configuration.

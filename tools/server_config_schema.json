@@ -366,18 +366,6 @@
           "type": "integer",
           "description": "Maximum bytes queued for a slow WebSocket peer",
           "minimum": 1
-        },
-        "certificate": {
-          "type": "string",
-          "description": "Path to the WebSocket TLS certificate in DER or PEM format"
-        },
-        "privateKey": {
-          "type": "string",
-          "description": "Path to the WebSocket TLS private key in DER or PEM format"
-        },
-        "privateKeyPassword": {
-          "type": "string",
-          "description": "Optional password for the WebSocket TLS private key"
         }
       }
     },
@@ -403,18 +391,6 @@
         "listenAddress": {
           "type": "string",
           "description": "HTTPS bind address; an empty string listens on all interfaces while the ServerUrl remains the advertised endpoint"
-        },
-        "certificate": {
-          "type": "string",
-          "description": "Path to the HTTPS TLS certificate in DER or PEM format"
-        },
-        "privateKey": {
-          "type": "string",
-          "description": "Path to the HTTPS TLS private key in DER or PEM format"
-        },
-        "privateKeyPassword": {
-          "type": "string",
-          "description": "Optional password for the HTTPS TLS private key"
         }
       }
     },
