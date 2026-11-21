@@ -564,7 +564,8 @@ setMonitoredItemSubscriptionVisitor(void *context, UA_MonitoredItem *mon) {
 static UA_Boolean
 isDetachedSubscriptionOwner(const UA_Subscription *sub, const UA_Session *session) {
     if(!sub->ownerKnown || sub->ownerTokenType != session->userTokenType ||
-       !UA_String_equal(&sub->ownerUserId, &session->clientUserIdOfSession))
+       !UA_String_equal(&sub->ownerUserId, &session->clientUserIdOfSession) ||
+       !UA_ByteString_equal(&sub->ownerCertificate, &session->userCertificate))
         return false;
     if(sub->ownerUserId.length > 0)
         return true;
@@ -660,6 +661,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     /* The owner identity remains with (and is freed by) the original */
     newSub->ownerKnown = false;
     UA_String_init(&newSub->ownerUserId);
+    UA_ByteString_init(&newSub->ownerCertificate);
     UA_String_init(&newSub->ownerApplicationUri);
 
     /* Set to the same state as the original subscription */

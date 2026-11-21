@@ -124,7 +124,21 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         }
     } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
         /* x509 certificate was already validated against the sessionPKI in the
-         * server */
+         * server. The clientUserId is only the subject name, which need not
+         * identify the certificate. Store the certificate for
+         * allowTransferSubscription_default. */
+        const UA_X509IdentityToken *x509Token = (const UA_X509IdentityToken*)
+            userIdentityToken->content.decoded.data;
+        UA_Variant userCert;
+        UA_Variant_setScalar(&userCert,
+                             (void*)(uintptr_t)&x509Token->certificateData,
+                             &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_StatusCode res =
+            UA_Server_setSessionAttribute(server, sessionId,
+                                          UA_QUALIFIEDNAME(0, "userCertificate"),
+                                          &userCert);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     } else {
         /* Unsupported token type */
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
@@ -370,6 +384,33 @@ allowCreateSubscription_default(UA_Server *server, UA_AccessControl *ac,
     return true;
 }
 
+/* The user certificate stored in activateSession_default. Absent for the
+ * other token types. */
+static UA_Boolean
+sameUserCertificate(UA_Server *server, const UA_NodeId *sessionId1,
+                    const UA_NodeId *sessionId2) {
+    UA_Variant cert1;
+    UA_Variant_init(&cert1);
+    UA_Server_getSessionAttribute(server, sessionId1,
+                                  UA_QUALIFIEDNAME(0, "userCertificate"),
+                                  &cert1);
+    UA_Variant cert2;
+    UA_Variant_init(&cert2);
+    UA_Server_getSessionAttribute(server, sessionId2,
+                                  UA_QUALIFIEDNAME(0, "userCertificate"),
+                                  &cert2);
+    const UA_ByteString *c1 =
+        UA_Variant_hasScalarType(&cert1, &UA_TYPES[UA_TYPES_BYTESTRING]) ?
+        (const UA_ByteString*)cert1.data : &UA_BYTESTRING_NULL;
+    const UA_ByteString *c2 =
+        UA_Variant_hasScalarType(&cert2, &UA_TYPES[UA_TYPES_BYTESTRING]) ?
+        (const UA_ByteString*)cert2.data : &UA_BYTESTRING_NULL;
+    UA_Boolean equal = UA_ByteString_equal(c1, c2);
+    UA_Variant_clear(&cert1);
+    UA_Variant_clear(&cert2);
+    return equal;
+}
+
 static UA_Boolean
 allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
@@ -475,7 +516,7 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
             }
         } else if(UA_String_equal(userId1, userId2)) {
             /* Same authenticated user - allow transfer */
-            result = true;
+            result = sameUserCertificate(server, oldSessionId, newSessionId);
         }
     }
     
