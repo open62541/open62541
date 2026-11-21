@@ -95,10 +95,6 @@ notifySubscription(UA_Server *server, UA_Subscription *sub,
 static UA_UInt32
 nextSubscriptionId(UA_Server *server) {
     UA_UInt32 last = server->lastSubscriptionId;
-    if(!server->subscriptionIdWrapped && last < UA_UINT32_MAX)
-        return last + 1;
-
-    server->subscriptionIdWrapped = true;
     UA_UInt32 first = (last == UA_UINT32_MAX) ? 1 : last + 1;
     UA_UInt32 candidate = first;
     do {

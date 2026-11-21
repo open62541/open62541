@@ -208,7 +208,6 @@ struct UA_Server {
                                                  * server. They may be detached
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
-    UA_Boolean subscriptionIdWrapped;
 
 #endif
 
