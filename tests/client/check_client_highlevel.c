@@ -35,6 +35,20 @@ static void setup(void) {
 
     ck_assert_uint_eq(2, UA_Server_addNamespace(server, CUSTOM_NS));
 
+    /* Writable NodeId-valued target, used to check NamespaceIndex translation */
+    UA_NodeId initial = UA_NODEID_NUMERIC(0, 0);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Variant_setScalar(&attr.value, &initial, &UA_TYPES[UA_TYPES_NODEID]);
+    attr.dataType = UA_TYPES[UA_TYPES_NODEID].typeId;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    ck_assert_uint_eq(UA_Server_addVariableNode(server,
+                          UA_NODEID_STRING(1, "nsmapping.target"),
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          UA_QUALIFIEDNAME(1, "nsmapping.target"),
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                          attr, NULL, NULL), UA_STATUSCODE_GOOD);
+
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 
@@ -71,6 +85,65 @@ START_TEST(Misc_NamespaceGetIndex) {
     ns = UA_STRING(CUSTOM_NS_UPPER);
     retval = UA_Client_NamespaceGetIndex(client, &ns, &idx);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+} END_TEST
+
+/* Writes a NodeId-valued Variant and reads it back. The NamespaceIndex is
+ * translated on the way out and back, so it must survive the roundtrip. */
+static UA_UInt16
+nodeIdNamespaceRoundtrip(UA_Client *c, UA_UInt16 nsIndex) {
+    UA_NodeId target = UA_NODEID_STRING(1, "nsmapping.target");
+    UA_NodeId sent = UA_NODEID_STRING(nsIndex, "x");
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_Variant_setScalar(&v, &sent, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Client_writeValueAttribute(c, target, &v),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Variant stored;
+    UA_Variant_init(&stored);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(c, target, &stored),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_isScalar(&stored));
+    ck_assert(stored.type == &UA_TYPES[UA_TYPES_NODEID]);
+    UA_UInt16 received = ((UA_NodeId *)stored.data)->namespaceIndex;
+    UA_Variant_clear(&stored);
+    return received;
+}
+
+/* A namespace that only the client knows has no remote counterpart. It must not
+ * be mapped onto ns0, which is a valid namespace of its own. */
+START_TEST(Misc_LocalOnlyNamespaceNotMappedToNs0) {
+    /* This client declares a namespace before connecting that the server does
+     * not have in its NamespaceArray. */
+    UA_Client *c2 = UA_Client_newForUnitTest();
+    UA_UInt16 localOnly = 0;
+    ck_assert_uint_eq(UA_Client_addNamespace(c2, UA_STRING("urn:open62541.test.local-only"),
+                                             &localOnly), UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(localOnly, 1);
+    ck_assert_uint_eq(UA_Client_connect(c2, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    /* The namespace array of the server is read asynchronously after the
+     * session is activated. The mapping is installed once its namespaces have
+     * been merged into the local list. */
+    UA_UInt16 shared = 0;
+    UA_String customNs = UA_STRING(CUSTOM_NS);
+    for(size_t i = 0; i < 100; i++) {
+        if(UA_Client_getNamespaceIndex(c2, customNs, &shared) == UA_STATUSCODE_GOOD)
+            break;
+        UA_Client_run_iterate(c2, 10);
+    }
+    ck_assert_uint_gt(shared, 1);
+
+    /* A namespace both sides know survives the roundtrip. */
+    ck_assert_uint_eq(nodeIdNamespaceRoundtrip(c2, shared), shared);
+
+    /* So must one that only the client knows. Mapping it to ns0 on the way out
+     * makes it come back as ns0. */
+    ck_assert_uint_eq(nodeIdNamespaceRoundtrip(c2, localOnly), localOnly);
+
+    UA_Client_disconnect(c2);
+    UA_Client_delete(c2);
 } END_TEST
 
 UA_NodeId newReferenceTypeId;
@@ -1369,6 +1442,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_checked_fixture(tc_misc, setup, teardown);
     tcase_add_test(tc_misc, Misc_State);
     tcase_add_test(tc_misc, Misc_NamespaceGetIndex);
+    tcase_add_test(tc_misc, Misc_LocalOnlyNamespaceNotMappedToNs0);
     suite_add_tcase(s, tc_misc);
 
     TCase *tc_nodes = tcase_create("Client Highlevel Node Management");
