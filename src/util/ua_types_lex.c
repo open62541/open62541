@@ -306,7 +306,8 @@ yy14:
         /* NamespaceIndex */
         UA_UInt32 tmp;
         size_t len = (size_t)(body - 1 - ns);
-        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len ||
+           tmp > UA_UINT16_MAX)
             return UA_STATUSCODE_BADDECODINGERROR;
         id->namespaceIndex = (UA_UInt16)tmp;
         if(nsMapping)
@@ -653,7 +654,8 @@ yy39:
         /* NamespaceIndex */
         UA_UInt32 tmp;
         size_t len = (size_t)(body - 1 - ns);
-        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len ||
+           tmp > UA_UINT16_MAX)
             return UA_STATUSCODE_BADDECODINGERROR;
         id->nodeId.namespaceIndex = (UA_UInt16)tmp;
         if(nsMapping)
@@ -805,7 +807,8 @@ yy51:
 
  match_index:
     len = (size_t)(pos - 1 - begin);
-    if(UA_readNumber((const UA_Byte*)begin, len, &tmp) != len)
+    if(UA_readNumber((const UA_Byte*)begin, len, &tmp) != len ||
+       tmp > UA_UINT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
     qn->namespaceIndex = (UA_UInt16)tmp;
     if(nsMapping)
