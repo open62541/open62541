@@ -659,6 +659,16 @@ UA_EventLoopZephyr_pollFDs(UA_EventLoopZephyr *el, UA_DateTime listenTimeout) {
         return UA_STATUSCODE_GOOD;
     }
 
+    /* Consume the wakeup so the next iteration can block again. */
+    if(UA_FD_ISSET(el->ef, &readset)) {
+        eventfd_t count;
+        if(eventfd_read(el->ef, &count) < 0 && errno != EAGAIN) {
+            UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(el->eventLoop.logger,
+                                      UA_LOGCATEGORY_EVENTLOOP,
+                                      "Error reading wakeup eventfd: %s", errno_str));
+        }
+    }
+
     /* Loop over all registered FD to see if an event arrived. Yes, this is why
      * select is slow for many open sockets. */
     for(size_t i = 0; i < el->fdsSize; i++) {
@@ -701,12 +711,12 @@ UA_EventLoopZephyr_cancel(UA_EventLoopZephyr *el) {
     if(!el->executing)
         return;
 
-    /* Trigger the self-pipe */
-    int err = eventfd_write(0, 0);
-    if(err <= 0) {
+    /* A saturated counter already has a wakeup pending. */
+    int err = eventfd_write(el->ef, 1);
+    if(err < 0 && errno != EAGAIN) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                           "Eventloop\t| Error signaling self-pipe (%s)", errno_str));
+                           "Eventloop\t| Error signaling wakeup eventfd (%s)", errno_str));
     }
 }
 

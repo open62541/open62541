@@ -1,0 +1,5 @@
+tests:
+  open62541.eventloop.wakeup:
+    tags: eventloop
+    platform_allow:
+      - mps2/an385
