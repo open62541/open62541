@@ -2028,8 +2028,11 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
                 const size_t size = *((const size_t*)ptrs);
                 ptrs += sizeof(size_t);
                 ptrd += sizeof(size_t);
-                retval |= UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
-                if(retval == UA_STATUSCODE_GOOD)
+                UA_StatusCode memberResult =
+                    UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
+                retval |= memberResult;
+                /* Cleanup needs this array's length even if an earlier member failed. */
+                if(memberResult == UA_STATUSCODE_GOOD)
                     *dst_size = size;
                 else
                     *dst_size = 0;
@@ -2046,8 +2049,10 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
                     const size_t size = *((const size_t*)ptrs);
                     ptrs += sizeof(size_t);
                     ptrd += sizeof(size_t);
-                    retval |= UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
-                    if(retval == UA_STATUSCODE_GOOD)
+                    UA_StatusCode memberResult =
+                        UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
+                    retval |= memberResult;
+                    if(memberResult == UA_STATUSCODE_GOOD)
                         *dst_size = size;
                     else
                         *dst_size = 0;

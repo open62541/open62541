@@ -125,6 +125,59 @@ START_TEST(stringMutationAllocationFailure) {
     ck_assert_uint_eq(live, 0);
 } END_TEST
 
+START_TEST(structureArrayCopyRollback) {
+    typedef struct {
+        UA_String first;
+        size_t itemsSize;
+        UA_String *items;
+    } Record;
+    UA_DataTypeMember members[] = {
+        {UA_TYPENAME("First") &UA_TYPES[UA_TYPES_STRING], 0, false, false},
+        {UA_TYPENAME("Items") &UA_TYPES[UA_TYPES_STRING],
+         offsetof(Record, itemsSize) - sizeof(UA_String), true, _i != 0}
+    };
+    UA_DataType type;
+    memset(&type, 0, sizeof(type));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    type.typeName = "ArrayCopyRollback";
+#endif
+    type.typeKind = _i ? UA_DATATYPEKIND_STRUCTUREOPT : UA_DATATYPEKIND_STRUCTURE;
+    type.memSize = sizeof(Record);
+    type.membersSize = 2;
+    type.members = members;
+
+    UA_String items[] = {UA_STRING("en"), UA_STRING("de")};
+    Record src = {UA_STRING("first"), 2, items};
+    Record dst;
+    ck_assert_uint_eq(UA_copy(&src, &dst, &type), UA_STATUSCODE_GOOD);
+    size_t count = allocationIndex;
+    ck_assert_uint_gt(count, 0);
+    ck_assert_uint_eq(dst.itemsSize, src.itemsSize);
+    ck_assert_ptr_ne(dst.items, src.items);
+    ck_assert(UA_equal(&src, &dst, &type));
+    UA_clear(&dst, &type);
+    ck_assert_uint_eq(live, 0);
+
+    for(size_t failure = 0; failure < count; failure++) {
+        allocationIndex = 0;
+        failingAllocation = failure;
+        ck_assert_uint_eq(UA_copy(&src, &dst, &type), UA_STATUSCODE_BADOUTOFMEMORY);
+        /* If the first string fails, the later array can still succeed.
+         * Rollback must free its elements, not just the array container. */
+        ck_assert_uint_eq(live, 0);
+        ck_assert_ptr_null(dst.first.data);
+        ck_assert_ptr_null(dst.items);
+        ck_assert_uint_eq(src.itemsSize, 2);
+        ck_assert_ptr_eq(src.items, items);
+
+        failingAllocation = (size_t)-1;
+        ck_assert_uint_eq(UA_copy(&src, &dst, &type), UA_STATUSCODE_GOOD);
+        ck_assert(UA_equal(&src, &dst, &type));
+        UA_clear(&dst, &type);
+        ck_assert_uint_eq(live, 0);
+    }
+} END_TEST
+
 #ifdef UA_TYPES_STRUCTUREDESCRIPTION
 static UA_StatusCode
 operation(int mode) {
@@ -227,6 +280,10 @@ int main(void) {
     tcase_add_loop_test(strings, stringAllocationFailure, 0, 2);
     tcase_add_loop_test(strings, stringMutationAllocationFailure, 0, 6);
     suite_add_tcase(s, strings);
+    TCase *structures = tcase_create("Structured-copy rollback");
+    tcase_add_checked_fixture(structures, setup, teardown);
+    tcase_add_loop_test(structures, structureArrayCopyRollback, 0, 2);
+    suite_add_tcase(s, structures);
 #endif
     SRunner *runner = srunner_create(s);
     srunner_set_fork_status(runner, CK_NOFORK);
