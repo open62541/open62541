@@ -785,6 +785,9 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
         vAttr.displayName.locale = UA_STRING("");
         vAttr.displayName.text = pMetaData->fields[i].name;
         vAttr.dataType = pMetaData->fields[i].dataType;
+        vAttr.valueRank = pMetaData->fields[i].valueRank;
+        vAttr.arrayDimensionsSize = pMetaData->fields[i].arrayDimensionsSize;
+        vAttr.arrayDimensions = pMetaData->fields[i].arrayDimensions;
         UA_QualifiedName varname = {1, pMetaData->fields[i].name};
         res = addNode(server, UA_NODECLASS_VARIABLE,
                       targetVars->targetVariables[i].targetNodeId, folderId,
