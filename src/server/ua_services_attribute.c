@@ -2450,10 +2450,27 @@ Operation_WriteWithNode(UA_Server *server, UA_Session *session,
 UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
-    UA_Node *node =
-        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &wv->nodeId, wv->attributeId,
-                                        UA_REFERENCETYPESET_NONE,
-                                        UA_BROWSEDIRECTION_INVALID);
+    /* Validation uses attributes beyond the one being written. Changes to the
+     * variable definition also check the type, its subtypes and its instances. */
+    UA_ReferenceTypeSet refs = UA_REFERENCETYPESET_NONE;
+    UA_BrowseDirection direction = UA_BROWSEDIRECTION_INVALID;
+    if(wv->attributeId == UA_ATTRIBUTEID_DATATYPE ||
+       wv->attributeId == UA_ATTRIBUTEID_VALUERANK ||
+       wv->attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS) {
+        refs = UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION),
+                                         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE));
+        direction = UA_BROWSEDIRECTION_BOTH;
+    }
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Semantic changes on a Property follow its inverse HasProperty references,
+     * including subtypes, to the owner. */
+    if(wv->attributeId == UA_ATTRIBUTEID_VALUE) {
+        refs = UA_REFERENCETYPESET_ALL;
+        direction = UA_BROWSEDIRECTION_INVERSE;
+    }
+#endif
+    UA_Node *node = UA_NODESTORE_GET_EDIT_SELECTIVE(server, &wv->nodeId, ~(UA_UInt32)0,
+                                                    refs, direction);
     if(!node) {
         *result = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return true;

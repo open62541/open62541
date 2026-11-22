@@ -42,7 +42,9 @@ UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId,
 UA_StatusCode
 getNodeContext(UA_Server *server, UA_NodeId nodeId,
                void **nodeContext) {
-    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &nodeId, 0, UA_REFERENCETYPESET_NONE,
+                                   UA_BROWSEDIRECTION_INVALID);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     *nodeContext = node->head.context;
@@ -87,17 +89,33 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
     return retval;
 }
 
+/* Get the NodeClass and optionally the context of a node. Only the NodeClass
+ * attribute is requested from the Nodestore. */
+static UA_StatusCode
+getNodeClass(UA_Server *server, const UA_NodeId *nodeId,
+             UA_NodeClass *nodeClass, void **nodeContext) {
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, nodeId, UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    *nodeClass = node->head.nodeClass;
+    if(nodeContext)
+        *nodeContext = node->head.context;
+    UA_NODESTORE_RELEASE(server, node);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Run the first lifecycle phase once the raw node and its defining references
  * are available, but before automatic child instantiation. */
 UA_StatusCode
 callEarlyConstructors(UA_Server *server, UA_Session *session,
                       const UA_NodeId *nodeId) {
-    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    void *context = node->head.context;
-    UA_NodeClass nodeClass = node->head.nodeClass;
-    UA_NODESTORE_RELEASE(server, node);
+    void *context = NULL;
+    UA_NodeClass nodeClass;
+    UA_StatusCode res = getNodeClass(server, nodeId, &nodeClass, &context);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     UA_Boolean called = false;
     UA_GlobalNodeLifecycle *global = server->config.nodeLifecycle;
@@ -115,15 +133,20 @@ callEarlyConstructors(UA_Server *server, UA_Session *session,
      * supports nodes whose references are completed manually before _finish. */
     if(nodeClass == UA_NODECLASS_OBJECT ||
        nodeClass == UA_NODECLASS_VARIABLE) {
-        node = UA_NODESTORE_GET(server, nodeId);
+        /* getNodeType follows the HasTypeDefinition reference of the node */
+        const UA_Node *node =
+            UA_NODESTORE_GET_SELECTIVE(server, nodeId, UA_NODEATTRIBUTESMASK_NODECLASS,
+                                       UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION),
+                                       UA_BROWSEDIRECTION_FORWARD);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
         if(node->head.nodeClass != nodeClass) {
             UA_NODESTORE_RELEASE(server, node);
             return UA_STATUSCODE_BADNODECLASSINVALID;
         }
+        /* The callback receives the type NodeId and context. */
         const UA_Node *type =
-            getNodeType(server, &node->head, 0,
+            getNodeType(server, &node->head, UA_NODEATTRIBUTESMASK_NODECLASS | UA_NODEATTRIBUTESMASK_NODEID,
                         UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
         UA_NODESTORE_RELEASE(server, node);
 
@@ -158,12 +181,11 @@ callEarlyConstructors(UA_Server *server, UA_Session *session,
 
     /* A lifecycle callback may re-enter the server. Do not apply the context to
      * a replacement node of a different class. */
-    node = UA_NODESTORE_GET(server, nodeId);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    UA_Boolean sameNodeClass = (node->head.nodeClass == nodeClass);
-    UA_NODESTORE_RELEASE(server, node);
-    if(!sameNodeClass)
+    UA_NodeClass currentNodeClass;
+    res = getNodeClass(server, nodeId, &currentNodeClass, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(currentNodeClass != nodeClass)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     return setNodeContext(server, *nodeId, context);
 }
@@ -219,20 +241,21 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
         return UA_STATUSCODE_GOOD;
     }
 
-    /* See if the parent exists */
-    const UA_Node *parent = UA_NODESTORE_GET(server, parentNodeId);
-    if(!parent) {
+    /* See if the parent exists. Only its NodeClass is used. */
+    UA_NodeClass parentNodeClass;
+    if(getNodeClass(server, parentNodeId, &parentNodeClass, NULL) != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "AddNode (%N): Parent node %N not found",
                             head->nodeId, *parentNodeId);
         return UA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
 
-    UA_NodeClass parentNodeClass = parent->head.nodeClass;
-    UA_NODESTORE_RELEASE(server, parent);
-
-    /* Check the referencetype exists */
-    const UA_Node *referenceType = UA_NODESTORE_GET(server, referenceTypeId);
+    /* Check the referencetype exists. NodeClass, IsAbstract and the
+     * reference type index are used. */
+    const UA_Node *referenceType =
+        UA_NODESTORE_GET_SELECTIVE(server, referenceTypeId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS | UA_NODEATTRIBUTESMASK_ISABSTRACT,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
     if(!referenceType) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "AddNode (%N): Reference type %N to the parent not found",
@@ -767,8 +790,11 @@ static const UA_ExpandedNodeId mandatoryId =
 static UA_Boolean
 isMandatoryChild(UA_Server *server, UA_Session *session,
                  const UA_NodeId *childNodeId) {
-    /* Get the child */
-    const UA_Node *child = UA_NODESTORE_GET(server, childNodeId);
+    /* Get the child with its forward HasModellingRule references */
+    const UA_Node *child =
+        UA_NODESTORE_GET_SELECTIVE(server, childNodeId, 0,
+                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASMODELLINGRULE),
+                                   UA_BROWSEDIRECTION_FORWARD);
     if(!child)
         return false;
 
@@ -1174,9 +1200,12 @@ UA_StatusCode
 addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
                 const UA_NodeId *typeDefinitionId) {
-    /* Get the node */
+    /* Parent validation and reference creation use the NodeClass and NodeId. */
     const UA_Node *type = NULL;
-    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, nodeId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS | UA_NODEATTRIBUTESMASK_NODEID,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -1188,12 +1217,10 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
        head->nodeClass == UA_NODECLASS_DATATYPE) {
         if(UA_NodeId_equal(referenceTypeId, &UA_NODEID_NULL))
             referenceTypeId = &hasSubtype;
-        const UA_Node *parentNode = UA_NODESTORE_GET(server, parentNodeId);
-        if(parentNode) {
-            if(parentNode->head.nodeClass == head->nodeClass)
-                typeDefinitionId = parentNodeId;
-            UA_NODESTORE_RELEASE(server, parentNode);
-        }
+        UA_NodeClass parentNodeClass;
+        if(getNodeClass(server, parentNodeId, &parentNodeClass, NULL) == UA_STATUSCODE_GOOD &&
+           parentNodeClass == head->nodeClass)
+            typeDefinitionId = parentNodeId;
     }
 
     UA_StatusCode retval;
@@ -1232,7 +1259,7 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     if(!UA_NodeId_isNull(typeDefinitionId)) {
         /* Get the type node */
         type = UA_NODESTORE_GET_SELECTIVE(server, typeDefinitionId,
-                                         UA_NODEATTRIBUTESMASK_ISABSTRACT,
+                                         UA_NODEATTRIBUTESMASK_NODECLASS | UA_NODEATTRIBUTESMASK_ISABSTRACT,
                                          UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
         if(!type) {
             UA_LOG_INFO_SESSION(server->config.logging, session,
@@ -1357,7 +1384,7 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
        head->nodeClass == UA_NODECLASS_OBJECT) {
         UA_assert(type != NULL); /* see above */
         retval = addRefWithSession(server, session, &head->nodeId, &hasTypeDefinition,
-                                   &type->head.nodeId, true);
+                                   typeDefinitionId, true);
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(server->config.logging, session, nodeId,
                        "Adding a reference to the type definition failed");
@@ -1608,7 +1635,12 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
         UA_ReferenceDescription *rd = &br.references[i];
         if(!UA_ExpandedNodeId_isLocal(&rd->nodeId))
             continue;
-        const UA_Node *target = UA_NODESTORE_GET(server, &rd->nodeId.nodeId);
+        /* The constructed flag, the NodeClass and the HasTypeDefinition
+         * reference (for getNodeType) are used. */
+        const UA_Node *target =
+            UA_NODESTORE_GET_SELECTIVE(server, &rd->nodeId.nodeId, UA_NODEATTRIBUTESMASK_NODECLASS,
+                                       UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION),
+                                       UA_BROWSEDIRECTION_FORWARD);
         if(!target)
             continue;
         if(target->head.constructed) {
@@ -1620,7 +1652,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
         const UA_Node *targetType = NULL;
         if(target->head.nodeClass == UA_NODECLASS_VARIABLE ||
            target->head.nodeClass == UA_NODECLASS_OBJECT) {
-            targetType = getNodeType(server, &target->head, 0,
+            targetType = getNodeType(server, &target->head, UA_NODEATTRIBUTESMASK_NODEID,
                                      UA_REFERENCETYPESET_NONE,
                                      UA_BROWSEDIRECTION_INVALID);
             if(!targetType) {
@@ -1645,13 +1677,12 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Get the node context */
-    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    void *context = node->head.context;
-    UA_NodeClass nodeClass = node->head.nodeClass;
-    UA_NODESTORE_RELEASE(server, node);
+    /* Get the node context and class */
+    void *context = NULL;
+    UA_NodeClass nodeClass;
+    retval = getNodeClass(server, nodeId, &nodeClass, &context);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Call the global constructor */
     if(server->config.nodeLifecycle &&
@@ -1741,7 +1772,8 @@ static UA_StatusCode
 setVariableNodeDynamic(UA_Server *server, const UA_NodeId *nodeId,
                        UA_Boolean isDynamic) {
     UA_Node *node =
-        UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeId, 0, UA_REFERENCETYPESET_NONE,
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeId, UA_NODEATTRIBUTESMASK_NODECLASS,
+                                        UA_REFERENCETYPESET_NONE,
                                         UA_BROWSEDIRECTION_INVALID);
     if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -2311,7 +2343,13 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
 
     /* Deconstruct the nodes based on the RefTree entries, parent nodes first */
     for(size_t i = 0; i < refTree->size; i++) {
-        const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i].nodeId);
+        /* The context, the NodeClass and the HasTypeDefinition reference (for
+         * getNodeType) are used. */
+        const UA_Node *member =
+            UA_NODESTORE_GET_SELECTIVE(server, &refTree->targets[i].nodeId,
+                                       UA_NODEATTRIBUTESMASK_NODECLASS,
+                                       UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION),
+                                       UA_BROWSEDIRECTION_FORWARD);
         if(!member)
             continue;
 
@@ -2320,7 +2358,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         if(member->head.nodeClass == UA_NODECLASS_OBJECT ||
            member->head.nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_Node *type =
-                getNodeType(server, &member->head, 0,
+                getNodeType(server, &member->head, UA_NODEATTRIBUTESMASK_NODEID,
                             UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
             if(type) {
                /* Get the lifecycle */
@@ -2335,7 +2373,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
                   lifecycle->destructor(server,
                                         &session->sessionId, session->context,
                                         &type->head.nodeId, type->head.context,
-                                        &member->head.nodeId, &context);
+                                        &refTree->targets[i].nodeId, &context);
                }
 
                /* Release the type node */
@@ -2348,7 +2386,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
            server->config.nodeLifecycle->destructor) {
             server->config.nodeLifecycle->destructor(server, &session->sessionId,
                                                      session->context,
-                                                     &member->head.nodeId, context);
+                                                     &refTree->targets[i].nodeId, context);
         }
 
         /* Release the node. Don't access the node context from here on. */
@@ -2372,8 +2410,11 @@ static void *
 deleteChildrenCallback(void *context, UA_ReferenceTarget *t) {
     struct DeleteChildrenContext *ctx = (struct DeleteChildrenContext*)context;
 
-    /* Get the child */
-    const UA_Node *child = UA_NODESTORE_GETFROMREF(ctx->server, t->targetId);
+    /* Get the child with its inverse hierarchical references (its parents) */
+    const UA_Node *child =
+        UA_NODESTORE_GETFROMREF_SELECTIVE(ctx->server, t->targetId, UA_NODEATTRIBUTESMASK_NODEID,
+                                          *ctx->hierarchRefsSet,
+                                          UA_BROWSEDIRECTION_INVERSE);
     if(!child)
         return NULL;
 
@@ -2432,7 +2473,10 @@ buildDeleteNodeSet(UA_Server *server, UA_Session *session,
      * there are no "callback" ExpandedNodeId in the RefTree. */
     size_t pos = 0;
     while(pos < refTree->size) {
-        const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[pos].nodeId);
+        /* autoDeleteChildren follows the forward hierarchical references */
+        const UA_Node *member =
+            UA_NODESTORE_GET_SELECTIVE(server, &refTree->targets[pos].nodeId, 0,
+                                       *hierarchRefsSet, UA_BROWSEDIRECTION_FORWARD);
         pos++;
         if(!member)
             continue;
@@ -2480,7 +2524,14 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
         }
     }
 
-    const UA_Node *node = UA_NODESTORE_GET(server, &item->nodeId);
+    /* UA_Node_hasSubTypeOrInstances looks at the HasSubtype and
+     * HasTypeDefinition references */
+    UA_ReferenceTypeSet typeRefs =
+        UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE),
+                                  UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION));
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &item->nodeId, 0, typeRefs,
+                                   UA_BROWSEDIRECTION_BOTH);
     if(!node) {
         *result = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
@@ -2489,7 +2540,7 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
     if(UA_Node_hasSubTypeOrInstances(&node->head)) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "DeleteNode (%N): Cannot delete a type node with "
-                            "active instances or subtypes", node->head.nodeId);
+                            "active instances or subtypes", item->nodeId);
         UA_NODESTORE_RELEASE(server, node);
         *result = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -2646,8 +2697,10 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
     }
 
     /* Check the ReferenceType and get the index */
-    const UA_Node *refType = UA_NODESTORE_GET_SELECTIVE(server, &item->referenceTypeId, 0,
-                              UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+    const UA_Node *refType =
+        UA_NODESTORE_GET_SELECTIVE(server, &item->referenceTypeId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
     if(!refType) {
         UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Cannot add reference - ReferenceType %N unknown",
@@ -2875,7 +2928,8 @@ Operation_deleteReference_inner(UA_Server *server, UA_Session *session, void *co
     /* Check the ReferenceType and get the RefTypeIndex */
     const UA_Node *refType =
         UA_NODESTORE_GET_SELECTIVE(server, &item->referenceTypeId,
-                                   0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
     if(!refType) {
         *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         return;
@@ -3517,7 +3571,9 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
                                 const UA_NodeId methodNodeId,
                                 UA_MethodCallback *outMethodCallback) {
     lockServer(server);
-    const UA_Node *node = UA_NODESTORE_GET(server, &methodNodeId);
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &methodNodeId, UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
     if(!node) {
         unlockServer(server);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
