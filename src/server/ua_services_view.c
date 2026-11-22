@@ -545,6 +545,10 @@ struct ContinuationPoint {
     UA_NodePointer lastTarget;
     UA_Byte lastRefKindIndex;
     UA_Boolean lastRefInverse;
+
+    /* The nodestore phase can start on the next page with an empty token. */
+    UA_Boolean nodeReferencesDone;
+    UA_ByteString nodestoreContinuationPoint;
 };
 
 static void
@@ -552,6 +556,7 @@ ContinuationPoint_clear(ContinuationPoint *cp) {
     UA_ByteString_clear(&cp->identifier);
     UA_BrowseDescription_clear(&cp->browseDescription);
     UA_NodePointer_clear(&cp->lastTarget);
+    UA_ByteString_clear(&cp->nodestoreContinuationPoint);
 }
 
 void
@@ -571,8 +576,6 @@ struct BrowseContext {
     UA_Server *server;
     UA_Session *session;
     UA_NodeReferenceKind *rk;
-    UA_ReferenceTypeSet resultRefs; /* With additional references for type
-                                     * lookups */
     UA_Boolean activeCP; /* true during "forwarding" to the position of the last
                           * reference target */
 
@@ -711,7 +714,7 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
     return NULL;
 }
 
-/* Returns whether the node / continuationpoint is done */
+/* Consume native references up to the page limit. */
 static void
 browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
     ContinuationPoint *cp = bc->cp;
@@ -813,7 +816,7 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
     UA_NodePointer_init(&cp->lastTarget);
 
     /* Browsing the node is done */
-    bc->done = true;
+    cp->nodeReferencesDone = true;
 }
 
 /* Results for a single browsedescription. This is the inner loop for both
@@ -846,7 +849,9 @@ browseResolvedNode(struct BrowseContext *bc, const UA_Node *node) {
         }
     }
 
-    /* Browse the node */
+    /* BrowseNext still checks source access after the node phase ends. */
+    if(cp->nodeReferencesDone)
+        return;
     browseWithNode(bc, &node->head);
 
     /* Is the reference type valid? This is very infrequent. So we only test
@@ -874,19 +879,97 @@ browseResolvedNode(struct BrowseContext *bc, const UA_Node *node) {
 }
 
 static void
-browse(struct BrowseContext *bc) {
-    const UA_BrowseDescription *descr = &bc->cp->browseDescription;
-    const UA_Node *node =
-        UA_NODESTORE_GET_SELECTIVE(bc->server, &descr->nodeId,
-                                   resultMask2AttributesMask(descr->resultMask),
-                                   bc->resultRefs, descr->browseDirection);
-    if(!node) {
-        bc->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        return;
+browseNodestore(struct BrowseContext *bc) {
+    ContinuationPoint *cp = bc->cp;
+    RefResult *rr = &bc->rr;
+    UA_UInt32 slots = cp->maxReferences - (UA_UInt32)rr->size;
+    if(slots == 0)
+        return; /* Start the nodestore phase on the next page. */
+
+    UA_Nodestore *ns = bc->server->config.nodestore;
+    UA_BrowseResult page;
+    UA_BrowseResult_init(&page);
+    ns->browseReferences(ns, &cp->browseDescription, &cp->relevantReferences,
+                         bc->session->localeIdsSize, bc->session->localeIds,
+                         &cp->nodestoreContinuationPoint, slots, &page);
+    bc->status = page.statusCode;
+    if(bc->status != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    if(page.referencesSize > slots) {
+        bc->status = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
     }
 
-    browseResolvedNode(bc, node);
-    UA_NODESTORE_RELEASE(bc->server, node);
+    /* Move the descriptions. A page with only nodestore references can take
+     * over the entire array, including its variable-length fields. */
+    if(page.referencesSize > 0) {
+        size_t total = rr->size + page.referencesSize; /* bounded by maxReferences */
+        if(rr->size == 0) {
+            UA_free(rr->descr);
+            rr->descr = page.references;
+            rr->capacity = total;
+            page.references = NULL;
+        } else {
+            if(total > rr->capacity) {
+                bc->status = UA_Array_resize((void**)&rr->descr, &rr->capacity, total,
+                                             &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
+                if(bc->status != UA_STATUSCODE_GOOD)
+                    goto cleanup;
+            }
+            memcpy(&rr->descr[rr->size], page.references,
+                   page.referencesSize * sizeof(UA_ReferenceDescription));
+        }
+        rr->size = total;
+        page.referencesSize = 0;
+    }
+
+    UA_ByteString_clear(&cp->nodestoreContinuationPoint);
+    cp->nodestoreContinuationPoint = page.continuationPoint;
+    UA_ByteString_init(&page.continuationPoint);
+    bc->done = (cp->nodestoreContinuationPoint.length == 0);
+ cleanup:
+    UA_BrowseResult_clear(&page);
+}
+
+static void
+browsePage(struct BrowseContext *bc, const UA_Node *node, UA_BrowseResult *result) {
+    ContinuationPoint *cp = bc->cp;
+    if(node) {
+        browseResolvedNode(bc, node);
+    } else {
+        const UA_BrowseDescription *bd = &cp->browseDescription;
+        if(cp->nodeReferencesDone) {
+            node = UA_NODESTORE_GET_SELECTIVE(bc->server, &bd->nodeId,
+                                              UA_NODEATTRIBUTESMASK_NODEID, UA_REFERENCETYPESET_NONE,
+                                              UA_BROWSEDIRECTION_INVALID);
+        } else {
+            node = UA_NODESTORE_GET_SELECTIVE(bc->server, &bd->nodeId,
+                                              resultMask2AttributesMask(bd->resultMask),
+                                              cp->relevantReferences, bd->browseDirection);
+        }
+        if(node) {
+            browseResolvedNode(bc, node);
+            UA_NODESTORE_RELEASE(bc->server, node);
+        } else {
+            bc->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        }
+    }
+
+    if(bc->status == UA_STATUSCODE_GOOD && cp->nodeReferencesDone) {
+        if(bc->server->config.nodestore->browseReferences)
+            browseNodestore(bc);
+        else
+            bc->done = true;
+    }
+
+    result->statusCode = bc->status;
+    if(bc->status == UA_STATUSCODE_GOOD && bc->rr.size > 0) {
+        result->references = bc->rr.descr;
+        result->referencesSize = bc->rr.size;
+    } else {
+        RefResult_clear(&bc->rr);
+        result->references = (UA_ReferenceDescription*)UA_EMPTY_ARRAY_SENTINEL;
+    }
 }
 
 typedef struct {
@@ -940,32 +1023,16 @@ Operation_BrowseWithContextAndNode(UA_Server *server, UA_Session *session,
     bc.status = UA_STATUSCODE_GOOD;
     bc.done = false;
     bc.activeCP = false;
-    bc.resultRefs = cp.relevantReferences;
     result->statusCode = RefResult_init(&bc.rr);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
-    /* Perform the browse */
-    if(node)
-        browseResolvedNode(&bc, node);
-    else
-        browse(&bc);
-
-    if(bc.status != UA_STATUSCODE_GOOD || bc.rr.size == 0) {
-        /* No relevant references, return array of length zero */
-        RefResult_clear(&bc.rr);
-        result->references = (UA_ReferenceDescription*)UA_EMPTY_ARRAY_SENTINEL;
-        result->statusCode = bc.status;
+    browsePage(&bc, node, result);
+    if(bc.status != UA_STATUSCODE_GOOD || bc.done) {
+        UA_NodePointer_clear(&cp.lastTarget);
+        UA_ByteString_clear(&cp.nodestoreContinuationPoint);
         return;
     }
-
-    /* Move results */
-    result->references = bc.rr.descr;
-    result->referencesSize = bc.rr.size;
-
-    /* Exit early if done */
-    if(bc.done)
-        return;
 
     /* Persist the continuation point */
 
@@ -1009,6 +1076,9 @@ Operation_BrowseWithContextAndNode(UA_Server *server, UA_Session *session,
     UA_NodePointer_init(&cp.lastTarget); /* No longer clear below (cleanup) */
     cp2->lastRefKindIndex = cp.lastRefKindIndex;
     cp2->lastRefInverse = cp.lastRefInverse;
+    cp2->nodeReferencesDone = cp.nodeReferencesDone;
+    cp2->nodestoreContinuationPoint = cp.nodestoreContinuationPoint;
+    UA_ByteString_init(&cp.nodestoreContinuationPoint);
 
     /* Create a random bytestring via a Guid */
     ident = UA_Guid_new();
@@ -1036,6 +1106,7 @@ Operation_BrowseWithContextAndNode(UA_Server *server, UA_Session *session,
         UA_free(cp2);
     }
     UA_NodePointer_clear(&cp.lastTarget);
+    UA_ByteString_clear(&cp.nodestoreContinuationPoint);
     UA_BrowseResult_clear(result);
     result->statusCode = retval;
 }
@@ -1156,27 +1227,12 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
     bc.status = UA_STATUSCODE_GOOD;
     bc.done = false;
     bc.activeCP = true;
-    bc.resultRefs = cp->relevantReferences;
     result->statusCode = RefResult_init(&bc.rr);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
-    /* Continue browsing */
-    browse(&bc);
-
-    if(bc.status != UA_STATUSCODE_GOOD || bc.rr.size == 0) {
-        /* No relevant references, return array of length zero */
-        RefResult_clear(&bc.rr);
-        result->references = (UA_ReferenceDescription*)UA_EMPTY_ARRAY_SENTINEL;
-        result->statusCode = bc.status;
-        goto remove_cp;
-    }
-
-    /* Move results */
-    result->references = bc.rr.descr;
-    result->referencesSize = bc.rr.size;
-
-    if(bc.done)
+    browsePage(&bc, NULL, result);
+    if(bc.status != UA_STATUSCODE_GOOD || bc.done)
         goto remove_cp;
 
     /* Return the cp identifier to signal that there are references left */
@@ -1184,6 +1240,7 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
     if(bc.status != UA_STATUSCODE_GOOD) {
         UA_BrowseResult_clear(result);
         result->statusCode = bc.status;
+        goto remove_cp;
     }
     return;
 

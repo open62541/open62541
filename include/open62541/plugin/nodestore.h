@@ -605,6 +605,35 @@ struct UA_Nodestore {
     /* Execute a callback for every node in the nodestore. */
     void (*iterate)(UA_Nodestore *ns, UA_NodestoreVisitor visitor,
                     void *visitorCtx);
+
+    /* Optional additional references for Browse and BrowseNext. Leave NULL
+     * to browse only the references stored on the node. The server returns
+     * those references first across all pages. Supply only additional ones.
+     *
+     * referenceTypes is the resolved set of requested types and subtypes.
+     * Apply the BrowseDescription's direction, nodeClassMask and resultMask,
+     * using the preferred locales in localeIds for display names.
+     *
+     * An empty continuationPoint starts enumeration. Return at most
+     * availableSlots references. If more remain, result->continuationPoint
+     * identifies the first unreturned match. Otherwise leave it empty.
+     * The server calls only with positive availableSlots. When node references
+     * exactly fill a page, the first call is deferred until BrowseNext.
+     *
+     * Each browse has its own token, including interleaved browses of the
+     * same node. Tokens must be self-contained so they can be discarded on
+     * release or session close. A stable table index can serve as a token.
+     * Return BADCONTINUATIONPOINTINVALID if a token can no longer be resumed.
+     *
+     * The server initializes result and takes ownership of its references
+     * and token. Report errors in result->statusCode. All inputs are borrowed
+     * for the duration of the call. */
+    void (*browseReferences)(UA_Nodestore *ns,
+                             const UA_BrowseDescription *description,
+                             const UA_ReferenceTypeSet *referenceTypes,
+                             size_t localeIdsSize, const UA_LocaleId *localeIds,
+                             const UA_ByteString *continuationPoint,
+                             UA_UInt32 availableSlots, UA_BrowseResult *result);
 };
 
 /* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
