@@ -3,6 +3,21 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Optional Nodestore callbacks for editing and browsing references
+
+`UA_Nodestore` has a new optional callback. `editReference` adds or removes
+one reference of a node, so AddReferences and DeleteReferences no longer need
+the editable node with its references. If `editReference` is `NULL`, the
+server uses `getEditNode` as before. Custom nodestores can omit the callback
+from a designated initializer or leave it unset after zero-initialization.
+When filling uninitialized storage field by field, set it to `NULL` if unused.
+
+The optional `browseReferences` callback adds references to Browse and
+BrowseNext results after the references stored on the node. A nodestore can
+use it to expose references maintained separately by `editReference`. The
+server keeps the callback's opaque token in the session's continuation point.
+Leave `browseReferences` set to `NULL` to browse only the node's references.
+
 ### Policy-provided certificate hash for session signatures
 
 `UA_SecurityPolicy.hashCertificateForSignature` replaces the global

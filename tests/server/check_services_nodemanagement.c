@@ -2098,6 +2098,441 @@ START_TEST(DeleteReference_BidirectionalSecondDirection) {
     ck_assert_uint_ne(st, UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* Nodestore reference hooks. The test hooks record their calls and, depending
+ * on the test, add or delete the reference through the editable node of the
+ * default nodestore, decline with BADNOTSUPPORTED, or fail for one node. */
+static UA_Boolean hooksNotSupported;
+static UA_NodeId hooksFailNode;
+static size_t hooksAdds, hooksDeletes;
+
+static UA_NodeId hooksSource, hooksTarget, hooksRefType;
+static UA_ExpandedNodeId hooksTargetExp;
+
+static UA_StatusCode
+hooksEditNode(UA_Nodestore *ns, const UA_NodeId *nodeId, UA_Byte refTypeIndex,
+              UA_Boolean isForward, const UA_ExpandedNodeId *target,
+              UA_UInt32 targetNameHash, UA_Boolean add) {
+    UA_Node *node = ns->getEditNode(ns, nodeId, 0, UA_REFTYPESET(refTypeIndex),
+                                    isForward ? UA_BROWSEDIRECTION_FORWARD :
+                                                UA_BROWSEDIRECTION_INVERSE);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    UA_StatusCode res = add ?
+        UA_Node_addReference(node, refTypeIndex, isForward, target, targetNameHash) :
+        UA_Node_deleteReference(node, refTypeIndex, isForward, target);
+    ns->releaseNode(ns, node);
+    return res;
+}
+
+static UA_StatusCode
+hooksEditReference(UA_Nodestore *ns, const UA_NodeId *nodeId, UA_Byte refTypeIndex,
+                   UA_Boolean isForward, const UA_ExpandedNodeId *target,
+                   UA_UInt32 targetNameHash, UA_Boolean add) {
+    if(add)
+        hooksAdds++;
+    else
+        hooksDeletes++;
+    if(UA_NodeId_equal(nodeId, &hooksFailNode))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(hooksNotSupported)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    return hooksEditNode(ns, nodeId, refTypeIndex, isForward, target,
+                         targetNameHash, add);
+}
+
+/* Add the nodes first: AddNodes adds references, which would run the hooks */
+static void
+setupReferenceHookNodes(void) {
+    UA_NodeId objects = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    hooksSource = addObjInstance(objects, "hooksSrc");
+    hooksTarget = addObjInstance(objects, "hooksTgt");
+    hooksRefType = registerRefType("HasHooksRef", "IsHooksRefOf");
+    UA_ExpandedNodeId_init(&hooksTargetExp);
+    hooksTargetExp.nodeId = hooksTarget;
+}
+
+static void
+setupReferenceHooks(void) {
+    setupReferenceHookNodes();
+    UA_Nodestore *ns = UA_Server_getConfig(server)->nodestore;
+    ns->editReference = hooksEditReference;
+    hooksNotSupported = false;
+    hooksFailNode = UA_NODEID_NULL;
+    hooksAdds = hooksDeletes = 0;
+}
+
+/* Does the node reference the target in the given direction? */
+static UA_Boolean
+hasReference(const UA_NodeId nodeId, const UA_NodeId refTypeId,
+             const UA_NodeId targetId, UA_BrowseDirection direction) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = nodeId;
+    bd.referenceTypeId = refTypeId;
+    bd.browseDirection = direction;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &targetId))
+            found = true;
+    }
+    UA_BrowseResult_clear(&br);
+    return found;
+}
+
+START_TEST(ReferenceHooks_AddDispatchesToEditReference) {
+    setupReferenceHooks();
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(hooksAdds, 2); /* both directions */
+    ck_assert_uint_eq(hooksDeletes, 0);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(hasReference(hooksTarget, hooksRefType, hooksSource,
+                           UA_BROWSEDIRECTION_INVERSE));
+} END_TEST
+
+START_TEST(ReferenceHooks_NotSupportedUsesEditableNode) {
+    setupReferenceHooks();
+    hooksNotSupported = true;
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(hooksAdds, 2);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(hasReference(hooksTarget, hooksRefType, hooksSource,
+                           UA_BROWSEDIRECTION_INVERSE));
+} END_TEST
+
+/* The second direction fails: the server deletes the first direction again */
+START_TEST(ReferenceHooks_RollbackDeletesFirstDirection) {
+    setupReferenceHooks();
+    hooksFailNode = hooksTarget;
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(hooksAdds, 2);
+    ck_assert_uint_eq(hooksDeletes, 1);
+    ck_assert(!hasReference(hooksSource, hooksRefType, hooksTarget,
+                            UA_BROWSEDIRECTION_FORWARD));
+} END_TEST
+
+START_TEST(ReferenceHooks_DeleteDispatchesToEditReference) {
+    setupReferenceHooks();
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    st = UA_Server_deleteReference(server, hooksSource, hooksRefType, true,
+                                   hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(hooksDeletes, 2); /* both directions */
+    ck_assert(!hasReference(hooksSource, hooksRefType, hooksTarget,
+                            UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(!hasReference(hooksTarget, hooksRefType, hooksSource,
+                            UA_BROWSEDIRECTION_INVERSE));
+} END_TEST
+
+/* The source holds the reference but the target lost its inverse. Adding the
+ * reference again fails for the target: the reference of the source existed
+ * before and must stay. */
+START_TEST(ReferenceHooks_FailedAddKeepsExistingReference) {
+    setupReferenceHooks();
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    UA_ExpandedNodeId sourceExpId;
+    UA_ExpandedNodeId_init(&sourceExpId);
+    sourceExpId.nodeId = hooksSource;
+    st = UA_Server_deleteReference(server, hooksTarget, hooksRefType, false,
+                                   sourceExpId, false);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(!hasReference(hooksTarget, hooksRefType, hooksSource,
+                            UA_BROWSEDIRECTION_INVERSE));
+
+    hooksFailNode = hooksTarget;
+    hooksDeletes = 0;
+    st = UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(hooksDeletes, 0);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+} END_TEST
+
+/* A duplicate is reported with the status code of the editable-node path. The
+ * rollback must not remove the reference that existed before. */
+START_TEST(ReferenceHooks_DuplicateKeepsReference) {
+    setupReferenceHooks();
+    UA_StatusCode st =
+        UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    st = UA_Server_addReference(server, hooksSource, hooksRefType, hooksTargetExp, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED);
+    ck_assert(hasReference(hooksSource, hooksRefType, hooksTarget,
+                           UA_BROWSEDIRECTION_FORWARD));
+    ck_assert(hasReference(hooksTarget, hooksRefType, hooksSource,
+                           UA_BROWSEDIRECTION_INVERSE));
+} END_TEST
+
+/* A separate list for the test ReferenceType. All its endpoints are Objects
+ * with local numeric ids. Deleted entries leave a hole so outstanding indices
+ * remain valid. Neither direction of a shadow edit is added to the node. */
+typedef struct {
+    UA_NodeId source;
+    UA_ExpandedNodeId target;
+    UA_Byte referenceTypeIndex;
+    UA_Boolean isForward;
+} ShadowReference;
+
+static ShadowReference shadowRefs[12];
+static size_t shadowSize, shadowBrowseCalls;
+
+static UA_StatusCode
+shadowEdit(UA_Nodestore *ns, const UA_NodeId *source, UA_Byte ri,
+           UA_Boolean isForward, const UA_ExpandedNodeId *target,
+           UA_UInt32 nameHash, UA_Boolean add) {
+    if(!UA_NodeId_equal(ns->getReferenceTypeId(ns, ri), &hooksRefType))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    ck_assert(source->identifierType == UA_NODEIDTYPE_NUMERIC);
+    ck_assert(target->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC);
+    ck_assert(UA_ExpandedNodeId_isLocal(target));
+    for(size_t i = 0; i < shadowSize; i++) {
+        ShadowReference *r = &shadowRefs[i];
+        if(r->isForward != isForward || !UA_NodeId_equal(&r->source, source) ||
+           !UA_ExpandedNodeId_equal(&r->target, target))
+            continue;
+        if(add)
+            return UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
+        r->source = UA_NODEID_NULL;
+        return UA_STATUSCODE_GOOD;
+    }
+    if(!add)
+        return UA_STATUSCODE_BADNOTSUPPORTED; /* May be a node reference */
+    ck_assert_uint_lt(shadowSize, sizeof(shadowRefs) / sizeof(shadowRefs[0]));
+    ShadowReference *r = &shadowRefs[shadowSize++];
+    r->source = *source;
+    r->target = *target;
+    r->referenceTypeIndex = ri;
+    r->isForward = isForward;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+shadowBrowse(UA_Nodestore *ns, const UA_BrowseDescription *bd,
+             const UA_ReferenceTypeSet *types, size_t localeIdsSize,
+             const UA_LocaleId *localeIds, const UA_ByteString *position,
+             UA_UInt32 slots, UA_BrowseResult *result) {
+    shadowBrowseCalls++;
+    ck_assert_uint_gt(slots, 0);
+    if(position->length && (position->length != 1 || position->data[0] >= shadowSize)) {
+        result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+        return;
+    }
+    if(bd->nodeClassMask && !(bd->nodeClassMask & UA_NODECLASS_OBJECT))
+        return;
+    for(size_t i = position->length ? position->data[0] : 0; i < shadowSize; i++) {
+        ShadowReference *r = &shadowRefs[i];
+        if(!UA_NodeId_equal(&r->source, &bd->nodeId) ||
+           !UA_ReferenceTypeSet_contains(types, r->referenceTypeIndex) ||
+           (bd->browseDirection == UA_BROWSEDIRECTION_FORWARD && !r->isForward) ||
+           (bd->browseDirection == UA_BROWSEDIRECTION_INVERSE && r->isForward))
+            continue;
+        if(result->referencesSize == slots) {
+            ck_assert_uint_eq(UA_ByteString_allocBuffer(&result->continuationPoint, 1),
+                              UA_STATUSCODE_GOOD);
+            result->continuationPoint.data[0] = (UA_Byte)i;
+            return;
+        }
+        UA_ReferenceDescription rd;
+        UA_ReferenceDescription_init(&rd);
+        rd.nodeId = r->target;
+        if(bd->resultMask & UA_BROWSERESULTMASK_ISFORWARD)
+            rd.isForward = r->isForward;
+        if(bd->resultMask & UA_BROWSERESULTMASK_REFERENCETYPEID)
+            rd.referenceTypeId = hooksRefType;
+        if(bd->resultMask & UA_BROWSERESULTMASK_NODECLASS)
+            rd.nodeClass = UA_NODECLASS_OBJECT;
+        if(bd->resultMask & UA_BROWSERESULTMASK_BROWSENAME) {
+            const UA_Node *target = ns->getNode(ns, &r->target.nodeId, UA_NODEATTRIBUTESMASK_BROWSENAME,
+                                                UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+            ck_assert_ptr_ne(target, NULL);
+            ck_assert_uint_eq(UA_QualifiedName_copy(&target->head.browseName, &rd.browseName),
+                              UA_STATUSCODE_GOOD);
+            ns->releaseNode(ns, target);
+        }
+        ck_assert_uint_eq(UA_Array_append((void**)&result->references, &result->referencesSize,
+                                          &rd, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]),
+                          UA_STATUSCODE_GOOD);
+    }
+}
+
+static void
+addShadowTestReference(UA_NodeId source, UA_ExpandedNodeId target) {
+    UA_StatusCode res = UA_Server_addReference(server, source, hooksRefType, target, true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+static void
+setupShadowReferences(void) {
+    setupReferenceHookNodes();
+    /* Two native references on the first source and none on the second. */
+    addShadowTestReference(hooksSource, UA_NS0EXID(OBJECTTYPESFOLDER));
+    addShadowTestReference(hooksSource, UA_NS0EXID(REFERENCETYPESFOLDER));
+
+    /* Start recording edits on the already configured default nodestore. */
+    shadowSize = 0;
+    UA_Nodestore *ns = UA_Server_getConfig(server)->nodestore;
+    ns->editReference = shadowEdit;
+    addShadowTestReference(hooksSource, UA_NS0EXID(DATATYPESFOLDER));
+    addShadowTestReference(hooksSource, UA_NS0EXID(VARIABLETYPESFOLDER));
+    addShadowTestReference(hooksTarget, UA_NS0EXID(VIEWSFOLDER));
+    addShadowTestReference(hooksTarget, UA_NS0EXID(DATATYPESFOLDER));
+    ck_assert_uint_eq(shadowSize, 8); /* Both directions of each edit */
+
+    /* The additional references are invisible until the browse hook is installed. */
+    ck_assert(!hasReference(hooksSource, hooksRefType, UA_NS0ID(DATATYPESFOLDER),
+                            UA_BROWSEDIRECTION_FORWARD));
+    ns->browseReferences = shadowBrowse;
+    shadowBrowseCalls = 0;
+}
+
+static UA_BrowseDescription
+shadowQuery(UA_NodeId source) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = source;
+    bd.referenceTypeId = hooksRefType;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME | UA_BROWSERESULTMASK_ISFORWARD;
+    return bd;
+}
+
+static void
+nextShadowPage(UA_BrowseResult *page) {
+    ck_assert_uint_gt(page->continuationPoint.length, 0);
+    UA_BrowseResult next = UA_Server_browseNext(server, false, &page->continuationPoint);
+    UA_BrowseResult_clear(page);
+    ck_assert_uint_eq(next.statusCode, UA_STATUSCODE_GOOD);
+    *page = next;
+}
+
+static void
+checkShadowTarget(const UA_BrowseResult *page, size_t index, UA_UInt32 targetId) {
+    UA_ExpandedNodeId target = UA_EXPANDEDNODEID_NUMERIC(0, targetId);
+    ck_assert_uint_eq(page->statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_lt(index, page->referencesSize);
+    ck_assert(UA_ExpandedNodeId_equal(&page->references[index].nodeId, &target));
+}
+
+START_TEST(ShadowBrowse_NativeThenShadow) {
+    setupShadowReferences();
+    UA_BrowseDescription bd = shadowQuery(hooksSource);
+    UA_BrowseResult page = UA_Server_browse(server, 3, &bd);
+    ck_assert_uint_eq(page.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(page.referencesSize, 3);
+    checkShadowTarget(&page, 0, UA_NS0ID_OBJECTTYPESFOLDER);
+    checkShadowTarget(&page, 1, UA_NS0ID_REFERENCETYPESFOLDER);
+    checkShadowTarget(&page, 2, UA_NS0ID_DATATYPESFOLDER);
+    UA_QualifiedName name = UA_QUALIFIEDNAME(0, "DataTypes");
+    ck_assert(UA_QualifiedName_equal(&page.references[2].browseName, &name));
+    ck_assert(page.references[2].isForward);
+    ck_assert_uint_eq(shadowBrowseCalls, 1);
+    nextShadowPage(&page);
+    ck_assert_uint_eq(page.referencesSize, 1);
+    checkShadowTarget(&page, 0, UA_NS0ID_VARIABLETYPESFOLDER);
+    ck_assert_uint_eq(page.continuationPoint.length, 0);
+    UA_BrowseResult_clear(&page);
+} END_TEST
+
+START_TEST(ShadowBrowse_InterleavedContinuations) {
+    setupShadowReferences();
+    UA_BrowseDescription a = shadowQuery(hooksSource);
+    UA_BrowseResult first = UA_Server_browse(server, 1, &a);
+    ck_assert_uint_eq(first.referencesSize, 1);
+    nextShadowPage(&first); /* Last native reference exactly fills the page */
+    ck_assert_uint_eq(first.referencesSize, 1);
+    ck_assert_uint_eq(shadowBrowseCalls, 0);
+    UA_BrowseDescription b = shadowQuery(hooksTarget);
+    UA_BrowseResult second = UA_Server_browse(server, 1, &b);
+    ck_assert_uint_eq(second.referencesSize, 1);
+    checkShadowTarget(&second, 0, UA_NS0ID_VIEWSFOLDER);
+
+    nextShadowPage(&first); /* First call on A still has an empty backend token */
+    ck_assert_uint_eq(first.referencesSize, 1);
+    checkShadowTarget(&first, 0, UA_NS0ID_DATATYPESFOLDER);
+    nextShadowPage(&second);
+    ck_assert_uint_eq(second.referencesSize, 1);
+    checkShadowTarget(&second, 0, UA_NS0ID_DATATYPESFOLDER);
+    ck_assert_uint_eq(second.continuationPoint.length, 0);
+    nextShadowPage(&first);
+    ck_assert_uint_eq(first.referencesSize, 1);
+    checkShadowTarget(&first, 0, UA_NS0ID_VARIABLETYPESFOLDER);
+    ck_assert_uint_eq(first.continuationPoint.length, 0);
+    UA_BrowseResult_clear(&first);
+    UA_BrowseResult_clear(&second);
+} END_TEST
+
+START_TEST(ShadowBrowse_DeleteAndRelease) {
+    setupShadowReferences();
+    UA_BrowseDescription bd = shadowQuery(UA_NS0ID(DATATYPESFOLDER));
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    UA_BrowseResult page = UA_Server_browse(server, 1, &bd);
+    ck_assert_uint_eq(page.referencesSize, 1);
+    ck_assert(UA_NodeId_equal(&page.references[0].nodeId.nodeId, &hooksSource));
+    ck_assert(!page.references[0].isForward);
+    ck_assert_uint_gt(page.continuationPoint.length, 0);
+    UA_BrowseResult release = UA_Server_browseNext(server, true, &page.continuationPoint);
+    ck_assert_uint_eq(release.statusCode, UA_STATUSCODE_GOOD);
+    UA_BrowseResult_clear(&release);
+    release = UA_Server_browseNext(server, false, &page.continuationPoint);
+    ck_assert_uint_eq(release.statusCode, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    ck_assert_uint_eq(shadowBrowseCalls, 1);
+    UA_BrowseResult_clear(&release);
+    UA_BrowseResult_clear(&page);
+
+    ck_assert_uint_eq(UA_Server_deleteReference(server, hooksSource, hooksRefType, true,
+                                                UA_NS0EXID(DATATYPESFOLDER), true), UA_STATUSCODE_GOOD);
+    page = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(page.referencesSize, 1);
+    ck_assert(UA_NodeId_equal(&page.references[0].nodeId.nodeId, &hooksTarget));
+    UA_BrowseResult_clear(&page);
+
+    ck_assert_uint_eq(UA_Server_deleteReference(server, hooksSource, hooksRefType, true,
+                                                UA_NS0EXID(VARIABLETYPESFOLDER), true), UA_STATUSCODE_GOOD);
+    bd = shadowQuery(hooksSource);
+    page = UA_Server_browse(server, 2, &bd);
+    ck_assert_uint_eq(page.referencesSize, 2);
+    nextShadowPage(&page); /* All additional references were deleted */
+    ck_assert_uint_eq(page.referencesSize, 0);
+    ck_assert_uint_eq(page.continuationPoint.length, 0);
+    UA_BrowseResult_clear(&page);
+} END_TEST
+
+START_TEST(ShadowBrowse_InvalidateBackendToken) {
+    setupShadowReferences();
+    UA_BrowseDescription bd = shadowQuery(hooksTarget);
+    UA_BrowseResult page = UA_Server_browse(server, 1, &bd);
+    ck_assert_uint_eq(page.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(page.continuationPoint.length, 0);
+
+    /* Discard the shadow list while the server still holds a backend token. */
+    shadowSize = 0;
+    UA_BrowseResult next = UA_Server_browseNext(server, false, &page.continuationPoint);
+    ck_assert_uint_eq(next.statusCode, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    ck_assert_uint_eq(next.referencesSize, 0);
+    ck_assert_uint_eq(next.continuationPoint.length, 0);
+    UA_BrowseResult_clear(&next);
+    next = UA_Server_browseNext(server, false, &page.continuationPoint);
+    ck_assert_uint_eq(next.statusCode, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    ck_assert_uint_eq(shadowBrowseCalls, 2); /* Second BrowseNext never reaches the hook */
+    UA_BrowseResult_clear(&next);
+    UA_BrowseResult_clear(&page);
+} END_TEST
+
 START_TEST(SetNodeTypeLifecycle) {
     /* Set a lifecycle callback on BaseObjectType */
     UA_NodeTypeLifecycle nlc;
@@ -2649,6 +3084,20 @@ int main(void) {
     tcase_add_test(tc_addreferences, DeleteReference_SourceNodeUnknown_rejected);
     tcase_add_test(tc_addreferences, DeleteReference_BidirectionalSecondDirection);
     suite_add_tcase(s, tc_addreferences);
+
+    TCase *tc_referencehooks = tcase_create("referencehooks");
+    tcase_add_checked_fixture(tc_referencehooks, setup, teardown);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_AddDispatchesToEditReference);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_NotSupportedUsesEditableNode);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_RollbackDeletesFirstDirection);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_DeleteDispatchesToEditReference);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_DuplicateKeepsReference);
+    tcase_add_test(tc_referencehooks, ReferenceHooks_FailedAddKeepsExistingReference);
+    tcase_add_test(tc_referencehooks, ShadowBrowse_NativeThenShadow);
+    tcase_add_test(tc_referencehooks, ShadowBrowse_InterleavedContinuations);
+    tcase_add_test(tc_referencehooks, ShadowBrowse_DeleteAndRelease);
+    tcase_add_test(tc_referencehooks, ShadowBrowse_InvalidateBackendToken);
+    suite_add_tcase(s, tc_referencehooks);
 
     TCase *tc_ext = tcase_create("extendedCoverage");
     tcase_add_checked_fixture(tc_ext, setup, teardown);

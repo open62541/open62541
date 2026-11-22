@@ -575,6 +575,31 @@ struct UA_Nodestore {
     /* Removes a node from the nodestore. */
     UA_StatusCode (*removeNode)(UA_Nodestore *ns, const UA_NodeId *nodeId);
 
+    /* Optional single-reference mutation. If editReference is NULL, the server
+     * uses getEditNode to add or delete the reference. A nodestore may omit
+     * editReference from a designated initializer or leave it unset after
+     * zero-initializing UA_Nodestore. When filling uninitialized storage field
+     * by field, set editReference to NULL explicitly if unused.
+     *
+     * A callback can return BADNOTSUPPORTED to use the same fallback for an
+     * individual edit. Otherwise return the status codes of the fallback. The
+     * caller relies on them for the second direction of the reference:
+     *
+     * - BADNODEIDUNKNOWN if the node does not exist
+     * - BADDUPLICATEREFERENCENOTALLOWED if the added reference exists already
+     *   (see UA_Node_addReference)
+     * - UNCERTAINREFERENCENOTDELETED if the deleted reference does not exist
+     *   (see UA_Node_deleteReference)
+     *
+     * A failed operation must leave the node unchanged. The caller serializes
+     * access and performs validation/model-change events. If the second
+     * direction cannot be added, the caller removes the first one again with
+     * this callback. */
+    UA_StatusCode (*editReference)(UA_Nodestore *ns, const UA_NodeId *nodeId,
+                                  UA_Byte referenceTypeIndex, UA_Boolean isForward,
+                                  const UA_ExpandedNodeId *target,
+                                  UA_UInt32 targetNameHash, UA_Boolean add);
+
     /* Maps the ReferenceTypeIndex used for the references to the NodeId of the
      * ReferenceType. The returned pointer is stable until the Nodestore is
      * deleted. */
@@ -584,6 +609,35 @@ struct UA_Nodestore {
     /* Execute a callback for every node in the nodestore. */
     void (*iterate)(UA_Nodestore *ns, UA_NodestoreVisitor visitor,
                     void *visitorCtx);
+
+    /* Optional additional references for Browse and BrowseNext. Leave NULL
+     * to browse only the references stored on the node. The server returns
+     * those references first across all pages. Supply only additional ones.
+     *
+     * referenceTypes is the resolved set of requested types and subtypes.
+     * Apply the BrowseDescription's direction, nodeClassMask and resultMask,
+     * using the preferred locales in localeIds for display names.
+     *
+     * An empty continuationPoint starts enumeration. Return at most
+     * availableSlots references. If more remain, result->continuationPoint
+     * identifies the first unreturned match. Otherwise leave it empty.
+     * The server calls only with positive availableSlots. When node references
+     * exactly fill a page, the first call is deferred until BrowseNext.
+     *
+     * Each browse has its own token, including interleaved browses of the
+     * same node. Tokens must be self-contained so they can be discarded on
+     * release or session close. A stable table index can serve as a token.
+     * Return BADCONTINUATIONPOINTINVALID if a token can no longer be resumed.
+     *
+     * The server initializes result and takes ownership of its references
+     * and token. Report errors in result->statusCode. All inputs are borrowed
+     * for the duration of the call. */
+    void (*browseReferences)(UA_Nodestore *ns,
+                             const UA_BrowseDescription *description,
+                             const UA_ReferenceTypeSet *referenceTypes,
+                             size_t localeIdsSize, const UA_LocaleId *localeIds,
+                             const UA_ByteString *continuationPoint,
+                             UA_UInt32 availableSlots, UA_BrowseResult *result);
 };
 
 /* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
