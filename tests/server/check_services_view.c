@@ -138,6 +138,39 @@ START_TEST(Service_Browse_WithMaxResults) {
 }
 END_TEST
 
+START_TEST(Service_Browse_ServerPageLimit) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(server);
+    UA_Server_getConfig(server)->maxReferencesPerNode = 1;
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NS0ID(SERVER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    UA_BrowseRequest request;
+    UA_BrowseRequest_init(&request);
+    request.nodesToBrowse = &bd;
+    request.nodesToBrowseSize = 1;
+
+    /* Both an unrestricted request and an oversized page respect the cap. */
+    for(UA_UInt32 requested = 0; requested <= 2; requested += 2) {
+        request.requestedMaxReferencesPerNode = requested;
+        UA_BrowseResponse response;
+        UA_BrowseResponse_init(&response);
+        lockServer(server);
+        Service_Browse(server, &server->adminSession, &request, &response);
+        unlockServer(server);
+        ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(response.resultsSize, 1);
+        ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(response.results[0].referencesSize, 1);
+        ck_assert_uint_gt(response.results[0].continuationPoint.length, 0);
+        UA_BrowseResponse_clear(&response);
+    }
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Service_Browse_ReclaimsOldestContinuationPoint) {
     UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -889,7 +922,7 @@ START_TEST(Service_Browse_viewIdUnknown) {
      *     response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
      *     return true;
      *   }
-     * UA_Server_browse calls Operation_Browse directly, not
+     * UA_Server_browse does not call
      * Service_Browse, so this branch is unreachable from the
      * existing public-API tests. The branch is hit when a client
      * sends a BrowseRequest with a non-null viewId. */
@@ -1135,6 +1168,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_browse, Service_Browse_ClassMask);
     tcase_add_test(tc_browse, Service_Browse_ReferenceTypes);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
+    tcase_add_test(tc_browse, Service_Browse_ServerPageLimit);
     tcase_add_test(tc_browse, Service_Browse_ReclaimsOldestContinuationPoint);
     tcase_add_test(tc_browse, Service_Browse_Recursive);
     tcase_add_test(tc_browse, Service_Browse_Localization);

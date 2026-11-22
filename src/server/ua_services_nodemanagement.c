@@ -1122,10 +1122,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
     bd.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS |
         UA_BROWSERESULTMASK_BROWSENAME | UA_BROWSERESULTMASK_TYPEDEFINITION;
 
-    UA_BrowseResult br;
-    UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    UA_BrowseResult br = browseAll(server, session, &bd);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1595,10 +1592,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     bd.includeSubtypes = true;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
 
-    UA_BrowseResult br;
-    UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    UA_BrowseResult br = browseAll(server, session, &bd);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1785,10 +1779,7 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
     bd.referenceTypeId = UA_NS0ID(HASPROPERTY);
     bd.includeSubtypes = false;
     bd.nodeClassMask = UA_NODECLASS_METHOD;
-    UA_BrowseResult br;
-    UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    UA_BrowseResult br = browseAll(server, session, &bd);
     UA_Boolean hasParentMethod = (br.referencesSize > 0);
     UA_BrowseResult_clear(&br);
     if(hasParentMethod)
@@ -3277,10 +3268,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
     bd.nodeClassMask = UA_NODECLASS_VARIABLE;
     bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
 
-    UA_BrowseResult br;
-    UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, &server->adminSession, &maxrefs, &bd, &br);
+    UA_BrowseResult br = browseAll(server, &server->adminSession, &bd);
 
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
