@@ -311,33 +311,28 @@ START_TEST(Client_connect_async_timeout) {
 END_TEST
 
 static void
-advanceClockDuringDispatch(UA_Client *client, void *data) {
-    UA_fakeSleep(1);
+expireDeadlineOnNamespaceResponse(UA_Client *client, UA_ApplicationNotificationType type,
+                                  const UA_KeyValueMap payload) {
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN && client->namespacesHandshake)
+        UA_fakeSleep(client->config.timeout);
 }
 
 START_TEST(Client_connect_async_lateResponse) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->timeout = 100;
+    cc->serviceNotificationCallback = expireDeadlineOnNamespaceResponse;
     ck_assert_uint_eq(UA_Client_connectAsync(client, "opc.tcp://localhost:4840"),
                       UA_STATUSCODE_GOOD);
 
-    /* Queue the final NamespaceArray response on the socket. */
-    for(size_t i = 0; i < 1000 && !client->namespacesHandshake; i++) {
+    /* Expire the deadline inside the final response dispatch. Inspect the
+     * result before housekeeping gets another turn to enforce the timeout. */
+    for(size_t i = 0; i < 1000 && !client->haveNamespaces; i++) {
         UA_Server_run_iterate(server, false);
-        ck_assert_uint_eq(UA_Client_run_iterate(client, 1), UA_STATUSCODE_GOOD);
+        UA_Client_run_iterate(client, 1);
     }
-    ck_assert(client->namespacesHandshake);
-    UA_Server_run_iterate(server, false);
-
-    /* The loop selects due timers one millisecond before the deadline. The
-     * deadline expires in this callback, just before network dispatch. */
-    UA_fakeSleep(cc->timeout - 1);
-    UA_EventLoop *el = cc->eventLoop;
-    UA_DateTime now = el->dateTime_nowMonotonic(el);
-    ck_assert_uint_eq(UA_Client_addTimedCallback(client, advanceClockDuringDispatch,
-                                                 NULL, now, NULL), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(UA_Client_run_iterate(client, 100), UA_STATUSCODE_BADTIMEOUT);
+    ck_assert(client->haveNamespaces);
+    ck_assert_uint_eq(client->connectStatus, UA_STATUSCODE_BADTIMEOUT);
     UA_Client_delete(client);
 }
 END_TEST
