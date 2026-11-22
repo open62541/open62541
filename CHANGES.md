@@ -7,9 +7,10 @@ refactorings and bug fixes are not reported here.
 
 `UA_Nodestore` has a new optional callback. `editReference` adds or removes
 one reference of a node, so AddReferences and DeleteReferences no longer need
-the editable node with its references. A Nodestore that leaves the callback
-NULL keeps the previous behavior. Nodestores that fill the `UA_Nodestore`
-structure field by field must set the new member to NULL.
+the editable node with its references. If `editReference` is `NULL`, the
+server uses `getEditNode` as before. Custom nodestores can omit the callback
+from a designated initializer or leave it unset after zero-initialization.
+When filling uninitialized storage field by field, set it to `NULL` if unused.
 `UA_NODESTORE_HAS_EDITREFERENCE` is defined for code that builds against
 versions with and without the callback.
 

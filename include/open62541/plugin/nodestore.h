@@ -573,10 +573,15 @@ struct UA_Nodestore {
     /* Removes a node from the nodestore. */
     UA_StatusCode (*removeNode)(UA_Nodestore *ns, const UA_NodeId *nodeId);
 
-    /* Optional single-reference mutation. Return BADNOTSUPPORTED to use the
-     * editable-node fallback. Otherwise return the status codes of the
-     * fallback. The caller relies on them for the second direction of the
-     * reference:
+    /* Optional single-reference mutation. If editReference is NULL, the server
+     * uses getEditNode to add or delete the reference. A nodestore may omit
+     * editReference from a designated initializer or leave it unset after
+     * zero-initializing UA_Nodestore. When filling uninitialized storage field
+     * by field, set editReference to NULL explicitly if unused.
+     *
+     * A callback can return BADNOTSUPPORTED to use the same fallback for an
+     * individual edit. Otherwise return the status codes of the fallback. The
+     * caller relies on them for the second direction of the reference:
      *
      * - BADNODEIDUNKNOWN if the node does not exist
      * - BADDUPLICATEREFERENCENOTALLOWED if the added reference exists already
