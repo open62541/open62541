@@ -574,16 +574,9 @@ findNodeVersionProperty(void *context, UA_ReferenceTarget *target) {
 
 UA_StatusCode
 getNodeVersionProperty(UA_Server *server, const UA_NodeHead *head,
-                       UA_NodeId *outPropertyId) {
+                       const UA_ReferenceTypeSet *propertyRefs, UA_NodeId *outPropertyId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_NodeId_init(outPropertyId);
-
-    UA_ReferenceTypeSet propertyRefs;
-    const UA_NodeId hasProperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    UA_StatusCode res =
-        referenceTypeIndices(server, &hasProperty, &propertyRefs, true);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
 
     const UA_QualifiedName nodeVersionName = UA_QUALIFIEDNAME(0, "NodeVersion");
     struct NodeVersionPropertyContext ctx = {
@@ -592,7 +585,7 @@ getNodeVersionProperty(UA_Server *server, const UA_NodeHead *head,
     for(size_t i = 0; i < head->referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &head->references[i];
         if(rk->isInverse ||
-           !UA_ReferenceTypeSet_contains(&propertyRefs, rk->referenceTypeIndex))
+           !UA_ReferenceTypeSet_contains(propertyRefs, rk->referenceTypeIndex))
             continue;
         if(UA_NodeReferenceKind_iterate(rk, findNodeVersionProperty, &ctx))
             break;

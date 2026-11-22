@@ -553,7 +553,7 @@ UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head);
  * caller. */
 UA_StatusCode
 getNodeVersionProperty(UA_Server *server, const UA_NodeHead *head,
-                       UA_NodeId *outPropertyId);
+                       const UA_ReferenceTypeSet *propertyRefs, UA_NodeId *outPropertyId);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 

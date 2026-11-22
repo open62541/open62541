@@ -29,8 +29,11 @@ findNodeVersion(const UA_NodeId nodeId, UA_NodeId *outPropertyId) {
     lockServer(server);
     const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
     ck_assert_ptr_ne(node, NULL);
-    UA_StatusCode res =
-        getNodeVersionProperty(server, &node->head, outPropertyId);
+    const UA_NodeId hasProperty = UA_NS0ID(HASPROPERTY);
+    UA_ReferenceTypeSet propertyRefs;
+    UA_StatusCode res = referenceTypeIndices(server, &hasProperty, &propertyRefs, true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = getNodeVersionProperty(server, &node->head, &propertyRefs, outPropertyId);
     UA_NODESTORE_RELEASE(server, node);
     unlockServer(server);
     return res;

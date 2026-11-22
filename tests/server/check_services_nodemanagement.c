@@ -845,7 +845,7 @@ countTypeRead(const UA_Node *node, UA_UInt32 mask, UA_BrowseDirection direction)
         return;
     if(mask == ~(UA_UInt32)0 && direction == UA_BROWSEDIRECTION_BOTH)
         fullTypeReads++;
-    if(mask == 0 && direction == UA_BROWSEDIRECTION_INVALID)
+    if(mask == UA_NODEATTRIBUTESMASK_NODEID && direction == UA_BROWSEDIRECTION_INVALID)
         lifecycleTypeReads++;
 }
 
