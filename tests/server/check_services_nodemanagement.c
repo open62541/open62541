@@ -1091,6 +1091,72 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+START_TEST(InstantiateAllChildrenWithBrowseLimit) {
+    UA_NodeId typeId;
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+        UA_NS0ID(BASEOBJECTTYPE), UA_NS0ID(HASSUBTYPE), UA_QUALIFIEDNAME(1, "PairType"),
+        UA_ObjectTypeAttributes_default, NULL, &typeId), UA_STATUSCODE_GOOD);
+    UA_QualifiedName names[2] = {UA_QUALIFIEDNAME(1, "Left"), UA_QUALIFIEDNAME(1, "Right")};
+    for(size_t i = 0; i < 2; i++) {
+        UA_NodeId child;
+        ck_assert_uint_eq(UA_Server_addObjectNode(server, UA_NODEID_NULL, typeId,
+            UA_NS0ID(HASCOMPONENT), names[i], UA_NS0ID(BASEOBJECTTYPE),
+            UA_ObjectAttributes_default, NULL, &child), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_Server_addReference(server, child, UA_NS0ID(HASMODELLINGRULE),
+            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true),
+            UA_STATUSCODE_GOOD);
+        UA_NodeId_clear(&child);
+    }
+
+    /* A one-reference page must not truncate type instantiation. */
+    UA_Server_getConfig(server)->maxReferencesPerNode = 1;
+    UA_NodeId instance;
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, UA_NODEID_NULL,
+        UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "Pair"),
+        typeId, UA_ObjectAttributes_default, NULL, &instance), UA_STATUSCODE_GOOD);
+
+    UA_NodeId children[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_BrowsePathResult path = UA_Server_browseSimplifiedBrowsePath(server, instance,
+                                                                       1, &names[i]);
+        ck_assert_uint_eq(path.statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(path.targetsSize, 1);
+        ck_assert_uint_eq(UA_NodeId_copy(&path.targets[0].targetId.nodeId, &children[i]),
+                          UA_STATUSCODE_GOOD);
+        UA_BrowsePathResult_clear(&path);
+    }
+    ck_assert_uint_eq(server->adminSession.continuationPointsSize, 0);
+
+    /* Ordinary Browse still returns a continuation point for the same children. */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = instance;
+    bd.referenceTypeId = UA_NS0ID(HASCOMPONENT);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    UA_BrowseResult page = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(page.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(page.referencesSize, 1);
+    ck_assert(page.continuationPoint.length > 0);
+    UA_BrowseResult next = UA_Server_browseNext(server, false, &page.continuationPoint);
+    ck_assert_uint_eq(next.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(next.referencesSize, 1);
+    ck_assert_uint_eq(next.continuationPoint.length, 0);
+    UA_BrowseResult_clear(&page);
+    UA_BrowseResult_clear(&next);
+
+    ck_assert_uint_eq(UA_Server_deleteNode(server, instance, true), UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        UA_NodeClass nc;
+        ck_assert_uint_eq(UA_Server_readNodeClass(server, children[i], &nc),
+                          UA_STATUSCODE_BADNODEIDUNKNOWN);
+        UA_NodeId_clear(&children[i]);
+    }
+    UA_NodeId_clear(&instance);
+    UA_NodeId_clear(&typeId);
+} END_TEST
+#endif
+
 static UA_NodeId
 addEarlyConstructorTestType(UA_Boolean withMandatoryChild) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(1, 80701);
@@ -2546,6 +2612,9 @@ int main(void) {
     tcase_add_test(tc_addnodes, UnattachedMethodRuleAcceptIsSilent);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
     tcase_add_test(tc_addnodes, InstantiateObjectType);
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    tcase_add_test(tc_addnodes, InstantiateAllChildrenWithBrowseLimit);
+#endif
     tcase_add_test(tc_addnodes, EarlyConstructorRunsDuringBegin);
     tcase_add_test(tc_addnodes, EarlyConstructorRunsForInstantiatedChildren);
     tcase_add_test(tc_addnodes, EarlyConstructorRunsForVariableType);

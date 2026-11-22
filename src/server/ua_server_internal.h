@@ -1118,11 +1118,9 @@ struct BrowseOpts {
     UA_Boolean recursive;
 };
 
-void
-Operation_Browse(UA_Server *server, UA_Session *session,
-                 const void *context /* UA_UInt32 */,
-                 const void *request /* UA_BrowseDescription */,
-                 void *response /* UA_BrowseResult */);
+/* Return all matching references without creating a continuation point. */
+UA_BrowseResult
+browseAll(UA_Server *server, UA_Session *session, const UA_BrowseDescription *bd);
 
 /* Browse a node already borrowed from the nodestore. The caller must hold the
  * service mutex and keep the node alive for the duration of the operation. */

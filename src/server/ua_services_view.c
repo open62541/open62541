@@ -686,7 +686,7 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
     }
     
     /* Reached maxrefs. Return the "abort" signal. */
-    if(bc->rr.size >= cp->maxReferences) {
+    if(cp->maxReferences != 0 && bc->rr.size >= cp->maxReferences) {
         UA_NODESTORE_RELEASE(bc->server, target);
         return (void*)0x01;
     }
@@ -911,20 +911,6 @@ Operation_BrowseWithContextAndNode(UA_Server *server, UA_Session *session,
     cp.maxReferences = context->maxReferences;
     cp.browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
 
-    /* How many references can we return at most? */
-    if(cp.maxReferences == 0) {
-        if(server->config.maxReferencesPerNode != 0) {
-            cp.maxReferences = server->config.maxReferencesPerNode;
-        } else {
-            cp.maxReferences = UA_INT32_MAX;
-        }
-    } else {
-        if(server->config.maxReferencesPerNode != 0 &&
-           cp.maxReferences > server->config.maxReferencesPerNode) {
-            cp.maxReferences= server->config.maxReferencesPerNode;
-        }
-    }
-
     /* Get the list of relevant reference types */
     result->statusCode =
         referenceTypeIndices(server, &descr->referenceTypeId,
@@ -1049,15 +1035,27 @@ Operation_BrowseWithContext(UA_Server *server, UA_Session *session,
                                        request, response);
 }
 
-void
-Operation_Browse(UA_Server *server, UA_Session *session,
-                 const void *context /* UA_UInt32 */,
-                 const void *request /* UA_BrowseDescription */,
-                 void *response /* UA_BrowseResult */) {
-    const UA_UInt32 *maxrefs = (const UA_UInt32*)context;
-    BrowseOperationContext browseContext = {
-        *maxrefs, TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
-    Operation_BrowseWithContext(server, session, &browseContext, request, response);
+/* Node management needs every match under the caller's access rights. */
+UA_BrowseResult
+browseAll(UA_Server *server, UA_Session *session, const UA_BrowseDescription *bd) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    BrowseOperationContext context = {0, NULL};
+    Operation_BrowseWithContext(server, session, &context, bd, &result);
+    return result;
+}
+
+/* Apply the server's page limit to public Browse operations. */
+static BrowseOperationContext
+browsePageContext(UA_Server *server, UA_Session *session, UA_UInt32 requested) {
+    UA_UInt32 limit = server->config.maxReferencesPerNode;
+    if(limit != 0 && (requested == 0 || requested > limit))
+        requested = limit;
+    BrowseOperationContext context = {
+        requested == 0 ? UA_INT32_MAX : requested,
+        TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+    return context;
 }
 
 void
@@ -1068,8 +1066,7 @@ Operation_BrowseWithNode(UA_Server *server, UA_Session *session,
                          void *response /* UA_BrowseResult */) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     const UA_UInt32 *maxrefs = (const UA_UInt32*)context;
-    BrowseOperationContext browseContext = {
-        *maxrefs, TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+    BrowseOperationContext browseContext = browsePageContext(server, session, *maxrefs);
     Operation_BrowseWithContextAndNode(server, session, node, &browseContext,
                                        request, response);
 }
@@ -1095,8 +1092,8 @@ Service_Browse(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    BrowseOperationContext context = {request->requestedMaxReferencesPerNode,
-        TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+    BrowseOperationContext context =
+        browsePageContext(server, session, request->requestedMaxReferencesPerNode);
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
@@ -1115,7 +1112,7 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxReferences,
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
     lockServer(server);
-    Operation_Browse(server, &server->adminSession, &maxReferences, bd, &result);
+    Operation_BrowseWithNode(server, &server->adminSession, NULL, &maxReferences, bd, &result);
     unlockServer(server);
     return result;
 }
