@@ -45,7 +45,7 @@ jobs:
       - name: Debug Build
         run: source tools/ci/linux/ci.sh && unit_tests
         env:
-          ETHERNET_INTERFACE: eth0
+          ETHERNET_INTERFACE: lo
       
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
