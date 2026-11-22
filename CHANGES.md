@@ -11,8 +11,6 @@ the editable node with its references. If `editReference` is `NULL`, the
 server uses `getEditNode` as before. Custom nodestores can omit the callback
 from a designated initializer or leave it unset after zero-initialization.
 When filling uninitialized storage field by field, set it to `NULL` if unused.
-`UA_NODESTORE_HAS_EDITREFERENCE` is defined for code that builds against
-versions with and without the callback.
 
 ### Policy-provided certificate hash for session signatures
 

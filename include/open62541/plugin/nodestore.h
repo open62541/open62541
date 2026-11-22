@@ -474,8 +474,6 @@ typedef union {
 
 typedef void (*UA_NodestoreVisitor)(void *visitorCtx, const UA_Node *node);
 
-#define UA_NODESTORE_HAS_EDITREFERENCE 1
-
 struct UA_Nodestore {
     /* Nodestore context and lifecycle */
     void (*free)(UA_Nodestore *ns);
