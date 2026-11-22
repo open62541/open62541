@@ -1354,7 +1354,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
                         &pMetaData->fields[0].dataType);
         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
         pMetaData->fields[0].name =  UA_STRING ("DateTime");
-        pMetaData->fields[0].valueRank = -1; /* scalar */
+        pMetaData->fields[0].valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 arrayDimensions[1] = {3};
         pMetaData->fields[0].arrayDimensionsSize = 1;
         pMetaData->fields[0].arrayDimensions = arrayDimensions;
@@ -1451,6 +1451,27 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
         ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
+
+        /* The generated target node must accept values of the advertised shape. */
+        UA_NodeId targetId = targetVars.targetVariables[0].targetNodeId;
+        UA_Int32 rank;
+        ck_assert_uint_eq(UA_Client_readValueRankAttribute(client, targetId, &rank),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(rank, UA_VALUERANK_ONE_DIMENSION);
+        size_t dimsSize = 0;
+        UA_UInt32 *dims = NULL;
+        ck_assert_uint_eq(UA_Client_readArrayDimensionsAttribute(client, targetId,
+                                                                 &dimsSize, &dims),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(dimsSize, 1);
+        ck_assert_uint_eq(dims[0], 3);
+        UA_Array_delete(dims, dimsSize, &UA_TYPES[UA_TYPES_UINT32]);
+
+        UA_DateTime samples[3] = {1, 2, 3};
+        UA_Variant value;
+        UA_Variant_setArray(&value, samples, 3, &UA_TYPES[UA_TYPES_DATETIME]);
+        ck_assert_uint_eq(UA_Server_writeValue(server, targetId, value),
+                          UA_STATUSCODE_GOOD);
 
         UA_NodeId connectionId =
             *(UA_NodeId *)response.results->outputArguments->data;
