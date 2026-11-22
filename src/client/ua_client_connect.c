@@ -2533,8 +2533,12 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         client->channel.state = UA_SECURECHANNELSTATE_CLOSING;
 
         /* Set the Session to CREATED if it was ACTIVATED */
-        if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
+        if(client->sessionState == UA_SESSIONSTATE_ACTIVATED) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            __Client_Subscriptions_prepareRecovery(client, true);
+#endif
             client->sessionState = UA_SESSIONSTATE_CREATED;
+        }
 
         /* Delete outstanding async services - the RequestId is no longer valid. Do
          * this after setting the Session state. Otherwise we send out new Publish
@@ -3303,8 +3307,12 @@ closeSecureChannel(UA_Client *client) {
     /* If we close SecureChannel when the Session is still active, set to
      * created. Otherwise the Session would remain active until the connection
      * callback is called for the closing connection. */
-    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
+    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        __Client_Subscriptions_prepareRecovery(client, true);
+#endif
         client->sessionState = UA_SESSIONSTATE_CREATED;
+    }
 
     /* Prevent recursion */
     if(client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
@@ -3400,6 +3408,9 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
     if(client->connectStatus == UA_STATUSCODE_GOOD)
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
     resetReconnect(client);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    __Client_Subscriptions_prepareRecovery(client, false);
+#endif
 
     /* Close the SecureChannel */
     closeSecureChannel(client);

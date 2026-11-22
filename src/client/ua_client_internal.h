@@ -62,6 +62,7 @@ typedef struct UA_Client_Subscription {
     UA_Client_StatusChangeNotificationCallback statusChangeCallback;
     UA_Client_DeleteSubscriptionCallback deleteCallback;
     UA_UInt32 sequenceNumber;
+    UA_Boolean recoveryPending;
     UA_DateTime lastActivity;
     MonitorItemsTree monitoredItems;
     size_t pendingRekeys; /* MonitoredItems with a pending clientHandle
@@ -70,8 +71,13 @@ typedef struct UA_Client_Subscription {
                            * notification dispatch. */
 } UA_Client_Subscription;
 
+struct UA_Client_RepublishRecovery;
+
 void
 __Client_Subscriptions_clear(UA_Client *client);
+
+void
+__Client_Subscriptions_prepareRecovery(UA_Client *client, UA_Boolean transportClosed);
 
 /* Exposed for fuzzing */
 UA_StatusCode
@@ -268,6 +274,8 @@ struct UA_Client {
     LIST_HEAD(, UA_Client_Subscription) subscriptions;
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
+    UA_UInt64 subscriptionRecoveryGeneration;
+    struct UA_Client_RepublishRecovery *subscriptionRecovery;
 
     /* Internal namespaces. The table maps the namespace Uri to its index. This
      * is used for the automatic namespace mapping in de/encoding. */

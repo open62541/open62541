@@ -168,8 +168,12 @@ __Client_httpConnectionCallback(
     if(state == UA_CONNECTIONSTATE_CLOSING) {
         /* Close the binding and fail every request still attached to it. */
         client->channel.state = UA_SECURECHANNELSTATE_CLOSING;
-        if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
+        if(client->sessionState == UA_SESSIONSTATE_ACTIVATED) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            __Client_Subscriptions_prepareRecovery(client, true);
+#endif
             client->sessionState = UA_SESSIONSTATE_CREATED;
+        }
         __Client_AsyncService_removeAll(
             client, UA_STATUSCODE_BADSECURECHANNELCLOSED);
         UA_SecureChannel_clear(&client->channel);
