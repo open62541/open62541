@@ -141,7 +141,7 @@ START_TEST(structureArrayCopyRollback) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     type.typeName = "ArrayCopyRollback";
 #endif
-    type.typeKind = _i ? UA_DATATYPEKIND_STRUCTUREOPT : UA_DATATYPEKIND_STRUCTURE;
+    type.typeKind = _i ? UA_DATATYPEKIND_OPTSTRUCT : UA_DATATYPEKIND_STRUCTURE;
     type.memSize = sizeof(Record);
     type.membersSize = 2;
     type.members = members;
