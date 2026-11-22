@@ -1658,6 +1658,27 @@ UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
                               UA_StatusCode result);
 
 /**
+ * Cancelling an individual operation
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Use the original pointer from the Read, Write or Call handler while its result
+ * setter is outstanding. Synchronize use of the pointer with the result handoff.
+ * Returns true if the operation was pending and reason is a Bad StatusCode. The
+ * requester receives reason as the operation status. After result delivery,
+ * asyncOperationCancelCallback receives the pointer if configured and the result
+ * setter is still outstanding. Call the matching result setter exactly once. */
+UA_Boolean UA_EXPORT UA_THREADSAFE
+UA_Server_cancelAsyncRead(UA_Server *server, UA_DataValue *result,
+                          UA_StatusCode reason);
+
+UA_Boolean UA_EXPORT UA_THREADSAFE
+UA_Server_cancelAsyncWrite(UA_Server *server, const UA_DataValue *value,
+                           UA_StatusCode reason);
+
+UA_Boolean UA_EXPORT UA_THREADSAFE
+UA_Server_cancelAsyncCall(UA_Server *server, UA_Variant *output,
+                          UA_StatusCode reason);
+
+/**
  * Submitting local async requests
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * Call ``UA_Server_read_async``, ``UA_Server_write_async`` or

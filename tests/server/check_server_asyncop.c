@@ -1829,6 +1829,38 @@ recordLocalReadResult(UA_Server *serverArg, void *context, const UA_DataValue *r
     localResultStatus = result->hasStatus ? result->status : UA_STATUSCODE_GOOD;
 }
 
+START_TEST(Async_cancel_local_read_by_pointer) {
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    acknowledgeCancellation = false;
+    localResultCount = 0;
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "asyncVar");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_read_async(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER,
+                                           recordLocalReadResult, NULL, 0),
+                      UA_STATUSCODE_GOOD);
+    UA_Server_removeCallback(server, lastTimedCallback);
+    UA_DataValue *out = (UA_DataValue*)activeReads[0];
+    UA_StatusCode reason = UA_STATUSCODE_BADOPERATIONABANDONED;
+    ck_assert(!UA_Server_cancelAsyncRead(server, out, UA_STATUSCODE_GOOD));
+    ck_assert(!UA_Server_cancelAsyncRead(server, out, UA_STATUSCODE_UNCERTAIN));
+    ck_assert(!UA_Server_cancelAsyncRead(server, NULL, reason));
+    ck_assert(!UA_Server_cancelAsyncWrite(server, out, reason));
+    ck_assert(UA_Server_cancelAsyncRead(server, out, reason));
+    ck_assert(!UA_Server_cancelAsyncRead(server, out, UA_STATUSCODE_BADTIMEOUT));
+    ck_assert_ptr_null(canceledCallRequest);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(localResultCount, 1);
+    ck_assert_uint_eq(localResultStatus, reason);
+    ck_assert_ptr_eq(canceledCallRequest, out);
+    ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, out), UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(localResultCount, 1);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+} END_TEST
+
 /* A ready local result lives in the EventLoop queue, not the outstanding
  * operation list. Cancellation may return ownership before or after delivery. */
 START_TEST(Async_local_delivery_lifetime) {
@@ -2368,7 +2400,7 @@ checkConcurrentResponse(ConcurrentResponse *r) {
     ck_assert_uint_eq(header->requestHandle, 1337);
     /* The Cancel service returns a ServiceFault rather than per-item results.
      * Timeouts retain a normal response with the already completed items. */
-    if(r->expectedStatus == UA_STATUSCODE_BADOPERATIONABANDONED) {
+    if(r->expectedStatus == UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT) {
         ck_assert_uint_eq(header->serviceResult, UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT);
         return;
     }
@@ -2409,7 +2441,7 @@ checkConcurrentResponse(ConcurrentResponse *r) {
     }
 }
 
-/* Three result types, with normal completion, Cancel service, and timeout.
+/* Three result types, with normal completion, Cancel service, timeout and typed cancel.
  * The completed first result must survive cancellation of the second while
  * its worker repeatedly edits/frees/reallocates output during wire encoding. */
 START_TEST(Async_concurrent_worker_ownership) {
@@ -2420,10 +2452,12 @@ START_TEST(Async_concurrent_worker_ownership) {
     THREAD_JOIN(server_thread);
     server->config.asyncOperationCancelCallback = NULL;
     UA_atomic_store(&workers[0].finish, true);
-    size_t kind = (size_t)_i / 3;
-    size_t mode = (size_t)_i % 3;
-    received = (ConcurrentResponse){kind, 0, mode == 0 ? UA_STATUSCODE_GOOD :
-        (mode == 1 ? UA_STATUSCODE_BADOPERATIONABANDONED : UA_STATUSCODE_BADTIMEOUT),
+    size_t kind = (size_t)_i / 4;
+    size_t mode = (size_t)_i % 4;
+    const UA_StatusCode statuses[] = {
+        UA_STATUSCODE_GOOD, UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT,
+        UA_STATUSCODE_BADTIMEOUT, UA_STATUSCODE_BADOPERATIONABANDONED};
+    received = (ConcurrentResponse){kind, 0, statuses[mode],
         &UA_TYPES[kind == 0 ? UA_TYPES_READRESPONSE :
                   (kind == 1 ? UA_TYPES_CALLRESPONSE : UA_TYPES_WRITERESPONSE)], NULL};
 
@@ -2514,8 +2548,14 @@ START_TEST(Async_concurrent_worker_ownership) {
         ck_assert_uint_eq(__UA_Client_AsyncService(client, &req,
             &UA_TYPES[UA_TYPES_CANCELREQUEST], NULL,
             &UA_TYPES[UA_TYPES_CANCELRESPONSE], NULL, NULL), UA_STATUSCODE_GOOD);
-    } else {
+    } else if(mode == 2) {
         UA_fakeSleep(2500);
+    } else if(kind == 0) {
+        ck_assert(UA_Server_cancelAsyncRead(server, workers[1].read, statuses[mode]));
+    } else if(kind == 1) {
+        ck_assert(UA_Server_cancelAsyncCall(server, workers[1].call, statuses[mode]));
+    } else {
+        ck_assert(UA_Server_cancelAsyncWrite(server, workers[1].write, statuses[mode]));
     }
     deadline = UA_DateTime_nowMonotonic() + 60 * UA_DATETIME_SEC;
     while(received.received == 0) {
@@ -2628,13 +2668,14 @@ static Suite* method_async_suite(void) {
 
     TCase *tc_workers = tcase_create("Workers");
     tcase_add_checked_fixture(tc_workers, setupWorkers, teardownWorkers);
-    tcase_add_loop_test(tc_workers, Async_concurrent_worker_ownership, 0, 9);
+    tcase_add_loop_test(tc_workers, Async_concurrent_worker_ownership, 0, 12);
     tcase_add_loop_test(tc_workers, Async_local_worker_ownership, 0, 3);
     suite_add_tcase(s, tc_workers);
 
     TCase* tc_manager = tcase_create("AsyncMethod");
     tcase_add_checked_fixture(tc_manager, setup, teardown);
     tcase_add_test(tc_manager, Async_result_callback_acknowledges_timed_out_worker);
+    tcase_add_test(tc_manager, Async_cancel_local_read_by_pointer);
     tcase_add_loop_test(tc_manager, Async_local_delivery_lifetime, 0, 3);
     tcase_add_test(tc_manager, Async_shutdown_delivers_already_ready_results);
     tcase_add_test(tc_manager, Async_local_timeout_without_global_timeout);

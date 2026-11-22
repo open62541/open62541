@@ -357,6 +357,13 @@ completeResponseOperation(UA_Server *server, UA_AsyncResponse *ar) {
         scheduleResponse(server, ar);
 }
 
+static UA_AsyncOperation *
+findAsyncOperation(UA_AsyncManager *am, const void *id, UA_AsyncOperationType kind) {
+    uintptr_t key = (uintptr_t)id;
+    UA_AsyncOperation *op = ZIP_FIND(UA_AsyncOperationTree, &am->operations, &key);
+    return (op && operationKind(op->asyncOperationType) == kind) ? op : NULL;
+}
+
 /* All three setters use the same ownership transition. Canceled operations
  * remain discoverable until the application returns ownership. */
 static UA_StatusCode
@@ -364,9 +371,8 @@ setAsyncResult(UA_Server *server, const void *id,
                 UA_AsyncOperationType kind, UA_StatusCode status) {
     lockServer(server);
     UA_AsyncManager *am = &server->asyncManager;
-    uintptr_t key = (uintptr_t)id;
-    UA_AsyncOperation *op = ZIP_FIND(UA_AsyncOperationTree, &am->operations, &key);
-    if(!op || operationKind(op->asyncOperationType) != kind) {
+    UA_AsyncOperation *op = findAsyncOperation(am, id, kind);
+    if(!op) {
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -418,6 +424,38 @@ cancelOperation(UA_Server *server, UA_AsyncOperation *op, UA_StatusCode status) 
         scheduleCallback(server, &op->handling.callback.dc, finishDirectOp, op);
     }
     op->resultIndex = SIZE_MAX;
+}
+
+static UA_Boolean
+cancelAsync(UA_Server *server, const void *id, UA_AsyncOperationType kind,
+            UA_StatusCode reason) {
+    if(!UA_StatusCode_isBad(reason))
+        return false;
+    lockServer(server);
+    UA_AsyncOperation *op = findAsyncOperation(&server->asyncManager, id, kind);
+    UA_Boolean pending = op && op->resultIndex != SIZE_MAX;
+    if(pending)
+        cancelOperation(server, op, reason);
+    unlockServer(server);
+    return pending;
+}
+
+UA_Boolean
+UA_Server_cancelAsyncRead(UA_Server *server, UA_DataValue *result,
+                          UA_StatusCode reason) {
+    return cancelAsync(server, result, UA_ASYNCOPERATIONTYPE_READ_REQUEST, reason);
+}
+
+UA_Boolean
+UA_Server_cancelAsyncWrite(UA_Server *server, const UA_DataValue *value,
+                           UA_StatusCode reason) {
+    return cancelAsync(server, value, UA_ASYNCOPERATIONTYPE_WRITE_REQUEST, reason);
+}
+
+UA_Boolean
+UA_Server_cancelAsyncCall(UA_Server *server, UA_Variant *output,
+                          UA_StatusCode reason) {
+    return cancelAsync(server, output, UA_ASYNCOPERATIONTYPE_CALL_REQUEST, reason);
 }
 
 static void
