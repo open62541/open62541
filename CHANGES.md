@@ -13,10 +13,6 @@ structure field by field must set the new member to NULL.
 `UA_NODESTORE_HAS_EDITREFERENCE` is defined for code that builds against
 versions with and without the callback.
 
-The attribute mask and the references selected for `getEditNode` are a
-contract: the server accesses only the selected attributes and references
-through the returned node.
-
 ### Policy-provided certificate hash for session signatures
 
 `UA_SecurityPolicy.hashCertificateForSignature` replaces the global
