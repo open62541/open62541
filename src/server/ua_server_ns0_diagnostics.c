@@ -372,8 +372,18 @@ readSessionDiagnostics(UA_Server *server,
                        const UA_NumericRange *range, UA_DataValue *value) {
     lockServer(server);
 
-    /* Get the Session */
-    UA_Session *session = getSessionById(server, sessionId);
+    /* sessionId identifies the reader, not the owner of the diagnostics node.
+     * The node context binds the node to the Session that created it. Validate
+     * the binding against the Session list so a closed Session is not
+     * dereferenced during its delayed cleanup. */
+    UA_Session *session = NULL;
+    session_list_entry *entry;
+    LIST_FOREACH(entry, &server->sessions, pointers) {
+        if(nodeContext == &entry->session) {
+            session = getSessionById(server, &entry->session.sessionId);
+            break;
+        }
+    }
     if(!session) {
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -530,9 +540,25 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    /* Add the callback to all variables  */
+    /* Add the callback to all variables and bind them to the owning Session.
+     * The read callback resolves the Session from this context, not from the
+     * requesting client. */
     for(size_t i = 0; i < childrenSize; i++) {
-        setVariableNode_callbackValueSource(server, children[i].nodeId, sessionDiagSource);
+        UA_StatusCode bindRes =
+            setNodeContext(server, children[i].nodeId, session);
+        if(bindRes != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                "Binding a Session diagnostics node failed with StatusCode %s",
+                UA_StatusCode_name(bindRes));
+            continue;
+        }
+        bindRes = setVariableNode_callbackValueSource(server, children[i].nodeId,
+                                                      sessionDiagSource);
+        if(bindRes != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                "Setting the Session diagnostics callback failed with StatusCode %s",
+                UA_StatusCode_name(bindRes));
+        }
     }
 
  cleanup:
