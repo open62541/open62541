@@ -1757,6 +1757,48 @@ START_TEST(DeleteNode_KeepReferences) {
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+static UA_StatusCode (*savedRemoveNode)(UA_Nodestore *, const UA_NodeId *);
+static UA_Boolean failRemoveNode;
+
+static UA_StatusCode
+removeNodeFails(UA_Nodestore *ns, const UA_NodeId *nodeId) {
+    if(failRemoveNode)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return savedRemoveNode(ns, nodeId);
+}
+
+START_TEST(DeleteNode_NodestoreRemovalFailure) {
+    UA_NodeId outId;
+    UA_NodeId_init(&outId);
+    ck_assert_uint_eq(UA_Server_addObjectNode(server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "RemoveFailure"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+        UA_ObjectAttributes_default, NULL, &outId), UA_STATUSCODE_GOOD);
+
+    /* A nodestore that refuses the removal must not be reported as success. */
+    UA_Nodestore *ns = server->config.nodestore;
+    savedRemoveNode = ns->removeNode;
+    ns->removeNode = removeNodeFails;
+    failRemoveNode = UA_TRUE;
+    ck_assert_uint_eq(UA_Server_deleteNode(server, outId, true),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    failRemoveNode = UA_FALSE;
+    ns->removeNode = savedRemoveNode;
+
+    /* The failed removal left the node in place. A retry completes. */
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, outId, &nodeClass),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, outId, true),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, outId, &nodeClass),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_NodeId_clear(&outId);
+} END_TEST
+
+
 START_TEST(DeleteReference) {
     /* Add two objects and a reference between them */
     UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
@@ -3065,6 +3107,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_deletenodes, setup, teardown);
     tcase_add_test(tc_deletenodes, DeleteObjectWithDestructor);
     tcase_add_test(tc_deletenodes, DeleteObjectAndReferences);
+    tcase_add_test(tc_deletenodes, DeleteNode_NodestoreRemovalFailure);
     tcase_add_test(tc_deletenodes, Service_DeleteNodes_maxNodesPerNodeManagement_exceeded);
     suite_add_tcase(s, tc_deletenodes);
 

@@ -2480,7 +2480,8 @@ buildDeleteNodeSet(UA_Server *server, UA_Session *session,
 static void
 deleteNodeSet(UA_Server *server, UA_Session *session,
               const UA_ReferenceTypeSet *hierarchRefsSet,
-              UA_Boolean removeTargetRefs, RefTree *refTree) {
+              UA_Boolean removeTargetRefs, RefTree *refTree,
+              UA_StatusCode *result) {
     /* Delete the nodes based on the RefTree entries */
     for(size_t i = refTree->size; i > 0; --i) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i-1].nodeId);
@@ -2496,7 +2497,10 @@ deleteNodeSet(UA_Server *server, UA_Session *session,
         if(removeTargetRefs)
             removeIncomingReferences(server, session, &member->head);
         UA_NODESTORE_RELEASE(server, member);
-        UA_NODESTORE_REMOVE(server, &refTree->targets[i-1].nodeId);
+        UA_StatusCode removeRes =
+            UA_NODESTORE_REMOVE(server, &refTree->targets[i-1].nodeId);
+        if(removeRes != UA_STATUSCODE_GOOD && *result == UA_STATUSCODE_GOOD)
+            *result = removeRes;
     }
 }
 
@@ -2577,7 +2581,7 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
                                UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED);
     deconstructNodeSet(server, session, &hierarchRefsSet, &refTree);
     deleteNodeSet(server, session, &hierarchRefsSet,
-                  item->deleteTargetReferences, &refTree);
+                  item->deleteTargetReferences, &refTree, result);
     RefTree_clear(&refTree);
 }
 
