@@ -244,6 +244,13 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
  cleanup:
     UA_BrowsePathResult_clear(&bpr);
     if(res != UA_STATUSCODE_GOOD) {
+        /* A node may already have been inserted for the diagnostics object.
+         * Remove the partial object (including constructed children) so that
+         * no reachable node with an unbound value source is left behind. */
+        if(!UA_NodeId_isNull(&sub->ns0Id)) {
+            deleteNode(server, sub->ns0Id, true);
+            UA_NodeId_clear(&sub->ns0Id);
+        }
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Creating the subscription diagnostics object failed "
                                "with StatusCode %s", UA_StatusCode_name(res));
