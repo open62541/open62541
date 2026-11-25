@@ -499,6 +499,9 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_hmac_verify_constanttime.c)
     target_include_directories(check_hmac_verify_constanttime PRIVATE
                                ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
+    if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+        ua_add_test(encryption/check_pki_folder_errors.c)
+    endif()
 endif()
 
 # Tests for Nodeset Compiler

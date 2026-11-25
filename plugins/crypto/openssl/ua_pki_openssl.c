@@ -20,7 +20,9 @@
 #include "ua_openssl_version_abstraction.h"
 #include "libc_time.h"
 
+#include <errno.h>
 #include <limits.h>
+#include <string.h>
 
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
@@ -305,6 +307,13 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
         numCertificates = scandir(folderPath, &dirlist,
                                   UA_Certificate_Filter_der_pem,
                                   alphasort);
+        if (numCertificates < 0) {
+            int err = errno;
+            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_SERVER,
+                         "Failed to read the trust-list folder %s (%s)",
+                         folderPath, strerror(err));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
         for (i = 0; i < numCertificates; i++) {
             if (UA_BuildFullPath (folderPath, dirlist[i]->d_name,
                                   PATH_MAX, certFile) != UA_STATUSCODE_GOOD) {
@@ -312,13 +321,13 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO(ctx->logging, UA_LOGCATEGORY_SERVER,
-                            "Failed to load the certificate file %s", certFile);
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_SERVER,
+                               "Failed to load the certificate file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skTrusted_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
-                            "Failed to decode the certificate file %s", certFile);
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_SERVER,
+                               "Failed to decode the certificate file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
             }
@@ -344,6 +353,13 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
         numCertificates = scandir(folderPath, &dirlist,
                                   UA_Certificate_Filter_der_pem,
                                   alphasort);
+        if (numCertificates < 0) {
+            int err = errno;
+            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_SERVER,
+                         "Failed to read the issuer-list folder %s (%s)",
+                         folderPath, strerror(err));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
         for (i = 0; i < numCertificates; i++) {
             if (UA_BuildFullPath (folderPath, dirlist[i]->d_name,
                                   PATH_MAX, certFile) != UA_STATUSCODE_GOOD) {
@@ -351,13 +367,13 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
-                            "Failed to load the certificate file %s", certFile);
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_SERVER,
+                               "Failed to load the certificate file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skIssuer_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
-                            "Failed to decode the certificate file %s", certFile);
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_SERVER,
+                               "Failed to decode the certificate file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
             }
@@ -383,6 +399,13 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
         numCertificates = scandir(folderPath, &dirlist,
                                   UA_Certificate_Filter_crl,
                                   alphasort);
+        if (numCertificates < 0) {
+            int err = errno;
+            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_SERVER,
+                         "Failed to read the revocation-list folder %s (%s)",
+                         folderPath, strerror(err));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
         for (i = 0; i < numCertificates; i++) {
             if (UA_BuildFullPath (folderPath, dirlist[i]->d_name,
                                   PATH_MAX, certFile) != UA_STATUSCODE_GOOD) {
@@ -390,13 +413,13 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
-                            "Failed to load the revocation file %s", certFile);
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_SERVER,
+                               "Failed to load the revocation file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skCrls_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
-                            "Failed to decode the revocation file %s", certFile);
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_SERVER,
+                               "Failed to decode the revocation file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
             }
@@ -719,10 +742,23 @@ UA_CertificateVerification_Verify(const UA_CertificateVerification *cv,
             memcpy(rejectedFullFileName, ctx->rejectedListFolder.data, ctx->rejectedListFolder.length);
             rejectedFullFileName[ctx->rejectedListFolder.length] = '/';
             memcpy(&rejectedFullFileName[ctx->rejectedListFolder.length + 1], rejectedFileName, strlen(rejectedFileName));
+            /* Failing to save the rejected certificate does not change the
+             * verification result. But log it, as the rejected folder is
+             * otherwise silently left empty. */
             FILE * fp_rejectedFile = fopen(rejectedFullFileName, "wb");
             if(fp_rejectedFile) {
-                fwrite(certificate->data, sizeof(certificate->data[0]), certificate->length, fp_rejectedFile);
-                fclose(fp_rejectedFile);
+                size_t written = fwrite(certificate->data, sizeof(certificate->data[0]),
+                                        certificate->length, fp_rejectedFile);
+                int closed = fclose(fp_rejectedFile);
+                if(written != certificate->length || closed != 0)
+                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_SERVER,
+                                 "Failed to write the rejected certificate %s",
+                                 rejectedFullFileName);
+            } else {
+                int openErr = errno;
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_SERVER,
+                             "Failed to save the rejected certificate %s (%s)",
+                             rejectedFullFileName, strerror(openErr));
             }
             free(rejectedFullFileName);
     }
