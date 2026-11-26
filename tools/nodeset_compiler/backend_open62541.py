@@ -116,8 +116,14 @@ def generateNodeIdPrintable(node):
 
     return re.sub('[^0-9a-z_]+', '_', CodePrintable.lower())
 
-def generateReferenceCode(reference):
+def generateReferenceCode(reference, outfilebase=None):
     forwardFlag = "true" if reference.isForward else "false"
+    source, refType, target = reference.source, reference.referenceType, reference.target
+    if outfilebase is not None and source and refType and source.i is not None and \
+       refType.i is not None and target.i is not None:
+        return "retVal |= %s_addRef(server, nsMapping, %d, %dLU, %d, %dLU, %d, %dLU, %s);" % \
+            (outfilebase, source.ns, source.i, refType.ns, refType.i,
+             target.ns, target.i, forwardFlag)
     return "retVal |= UA_Server_addReference(server, %s, %s, %s, %s);" % \
         (generateNodeIdCode(reference.source),
          generateNodeIdCode(reference.referenceType),
@@ -583,7 +589,36 @@ _UA_END_DECLS
  * Any manual changes will be overwritten. */
 
 #include "%s.h"
-""" % (outfilebase))
+
+/* Inlined into the top-level function, the per-node functions' locals would
+ * add up in its stack frame instead of being reused. */
+#ifndef UA_NODESET_NOINLINE
+# if defined(__GNUC__)
+#  define UA_NODESET_NOINLINE __attribute__((noinline))
+# else
+#  define UA_NODESET_NOINLINE
+# endif
+#endif
+
+/* Every UA_Server_addReference call with NodeId arguments built in place gets
+ * its own stack slots for them (GCC does not share them), so a node with
+ * hundreds of references needs tens of kilobytes of stack. Numeric references
+ * go through this function instead, which takes the ids as integers. */
+#if defined(__GNUC__)
+__attribute__((noinline, unused))
+#endif
+static UA_StatusCode
+%s_addRef(UA_Server *server, const UA_NamespaceMapping *nsMapping,
+          UA_UInt16 sourceNs, UA_UInt32 source, UA_UInt16 refTypeNs,
+          UA_UInt32 refType, UA_UInt16 targetNs, UA_UInt32 target,
+          UA_Boolean isForward) {
+    return UA_Server_addReference(server,
+        UA_NODEID_NUMERIC(UA_NamespaceMapping_local2Remote(nsMapping, sourceNs), source),
+        UA_NODEID_NUMERIC(UA_NamespaceMapping_local2Remote(nsMapping, refTypeNs), refType),
+        UA_EXPANDEDNODEID_NUMERIC(UA_NamespaceMapping_local2Remote(nsMapping, targetNs), target),
+        isForward);
+}
+""" % (outfilebase, outfilebase))
 
     for arr in dict.fromkeys(typesArray):
         if arr != "UA_TYPES":
@@ -621,7 +656,7 @@ _UA_END_DECLS
             if len(code_global) > 0:
                 writec("\n".join(code_global))
                 writec("\n")
-            writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
+            writec("\nstatic UA_NODESET_NOINLINE UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
             writec(code)
 
         # Print inverse references leading to this node
@@ -634,7 +669,7 @@ _UA_END_DECLS
                 and ref.referenceType == node.parentReference.id:
                 # Skip parent reference
                 continue
-            writec(generateReferenceCode(ref))
+            writec(generateReferenceCode(ref, outfilebase))
 
         if node.hidden:
             continue
@@ -643,7 +678,7 @@ _UA_END_DECLS
 
         writec("}")
 
-        writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
+        writec("\nstatic UA_NODESET_NOINLINE UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
 
         writec("UA_StatusCode retVal = " + generateNodeCode_finish(node))
         writec('if(retVal != UA_STATUSCODE_GOOD) UA_LOG_ERROR(UA_Server_getConfig(server)->logging,')
