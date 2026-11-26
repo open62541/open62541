@@ -8,8 +8,11 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <check.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include "ethernet_config.h"
 #include "test_helpers.h"
 #include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
@@ -18,119 +21,120 @@
 #define PUBLISHING_MULTICAST_MAC_ADDRESS1  "opc.eth://01-00-5E-7F-00-01"
 #define PUBLISHING_MULTICAST_MAC_ADDRESS2  "opc.eth://01-00-5E-7F-00-01:8.4"
 #define TRANSPORT_PROFILE_URI              "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
-#define UA_SUBSCRIBER_PORT                 4801    /* Port for Subscriber*/
-#define PUBLISHER_ID                       2234    /* Publisher Id*/
-#define ETHERNET_INTERFACE                 "enp2s0"
+#define UA_SUBSCRIBER_PORT                 4801
+#define PUBLISHER_ID                       2234
 #define BUFFER_STRING                      "Hello! This is Ethernet Testing"
 #define CONNECTION_NAME                    "Ethernet Test Connection"
 
-/* Global declaration for test cases  */
-UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
-UA_PubSubConnection *connection;
-UA_NodeId connection_test;
+static UA_Server *server;
 
-/* setup() is to create an environment for test cases */
-static void setup(void) {
-    /*Add setup by creating new server with valid configuration */
+static void
+setup(void) {
     server = UA_Server_newForUnitTest();
-    ck_assert(server != NULL);
-    config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
-    UA_Server_run_startup(server);
+    ck_assert_ptr_ne(server, NULL);
+    UA_StatusCode retVal =
+        UA_ServerConfig_setMinimal(UA_Server_getConfig(server),
+                                   UA_SUBSCRIBER_PORT, NULL);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_run_startup(server);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
-/* teardown() is to delete the environment set for test cases */
-static void teardown(void) {
-    /*Call server delete functions */
-   UA_Server_run_shutdown(server);
-   UA_Server_delete(server);
+static void
+teardown(void) {
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+    server = NULL;
+}
+
+static void
+sendEthernetPacket(UA_String address) {
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name = UA_STRING(CONNECTION_NAME);
+    UA_NetworkAddressUrlDataType networkAddressUrl = {
+        UA_STRING(ETHERNET_INTERFACE), address
+    };
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
+
+    UA_NodeId connectionId = UA_NODEID_NULL;
+    UA_StatusCode retVal =
+        UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_find(getPSM(server), connectionId);
+    ck_assert_ptr_ne(connection, NULL);
+    ck_assert_ptr_ne(connection->cm, NULL);
+
+    /* A writer group and an enabled connection attach the send channel. */
+    UA_WriterGroupConfig wgConfig;
+    memset(&wgConfig, 0, sizeof(wgConfig));
+    wgConfig.name = UA_STRING("Ethernet Test Writer Group");
+    wgConfig.publishingInterval = 1000.0;
+    UA_NodeId wgId = UA_NODEID_NULL;
+    retVal = UA_Server_addWriterGroup(server, connectionId, &wgConfig, &wgId);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_enableWriterGroup(server, wgId);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_enablePubSubConnection(server, connectionId);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 100 && connection->sendChannel == 0; ++i)
+        UA_Server_run_iterate(server, false);
+    ck_assert(connection->sendChannel != 0);
+
+    /* The connection manager consumes this buffer, including on send failure. */
+    UA_ByteString testBuffer = UA_BYTESTRING_NULL;
+    size_t payloadLength = strlen(BUFFER_STRING);
+    retVal = connection->cm->allocNetworkBuffer(
+        connection->cm, connection->sendChannel, &testBuffer, payloadLength);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(testBuffer.data, NULL);
+    ck_assert(testBuffer.length >= payloadLength);
+    memcpy(testBuffer.data, BUFFER_STRING, payloadLength);
+    testBuffer.length = payloadLength;
+    retVal = connection->cm->sendWithConnection(
+        connection->cm, connection->sendChannel,
+        &UA_KEYVALUEMAP_NULL, &testBuffer);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_NodeId_clear(&wgId);
+    UA_NodeId_clear(&connectionId);
+    UA_Server_run_iterate(server, false);
 }
 
 START_TEST(EthernetSendWithoutVLANTag) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ByteString testBuffer;
-    /* Add connection to the server */
-    UA_PubSubConnectionConfig connectionConfig;
-    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-    connectionConfig.name = UA_STRING(CONNECTION_NAME);
-    /* Provide a multicast MAC without VLAN tag */
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(PUBLISHING_MULTICAST_MAC_ADDRESS1)};
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
-                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-
-    UA_PubSubManager *psm = getPSM(server);
-    connection = UA_PubSubConnection_find(psm, connection_test);
-    /* Remove the connection if invalid*/
-    if(!connection) {
-        return;
-    }
-
-    /* Initialize a buffer to send data */
-    testBuffer = UA_STRING(BUFFER_STRING);
-    /* Validate the Ethernet send API */
-    retVal = connection->cm->sendWithConnection(connection->cm, connection->sendChannel,
-                                                &UA_KEYVALUEMAP_NULL, &testBuffer);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-    UA_Server_run_iterate(server, false);
-}
-END_TEST
-
-START_TEST(EthernetSendWithVLANTag) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ByteString testBuffer ;
-    /* Add connection to the server */
-    UA_PubSubConnectionConfig connectionConfig;
-    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-    connectionConfig.name = UA_STRING(CONNECTION_NAME);
-    /* Provide a multicast MAC without VLAN tag */
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(PUBLISHING_MULTICAST_MAC_ADDRESS2)};
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
-                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-
-    UA_PubSubManager *psm = getPSM(server);
-    connection = UA_PubSubConnection_find(psm, connection_test);
-    /* Remove the connection if invalid*/
-    if(!connection) {
-        return;
-    }
-
-    /* Initialize a buffer to send data */
-    testBuffer = UA_STRING(BUFFER_STRING);
-    /* Validate the Ethernet send API */
-    retVal = connection->cm->sendWithConnection(connection->cm, connection->sendChannel,
-                                                &UA_KEYVALUEMAP_NULL, &testBuffer);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-    UA_Server_run_iterate(server, false);
+    sendEthernetPacket(UA_STRING(PUBLISHING_MULTICAST_MAC_ADDRESS1));
 } END_TEST
 
-int main(void) {
-    /*Test case to run both publisher*/
-    TCase *tc_pubsub_ethernet_send = tcase_create("Publisher publishing Ethernet packets");
-    tcase_add_checked_fixture(tc_pubsub_ethernet_send, setup, teardown);
-    tcase_add_test(tc_pubsub_ethernet_send, EthernetSendWithoutVLANTag);
-    tcase_add_test(tc_pubsub_ethernet_send, EthernetSendWithVLANTag);
+START_TEST(EthernetSendWithVLANTag) {
+    sendEthernetPacket(UA_STRING(PUBLISHING_MULTICAST_MAC_ADDRESS2));
+} END_TEST
+
+int
+main(void) {
+    const char *interface = ETHERNET_INTERFACE;
+    const char *skip = SKIP_ETHERNET;
+    if((skip && skip[0]) || !interface || !interface[0]) {
+        fprintf(stderr, "SKIP: configure ETHERNET_INTERFACE and unset "
+                        "SKIP_ETHERNET to run Ethernet send tests\n");
+        return 77;
+    }
+
+    TCase *tc = tcase_create("Publisher publishing Ethernet packets");
+    tcase_add_checked_fixture(tc, setup, teardown);
+    tcase_add_test(tc, EthernetSendWithoutVLANTag);
+    tcase_add_test(tc, EthernetSendWithVLANTag);
 
     Suite *suite = suite_create("Ethernet Send");
-    suite_add_tcase(suite, tc_pubsub_ethernet_send);
-
+    suite_add_tcase(suite, tc);
     SRunner *suiteRunner = srunner_create(suite);
     srunner_set_fork_status(suiteRunner, CK_NOFORK);
-    srunner_run_all(suiteRunner,CK_NORMAL);
-    int number_failed = srunner_ntests_failed(suiteRunner);
+    srunner_run_all(suiteRunner, CK_NORMAL);
+    int numberFailed = srunner_ntests_failed(suiteRunner);
     srunner_free(suiteRunner);
-
-    return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    return numberFailed == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-
-
