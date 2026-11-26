@@ -21,6 +21,9 @@
 #include <lwip/netdb.h>
 #include <lwip/init.h>
 #include <lwip/sockets.h>
+#if LWIP_VERSION >= 0x02010000U
+# include <lwip/if_api.h> /* lwip_if_nametoindex */
+#endif
 
 #define OPTVAL_TYPE int
 
