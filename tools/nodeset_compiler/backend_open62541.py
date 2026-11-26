@@ -715,6 +715,36 @@ static UA_StatusCode
                (i, makeCLiteral(nodeset.namespaces[i])))
     writec("};")
     writec(generate_type_support(sources, ownedArrays, outfilebase))
+    if outfilebase != "namespace0_generated":
+        # One call per node with the NodeId built in place would cost stack
+        # slots per node in the top-level function (see _addRef).
+        writec("""
+#if defined(__GNUC__)
+__attribute__((noinline, unused))
+#endif
+static UA_StatusCode
+%s_checkNew(UA_Server *server, const UA_NamespaceMapping *nsMapping,
+            UA_UInt16 ns, UA_UInt32 id) {
+    UA_NodeClass nodeClass;
+    UA_StatusCode res = UA_Server_readNodeClass(server,
+        UA_NODEID_NUMERIC(UA_NamespaceMapping_local2Remote(nsMapping, ns), id), &nodeClass);
+    if(res == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+    if(res == UA_STATUSCODE_BADNODEIDUNKNOWN)
+        return UA_STATUSCODE_GOOD;
+    return res;
+}
+
+#if defined(__GNUC__)
+__attribute__((noinline, unused))
+#endif
+static void
+%s_deleteNode(UA_Server *server, const UA_NamespaceMapping *nsMapping,
+              UA_UInt16 ns, UA_UInt32 id) {
+    UA_Server_deleteNode(server,
+        UA_NODEID_NUMERIC(UA_NamespaceMapping_local2Remote(nsMapping, ns), id), true);
+}
+""" % (outfilebase, outfilebase))
     writec("UA_StatusCode %s(%s) {" % (outfilebase, loaderArgs))
     writec("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
     if outfilebase != "namespace0_generated":
@@ -738,6 +768,11 @@ static UA_StatusCode
     if outfilebase != "namespace0_generated":
         writec("/* Reject duplicates before creating any nodes. */")
         for node in functionNodes:
+            if node.id.i is not None:
+                writec("retVal = %s_checkNew(server, &nsMapping, %d, %dLU); "
+                       "if(retVal != UA_STATUSCODE_GOOD) goto cleanup;" %
+                       (outfilebase, node.id.ns, node.id.i))
+                continue
             nodeid = generateNodeIdCode(node.id).replace("nsMapping,", "&nsMapping,")
             writec("{ UA_NodeClass nodeClass; retVal = UA_Server_readNodeClass(server, " + nodeid +
                    ", &nodeClass); if(retVal == UA_STATUSCODE_GOOD) { retVal = UA_STATUSCODE_BADNODEIDEXISTS; goto cleanup; } "
@@ -768,6 +803,10 @@ static UA_StatusCode
     if outfilebase != "namespace0_generated":
         writec("if(started && retVal != UA_STATUSCODE_GOOD) {")
         for node in reversed(functionNodes):
+            if node.id.i is not None:
+                writec("    %s_deleteNode(server, &nsMapping, %d, %dLU);" %
+                       (outfilebase, node.id.ns, node.id.i))
+                continue
             nodeid = generateNodeIdCode(node.id).replace("nsMapping,", "&nsMapping,")
             writec("    UA_Server_deleteNode(server, " + nodeid + ", true);")
         writec("}")
