@@ -62,6 +62,25 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     target_link_libraries(check_nodeset_compiler_plc ${LIBS})
     add_test_valgrind(nodeset_compiler_plc ${TESTS_BINARY_DIR}/check_nodeset_compiler_plc)
 
+    # Machinery with its Machines folder blacklisted
+    ua_generate_nodeset_and_datatypes(
+        NAME "tests-machinery-blacklist"
+        FILE_NS "${open62541_NODESET_DIR}/Machinery/Opc.Ua.Machinery.NodeSet2.xml"
+        BLACKLIST "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/machinery_blacklist.txt"
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        DEPENDS "tests-di"
+        INTERNAL
+    )
+
+    add_executable(check_nodeset_compiler_blacklist check_nodeset_compiler_blacklist.c
+                   ${UA_NODESET_TESTS_DI_SOURCES}
+                   ${UA_NODESET_TESTS_MACHINERY_BLACKLIST_SOURCES}
+                   ${UA_TYPES_TESTS_DI_SOURCES}
+                   $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    add_dependencies(check_nodeset_compiler_blacklist open62541-generator-ns-tests-machinery-blacklist)
+    target_link_libraries(check_nodeset_compiler_blacklist ${LIBS})
+    add_test_valgrind(nodeset_compiler_blacklist ${TESTS_BINARY_DIR}/check_nodeset_compiler_blacklist)
+
     # generate AutoID namespace which is using DI (test e.g. for structures with optional fields)
     ua_generate_nodeset_and_datatypes(
             NAME "tests-autoid"
