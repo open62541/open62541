@@ -722,6 +722,14 @@ customReaderStateMachine(UA_Server *s, UA_NodeId id, void *context,
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+runReceiveTimers(UA_UInt32 delay) {
+    unlockServer(server);
+    UA_fakeSleep(delay);
+    UA_Server_run_iterate(server, false);
+    lockServer(server);
+}
+
 START_TEST(Test_timeout_recovery_validation) {
     UA_NodeId connection, group, readerId, target;
     AddConnection("Recovery", 1, &connection);
@@ -734,7 +742,7 @@ START_TEST(Test_timeout_recovery_validation) {
     UA_ReaderGroup *rg = reader->linkedReaderGroup;
     rg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
     rg->hasReceived = true;
-    reader->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    reader->config.keyFrameCount = 2;
 
     UA_Int32 value = 42;
     UA_DataValue field;
@@ -762,13 +770,15 @@ START_TEST(Test_timeout_recovery_validation) {
     nm.payload.dataSetMessages = &msg;
 
     lockServer(server);
-    ck_assert(UA_ReaderGroup_process(psm, rg, &nm));
     ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
-        UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADTIMEOUT), UA_STATUSCODE_GOOD);
+        UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD), UA_STATUSCODE_GOOD);
+    ck_assert(UA_ReaderGroup_process(psm, rg, &nm));
+    runReceiveTimers(201);
     ck_assert(UA_DataSetReader_canRecover(reader));
     ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
     UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
     ck_assert(UA_DataSetReader_canRecover(reader));
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm)); /* Duplicate */
 
     /* A publisher restart resets counters; history expires after two timeouts. */
     UA_fakeSleep(401);
@@ -777,56 +787,73 @@ START_TEST(Test_timeout_recovery_validation) {
     msg.header.dataSetMessageValid = false;
     ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
     msg.header.dataSetMessageValid = true;
-    msg.header.dataSetMessageType = UA_DATASETMESSAGE_KEEPALIVE;
-    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
-    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
-    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
-    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     msg.fieldCount = 2;
     ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
-    msg.fieldCount = 0;
-    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
     msg.fieldCount = 1;
-    field.hasValue = false;
+    nm.dataSetWriterIds[0] = 2;
     ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
-    field.hasValue = true;
-    UA_Variant_init(&field.value);
-    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
-    UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_INT32]);
-    field.hasStatus = true;
-    field.status = UA_STATUSCODE_BADNODATAAVAILABLE;
-    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
-    field.hasStatus = false;
+    nm.dataSetWriterIds[0] = 1;
     reader->config.dataSetMetaData.configurationVersion.majorVersion = 2;
     msg.header.configVersionMajorVersionEnabled = true;
     msg.header.configVersionMajorVersion = 1;
     ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
     msg.header.configVersionMajorVersion = 2;
-
-    UA_FieldTargetDataType *tv =
-        &reader->config.subscribedDataSet.target.targetVariables[0];
-    UA_NodeId savedTarget = tv->targetNodeId;
-    tv->targetNodeId = UA_NODEID_NUMERIC(1, 999999);
-    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
-    tv->targetNodeId = savedTarget;
     ck_assert(UA_DataSetReader_canRecover(reader));
-    ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
 
-    value = 77;
+    /* Keep-alives restore reception, but don't supply a key frame. */
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_KEEPALIVE;
+    msg.fieldCount = 0;
+    ck_assert(UA_ReaderGroup_process(psm, rg, &nm));
+    ck_assert_int_eq(reader->head.state, UA_PUBSUBSTATE_PREOPERATIONAL);
+    ck_assert(!reader->msgRcvTimedOut);
+    UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+    ck_assert_int_eq(reader->head.state, UA_PUBSUBSTATE_PREOPERATIONAL);
+    runReceiveTimers(101);
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm)); /* Duplicate keep-alive */
+    runReceiveTimers(100);
+    ck_assert(UA_DataSetReader_canRecover(reader));
+
+    /* A valid delta clears the timeout without establishing a key frame.
+     * It may use the sequence number announced by the keep-alive. */
+    UA_DataSetMessage_DeltaFrameField delta;
+    memset(&delta, 0, sizeof(delta));
+    delta.value = field;
+    nm.groupHeader.sequenceNumber = 2;
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+    msg.fieldCount = 1;
+    msg.data.deltaFrameFields = &delta;
+    ck_assert(UA_ReaderGroup_process(psm, rg, &nm));
+    ck_assert_int_eq(reader->head.state, UA_PUBSUBSTATE_PREOPERATIONAL);
+    ck_assert(!reader->receivedKeyFrame);
+    nm.groupHeader.sequenceNumber = 3;
+    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm)); /* Duplicate delta */
+
+    /* Bad field quality does not invalidate the key frame for readiness. */
+    msg.header.dataSetMessageSequenceNr = 2;
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    msg.data.keyFrameFields = &field;
+    field.hasStatus = true;
+    field.status = UA_STATUSCODE_BADNODATAAVAILABLE;
     ck_assert(UA_ReaderGroup_process(psm, rg, &nm));
     ck_assert_int_eq(reader->head.state, UA_PUBSUBSTATE_OPERATIONAL);
     ck_assert(!reader->msgRcvTimedOut);
     ck_assert(reader->msgRcvTimeoutTimerId != 0);
     ck_assert(reader->receivedKeyFrame);
-    ck_assert(!UA_ReaderGroup_process(psm, rg, &nm)); /* Duplicate */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = target;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue result = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(result.status, UA_STATUSCODE_BADNODATAAVAILABLE);
+    UA_DataValue_clear(&result);
 
+    runReceiveTimers(201);
+    ck_assert(UA_DataSetReader_canRecover(reader));
+    /* The same status code from a different source is not a receive timeout. */
     ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
         UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADTIMEOUT), UA_STATUSCODE_GOOD);
-    ck_assert(UA_DataSetReader_canRecover(reader));
-    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
-        UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADINTERNALERROR), UA_STATUSCODE_GOOD);
-    msg.header.dataSetMessageSequenceNr = 2;
-    nm.groupHeader.sequenceNumber = 2;
+    msg.header.dataSetMessageSequenceNr = 3;
+    nm.groupHeader.sequenceNumber = 4;
     ck_assert(!UA_DataSetReader_canRecover(reader));
     ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
     ck_assert(!UA_DataSetReader_process(psm, reader, &msg));
@@ -844,6 +871,39 @@ START_TEST(Test_timeout_recovery_validation) {
     ck_assert(!UA_ReaderGroup_process(psm, rg, &nm));
     ck_assert(!UA_DataSetReader_process(psm, reader, &msg));
     reader->config.customStateMachine = NULL;
+    unlockServer(server);
+} END_TEST
+
+START_TEST(Test_timeout_heartbeat) {
+    UA_NodeId connection, group, readerId;
+    AddConnection("Heartbeat", 1, &connection);
+    AddReaderGroup(&connection, "Heartbeat", &group);
+    UA_DataSetReaderConfig config;
+    memset(&config, 0, sizeof(config));
+    config.name = UA_STRING("Heartbeat");
+    config.messageReceiveTimeout = 200;
+    ck_assert_uint_eq(UA_Server_addDataSetReader(server, group, &config, &readerId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *reader = UA_DataSetReader_find(psm, readerId);
+    UA_DataSetMessage msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.header.dataSetMessageValid = true;
+    msg.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+
+    lockServer(server);
+    reader->linkedReaderGroup->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    reader->linkedReaderGroup->hasReceived = true;
+    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
+        UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD), UA_STATUSCODE_GOOD);
+    runReceiveTimers(201);
+    ck_assert(UA_DataSetReader_canRecover(reader));
+    ck_assert(UA_DataSetReader_process(psm, reader, &msg));
+    ck_assert_int_eq(reader->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+    ck_assert(!reader->msgRcvTimedOut);
+    runReceiveTimers(201);
+    ck_assert(UA_DataSetReader_canRecover(reader));
     unlockServer(server);
 } END_TEST
 
@@ -969,8 +1029,7 @@ START_TEST(Test_timeout_range_recovery) {
     UA_Int32 expected[] = {10, 60, 70, 40};
     assertTargetArray(target, expected, UA_STATUSCODE_GOOD);
 
-    ck_assert_uint_eq(UA_DataSetReader_setPubSubState(psm, reader,
-        UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADTIMEOUT), UA_STATUSCODE_GOOD);
+    runReceiveTimers(201);
     ck_assert(UA_DataSetReader_canProcess(reader));
     ck_assert(UA_DataSetReader_canRecover(reader));
     ck_assert_uint_eq(reader->msgRcvTimeoutTimerId, 0);
@@ -988,8 +1047,9 @@ START_TEST(Test_timeout_range_recovery) {
         &reader->config.subscribedDataSet.target.targetVariables[0];
     UA_String savedRange = storedTarget->writeIndexRange;
     storedTarget->writeIndexRange = UA_STRING("10:11");
-    ck_assert(!UA_DataSetReader_process(psm, reader, &msg));
-    ck_assert(UA_DataSetReader_canRecover(reader));
+    ck_assert(UA_DataSetReader_process(psm, reader, &msg));
+    ck_assert_int_eq(reader->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+    ck_assert(!reader->msgRcvTimedOut);
     assertTargetArray(target, expected, status);
     storedTarget->writeIndexRange = savedRange;
 
@@ -1175,6 +1235,7 @@ int main(void) {
     */
     tcase_add_test(tc_basic, Test_update_config);
     tcase_add_test(tc_basic, Test_timeout_recovery_validation);
+    tcase_add_test(tc_basic, Test_timeout_heartbeat);
     tcase_add_loop_test(tc_basic, Test_timeout_range_recovery, 0, 3);
     tcase_add_loop_test(tc_basic, Test_custom_target_fallback, 0, 3);
 

@@ -1452,6 +1452,7 @@ START_TEST(KeepAliveAndDeltaSizeSelection) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(message.header.dataSetMessageType,
                       UA_DATASETMESSAGE_DATAKEYFRAME);
+    UA_UInt16 nextSequenceNumber = (UA_UInt16)(message.header.dataSetMessageSequenceNr + 1);
     UA_DataSetMessage_clear(&message);
 
     /* No change before KeepAliveTime produces no message. */
@@ -1469,6 +1470,7 @@ START_TEST(KeepAliveAndDeltaSizeSelection) {
     ck_assert_uint_eq(message.header.dataSetMessageType,
                       UA_DATASETMESSAGE_KEEPALIVE);
     ck_assert_uint_eq(message.fieldCount, 0);
+    ck_assert_uint_eq(message.header.dataSetMessageSequenceNr, nextSequenceNumber);
     UA_DataSetMessage_clear(&message);
 
     /* Changing all fields makes the indexed delta larger than the key frame;
@@ -1492,6 +1494,7 @@ START_TEST(KeepAliveAndDeltaSizeSelection) {
     ck_assert_uint_eq(deltaSizeReadCount, 2);
     ck_assert_uint_eq(message.header.fieldEncoding, UA_FIELDENCODING_DATAVALUE);
     ck_assert(message.header.dataSetMessageSequenceNrEnabled);
+    ck_assert_uint_eq(message.header.dataSetMessageSequenceNr, nextSequenceNumber);
     ck_assert(message.header.timestampEnabled);
     ck_assert(message.header.configVersionMajorVersionEnabled);
     UA_DataSetMessage_clear(&message);

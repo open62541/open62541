@@ -948,6 +948,9 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
                                                                   dataSetMessage,
                                                                   dsw);
             if(res == UA_STATUSCODE_GOODNODATA) {
+                /* Keep-alives announce the next data sequence number. Neither
+                 * a keep-alive nor a suppressed delta consumes it. */
+                dsw->actualDataSetMessageSequenceCount--;
                 UA_WriterGroup *wg = dsw->linkedWriterGroup;
                 UA_DateTime now = el->dateTime_nowMonotonic(el);
                 if(wg->config.keepAliveTime <= 0.0 ||
