@@ -54,6 +54,10 @@ static UA_atomic(size_t) writeSourceNodeMatches = 0;
 static UA_atomic(size_t) activateUserTokens = 0;
 static UA_atomic(size_t) activateTokenPasswords = 0;
 
+/* Rejected ActivateSession audits, and how many of them carried a SessionId */
+static UA_atomic(size_t) activateRejected = 0;
+static UA_atomic(size_t) activateRejectedWithSessionId = 0;
+
 
 /* Atomic increment built on UA_atomic_cmpxchg (config.h has no fetch-add) */
 static void
@@ -131,6 +135,17 @@ auditCb(UA_Server *s, UA_ApplicationNotificationType type,
             if(tok->password.length > 0)
                 counterInc(&activateTokenPasswords);
         }
+        const UA_Boolean *status = (const UA_Boolean*)
+            UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "/Status"),
+                                     &UA_TYPES[UA_TYPES_BOOLEAN]);
+        if(status && !*status) {
+            counterInc(&activateRejected);
+            const UA_NodeId *sid = (const UA_NodeId*)
+                UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "/SessionId"),
+                                         &UA_TYPES[UA_TYPES_NODEID]);
+            if(sid && !UA_NodeId_isNull(sid))
+                counterInc(&activateRejectedWithSessionId);
+        }
         break;
     }
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL:
@@ -169,6 +184,8 @@ static void resetCounters(void) {
     UA_atomic_store(&activateTokenPasswords, 0);
     UA_atomic_store(&eventUserTokens, 0);
     UA_atomic_store(&eventTokenPasswords, 0);
+    UA_atomic_store(&activateRejected, 0);
+    UA_atomic_store(&activateRejectedWithSessionId, 0);
     expectedSourceNode = UA_NODEID_NULL;
 }
 
@@ -374,6 +391,23 @@ START_TEST(ActivateSessionAuditOmitsPassword) {
     UA_Client_delete(client);
 } END_TEST
 
+/* Test: a rejected ActivateSession is audited with the SessionId of the
+ * Session the request was issued on (Part 5, 6.4.7). */
+START_TEST(RejectedActivateSessionAuditHasSessionId) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_ne(client, NULL);
+    UA_StatusCode r = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                                "user1", "wrongpassword");
+    ck_assert_int_ne(r, UA_STATUSCODE_GOOD);
+    for(int i = 0; i < 100 && UA_atomic_load(&activateRejected) == 0; i++)
+        UA_Client_run_iterate(client, 10);
+    ck_assert_uint_gt(UA_atomic_load(&activateRejected), 0);
+    ck_assert_uint_eq(UA_atomic_load(&activateRejectedWithSessionId),
+                      UA_atomic_load(&activateRejected));
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 /* Test: enabling write-update auditing dynamically and disabling it again
  * exercises the conditional code path in UA_Server_writeValue. */
 START_TEST(ToggleWriteUpdateFlag) {
@@ -422,6 +456,7 @@ static Suite* testSuite(void) {
     tcase_add_test(tc, NoAuditWhenDisabled);
     tcase_add_test(tc, ClientConnectEmitsSessionAuditEvents);
     tcase_add_test(tc, ActivateSessionAuditOmitsPassword);
+    tcase_add_test(tc, RejectedActivateSessionAuditHasSessionId);
     tcase_add_test(tc, ToggleWriteUpdateFlag);
     suite_add_tcase(s, tc);
     return s;
