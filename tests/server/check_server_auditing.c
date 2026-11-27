@@ -54,6 +54,10 @@ static UA_atomic(size_t) writeSourceNodeMatches = 0;
 static UA_atomic(size_t) activateUserTokens = 0;
 static UA_atomic(size_t) activateTokenPasswords = 0;
 
+/* Method audits with Status false and the StatusCodeId of the last one */
+static UA_atomic(size_t) methodRejected = 0;
+static UA_atomic(UA_StatusCode) methodRejectedCode = 0;
+
 
 /* Atomic increment built on UA_atomic_cmpxchg (config.h has no fetch-add) */
 static void
@@ -116,8 +120,20 @@ auditCb(UA_Server *s, UA_ApplicationNotificationType type,
             counterInc(&writeSourceNodeMatches);
         break;
     }
-    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD:
-        counterInc(&methodAuditCalls); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD: {
+        counterInc(&methodAuditCalls);
+        const UA_Boolean *status = (const UA_Boolean*)
+            UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "/Status"),
+                                     &UA_TYPES[UA_TYPES_BOOLEAN]);
+        const UA_StatusCode *code = (const UA_StatusCode*)
+            UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "/StatusCodeId"),
+                                     &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(status && !*status && code) {
+            UA_atomic_store(&methodRejectedCode, *code);
+            counterInc(&methodRejected);
+        }
+        break;
+    }
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE:
         counterInc(&sessionCreateCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE: {
@@ -167,6 +183,8 @@ static void resetCounters(void) {
     UA_atomic_store(&writeSourceNodeMatches, 0);
     UA_atomic_store(&activateUserTokens, 0);
     UA_atomic_store(&activateTokenPasswords, 0);
+    UA_atomic_store(&methodRejected, 0);
+    UA_atomic_store(&methodRejectedCode, 0);
     UA_atomic_store(&eventUserTokens, 0);
     UA_atomic_store(&eventTokenPasswords, 0);
     expectedSourceNode = UA_NODEID_NULL;
@@ -374,6 +392,80 @@ START_TEST(ActivateSessionAuditOmitsPassword) {
     UA_Client_delete(client);
 } END_TEST
 
+static UA_StatusCode
+auditMethodCb(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+              const UA_NodeId *methodId, void *methodContext,
+              const UA_NodeId *objectId, void *objectContext,
+              size_t inputSize, const UA_Variant *input,
+              size_t outputSize, UA_Variant *output) {
+    (void)s; (void)sessionId; (void)sessionContext; (void)methodId;
+    (void)methodContext; (void)objectId; (void)objectContext;
+    (void)inputSize; (void)input; (void)outputSize; (void)output;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Call the method on the Objects folder from a client. Wait for a rejected
+ * method audit and return its StatusCodeId. */
+static UA_StatusCode
+callAndGetRejectedAuditCode(UA_Client *client, const UA_NodeId methodId,
+                            const UA_Variant *input) {
+    size_t before = UA_atomic_load(&methodRejected);
+    size_t outSize = 0;
+    UA_Variant *out = NULL;
+    UA_StatusCode r = UA_Client_call(client, UA_NS0ID(OBJECTSFOLDER), methodId,
+                                     1, input, &outSize, &out);
+    ck_assert_uint_ne(r, UA_STATUSCODE_GOOD);
+    UA_Array_delete(out, outSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    for(int i = 0; i < 100 && UA_atomic_load(&methodRejected) == before; i++)
+        UA_Client_run_iterate(client, 10);
+    ck_assert_uint_eq(UA_atomic_load(&methodRejected), before + 1);
+    ck_assert_uint_eq(UA_atomic_load(&methodRejectedCode), r);
+    return r;
+}
+
+/* Test: method calls rejected before the method runs are audited with Status
+ * false and their StatusCode (Part 4, 6.5.9). */
+START_TEST(RejectedMethodCallIsAudited) {
+    UA_Argument inArg;
+    UA_Argument_init(&inArg);
+    inArg.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    inArg.valueRank = UA_VALUERANK_SCALAR;
+    inArg.name = UA_STRING("in");
+    UA_MethodAttributes ma = UA_MethodAttributes_default;
+    ma.executable = true;
+    ma.userExecutable = true;
+    UA_NodeId methodId = UA_NODEID_STRING(1, "audit.method.rejected");
+    UA_StatusCode r =
+        UA_Server_addMethodNode(server, methodId, UA_NS0ID(OBJECTSFOLDER),
+                                UA_NS0ID(HASCOMPONENT),
+                                UA_QUALIFIEDNAME(1, "audit.method.rejected"),
+                                ma, auditMethodCb, 1, &inArg, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_ne(client, NULL);
+    r = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
+
+    /* Input argument of the wrong type */
+    UA_String wrong = UA_STRING("not an Int32");
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &wrong, &UA_TYPES[UA_TYPES_STRING]);
+    r = callAndGetRejectedAuditCode(client, methodId, &input);
+    ck_assert_uint_eq(r, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Method not executable */
+    UA_Int32 value = 1;
+    UA_Variant_setScalar(&input, &value, &UA_TYPES[UA_TYPES_INT32]);
+    r = UA_Server_writeExecutable(server, methodId, false);
+    ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
+    r = callAndGetRejectedAuditCode(client, methodId, &input);
+    ck_assert_uint_eq(r, UA_STATUSCODE_BADNOTEXECUTABLE);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 /* Test: enabling write-update auditing dynamically and disabling it again
  * exercises the conditional code path in UA_Server_writeValue. */
 START_TEST(ToggleWriteUpdateFlag) {
@@ -422,6 +514,7 @@ static Suite* testSuite(void) {
     tcase_add_test(tc, NoAuditWhenDisabled);
     tcase_add_test(tc, ClientConnectEmitsSessionAuditEvents);
     tcase_add_test(tc, ActivateSessionAuditOmitsPassword);
+    tcase_add_test(tc, RejectedMethodCallIsAudited);
     tcase_add_test(tc, ToggleWriteUpdateFlag);
     suite_add_tcase(s, tc);
     return s;
