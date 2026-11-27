@@ -1222,6 +1222,12 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
         UA_SESSION_REJECT;
     }
 
+    /* Return the Session the request was issued on, also if the activation is
+     * rejected below. The ActivateSession audit event refers to it: Part 5,
+     * 6.4.7 requires the SessionId of the Session the Service call was issued
+     * on and allows a null SessionId only when no Session context exists. */
+    *outSession = session;
+
     /* Part 4, §5.6.3: When the ActivateSession Service is called for the
      * first time then the Server shall reject the request if the
      * SecureChannel is not same as the one associated with the
@@ -1542,9 +1548,6 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     UA_LOG_INFO_SESSION(server->config.logging, session,
                         "ActivateSession: Session activated with ClientUserId \"%S\"",
                         session->clientUserIdOfSession);
-
-    /* Return the activated session */
-    *outSession = session;
 }
 
 void
