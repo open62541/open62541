@@ -168,14 +168,26 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
                                 UA_CallMethodResult *result,
                                 const UA_MethodNode *resolvedMethod,
                                 const UA_Node *callContext) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_Variant mutableInputArgs[UA_MAX_METHOD_ARGUMENTS];
+#ifdef UA_ENABLE_AUDITING
+    /* The arguments passed to the audit event. Points to the mutable copy once
+     * it is made. */
+    UA_Variant *auditInputArgs = request->inputArguments;
+#endif
+
     /* Is there a method to execute? */
-    if(!resolvedMethod->method)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!resolvedMethod->method) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto audit;
+    }
 
     /* Verify access rights */
     UA_Boolean executable = resolvedMethod->executable;
-    if(!executable)
-        return UA_STATUSCODE_BADNOTEXECUTABLE;
+    if(!executable) {
+        res = UA_STATUSCODE_BADNOTEXECUTABLE;
+        goto audit;
+    }
 
     if(session != &server->adminSession) {
         executable = server->config.accessControl.
@@ -186,31 +198,38 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
                                       &request->objectId,
                                       callContext->head.context);
     }
-    if(!executable)
-        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    if(!executable) {
+        res = UA_STATUSCODE_BADUSERACCESSDENIED;
+        goto audit;
+    }
 
     /* The input arguments are const and not changed. We move the input
      * arguments to a secondary array that is mutable. This is used for small
      * adjustments on the type level during the type checking. But it has to be
      * ensured that the original array can still by _clear'ed after the methods
      * call. */
-    if(request->inputArgumentsSize > UA_MAX_METHOD_ARGUMENTS)
-        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+    if(request->inputArgumentsSize > UA_MAX_METHOD_ARGUMENTS) {
+        res = UA_STATUSCODE_BADTOOMANYARGUMENTS;
+        goto audit;
+    }
 
-    UA_Variant mutableInputArgs[UA_MAX_METHOD_ARGUMENTS];
     if(request->inputArgumentsSize > 0)
         memcpy(mutableInputArgs, request->inputArguments,
                sizeof(UA_Variant) * request->inputArgumentsSize);
+#ifdef UA_ENABLE_AUDITING
+    auditInputArgs = mutableInputArgs;
+#endif
 
     /* Allocate the inputArgumentResults array */
     result->inputArgumentResults = (UA_StatusCode*)
         UA_Array_new(request->inputArgumentsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    if(!result->inputArgumentResults)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!result->inputArgumentResults) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto audit;
+    }
     result->inputArgumentResultsSize = request->inputArgumentsSize;
 
     /* Type-check the input arguments */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     const UA_VariableNode *inputArguments =
         getArgumentsVariableNode(server, &resolvedMethod->head,
                                  UA_STRING("InputArguments"));
@@ -234,7 +253,7 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Error during type-checking? */
     if(res != UA_STATUSCODE_GOOD)
-        return res;
+        goto audit;
 
     /* Get the output arguments node */
     const UA_VariableNode *outputArguments =
@@ -250,12 +269,14 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
         res = getArgumentsValue(outputArguments, NULL, &outputArgsSize);
         UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
         if(res != UA_STATUSCODE_GOOD)
-            return res;
+            goto audit;
     }
     result->outputArguments = (UA_Variant*)
         UA_Array_new(outputArgsSize+1, &UA_TYPES[UA_TYPES_VARIANT]);
-    if(!result->outputArguments)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!result->outputArguments) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto audit;
+    }
     result->outputArgumentsSize = outputArgsSize;
 
     /* Invoke the method with the server mutex held. Async callbacks schedule
@@ -269,13 +290,15 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* TODO: Verify Output matches the argument definition */
 
+ audit:
 #ifdef UA_ENABLE_AUDITING
-    /* Async output remains application-owned; only audit synchronous calls. */
+    /* Audit also the rejected calls (Part 4, 6.5.9). Async output remains
+     * application-owned; only audit synchronous calls. */
     if(res != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY &&
        server->config.auditingEnabled && server->config.auditMethodUpdateEnabled) {
         auditMethodUpdateEvent(server, session->channel, session, (res == UA_STATUSCODE_GOOD),
                                &callContext->head.nodeId, &resolvedMethod->head.nodeId,
-                               res, request->inputArgumentsSize, mutableInputArgs,
+                               res, request->inputArgumentsSize, auditInputArgs,
                                result->outputArgumentsSize, result->outputArguments);
     }
 #endif
