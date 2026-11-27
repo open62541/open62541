@@ -167,7 +167,7 @@ class Value(object):
                 self.value.append(val)
         else:
             self.value = [self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent, parser)]
-            namespaceMapping = {}
+        namespaceMapping = {}
 
     def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, parent, parser, alias=None, encodingPart=None, valueRank=None):
         enc = None
