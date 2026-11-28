@@ -130,6 +130,8 @@ hexstr_to_char(const char *hexstr) {
                         "949F3ad701"
 #define MSG_SIG "31eb5d01b947a70cee7f82d4c77924811b06e7e1c93d1e7f03dd2125fc48fc5a"
 #define MSG_SIG_INVALID "5e08a9ff14b83ea2247792eeffc757c85ac99c0ffa79e4fbe5629783dc77b403"
+#define MSG_OVERLAP_HEADER "f111ba08016400014df4030100000008"
+#define MSG_OVERLAP_SIG "4f7d13d1633d74b6f70da0cd2b2010cb9d9961e8cb05607fabc95c33981bcb56"
 
 // static void
 // UA_Server_ReaderGroup_clear(UA_Server *uaServer, UA_ReaderGroup *readerGroup) {
@@ -415,6 +417,32 @@ START_TEST(ShortSignedNetworkMessage) {
 }
 END_TEST
 
+/* The headers of this message end at offset 24, inside the trailing 32-byte
+ * signature. The MessageNonce covers the overlap, so the header still parses. */
+START_TEST(HeaderOverlapsSignature) {
+    UA_FieldMetaData *fields = newReaderGroupWithSecurity(
+        UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
+    ck_assert_ptr_ne(rg, NULL);
+
+    UA_ByteString buffer;
+    buffer.length = (sizeof(MSG_OVERLAP_HEADER MSG_OVERLAP_SIG) - 1) / 2;
+    buffer.data = hexstr_to_char(MSG_OVERLAP_HEADER MSG_OVERLAP_SIG);
+
+    UA_NetworkMessage msg;
+    memset(&msg, 0, sizeof(UA_NetworkMessage));
+
+    UA_StatusCode rv = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buffer, &msg);
+    ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+
+    UA_NetworkMessage_clear(&msg);
+
+    UA_free(fields);
+    free(buffer.data);
+}
+END_TEST
+
 START_TEST(InvalidSecurityModeInsufficientSig) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(UA_MESSAGESECURITYMODE_NONE);
     UA_PubSubManager *psm = getPSM(server);
@@ -505,6 +533,7 @@ main(void) {
     tcase_add_checked_fixture(tc_pubsub_subscribe_invalid_sig, setup, teardown);
     tcase_add_test(tc_pubsub_subscribe_invalid_sig, InvalidSignature);
     tcase_add_test(tc_pubsub_subscribe_invalid_sig, ShortSignedNetworkMessage);
+    tcase_add_test(tc_pubsub_subscribe_invalid_sig, HeaderOverlapsSignature);
 
     TCase *tc_pubsub_subscribe_invalid_securitymode =
         tcase_create("PubSub Subscribe Invalid SecurityMode");

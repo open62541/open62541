@@ -913,7 +913,11 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     /* Validate the signature */
     if(doValidate) {
         size_t sigSize = sp->getSignatureSize(sp, cc);
-        if(buffer.length < sigSize) {
+        /* The signature is appended to the message. The headers were decoded
+         * from the same buffer, so the bytes left after them (not the full
+         * buffer) have to hold it. Otherwise the end of the message would move
+         * before the read position below. */
+        if((size_t)(ctx->end - ctx->pos) < sigSize) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                            "PubSub receive. Message too short for signature");
             rv = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
