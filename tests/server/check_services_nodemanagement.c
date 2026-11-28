@@ -6,6 +6,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "server/ua_subscription.h"
 #include "test_helpers.h"
 
 #include <check.h>
@@ -1620,14 +1621,18 @@ START_TEST(AddDoubleReference) {
 START_TEST(AddObjectNode_InvalidParent) {
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "InvalidParentObj");
+    UA_NodeId outId;
+    UA_NodeId_init(&outId);
     UA_StatusCode retval =
         UA_Server_addObjectNode(server, UA_NODEID_NULL,
                                 UA_NODEID_NUMERIC(1, 99999), /* non-existent parent */
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                 UA_QUALIFIEDNAME(1, "InvalidParentObj"),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                oAttr, NULL, NULL);
+                                oAttr, NULL, &outId);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+    /* The inserted node is rolled back. The output must not name it. */
+    ck_assert(UA_NodeId_isNull(&outId));
 } END_TEST
 
 START_TEST(AddVariableNode_WrongDataType) {
@@ -1756,6 +1761,83 @@ START_TEST(DeleteNode_KeepReferences) {
     retval = UA_Server_readNodeClass(server, outId, &nc);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 } END_TEST
+
+
+#if defined(UA_ENABLE_DIAGNOSTICS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+
+static const UA_NodeId subDiagArrayId =
+    {0, UA_NODEIDTYPE_NUMERIC,
+     {UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY}};
+static UA_Boolean denySubDiagArrayReference;
+static UA_Boolean (*savedAllowAddReference)(UA_Server *, UA_AccessControl *,
+                                            const UA_NodeId *, void *,
+                                            const UA_AddReferencesItem *);
+
+static UA_Boolean
+denySecondSubDiagReference(UA_Server *s, UA_AccessControl *ac,
+                           const UA_NodeId *sessionId, void *sessionContext,
+                           const UA_AddReferencesItem *item) {
+    (void)s; (void)ac; (void)sessionId; (void)sessionContext;
+    if(denySubDiagArrayReference &&
+       UA_NodeId_equal(&item->sourceNodeId, &subDiagArrayId))
+        return false;
+    return true;
+}
+
+START_TEST(CreateSubscriptionRollsBackDiagnosticsOnFailure) {
+    /* Use a client session so that the reference access control is
+     * consulted; service calls with the admin session bypass it. */
+    UA_CreateSessionRequest sessionReq;
+    UA_CreateSessionRequest_init(&sessionReq);
+    sessionReq.requestedSessionTimeout = 600000;
+    UA_Session *session = NULL;
+    lockServer(server);
+    /* The unit-test server is not started. Sessions may only be created in the
+     * started state, so lift it for the call without opening a socket. */
+    UA_LifecycleState savedState = server->state;
+    server->state = UA_LIFECYCLESTATE_STARTED;
+    UA_StatusCode res = UA_Session_create(server, NULL, &sessionReq, &session);
+    server->state = savedState;
+    if(res == UA_STATUSCODE_GOOD)
+        createSessionObject(server, session);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(session);
+
+    /* Fail the reference from the server-wide SubscriptionDiagnosticsArray to
+     * the new diagnostics Variable. The Variable is already in the nodestore
+     * at that point, so creation must roll it back. */
+    savedAllowAddReference = server->config.accessControl.allowAddReference;
+    server->config.accessControl.allowAddReference = denySecondSubDiagReference;
+    denySubDiagArrayReference = UA_TRUE;
+
+    UA_CreateSubscriptionRequest req;
+    UA_CreateSubscriptionRequest_init(&req);
+    req.requestedPublishingInterval = 100.0;
+    req.requestedLifetimeCount = 10000;
+    req.requestedMaxKeepAliveCount = 10;
+    req.publishingEnabled = true;
+    UA_CreateSubscriptionResponse resp;
+    UA_CreateSubscriptionResponse_init(&resp);
+    lockServer(server);
+    Service_CreateSubscription(server, session, &req, &resp);
+    unlockServer(server);
+    denySubDiagArrayReference = UA_FALSE;
+    server->config.accessControl.allowAddReference = savedAllowAddReference;
+
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_Subscription *sub = TAILQ_FIRST(&session->subscriptions);
+    ck_assert_ptr_nonnull(sub);
+    /* No reference to a partially constructed diagnostics node. */
+    ck_assert(UA_NodeId_isNull(&sub->ns0Id));
+
+    UA_CreateSubscriptionResponse_clear(&resp);
+    lockServer(server);
+    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
+    unlockServer(server);
+} END_TEST
+
+#endif
 
 START_TEST(DeleteReference) {
     /* Add two objects and a reference between them */
@@ -3067,6 +3149,13 @@ int main(void) {
     tcase_add_test(tc_deletenodes, DeleteObjectAndReferences);
     tcase_add_test(tc_deletenodes, Service_DeleteNodes_maxNodesPerNodeManagement_exceeded);
     suite_add_tcase(s, tc_deletenodes);
+
+#if defined(UA_ENABLE_DIAGNOSTICS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    TCase *tc_subdiag = tcase_create("subscription diagnostics");
+    tcase_add_checked_fixture(tc_subdiag, setup, teardown);
+    tcase_add_test(tc_subdiag, CreateSubscriptionRollsBackDiagnosticsOnFailure);
+    suite_add_tcase(s, tc_subdiag);
+#endif
 
     TCase *tc_addreferences = tcase_create("addreferences");
     tcase_add_checked_fixture(tc_addreferences, setup, teardown);

@@ -1581,6 +1581,11 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
 
     retval = addNode_prepare(server, session, outNewNodeId, parentNodeId,
                              referenceTypeId, &item->typeDefinition.nodeId);
+    if(retval != UA_STATUSCODE_GOOD && outNewNodeId != &newId) {
+        /* addNode_prepare already removed the node from the nodestore on
+         * failure. Do not return an id that no longer names a node. */
+        UA_NodeId_clear(outNewNodeId);
+    }
 
     if(outNewNodeId == &newId)
         UA_NodeId_clear(&newId);
