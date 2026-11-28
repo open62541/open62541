@@ -96,9 +96,10 @@ cleanupSessionEntryCallback(void *application /* UA_Server */,
     unlockServer(server);
 }
 
-void
-UA_Session_remove(UA_Server *server, UA_Session *session,
-                  UA_ShutdownReason shutdownReason) {
+static void
+removeSession(UA_Server *server, UA_Session *session,
+              UA_ShutdownReason shutdownReason,
+              const UA_CloseSessionRequest *closeRequest) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Closing a Session can invoke user callbacks that re-enter the server.
@@ -123,22 +124,41 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
 
-    /* Detach recoverable Subscriptions immediately when the Session times out.
-     * Otherwise remove them now. The Session is already closed and absent from
-     * lookup, so callbacks during Subscription teardown cannot remove it again.
-     * Keeping this synchronous also makes the Subscription state consistent
-     * as soon as UA_Session_remove returns. */
+    /* Keep recoverable Subscriptions on timeout or when requested by an
+     * explicit CloseSession. The Session is already closed and absent from
+     * lookup before any Subscription lifecycle callbacks. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        if(shutdownReason == UA_SHUTDOWNREASON_TIMEOUT) {
+        if(shutdownReason == UA_SHUTDOWNREASON_TIMEOUT ||
+           (closeRequest && !closeRequest->deleteSubscriptions)) {
             UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
-                                     "Detaching the Subscription from the timed-out Session");
+                                     "Detaching the Subscription from the %s Session",
+                                     closeRequest ? "closing" : "timed-out");
             UA_Session_detachSubscription(server, session, sub, true);
         } else {
             UA_Subscription_delete(server, sub, true);
         }
     }
+
+    /* Complete held Publish with the explicit CloseSession status before
+     * returning (OPC 10000-4 5.7.4.1). The Subscription teardown of a
+     * closed Session leaves its held Publish requests for this drain. */
+    if(closeRequest) {
+        UA_PublishResponseEntry *pre;
+        while((pre = UA_Session_dequeuePublishReq(session))) {
+            if(session->channel) {
+                pre->response.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+                (void)sendResponse(server, session->channel, pre->responseToken,
+                                   (UA_Response *)&pre->response,
+                                   &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+            }
+            UA_PublishResponse_clear(&pre->response);
+            UA_free(pre);
+        }
+    }
+#else
+    (void)closeRequest;
 #endif
 
     switch(shutdownReason) {
@@ -179,6 +199,12 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     sentry->cleanupCallback.context = sentry;
     UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, &sentry->cleanupCallback);
+}
+
+void
+UA_Session_remove(UA_Server *server, UA_Session *session,
+                  UA_ShutdownReason shutdownReason) {
+    removeSession(server, session, shutdownReason, NULL);
 }
 
 void
@@ -1591,20 +1617,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
     UA_assert(session); /* Assured by the previous section */
     UA_LOG_INFO_SESSION(server->config.logging, session, "Closing the Session");
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* If Subscriptions are not deleted, detach them from the Session */
-    if(!request->deleteSubscriptions) {
-        UA_Subscription *sub, *sub_tmp;
-        TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, sub_tmp) {
-            UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
-                                     "Detaching the Subscription from the Session");
-            UA_Session_detachSubscription(server, session, sub, true);
-        }
-    }
-#endif
-
-    /* Remove the sesison */
-    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
+    removeSession(server, session, UA_SHUTDOWNREASON_CLOSE, request);
 }
 
 UA_Boolean
