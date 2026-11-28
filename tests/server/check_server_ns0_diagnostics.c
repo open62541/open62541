@@ -706,7 +706,59 @@ START_TEST(session_diagnostics_browseNames) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
+
+/* A SessionDiagnostics node reports the Session that owns it, not the client
+ * that reads it (Part 5). */
+START_TEST(session_diagnosticsForeignSession) {
+    UA_Client *client1 = UA_Client_newForUnitTest();
+    UA_Client *client2 = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client1, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_connect(client2, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    /* Locate the SessionDiagnostics node of the second Session. The Session
+     * object node id equals the Session id. */
+    UA_QualifiedName child = UA_QUALIFIEDNAME(0, "SessionDiagnostics");
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
+        server, client2->sessionId, 1, &child);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    UA_NodeId diagId;
+    ck_assert_uint_eq(UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &diagId),
+                      UA_STATUSCODE_GOOD);
+    UA_BrowsePathResult_clear(&bpr);
+
+    /* The first client reads the node owned by the second Session. */
+    UA_ReadValueId rv;
+    UA_ReadValueId_init(&rv);
+    rv.nodeId = diagId;
+    rv.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_ReadRequest req;
+    UA_ReadRequest_init(&req);
+    req.nodesToRead = &rv;
+    req.nodesToReadSize = 1;
+    req.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+
+    UA_ReadResponse resp = UA_Client_Service_read(client1, req);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(resp.resultsSize, 1);
+    ck_assert(resp.results[0].hasValue);
+    ck_assert(resp.results[0].value.type ==
+              &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE]);
+    UA_SessionDiagnosticsDataType *sd =
+        (UA_SessionDiagnosticsDataType*)resp.results[0].value.data;
+    ck_assert(UA_NodeId_equal(&sd->sessionId, &client2->sessionId));
+
+    UA_ReadResponse_clear(&resp);
+    UA_NodeId_clear(&diagId);
+    UA_Client_disconnect(client1);
+    UA_Client_disconnect(client2);
+    UA_Client_delete(client1);
+    UA_Client_delete(client2);
+} END_TEST
 #endif /* UA_ENABLE_DIAGNOSTICS */
+
 
 /* === Discovery tests (moved here for organization) === */
 START_TEST(client_findServers) {
@@ -1494,6 +1546,7 @@ static Suite *testSuite_ns0Ext(void) {
     tcase_add_test(tc_sessiondiag, session_diagnosticsMultipleSessions);
 #ifdef UA_ENABLE_DIAGNOSTICS
     tcase_add_test(tc_sessiondiag, session_diagnostics_browseNames);
+    tcase_add_test(tc_sessiondiag, session_diagnosticsForeignSession);
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
