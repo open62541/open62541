@@ -96,6 +96,13 @@ UA_Server_getEffectivePermissions(UA_Server *server,
                                   const UA_NodeId *nodeId,
                                   UA_PermissionType *effectivePermissions);
 
+/* The permissions of the Session in the DefaultRolePermissions of a namespace */
+UA_StatusCode
+UA_Server_getEffectiveNamespacePermissions(UA_Server *server,
+                                           const UA_NodeId *sessionId,
+                                           UA_UInt16 namespaceIndex,
+                                           UA_PermissionType *effectivePermissions);
+
 /* Internal helper. Requires the server lock to be held.
  * Missing node -> UA_PERMISSIONTYPE_ALL (permissive sentinel). */
 UA_StatusCode

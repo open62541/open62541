@@ -569,7 +569,8 @@ UA_Server_initRBAC(UA_Server *server) {
     if(server->config.allPermissionsForAnonymous) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "RBAC: allPermissionsForAnonymous is enabled. "
-                       "All permissions are granted regardless of roles. "
+                       "Nodes without own or namespace-default RolePermissions "
+                       "grant all permissions regardless of roles. "
                        "Disable for production use.");
     }
 
@@ -2259,6 +2260,57 @@ UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NODESTORE_RELEASE(server, node);
 
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_getEffectiveNamespacePermissions(UA_Server *server,
+                                           const UA_NodeId *sessionId,
+                                           UA_UInt16 namespaceIndex,
+                                           UA_PermissionType *effectivePermissions) {
+    if(!server || !effectivePermissions)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    if(namespaceIndex >= server->namespacesSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    }
+
+    /* Without namespace defaults, allPermissionsForAnonymous decides as for
+     * a Node without RolePermissions */
+    const UA_NamespaceMetadata *metadata = NULL;
+    if(server->namespaceMetadata && namespaceIndex < server->namespaceMetadataSize &&
+       server->namespaceMetadata[namespaceIndex].entriesSize > 0)
+        metadata = &server->namespaceMetadata[namespaceIndex];
+    if(!metadata) {
+        *effectivePermissions = server->config.allPermissionsForAnonymous ?
+            UA_PERMISSIONTYPE_ALL : 0;
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    size_t rolesSize = 0;
+    const UA_NodeId *roles = NULL;
+    if(sessionId) {
+        UA_Session *session = getSessionById(server, sessionId);
+        if(session && session->rolesSize > 0) {
+            rolesSize = session->rolesSize;
+            roles = session->roles;
+        }
+    }
+
+    UA_PermissionType permissions = 0;
+    for(size_t i = 0; i < rolesSize; i++) {
+        for(size_t j = 0; j < metadata->entriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &metadata->entries[j].roleId)) {
+                permissions |= metadata->entries[j].permissions;
+                break;
+            }
+        }
+    }
+    *effectivePermissions = permissions;
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
