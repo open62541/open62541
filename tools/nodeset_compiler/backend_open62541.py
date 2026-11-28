@@ -29,6 +29,41 @@ from io import StringIO
 import logging
 logger = logging.getLogger(__name__)
 
+# OPC UA Part 8, Section 5.2 and the "SemanticsChanged bit shall be set"
+# sentences of Sections 5.3.2.2, 5.3.3.2 to 5.3.3.4 and 5.3.4.1 to 5.3.4.6.
+# The published NS0 NodeSets omit the SemanticChange bit for these data access
+# Properties. Keep the overrides here so regenerating or replacing the XML
+# retains them.
+NS0_SEMANTIC_CHANGE_PROPERTIES = {
+    # Analog types (5.3.2.2)
+    2369,   # AnalogItemType.EURange
+    17568,  # BaseAnalogType.EURange
+    17569,  # BaseAnalogType.EngineeringUnits
+    17502,  # AnalogUnitType.EngineeringUnits
+    17575,  # AnalogUnitRangeType.EngineeringUnits
+    24157,  # IIetfBaseNetworkInterfaceType.Speed.EngineeringUnits
+    24164,  # IIeeeBaseEthernetPortType.Speed.EngineeringUnits
+    25252,  # IetfBaseNetworkInterfaceType.Speed.EngineeringUnits
+    # Discrete types (5.3.3.2 to 5.3.3.4)
+    2374,   # TwoStateDiscreteType.FalseState
+    2375,   # TwoStateDiscreteType.TrueState
+    2377,   # MultiStateDiscreteType.EnumStrings
+    11241,  # MultiStateValueDiscreteType.EnumValues
+    # Array types (5.3.4.1 to 5.3.4.6)
+    12024,  # ArrayItemType.InstrumentRange
+    12025,  # ArrayItemType.EURange
+    12026,  # ArrayItemType.EngineeringUnits
+    12027,  # ArrayItemType.Title
+    12037,  # YArrayItemType.XAxisDefinition
+    12046,  # XYArrayItemType.XAxisDefinition
+    12055,  # ImageItemType.XAxisDefinition
+    12056,  # ImageItemType.YAxisDefinition
+    12065,  # CubeItemType.XAxisDefinition
+    12066,  # CubeItemType.YAxisDefinition
+    12067,  # CubeItemType.ZAxisDefinition
+    12076,  # NDimensionArrayItemType.AxisDefinition
+}
+
 # Escape C strings:
 def makeCLiteral(value):
     if value is None:
@@ -374,7 +409,7 @@ retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opt
 
     return [code, codeCleanup, codeGlobal]
 
-def generateVariableNodeCode(node, nodeset):
+def generateVariableNodeCode(node, nodeset, namespaceZero):
     code = []
     codeCleanup = []
     codeGlobal = []
@@ -383,7 +418,11 @@ def generateVariableNodeCode(node, nodeset):
         code.append("attr.historizing = true;")
     code.append("attr.minimumSamplingInterval = %f;" % node.minimumSamplingInterval)
     code.append("attr.userAccessLevel = %d;" % node.userAccessLevel)
-    code.append("attr.accessLevel = %d;" % node.accessLevel)
+    accessLevel = str(node.accessLevel)
+    if (namespaceZero and node.id.ns == 0 and
+            node.id.i in NS0_SEMANTIC_CHANGE_PROPERTIES):
+        accessLevel += " | UA_ACCESSLEVELMASK_SEMANTICCHANGE"
+    code.append("attr.accessLevel = %s;" % accessLevel)
     [code1, codeCleanup1, codeGlobal1] = generateCommonVariableCode(node, nodeset)
     code += code1
     codeCleanup += codeCleanup1
@@ -429,7 +468,7 @@ def generateViewNodeCode(node):
     code.append("attr.eventNotifier = (UA_Byte)%s;" % str(node.eventNotifier))
     return code
 
-def generateNodeCode_begin(node, nodeset, code_global):
+def generateNodeCode_begin(node, nodeset, code_global, namespaceZero):
     code = []
     codeCleanup = []
     code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
@@ -440,7 +479,7 @@ def generateNodeCode_begin(node, nodeset, code_global):
     elif isinstance(node, ObjectNode):
         code.extend(generateObjectNodeCode(node))
     elif isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        [code1, codeCleanup1, codeGlobal1] = generateVariableNodeCode(node, nodeset)
+        [code1, codeCleanup1, codeGlobal1] = generateVariableNodeCode(node, nodeset, namespaceZero)
         code.extend(code1)
         codeCleanup.extend(codeCleanup1)
         code_global.extend(codeGlobal1)
@@ -515,6 +554,7 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False,
     if typesArray is None:
         typesArray = []
     outfilebase = basename(outfilename)
+    namespaceZero = outfilebase == "namespace0_generated"
     typesOutname = basename(typesOutput) if typesOutput else outfilebase
 
     typeParser = nodeset.normalizeDataTypes(typesOutname, bool(typesOutput), typesArray)
@@ -570,7 +610,7 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False,
 %s
 """ % (additionalHeaders))
 
-    loaderArgs = "UA_Server *server" if outfilebase == "namespace0_generated" else "UA_Server *server, UA_Boolean copy_types"
+    loaderArgs = "UA_Server *server" if namespaceZero else "UA_Server *server, UA_Boolean copy_types"
     writeh("""
 _UA_BEGIN_DECLS
 
@@ -648,7 +688,7 @@ static UA_StatusCode
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
             code_global = []
-            code = generateNodeCode_begin(node, nodeset, code_global)
+            code = generateNodeCode_begin(node, nodeset, code_global, namespaceZero)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
