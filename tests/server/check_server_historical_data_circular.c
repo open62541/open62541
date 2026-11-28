@@ -262,6 +262,148 @@ START_TEST(Server_HistorizingRejectsForgedContinuationPoint) {
 }
 END_TEST
 
+static UA_StatusCode
+updateHistory(void *details, const UA_DataType *detailsType,
+              UA_StatusCode *operationResult) {
+    UA_HistoryUpdateRequest request;
+    UA_HistoryUpdateRequest_init(&request);
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_setValue(&eo, details, detailsType);
+    request.historyUpdateDetailsSize = 1;
+    request.historyUpdateDetails = &eo;
+
+    UA_HistoryUpdateResponse response;
+    UA_HistoryUpdateResponse_init(&response);
+    lockServer(server);
+    Service_HistoryUpdate(server, &server->adminSession, &request, &response);
+    unlockServer(server);
+
+    ck_assert_uint_eq(response.resultsSize, 1);
+    UA_StatusCode res = response.results[0].statusCode;
+    if(operationResult) {
+        ck_assert_uint_eq(response.results[0].operationResultsSize, 1);
+        *operationResult = response.results[0].operationResults[0];
+    }
+    UA_HistoryUpdateResponse_clear(&response);
+    return res;
+}
+
+/* Reads the entire buffer and checks that every entry holds a value */
+static size_t
+checkHistoryEntries(UA_DateTime start, UA_DateTime end, UA_UInt32 minValue) {
+    UA_HistoryReadResponse response;
+    UA_HistoryReadResponse_init(&response);
+    requestHistory(start, end, &response, 0, false, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_HistoryData *data = (UA_HistoryData *)
+        response.results[0].historyData.content.decoded.data;
+    size_t size = data->dataValuesSize;
+    for(size_t i = 0; i < size; ++i) {
+        ck_assert_uint_eq(data->dataValues[i].hasValue, true);
+        ck_assert(data->dataValues[i].value.type == &UA_TYPES[UA_TYPES_UINT32]);
+        ck_assert_uint_ge(*(UA_UInt32 *)data->dataValues[i].value.data, minValue);
+    }
+    UA_HistoryReadResponse_clear(&response);
+    return size;
+}
+
+START_TEST(Server_HistorizingDeleteThenOverwrite) {
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = UA_HistoryDataBackend_Memory_Circular(1, 4);
+    setting.maxHistoryDataResponseSize = 10;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_VALUESET;
+    lockServer(server);
+    UA_StatusCode retval = gathering->registerNodeId(server, gathering->context,
+                                                     &outNodeId, setting);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Fill the buffer */
+    UA_fakeSleep(100);
+    UA_DateTime start = UA_DateTime_now_fake(NULL);
+    UA_DateTime first = start;
+    for(UA_UInt32 i = 0; i < 4; ++i) {
+        retval = setUInt32(client, outNodeId, i);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_fakeSleep(100);
+    }
+
+    /* Delete the oldest value */
+    UA_DeleteRawModifiedDetails details;
+    UA_DeleteRawModifiedDetails_init(&details);
+    details.nodeId = outNodeId;
+    details.startTime = first - 1;
+    details.endTime = first + 1;
+    retval = updateHistory(&details, &UA_TYPES[UA_TYPES_DELETERAWMODIFIEDDETAILS], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(checkHistoryEntries(start, UA_DateTime_now_fake(NULL), 1), 3);
+
+    /* Wrap around the buffer. The remaining entries are overwritten. */
+    for(UA_UInt32 i = 4; i < 8; ++i) {
+        retval = setUInt32(client, outNodeId, i);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_fakeSleep(100);
+    }
+    ck_assert_uint_eq(checkHistoryEntries(start, UA_DateTime_now_fake(NULL), 4), 4);
+
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
+}
+END_TEST
+
+START_TEST(Server_HistorizingInsertIntoFullBuffer) {
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = UA_HistoryDataBackend_Memory_Circular(1, 4);
+    setting.maxHistoryDataResponseSize = 20;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_VALUESET;
+    lockServer(server);
+    UA_StatusCode retval = gathering->registerNodeId(server, gathering->context,
+                                                     &outNodeId, setting);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Fill the buffer */
+    UA_fakeSleep(100);
+    UA_DateTime start = UA_DateTime_now_fake(NULL);
+    UA_fakeSleep(100);
+    for(UA_UInt32 i = 0; i < 4; ++i) {
+        retval = setUInt32(client, outNodeId, i);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_fakeSleep(100);
+    }
+
+    /* Insert a value older than all buffered ones */
+    UA_UInt32 inserted = 100;
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_Variant_setScalar(&dv.value, &inserted, &UA_TYPES[UA_TYPES_UINT32]);
+    dv.hasValue = true;
+    dv.sourceTimestamp = start;
+    dv.hasSourceTimestamp = true;
+    UA_UpdateDataDetails details;
+    UA_UpdateDataDetails_init(&details);
+    details.nodeId = outNodeId;
+    details.performInsertReplace = UA_PERFORMUPDATETYPE_INSERT;
+    details.updateValuesSize = 1;
+    details.updateValues = &dv;
+    UA_StatusCode opResult = UA_STATUSCODE_BADINTERNALERROR;
+    retval = updateHistory(&details, &UA_TYPES[UA_TYPES_UPDATEDATADETAILS], &opResult);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(opResult, UA_STATUSCODE_GOOD);
+
+    /* Keep writing past the grown buffer */
+    for(UA_UInt32 i = 4; i < 12; ++i) {
+        retval = setUInt32(client, outNodeId, i);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_fakeSleep(100);
+    }
+    ck_assert_uint_gt(checkHistoryEntries(start, UA_DateTime_now_fake(NULL), 0), 0);
+
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
+}
+END_TEST
+
 static Suite *
 testSuite_Client(void) {
     Suite *s = suite_create("Server Historical Data");
@@ -269,6 +411,8 @@ testSuite_Client(void) {
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_HistorizingStrategyValueSet);
     tcase_add_test(tc_server, Server_HistorizingRejectsForgedContinuationPoint);
+    tcase_add_test(tc_server, Server_HistorizingDeleteThenOverwrite);
+    tcase_add_test(tc_server, Server_HistorizingInsertIntoFullBuffer);
     suite_add_tcase(s, tc_server);
 
     return s;
