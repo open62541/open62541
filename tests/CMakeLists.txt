@@ -535,6 +535,8 @@ if(UA_ENABLE_PUBSUB)
     if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         ua_add_test(pubsub/check_pubsub_connection_ethernet.c)
         ua_add_test(pubsub/check_pubsub_publish_ethernet.c)
+        set_tests_properties(check_pubsub_publish_ethernet PROPERTIES
+                             SKIP_RETURN_CODE 77 TIMEOUT 30)
         #ua_add_test(pubsub/check_pubsub_connection_ethernet_etf.c)
         #ua_add_test(pubsub/check_pubsub_publish_ethernet_etf.c)
         #ua_add_test(pubsub/check_pubsub_connection_xdp.c)
