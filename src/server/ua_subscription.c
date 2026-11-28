@@ -350,6 +350,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notif
     if(sub->session)
         UA_Session_detachSubscription(server, sub->session, sub, true);
     UA_String_clear(&sub->ownerUserId);
+    UA_ByteString_clear(&sub->ownerCertificate);
     UA_String_clear(&sub->ownerApplicationUri);
     sub->ownerKnown = false;
 

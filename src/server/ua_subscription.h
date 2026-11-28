@@ -285,6 +285,7 @@ struct UA_Subscription {
     UA_Boolean ownerSecure; /* SecureChannel with SecurityMode other than None */
     UA_UserTokenType ownerTokenType;
     UA_String ownerUserId;
+    UA_ByteString ownerCertificate; /* User certificate for X509 tokens */
     UA_String ownerApplicationUri;
 
     /* Settings */
