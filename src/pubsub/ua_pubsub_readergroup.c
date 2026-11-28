@@ -465,8 +465,7 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_DataSetReader *reader, *reader_tmp;
     LIST_FOREACH_SAFE(reader, &rg->readers, listEntry, reader_tmp) {
         /* Check if the reader is enabled */
-        if(reader->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           reader->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        if(!UA_DataSetReader_canProcess(reader))
             continue;
 
         /* Apply the reader's header filters before checking sequence history.
@@ -519,9 +518,10 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
             if(UA_DataSetReader_process(psm, reader, dsm)) {
                 readerProcessed = true;
 
-                /* Commit the writer's sequence number only for an accepted
-                 * payload. */
-                if(dsm->header.dataSetMessageSequenceNrEnabled) {
+                /* A keep-alive announces the next expected writer sequence
+                 * number; it does not consume that number. */
+                if(dsm->header.dataSetMessageSequenceNrEnabled &&
+                   dsm->header.dataSetMessageType != UA_DATASETMESSAGE_KEEPALIVE) {
                     UA_Byte bits = rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON ? 32 : 16;
                     UA_DataSetReader_checkSequence(psm, reader, nm, writerId, true,
                         dsm->header.dataSetMessageSequenceNr, bits, true, &gap);

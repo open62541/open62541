@@ -74,9 +74,15 @@
  * |                |Action |RG connection       |RG connection   |RG connection       |RG connection   |RG connection   |
  * |                |       |disconnected        |disconnected    |connected           |connected       |disconnected    |
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
- * |DataSetReader   |Trigger|Manual disable      |DSR enabled &&  |DSR enabled && RG   |DSR enabled &&  |Internal error  |
- * |                |       |                    |RG not enabled  |Pre-Operational     |RG Operational  |                |
+ * |DataSetReader   |Trigger|Manual disable      |DSR enabled &&  |DSR enabled && (RG  |DSR enabled &&  |Internal error  |
+ * |                |       |                    |RG not enabled  |Pre-Operational or  |RG Operational  |or message      |
+ * |                |       |                    |                |waiting for key    |and not waiting |receive timeout |
+ * |                |       |                    |                |frame after timeout)|for a key frame |                |
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
+ *
+ * Only the built-in DataSetReader can recover automatically from Error, and
+ * only for a message receive timeout. A new valid DataSetMessage resolves the
+ * timeout; the reader remains Pre-Operational if it still needs a key frame.
  */
 
 _UA_BEGIN_DECLS
@@ -475,6 +481,8 @@ struct UA_DataSetReader {
 
     /* MessageReceiveTimeout handling */
     UA_UInt64 msgRcvTimeoutTimerId;
+    UA_Boolean msgRcvTimedOut;
+    UA_Boolean awaitingRecoveryKeyFrame;
     UA_Boolean receivedKeyFrame;
     UA_UInt32 deltaFrameCounter;
 
@@ -482,6 +490,19 @@ struct UA_DataSetReader {
     UA_DataValue *lastUsableValues;
     size_t lastUsableValuesSize;
 };
+
+static UA_INLINE UA_Boolean
+UA_DataSetReader_canRecover(const UA_DataSetReader *dsr) {
+    return dsr->head.state == UA_PUBSUBSTATE_ERROR &&
+        dsr->msgRcvTimedOut && !dsr->config.customStateMachine;
+}
+
+static UA_INLINE UA_Boolean
+UA_DataSetReader_canProcess(const UA_DataSetReader *dsr) {
+    return dsr->head.state == UA_PUBSUBSTATE_OPERATIONAL ||
+        dsr->head.state == UA_PUBSUBSTATE_PREOPERATIONAL ||
+        UA_DataSetReader_canRecover(dsr);
+}
 
 UA_DataSetReader *
 UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id);
@@ -494,9 +515,8 @@ UA_DataSetReader_checkSequence(UA_PubSubManager *psm, UA_DataSetReader *reader,
                                UA_Boolean dataSet, UA_UInt32 number, UA_Byte bits,
                                UA_Boolean update, UA_Boolean *gap);
 
-/* Validate a DataSetMessage and apply its fields to the targets. Return true
- * when the message is accepted, even if an individual target rejects its
- * write. */
+/* Validate a DataSetMessage and apply its fields to the targets. An accepted
+ * message can clear a receive timeout even if it cannot update any targets. */
 UA_Boolean
 UA_DataSetReader_process(UA_PubSubManager *psm,
                          UA_DataSetReader *dataSetReader,
