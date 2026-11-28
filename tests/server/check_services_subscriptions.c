@@ -276,6 +276,35 @@ START_TEST(Server_createSubscription) {
 }
 END_TEST
 
+START_TEST(Server_createSubscription_idWraparound) {
+    createSubscription();
+    UA_UInt32 detachedId = subscriptionId;
+    createSubscription();
+    UA_UInt32 attachedId = subscriptionId;
+
+    lockServer(server);
+    UA_Subscription *detached = UA_Session_getSubscriptionById(session, detachedId);
+    if(detached)
+        UA_Session_detachSubscription(server, session, detached, false);
+    server->lastSubscriptionId = UA_UINT32_MAX - 1;
+    unlockServer(server);
+    ck_assert_ptr_ne(detached, NULL);
+
+    createSubscription();
+    ck_assert_uint_eq(subscriptionId, UA_UINT32_MAX);
+
+    UA_UInt32 firstReusedId = 0;
+    for(size_t i = 0; i < 2; i++) {
+        createSubscription();
+        ck_assert_uint_ne(subscriptionId, firstReusedId);
+        ck_assert_uint_ne(subscriptionId, detachedId);
+        ck_assert_uint_ne(subscriptionId, attachedId);
+        ck_assert_uint_ne(subscriptionId, UA_UINT32_MAX);
+        firstReusedId = subscriptionId;
+    }
+}
+END_TEST
+
 START_TEST(Server_modifySubscription) {
     /* Create a subscription */
     createSubscription();
@@ -1536,6 +1565,24 @@ addTriggeringLink(UA_UInt32 triggeringItemId, UA_UInt32 linkId) {
     UA_SetTriggeringResponse_clear(&resp);
 }
 
+static void
+deleteMonitoredItem(UA_UInt32 id) {
+    UA_DeleteMonitoredItemsRequest dreq;
+    UA_DeleteMonitoredItemsRequest_init(&dreq);
+    dreq.subscriptionId = subscriptionId;
+    dreq.monitoredItemIdsSize = 1;
+    dreq.monitoredItemIds = &id;
+    UA_DeleteMonitoredItemsResponse dres;
+    UA_DeleteMonitoredItemsResponse_init(&dres);
+    lockServer(server);
+    Service_DeleteMonitoredItems(server, session, &dreq, &dres);
+    unlockServer(server);
+    ck_assert_uint_eq(dres.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dres.resultsSize, 1);
+    ck_assert_uint_eq(dres.results[0], UA_STATUSCODE_GOOD);
+    UA_DeleteMonitoredItemsResponse_clear(&dres);
+}
+
 /* A link to a deleted MonitoredItem does not survive the next SetTriggering
  * on the triggering item, also if that item never reported in between */
 START_TEST(Server_setTriggering_pruneDeletedLinks) {
@@ -1548,19 +1595,7 @@ START_TEST(Server_setTriggering_pruneDeletedLinks) {
     UA_UInt32 keptId = monitoredItemId;
 
     addTriggeringLink(triggeringId, deletedId);
-
-    UA_DeleteMonitoredItemsRequest dreq;
-    UA_DeleteMonitoredItemsRequest_init(&dreq);
-    dreq.subscriptionId = subscriptionId;
-    dreq.monitoredItemIdsSize = 1;
-    dreq.monitoredItemIds = &deletedId;
-    UA_DeleteMonitoredItemsResponse dres;
-    UA_DeleteMonitoredItemsResponse_init(&dres);
-    lockServer(server);
-    Service_DeleteMonitoredItems(server, session, &dreq, &dres);
-    unlockServer(server);
-    ck_assert_uint_eq(dres.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    UA_DeleteMonitoredItemsResponse_clear(&dres);
+    deleteMonitoredItem(deletedId);
 
     addTriggeringLink(triggeringId, keptId);
 
@@ -1579,6 +1614,46 @@ START_TEST(Server_setTriggering_pruneDeletedLinks) {
     ck_assert(mon != NULL);
     ck_assert_uint_eq(linksSize, 1);
     ck_assert_uint_eq(firstLink, keptId);
+} END_TEST
+
+START_TEST(Server_createMonitoredItems_idWraparound) {
+    createSubscription();
+    createMonitoredItem();
+    UA_UInt32 triggeringId = monitoredItemId;
+    createMonitoredItem();
+    UA_UInt32 deletedId = monitoredItemId;
+    addTriggeringLink(triggeringId, deletedId);
+    deleteMonitoredItem(deletedId);
+
+    /* Continue at the end of the identifier range. The first item still exists
+     * and its link to the deleted item still reserves the target identifier. */
+    lockServer(server);
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
+    if(sub)
+        sub->lastMonitoredItemId = UA_UINT32_MAX - 1;
+    unlockServer(server);
+    ck_assert(sub != NULL);
+
+    createMonitoredItem();
+    ck_assert_uint_eq(monitoredItemId, UA_UINT32_MAX);
+    createMonitoredItem();
+    UA_UInt32 wrappedId = monitoredItemId;
+    ck_assert_uint_ne(wrappedId, triggeringId);
+    ck_assert_uint_ne(wrappedId, deletedId);
+    ck_assert_uint_ne(wrappedId, UA_UINT32_MAX);
+    createMonitoredItem();
+    ck_assert_uint_ne(monitoredItemId, triggeringId);
+    ck_assert_uint_ne(monitoredItemId, deletedId);
+    ck_assert_uint_ne(monitoredItemId, UA_UINT32_MAX);
+    ck_assert_uint_ne(monitoredItemId, wrappedId);
+
+    /* SetTriggering prunes the expired link, releasing its identifier. */
+    addTriggeringLink(triggeringId, wrappedId);
+    lockServer(server);
+    sub->lastMonitoredItemId = UA_UINT32_MAX;
+    unlockServer(server);
+    createMonitoredItem();
+    ck_assert_uint_eq(monitoredItemId, deletedId);
 } END_TEST
 
 START_TEST(Server_modifySubscription_invalid) {
@@ -2915,6 +2990,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_server = tcase_create("Server Subscription Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_createSubscription);
+    tcase_add_test(tc_server, Server_createSubscription_idWraparound);
     tcase_add_test(tc_server, Server_createSubscription_notificationCallback);
     tcase_add_test(tc_server, Server_closeSessionFromMonitoredItemCreated);
     tcase_add_test(tc_server, Server_republish_unknownSequenceNumber);
@@ -2956,6 +3032,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_setTriggering_addAndRemoveLinks);
     tcase_add_test(tc_server, Server_setTriggering_maxMonitoredItemsPerCall);
     tcase_add_test(tc_server, Server_setTriggering_pruneDeletedLinks);
+    tcase_add_test(tc_server, Server_createMonitoredItems_idWraparound);
     tcase_add_test(tc_server, Server_modifySubscription_invalid);
     tcase_add_test(tc_server, Server_deleteSubscription_invalid);
     tcase_add_test(tc_server, Server_createMonitoredItems_invalidSubscription);
