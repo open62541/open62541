@@ -251,6 +251,15 @@ Main Build Options
     This level is required to complete async Read, Write or Call operations from worker threads.
     Async work on the server's event loop does not require multithreading support.
 
+**UA_ARCH_FOLDER**
+   Folder with the architecture-specific sources (clock and eventloop
+   implementations) for POSIX/Win32 builds. Defaults to :file:`arch/posix` in
+   the source tree. A custom architecture port provides its own folder --
+   under :file:`arch` or outside of the source tree -- with an adapted copy of
+   :file:`arch/posix/CMakeLists.txt` that lists the contained sources. That
+   way the top-level :file:`CMakeLists.txt` does not have to be modified for
+   a custom architecture build.
+
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
 
